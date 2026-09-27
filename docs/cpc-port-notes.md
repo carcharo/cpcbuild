@@ -8,7 +8,7 @@ and Phase 0 (recon) found, and what Phase 1 should start from.
 `tests/…`, `docs/…`, `mkdocs.yml`) are relative to the compiler fork
 `../zxbasic` (branch `cpc-arch`).
 
-Status (2026-09-27): Phase -1 and Phase 0 done. **Phase 1 done** (see §8):
+Status (2026-09-27): Phase -1 and Phase 0 done. **Phase 1** (§8), **Phase 2** (§9) and **Phase 3** (§10) done; next is Phase 4a:
 `--arch cpc` compiles to a flat binary at &1000, and every ROM or hardware
 runtime routine is stubbed or ported. A compiled POKE/FOR/DO-LOOP program runs
 in Caprice32. Committed on `cpc-arch` (e7370b55..024b9b0e).
@@ -695,6 +695,106 @@ Spectrum RST, ROM call, sysvar address or port).
   reporting, and arguably `zxbc.main()` should reset the target to the default
   arch before its first init.
 - Full suite after Phase 1: **2084 passed, 0 failed**.
+
+---
+
+## 9. Phase 2 results (2026-09-27)
+
+Milestone met: `PRINT "Hello CPC"` and the whole text layer run in Caprice32.
+That covers AT, temporary and permanent INK/PAPER, INVERSE, integers and
+fixed-point, comma/TAB, embedded CHR$ codes, wrapping and scrolling.
+
+- **Firmware gate** (`fwcall.asm`): `call .core.__FW_CALL` / `defw entry`;
+  `__FW_CALL_IX` for CAS_* entries. It restores BC' from `FW_BC`, **clears AF'
+  carry**, runs `ei` → call → `di`, then captures BC'. It costs about 210
+  T-states. The AF' clear was added after a stress test (carry set in AF'
+  before each call) crashed after about 37 calls. The firmware ISR starts with
+  `ex af,af'; jr c` and treats carry as "nested interrupt". The earlier
+  2000-iteration BC' stress test (SUB epilogues plus 32-bit EXX maths) passed
+  before and after the fix.
+- **Bootstrap** (`CPC_INIT_00_BOOTSTRAP`, named to sort first among `#init`s):
+  captures BC', zero-fills the private block, sets MODE 1 via SCR_SET_MODE
+  (which also clears the screen and homes the cursor).
+- **Errors:** "Error n" on a fresh line, KM_FLUSH, KM_WAIT_KEY, `rst 0`.
+  Unimplemented stubs still hang. An out-of-range `PRINT AT` fails silently
+  (`__STOP`), exactly as on zx48k.
+- **Text:** print.asm is rewritten on TXT_OUTPUT/TXT_SET_CURSOR/TXT_GET_CURSOR/
+  TXT_SET_PEN/TXT_SET_PAPER/TXT_INVERSE/TXT_CLEAR_WINDOW. Codes below 32 never
+  reach the firmware raw. zx48k's EXX-based print state machine was replaced by
+  a memory state byte, because it would collide with the gate's own `exx`.
+  Fixed on the way: MASK_P/MASK_T were missing (INK/PAPER rely on their being
+  next to ATTR_P/ATTR_T), and TAB used `and 39` as "mod 40".
+- **Build check** (`src/zxbc/zxbc.py` `check_memory_layout`, generic): errors if
+  code+data overlaps a fixed heap, or passes a backend's `MAX_CODE_ADDRESS`
+  (cpc: &9E00). A range-intersection bug (it rejected a heap *below* the code)
+  was fixed and has a test.
+- `run.sh --shot` waits `SHOT_DELAYS` (default 6) autocmd delays.
+- Headless-testing notes: every `-a` token also types Enter, which can satisfy
+  a KM_WAIT_KEY early. Printing is slow enough (thousands of characters take
+  seconds) that a screenshot needs enough delays.
+- Full suite: 2092 passed.
+
+---
+
+## 10. Phase 3 results (2026-09-28)
+
+Phase 3 (core language conformance) is complete.
+
+**Floats.** zx81sd's re-implementation of the Spectrum ROM calculator
+(`fp_calc.asm`, about 2.2 KB with `stackf`) is ported to cpc and entered via
+RST 6 (&0030; installed at boot by an `#init`). `fp_tostr`, `str`, `val`,
+`printf` and `arith/divf` are ported too. The FP workspace sits in the private
+block, which now uses 160 of 1024 bytes. The calculator's 84 `exx` are safe
+because compiled code runs with interrupts off and the firmware is only
+reached through the gate. Float output now **rounds** to 5 decimals: zx81sd
+truncated, so `SIN(PI/6)` printed 0.49999, and `-0` is suppressed.
+Limitations kept from zx81sd: no exponent notation, and VAL accepts a single
+numeric literal. Division by zero gives "Error 5".
+
+**BREAK.** `--enable-break`: CHECK_BREAK polls ESC (KM_TEST_KEY, key 66)
+through the gate, keeping zx48k's calling convention. ESC is seen within a
+few loop iterations, because the firmware only scans the keyboard in its
+interrupt, which runs inside gate calls.
+
+**Test harness (in cpcbuild).**
+- `-D __CPC_PRINTER_ECHO__` (runtime) mirrors all PRINT output to the printer
+  via MC_PRINT_CHAR (&BD2B): newline as LF, AT as LF. In this mode errors
+  skip the key wait, stubs print "NOT IMPLEMENTED", and END prints a `\x04END`
+  marker. END now goes through `.core.__CPC_END` in bootstrap.asm.
+- `tools/cpcrun.py prog.bas`: compile, .dsk, headless Caprice32 with printer
+  capture, `CAP32_WAITBREAK` (breakpoint at 0). Exit codes: 0 = clean END
+  (marker seen), 1 = build error, 2 = timeout/hang, 3 = `--expect` mismatch,
+  4 = reached 0 without the marker (runtime error or crash). AMSDOS names are
+  limited to `[A-Z0-9]`, because Caprice32's autotype can't type `_`.
+- `tests/conformance/*.bas` + `run.py -j N`: 9 self-checking programs
+  (integers, fixed-point, floats including rounding, strings, arrays,
+  DATA/READ, SUB/FUNCTION/recursion, control flow, heap). **9/9 pass** in about
+  15 s.
+
+**Functional-test sweep.** All 1047 zx48k functional tests compile the same
+way for cpc as for zx48k (900 OK, 147 expected failures, 0 cpc-only
+failures). Running the 900 on the CPC: **835 clean END**, 2 deliberate
+runtime errors, 25 stub hits, 31 timeouts, 7 resets. The stub hits are BORDER
+7, LOAD 5, SAVE 5, DRAW 3, PLOT/CIRCLE 2, BEEP 2, PAUSE 1. The timeouts are
+infinite loops by design, a headerless build, and `#pragma org=0`. The resets
+are all Spectrum-specific: `USR 0`, raw ROM calls, DEFB executed as code,
+POKEs from uninitialised variables. **No cpc runtime bugs.** Running cap32 in
+parallel (-j6) gives about 1% spurious resets or timeouts; always re-run
+failures serially.
+
+**Fixed along the way.**
+- `shri16`: the shift-by-1 fast path emitted `srl h` instead of `sra h`
+  (shared z80 backend; 3 goldens updated).
+- The conformance test wrongly assumed ON GOTO/GOSUB is 1-based. It is 0-based
+  per Boriel's docs, and the runtime is correct.
+
+**Found, not fixed** (all core/upstream; recorded in notes.md question 9):
+string-literal comparison crashes constant folding; the float-literal packer
+truncates; STR$ constant folding uses full Python precision; `#pragma
+zxnext=TRUE` re-enables Z80N opcodes on cpc (the backend forces it off only in
+`init()`).
+
+Full suite: 2093 passed.
 
 ---
 
