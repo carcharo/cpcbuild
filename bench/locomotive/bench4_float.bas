@@ -1,0 +1,14 @@
+10 DEFINT i
+20 PRINT#8,"S"
+30 t=TIME
+40 chk=0
+50 FOR i=1 TO 200
+60 x=SQR(i)*SIN(i)+i/3
+70 chk=chk+x
+80 NEXT i
+90 e=TIME
+100 PRINT#8,"E"
+110 PRINT#8,(e-t)/300
+120 PRINT#8,chk
+130 PRINT#8,"DONE"
+140 END
