@@ -1,3 +1,6 @@
 .DS_Store
 *.code-workspace
 __pycache__/
+bench/_work/
+bench/micro/
+bench/*.log

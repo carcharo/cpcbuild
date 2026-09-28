@@ -119,6 +119,39 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   fork (carcharo/zxbasic, branch `cpc-arch`); no PRs or issues to
   boriel-basic. Commits stay split so upstream PRs remain possible later.
 
+- 2026-09-28: **Speed test, Boriel (cpc) vs Locomotive BASIC 1.1** (6128,
+  Caprice32 at real speed; `bench/`, method in `bench/README.md`). Timed by
+  start/end markers on the emulated printer, polled from the host;
+  Locomotive's own TIME agreed within 3-35 ms. Median of 3 runs:
+
+  | Benchmark | Locomotive | Boriel | Boriel speed-up |
+  |---|---|---|---|
+  | BM7 (Rugg/Feldman, integer, 800 iter) | 17.86 s | 1.02 s | 17x |
+  | Integer loop (1500 iter) | 7.33 s | 0.14 s | 52x |
+  | Sieve (primes < 2000) | 14.27 s | 1.16 s | 12x |
+  | Strings (2000 iter) | 12.67 s | 2.91 s | 4.4x |
+  | Screen PRINT (1..600) | 17.48 s | 9.88 s | 1.8x (firmware-bound) |
+  | Float maths (200 x SQR*SIN + i/3) | 9.59 s | 32.31 s | **0.3x (slower)** |
+
+  Caveats. Locomotive's `/` is real division even with DEFINT, while
+  Boriel's integer `/` is integer division, so BM7 is slightly in Boriel's
+  favour. The float test is equivalent (FLOAT counter in both) and the
+  checksums match exactly: 6688.08573. Compiled code runs with interrupts off
+  outside firmware calls, so it skips the firmware's 300 Hz housekeeping.
+
+  Findings:
+  - **Floats are the weak spot.** The Spectrum-ROM-style calculator (the
+    zx81sd port) is about 3x slower than the CPC's own firmware maths that
+    Locomotive uses. SQR alone costs about 112 ms per call, SIN about 43 ms.
+    Spectrum SQR is computed as x^0.5, through LN and EXP.
+  - Compiler crash (core, all archs): `FOR i = a TO b STEP <variable>`
+    raises `AttributeError: 'VarRef' object has no attribute 'value'`
+    (`src/arch/z80/visitor/translator.py` `visit_FOR`).
+  - Reminder: Boriel's `AND` is logical; bitwise is `bAND`.
+
+- 2026-09-28: Float speed accepted as-is for now; games are steered to
+  integer/fixed-point maths (see question 13 for the options if revisited).
+
 ## Questions for when you're back (raised up to Phase 3)
 
 Decisions the next phases need, most urgent first. Detail is in
@@ -169,6 +202,7 @@ cpc-port-notes.md.
    - the float-literal packer (`src/api/fp.py` `fp()`/`bindec32()`)
      truncates the 32-bit mantissa instead of rounding to nearest, so
      `99999.999996` is stored about 4e-5 low;
+   - `FOR ... STEP <variable>` crashes the compiler (`visit_FOR`);
    - STR$ of a compile-time-constant expression is folded in Python at full
      precision (`STR$(SIN(PI/6))` gives `0.49999999999999994`), which
      differs from the runtime's 5-decimal output. Worth making consistent?
@@ -181,7 +215,16 @@ cpc-port-notes.md.
 12. **`#pragma zxnext=TRUE` on cpc.** It re-enables Z80N opcodes, which a
     CPC can't run (the backend only forces `zxnext` off in `init()`). Make it
     an error for `--arch cpc`?
-13. **ORG.** &0040-&0FFF (4 KB) is unused. Keep ORG &1000 (standing
+13. **Float speed. Decided 2026-09-28: accept for now (option d) and see how
+    it goes.** Compiled floats are about 3.4x slower than Locomotive BASIC;
+    per operation, `+ - * /` are roughly even but SIN/COS/EXP/ATN are about
+    3x slower, SQR 4x and LN 5x (`bench/micro_results.md`). Games are steered
+    to integers/fixed-point (12-52x faster than Locomotive). Revisit if
+    float-heavy code turns out to matter. The cheap first step then is a
+    Newton-method SQR (estimated 112 -> ~20 ms). Beyond that: a faster
+    calculator core (~1.3-1.6x on functions), or switching cpc FLOAT to the
+    CPC firmware's maths (Locomotive's speed; big change).
+14. **ORG.** &0040-&0FFF (4 KB) is unused. Keep ORG &1000 (standing
     decision), or allow/default to a lower ORG later if space gets tight?
 
 ## Recommendations in use (see cpc-port-notes.md §5–§6)

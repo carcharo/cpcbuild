@@ -1,0 +1,16 @@
+10 DEFINT i,n
+20 PRINT#8,"S"
+30 t=TIME
+40 n=0
+50 FOR i=1 TO 2000
+60 s$=""
+70 s$=s$+"ab"
+80 s$=s$+"cd"
+90 n=n+LEN(s$)
+100 NEXT i
+110 e=TIME
+120 PRINT#8,"E"
+130 PRINT#8,(e-t)/300
+140 PRINT#8,n
+150 PRINT#8,"DONE"
+160 END
