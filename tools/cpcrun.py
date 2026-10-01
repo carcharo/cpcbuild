@@ -181,7 +181,21 @@ class TimeoutHit(Exception):
     pass
 
 
-def run_emulator(dsk_path: Path, stem: str, printer_out: Path, timeout: float, env: dict[str, str]) -> None:
+# Caprice32's system.model numbers. The 464 has no disc interface built in;
+# rom.slot07 gives it the DDI-1's AMSDOS ROM (cap32's DEFAULT slot07 means
+# "AMSDOS unless the model is a 464"), which is how real 464 disc users run.
+MODELS = {"464": 0, "664": 1, "6128": 2}
+
+
+def run_emulator(
+    dsk_path: Path,
+    stem: str,
+    printer_out: Path,
+    timeout: float,
+    env: dict[str, str],
+    model: str = "6128",
+    typed: list[str] | None = None,
+) -> None:
     cap32 = cap32_bin()
     if not cap32.exists():
         raise BuildError(f"cap32 not found at {cap32} (set CAP32=/path/to/cap32)")
@@ -197,8 +211,24 @@ def run_emulator(dsk_path: Path, stem: str, printer_out: Path, timeout: float, e
         f"file.printer_file={printer_out}",
         "-O",
         "sound.enabled=0",
+        "-O",
+        f"system.model={MODELS[model]}",
+        "-O",
+        "rom.slot07=amsdos.rom",
         "-a",
         f'run"{stem}',
+    ]
+    # Keystrokes for the running program (--type). Each waits for
+    # CAP32_DELAY (cap32's boot_time, about a second) so the program is
+    # already waiting for it -- four times for the first, which also waits
+    # out loading and the bootstrap's key-buffer flush -- then types the
+    # text and RETURN (cap32 ends every -a with RETURN). They must come
+    # before CAP32_WAITBREAK, which holds back the rest of the queue until
+    # address 0 is reached, so a test that types keys should PAUSE a
+    # little before its END.
+    for i, text in enumerate(typed or []):
+        cmd += ["-a", "CAP32_DELAY" * (4 if i == 0 else 1) + text]
+    cmd += [
         "-a",
         "CAP32_WAITBREAK",
         "-a",
@@ -231,6 +261,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--expect", type=Path, default=None, help="diff captured printer text against this file")
     parser.add_argument("--quiet", action="store_true", help="don't print the captured printer text to stdout")
+    parser.add_argument("--model", choices=sorted(MODELS), default="6128", help="CPC model to emulate (default 6128)")
+    parser.add_argument(
+        "--type",
+        dest="typed",
+        action="append",
+        default=[],
+        metavar="TEXT",
+        help="keys to type while the program runs, then RETURN (repeatable; each after a delay)",
+    )
     args = parser.parse_args(argv)
 
     bas_path = args.program.resolve()
@@ -255,7 +294,7 @@ def main(argv: list[str] | None = None) -> int:
 
         exit_code = 0
         try:
-            run_emulator(dsk_path, stem, printer_out, args.timeout, env)
+            run_emulator(dsk_path, stem, printer_out, args.timeout, env, args.model, args.typed)
         except TimeoutHit:
             print(f"cpcrun.py: timeout after {args.timeout}s (hang -- unimplemented stub?)", file=sys.stderr)
             exit_code = 2
