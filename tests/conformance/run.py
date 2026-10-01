@@ -29,6 +29,7 @@ CONFORMANCE_DIR = Path(__file__).resolve().parent
 CPCRUN = CONFORMANCE_DIR.parent.parent / "tools" / "cpcrun.py"
 
 XFAIL_RE = re.compile(r"^\s*REM\s+XFAIL:\s*(.*)$", re.IGNORECASE)
+TYPE_RE = re.compile(r"^\s*REM\s+TYPE:\s*(\S*)\s*$", re.IGNORECASE)
 FAIL_LINE_RE = re.compile(r"^FAIL\b.*$", re.MULTILINE)
 
 
@@ -74,12 +75,26 @@ def find_xfail(bas_path: Path) -> str | None:
     return None
 
 
-def run_one(bas_path: Path, timeout: float) -> Result:
+def find_typed(bas_path: Path) -> list[str]:
+    """Keystrokes a test wants typed while it runs: one per `REM TYPE:
+    text` line, in order (cpcrun.py --type, which adds RETURN)."""
+    typed = []
+    for line in bas_path.read_text().splitlines():
+        m = TYPE_RE.match(line)
+        if m:
+            typed.append(m.group(1))
+    return typed
+
+
+def run_one(bas_path: Path, timeout: float, model: str = "6128") -> Result:
     result = Result(bas_path)
     result.xfail_reason = find_xfail(bas_path)
+    cmd = [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout), "--model", model]
+    for text in find_typed(bas_path):
+        cmd += ["--type", text]
     try:
         proc = subprocess.run(
-            [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout)],
+            cmd,
             capture_output=True,
             text=True,
             timeout=timeout + 30,  # generous outer bound; cpcrun enforces its own
@@ -101,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=20.0)
     parser.add_argument("-k", dest="pattern", default=None, help="only run files whose name contains PATTERN")
     parser.add_argument("-j", dest="jobs", type=int, default=8, help="parallel jobs (default 8)")
+    parser.add_argument("--model", choices=("464", "664", "6128"), default="6128", help="CPC model (default 6128)")
     args = parser.parse_args(argv)
 
     files = args.files or sorted(CONFORMANCE_DIR.glob("*.bas"))
@@ -112,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
 
     results: list[Result] = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(run_one, f, args.timeout): f for f in files}
+        futures = {pool.submit(run_one, f, args.timeout, args.model): f for f in files}
         for fut in as_completed(futures):
             results.append(fut.result())
 

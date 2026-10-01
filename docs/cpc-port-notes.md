@@ -8,7 +8,8 @@ and Phase 0 (recon) found, and what Phase 1 should start from.
 `tests/…`, `docs/…`, `mkdocs.yml`) are relative to the compiler fork
 `../zxbasic` (branch `cpc-arch`).
 
-Status (2026-09-27): Phase -1 and Phase 0 done. **Phase 1** (§8), **Phase 2** (§9) and **Phase 3** (§10) done; next is Phase 4a:
+Status (2026-10-01): Phase -1 and Phase 0 done. **Phase 1** (§8), **Phase 2** (§9), **Phase 3** (§10) and **Phase 4a** (§11) done; next is Phase 4b (UDGs and fonts).
+Phase 1 summary:
 `--arch cpc` compiles to a flat binary at &1000, and every ROM or hardware
 runtime routine is stubbed or ported. A compiled POKE/FOR/DO-LOOP program runs
 in Caprice32. Committed on `cpc-arch` (e7370b55..024b9b0e).
@@ -795,6 +796,114 @@ zxnext=TRUE` re-enables Z80N opcodes on cpc (the backend forces it off only in
 `init()`).
 
 Full suite: 2093 passed.
+
+---
+
+## 11. Phase 4a results (2026-10-01)
+
+Phase 4a (text, input, basic graphics) is complete, on the **464 and the
+6128** (decisions in notes.md, 2026-10-01).
+
+**464 support.** The runtime uses only jumpblock entries every model has;
+nothing from the 664/6128 block &BD3A-&BD5D. Phase 2's KM_FLUSH (&BD3D) was
+replaced by a KM_READ_CHAR drain (`bootstrap.asm` `__CPC_FLUSH_KEYS`), and
+DRAW avoids GRA_SET_FIRST (see below). `cpcrun.py`/`run.py --model 464`,
+and `CPC_MODEL=464 tools/cpc/run.sh`, emulate a 464 with the DDI-1 AMSDOS
+ROM in slot 7 (Caprice32 `-O system.model=0 -O rom.slot07=amsdos.rom`).
+
+**Colour (`colour.asm`).** INK/PAPER keep Spectrum colours 0-7 in ATTR_P/T
+and map them through `PEN_MAP`, a per-mode table of the pen whose firmware
+default colour is nearest (mode 0: exact matches; mode 1: black/blue -> 0,
+red/magenta -> 3, green/cyan -> 2, yellow/white -> 1; mode 2: by brightness).
+The default attribute is INK 7 PAPER 0, i.e. the CPC's own pen 1 on pen 0;
+it is set by the bootstrap, because a program with no PRINT still plots with
+it. BORDER c shows PAPER c's current colour (SCR_GET_INK + SCR_SET_BORDER).
+BRIGHT and FLASH are ignored.
+
+**Text width.** `TXT_COLS` (20/40/80) follows the mode for PRINT AT bounds,
+TAB, comma zones and the pending-wrap column in `sposn.asm`.
+
+**Graphics (`gfx.asm`, `plot.asm`, `draw.asm`, `draw3.asm`, `circle.asm`).**
+Coordinates are mode pixels, origin bottom-left, 16-bit signed; the parser
+casts PLOT/CIRCLE coordinates through `graphics_coord_type()`, which reads
+`GRAPHICS_COORD_TYPE = "integer"` from `src/arch/cpc/__init__.py` (the
+Spectrum archs keep ubyte/byte). `__GRA_XY` scales to the firmware's 640x400
+virtual units; the firmware clips off-screen points silently. The graphics
+pen is the temporary ink (paper under INVERSE 1), and OVER 1 is the
+firmware's XOR write mode (SCR_ACCESS), both cached to save firmware calls.
+- PLOT: GRA_PLOT_ABSOLUTE. DRAW: GRA_LINE_RELATIVE. The firmware also plots a
+  line's first point; under OVER 1 that point would be XORed twice, so DRAW
+  plots it once more (GRA_SET_FIRST would do it, but is 664/6128 only).
+- CIRCLE: midpoint algorithm in mode pixels, each pixel plotted exactly once,
+  so an OVER 1 circle erases itself completely (tested). Stretched in mode 0,
+  squashed in mode 2, because those pixels aren't square.
+- DRAW x,y,a (arc): written fresh, not ported. n = INT(|a| (|dx|+|dy|) / 8) + 1
+  segments (max 255) through `__DRAW`; the vectors are rotated on the
+  calculator, and the last segment ends exactly on the target. A radius-50
+  semicircle takes about 0.25 s.
+- `POINT(x, y)` (cpc stdlib `point.bas`) returns the pixel's pen
+  (GRA_TEST_ABSOLUTE) and restores the graphics cursor afterwards.
+
+**Input, timing, sound.**
+- INKEY$: KM_READ_CHAR, the CPC's buffered model with CPC key codes (RETURN
+  13, DEL 127, cursors 240-243). A key held down repeats at the firmware rate.
+  The bootstrap empties the key buffer so the RETURN from `RUN"` isn't seen.
+- INPUT (cpc stdlib `input.bas`): same API as zx48k's, on KM_WAIT_CHAR with the
+  firmware cursor (TXT_CUR_ON/OFF).
+- PAUSE n: counts 6 ticks of KL_TIME_PLEASE per frame, and ends early on a
+  key, which it puts back with KM_CHAR_RETURN for INKEY$. PAUSE 0 waits for a
+  key.
+- BEEP: SOUND_QUEUE on channel A, full volume, then waits until the channel
+  is idle (SOUND_CHECK). Tone period = 62500 / f, measured in Caprice32
+  (`SOUND 1,478` plays 130.7 Hz; recorded with `SDL_AUDIODRIVER=disk`), so
+  middle C is 239. Constant arguments are converted by `src/arch/cpc/beep.py`:
+  the translator now calls `arch.target.beep`, not `src.arch.zx48k.beep`.
+  Run-time arguments are converted on the calculator. Duration 0 plays nothing.
+- END (non-test builds) and runtime errors wait for a key (`__CPC_WAIT_KEY`)
+  before resetting.
+
+**`cpc.bas`** (cpc stdlib): `Mode n` (SCR_SET_MODE, then the per-mode
+variables and CLS), `GetMode()`, `SetInk pen, colour`, `SetBorder colour`
+(hardware colours 0-26), `WaitVsync` (MC_WAIT_FLYBACK; it returns at once
+if the flyback has already started).
+
+**Spectrum-only stdlib** gives a clear `#error` on cpc: `attr.bas`
+(question 6), `print42.bas`, `print64.bas` (question 7), `screen.bas`
+(SCREEN$), and `sinclair.bas` (it bundles attr/screen and POKEs 23675, which
+on the CPC is inside the program).
+
+**Found along the way.**
+- SCR_ACCESS corrupts DE/HL on the 6128, though the register lists say AF
+  only. The next PLOT went to a garbage position. `__GRA_PREP` now saves
+  both.
+- GRA_TEST_ABSOLUTE moves the graphics cursor, so POINT restores it.
+- The calculator's `int` ($27) uses memory cell 0 for negative numbers, as
+  the Spectrum ROM does. `draw3.asm` rounds with INT(p + 32768.5) - 32768,
+  done in Z80 code, instead. `exp` uses cell 3 and SIN/COS use cells 0-2.
+- Caprice32 headless: every `-a` token types RETURN, which now ends a
+  program at its END key wait. `run.sh --shot` puts its delays and the
+  screenshot into one token. `cpcrun.py --type TEXT` (and `REM TYPE:` lines
+  in conformance tests) types keys while the program runs. The first typed
+  token waits four CAP32_DELAYs, to get past loading and the bootstrap's key
+  flush.
+
+**Tests.** cpcbuild conformance: `graphics.bas` (44 checks, pixels read
+back with POINT), `textio.bas` (PAUSE/BEEP timing on the 300 Hz clock, BEEP
+periods, BORDER, text widths per mode) and `keyboard.bas` (INPUT, INKEY$ with
+typed keys). **12/12 pass on the 6128 and on the 464.** zxbasic:
+`tests/arch/cpc/test_cpc_phase4a.py` (coordinate types per arch, BEEP
+conversion, Spectrum-only stdlib errors), plus new corpus entries in
+`test_cpc_no_spectrum_refs.py`. Full suite: 2117 passed.
+
+**Functional-test sweep** (all 1047 zx48k functional tests through
+`cpcrun.py`, 6128): **844 clean END** (835 in Phase 3), 2 deliberate runtime
+errors (arrcheck, math_ln), 9 resets (Spectrum-specific: USR, raw ROM calls,
+DEFB executed as code, INCBIN'd Spectrum data; optspeed reset in Phase 3
+too), 30 timeouts (infinite loops by design, headerless, `#pragma org`), 10
+stub hits, all LOAD/SAVE/CODE (Phase 5 territory). 152 don't build: 148
+fail on zx48k too, and 4 are the new `#error` libraries (print42, print64,
+stdlib_attr, stdlib_screen). No PLOT/DRAW/CIRCLE/BORDER/BEEP/PAUSE stub hits
+remain.
 
 ---
 

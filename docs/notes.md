@@ -152,16 +152,65 @@ Decisions and versions. The detailed Phase -1/0 findings are in
 - 2026-09-28: Float speed accepted as-is for now; games are steered to
   integer/fixed-point maths (see question 13 for the options if revisited).
 
-## Questions for when you're back (raised up to Phase 3)
+- 2026-10-01: Answers to questions 1 and 4-7 (all as recommended):
+  - Q1: END waits for a key (KM_WAIT_KEY) before `rst 0`, so a program's
+    output stays on screen. Printer-echo (test) builds skip the wait.
+  - Q4: INK/PAPER take Spectrum colours 0-7 and map them through a fixed
+    per-mode table to the nearest pen of the screen mode.
+    `SetInk pen, colour` (cpc.bas) changes the palette directly.
+  - Q5: OVER 1 is XOR for graphics (the firmware's graphics write mode) and
+    ignored for text. BRIGHT is ignored. FLASH may come later via the
+    firmware's flashing inks.
+  - Q6: ATTR()/attribute stdlib stays a permanent stub, documented as an
+    incompatibility (the CPC has no attribute bytes).
+  - Q7: print42.bas/print64.bas are excluded on cpc with an `#error`.
+
+- 2026-10-01: **464 support is required** (the plan's goal: 464/664/6128).
+  The runtime uses only jumpblock entries present on all three models: none
+  of the 664/6128 additions at &BD3A-&BD5D (KM_FLUSH, GRA_SET_FIRST, GRA_FILL,
+  KL_BANK_SWITCH, ...). Phase 2's KM_FLUSH call is replaced by draining the
+  buffer with KM_READ_CHAR. `cpcrun.py`/`run.py` take `--model 464|664|6128`;
+  the 464 run uses `rom.slot07=amsdos.rom` (a 464 with a DDI-1 disc drive).
+  The conformance suite passes 9/9 on the 464.
+- 2026-10-01: **Graphics coordinates are the current mode's physical
+  pixels**, origin bottom-left: mode 1 = 320x200, mode 0 = 160x200, mode 2 =
+  640x200. Spectrum code (256x176) draws 1:1 in mode 1. The runtime converts
+  to the firmware's 640x400 virtual coordinates internally. PLOT/CIRCLE
+  coordinates are 16-bit signed on cpc (the parser casts them to ubyte/byte
+  on the Spectrum archs).
+
+- 2026-10-01: **Phase 4a complete** (cpc-port-notes.md §11). INKEY$, INPUT,
+  PLOT/DRAW (including arcs)/CIRCLE, INK/PAPER/INVERSE/OVER for graphics,
+  BORDER, PAUSE, BEEP, `cpc.bas` (Mode, GetMode, SetInk, SetBorder,
+  WaitVsync) and `point.bas`; 12/12 conformance programs pass on the 6128
+  and on the 464. Smaller decisions made on the way:
+  - Q6 refined: rather than a runtime hang, `attr.bas` is a compile-time
+    `#error` on cpc (like print42/print64), as are `screen.bas` (SCREEN$, not
+    implemented yet) and `sinclair.bas` (it POKEs 23675, inside the program).
+  - INKEY$ is the CPC's buffered KM_READ_CHAR with CPC key codes (RETURN 13,
+    DEL 127, cursors 240-243), as the plan says; see question 15.
+  - Off-screen PLOT/DRAW/CIRCLE points are clipped silently by the firmware
+    (the Spectrum gives "out of screen").
+  - BORDER c shows PAPER c's current colour; `SetBorder` takes a hardware
+    colour 0-26.
+  - BEEP tone period = 62500 / f (measured in Caprice32: the AY runs at
+    1 MHz); constant BEEPs are converted by `src/arch/cpc/beep.py` through
+    `arch.target.beep` (a one-line translator change, harmless upstream).
+  - POINT(x, y) returns the pixel's pen (the Spectrum returns 0/1). With the
+    default colours the paper is pen 0, so `IF POINT(x,y)` still works.
+  - Mode changes clear the screen to the current PAPER (CLS), not to pen 0.
+
+- 2026-10-01: Phase 4a committed to zxbasic `cpc-arch`: 52a9d46e (per-arch
+  graphics coordinate type and BEEP conversion; core, upstream-able), 66101b41
+  (cpc runtime/stdlib/tests, Phase 4a), 80710f35 (run.sh CPC_MODEL and
+  screenshot fix); each passes the full suite (2093, 2117, 2117).
+
+## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
 cpc-port-notes.md.
 
-1. **END and a program's output.** END resets straight to BASIC (decided),
-   so a program that prints and ends shows its output for an instant before
-   the reset clears it. Should END first wait for a key (e.g. a "Press a key"
-   line, or just KM_WAIT_KEY), as the error path already does? The test
-   harness is unaffected either way (echo mode can skip the wait).
+1. ~~END and a program's output.~~ Answered 2026-10-01: END waits for a key.
 2. **Interrupts, stage 2 (§6.1).** Today interrupts only run inside firmware
    calls. Music driven by the frame-flyback event (Phase 4d/5b), and
    anything that should tick during long compute loops, needs the planned
@@ -171,20 +220,11 @@ cpc-port-notes.md.
    fixed-point strings or 0. VAL() accepts a single numeric literal only
    (`VAL("2+2")` doesn't work). Is that enough for now, or should a fuller
    Spectrum-style PRINT-FP / VAL be a Phase 4 item?
-4. **Colour mapping (Phase 4a).** INK/PAPER currently pass the pen through
-   modulo 4. What should Spectrum colours 0-7 become in mode 1 (and mode 0):
-   a fixed palette mapping, or leave it to `SetInk pen, colour`?
-5. **OVER / BRIGHT / FLASH / BOLD / ITALIC (Phase 4a).** These are accepted
-   and ignored today. OVER 1 (XOR text) has no firmware text equivalent;
-   options are the graphics write mode or ignoring it. BRIGHT/FLASH could
-   map to firmware flashing inks. What do you want?
-6. **ATTR() and attribute-based stdlib.** 31 functional tests hit
-   `attr.asm`, the Spectrum attribute byte model, which the CPC doesn't
-   have. Stub it permanently (documented incompatibility), or emulate
-   ATTR(row, col) from the firmware's pen/paper state?
-7. **Spectrum-only stdlib files.** `print42.bas` (UDG sysvar &5C7B) and
-   `print64.bas` (ATTR_P 23693) hard-code Spectrum sysvars. Write cpc
-   versions, or exclude them for cpc with a clear `#error`?
+4. ~~Colour mapping.~~ Answered 2026-10-01: fixed per-mode pen map.
+5. ~~OVER / BRIGHT / FLASH.~~ Answered 2026-10-01: OVER 1 XOR for graphics;
+   BRIGHT ignored; FLASH open (question 17).
+6. ~~ATTR().~~ Answered 2026-10-01: not available (compile-time `#error`).
+7. ~~print42/print64.~~ Answered 2026-10-01: `#error` on cpc.
 8. **UDGs and the character set (Phase 4b).** Cover 128-143 so Spectrum
    block graphics render (the CPC's own glyphs differ), and support a full
    224-character custom font (about 1.75 KB more private block)?
@@ -226,6 +266,25 @@ cpc-port-notes.md.
     CPC firmware's maths (Locomotive's speed; big change).
 14. **ORG.** &0040-&0FFF (4 KB) is unused. Keep ORG &1000 (standing
     decision), or allow/default to a lower ORG later if space gets tight?
+15. **INKEY$ model.** INKEY$ reads the firmware's key buffer (CPC/Locomotive
+    style, per the plan). Spectrum games that move while `INKEY$ = "p"` will
+    feel different: a held key gives one character, then auto-repeat after
+    a delay. Alternative: INKEY$ reports the key held *now*, scanned with
+    KM_TEST_KEY, like the Spectrum. Keep the buffered model (and leave
+    held-key tests to the Phase 4c keyboard library), or switch?
+16. **SCREEN$.** The firmware can read a character back from the screen
+    (TXT_RD_CHAR), so `screen.bas` could be ported instead of being an
+    `#error`. Worth doing in Phase 4b with the character set work?
+17. **FLASH.** The firmware's flashing inks (SCR_SET_FLASHING plus two-colour
+    inks) could emulate FLASH 1 by switching to a spare flashing pen. Wanted,
+    or leave FLASH ignored?
+18. **keys.bas.** `MultiKeys`/`GetKeyScanCode` read Spectrum keyboard ports
+    and use Spectrum scan codes, so they don't work on cpc (they compile but
+    read nothing useful). Give them a cpc version with KM_TEST_KEY now, or
+    wait for the Phase 4c keyboard scan?
+19. **664/6128-only firmware.** Some useful entries (GRA_FILL flood fill,
+    KL_BANK_SWITCH) don't exist on the 464. Offer them in cpc.bas with a
+    run-time model check, or keep cpc.bas to what every model has?
 
 ## Recommendations in use (see cpc-port-notes.md §5–§6)
 
