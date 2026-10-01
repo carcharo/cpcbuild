@@ -8,7 +8,7 @@ and Phase 0 (recon) found, and what Phase 1 should start from.
 `tests/…`, `docs/…`, `mkdocs.yml`) are relative to the compiler fork
 `../zxbasic` (branch `cpc-arch`).
 
-Status (2026-10-01): Phase -1 and Phase 0 done. **Phase 1** (§8), **Phase 2** (§9), **Phase 3** (§10) and **Phase 4a** (§11) and **Phase 4b** (§12) done; next is Phase 4c (graphics library, design in `phase4c-design.md`).
+Status (2026-10-01): Phase -1 and Phase 0 done. **Phase 1** (§8), **Phase 2** (§9), **Phase 3** (§10) and **Phase 4a** (§11) and **Phase 4b** (§12) done; Phase 4c (§13) library done; next: asset pipeline, then speed-ups (notes.md, next steps).
 Phase 1 summary:
 `--arch cpc` compiles to a flat binary at &1000, and every ROM or hardware
 runtime routine is stubbed or ported. A compiled POKE/FOR/DO-LOOP program runs
@@ -964,6 +964,101 @@ pen as the default paper. The real check found the misread above.
 **Functional sweep:** 845 clean END (844 after 4a). The only change is
 stdlib_screen.bas, which now builds and runs instead of hitting the
 `#error`. No regressions.
+
+---
+
+## 13. Phase 4c results: the cpcbuild library (2026-10-01)
+
+The library half of Phase 4c is done; the asset pipeline is still to come.
+Design and decisions: `phase4c-design.md`, notes.md (Phase 4c decisions).
+Everything is written from scratch (MIT, clean-room): nobody working on it
+read CPCtelera's or any other CPC library's source.
+
+**Files** (zxbasic `src/lib/arch/cpc/`): `stdlib/cpcbuild.bas` includes all
+of `stdlib/cpcbuild/{display,sprites,fill,tiles,keyboard,palette}.bas`, on
+top of `runtime/cpcbuild/{core,display,sprite,fill,tiles,keys,palette}.asm`.
+Library state is in the private block (CB_BASE, CB_SHOWN, CB_OFFSET,
+CB_DBUF, CB_TILESET, CB_KEYS; 209 of 1024 bytes now used).
+
+**API.** Coordinates are x in bytes (0-79) and y in pixel lines (0-199), from
+the top-left.
+- display: `ScreenInit`, `WaitRetrace(frames)`, `EnableDoubleBuffer`,
+  `DisableDoubleBuffer`, `FlipBuffer`, `PokeScreen(x, y, b)`,
+  `PeekScreen(x, y)`.
+- sprites: `PutSprite(x, y, w, h, @spr)`, `PutSpriteMasked` (mask/pixel
+  byte pairs), `GetBlock`; clipped on all edges (x, y are signed 16-bit).
+- fill: `PenByte(pen)`, `FillRect(x, y, w, h, pen)`, `ClearScreen(pen)`.
+- tiles: `SetTileSet(@t)`, `DoTile8(x, y, t)`, `DoTile16(x, y, t)` (four 8x8
+  tiles), `TileMap(@map, x, y, w, h)`; x, y in tile cells, off-screen cells
+  skipped.
+- keyboard: `ScanKeys`, `KeyDown(key)`, `AnyKeyDown`, and `KEY_*`/`JOY_*`
+  constants (firmware key numbers).
+- palette: `SetPalette(@colours, count)`, `PalUpload(@colours, count,
+  first)` (NextBuild name); firmware colour numbers 0-26.
+
+**How it works.**
+- `core.asm`: `__CB_ADDR` (x, y to address), `__CB_NEXT_LINE`,
+  `__CB_ROW_WRAPS`/`__CB_INC_X` for rows that wrap the 2 KB block. The
+  firmware's hardware-scroll offset (SCR_GET_LOCATION) is read at
+  ScreenInit, WaitRetrace and FlipBuffer, so drawing stays right after text
+  scrolls. Real offsets are multiples of 80, so only sprites (any x) can
+  straddle the wrap point, not aligned tiles. At offsets up to 48 nothing can
+  wrap, and the sprite/fill routines skip the per-row test.
+- Double buffering: back screen &4000-&7FFF, swapped at the flyback with
+  SCR_SET_BASE. `EnableDoubleBuffer` defines `__CB_DBUF_RESERVED`. The cpc
+  backend's new `RESERVED_RANGE_LABELS` hook (generic, in zxbc's
+  `check_memory_layout`) then reserves &4000-&7FFF: code+data or a heap
+  overlapping it is a build error. Programs that never call it are
+  unaffected. PRINT draws on the shown screen; text must not scroll while
+  double buffering.
+- Keyboard: direct PPI/AY matrix scan (AY register 14, read command &40),
+  then the PPI is restored (control &82, cassette bits kept) so the firmware
+  keeps working. The scan doesn't feed the firmware's key buffer.
+- Palette: firmware SCR_SET_INK/SET_BORDER plus a direct Gate Array write,
+  so changes show at once. `cpc.bas` SetInk/SetBorder now do the same. The
+  27-entry firmware-to-hardware colour table was verified on the 6128 and
+  the 464 by screenshot comparison (`tools/palette_check.py`).
+
+**Speed** (CPC effective T-states, measured in Caprice32):
+
+| Routine | T-states |
+|---|---|
+| PutSprite, 16x16 mode-0 sprite (4x16 bytes) | about 6,100 |
+| PutSpriteMasked, same | about 9,100 |
+| GetBlock, same | about 6,000 |
+| DoTile8 (mode 1) | about 1,850 |
+| TileMap, full screen (40x25 tiles, mode 1) | about 1.47 M (1,450 per tile) |
+
+Correct but not optimised: about 95 T-states per sprite byte, where unrolled
+LDI-based code would manage about a third of that. Left for later.
+
+**Found along the way.**
+- The 300 Hz firmware clock only advances during firmware calls (interrupts
+  are off otherwise), so timing compiled code with KL_TIME_PLEASE around
+  BASIC calls reads near 0. The speed tests run their timed loops through
+  the firmware gate (interrupts on) and calibrate. This is another reason
+  for the own interrupt handler (question 2, Phase 4d).
+- A key pressed only for an instant (as Caprice32 types) can be taken by
+  the firmware's own interrupt-time scan first, so a once-a-frame ScanKeys
+  may miss it. Held keys are fine. Tests scan in a tight loop.
+- Buffering one PASS line per check in a string overflows the default
+  4.7 KB heap in long tests (Error 9 or a reset), so big tests print only
+  FAIL lines and a count.
+- Boriel reminders: AND/OR are logical (bitwise is BAND/BOR/BXOR); `DATA`
+  and `VERIFY` are keywords; a UBYTE FOR loop to 255 never ends.
+
+**Tests.** New cpcbuild conformance programs: `cb_display.bas` (16 checks,
+addressing with and without scroll offset, double buffering, WaitRetrace),
+`cb_sprites.bas` (169), `cb_fill.bas`, `cb_tiles.bas` (107), `cb_keys.bas`
+(typed keys), `cb_palette.bas`. **21/21 programs pass on the 6128 and the
+464.** zxbasic: `tests/arch/cpc/test_cpc_phase4c.py` (the reserved-range
+check, in-process and end to end), a cpcbuild corpus entry. Full suite: 2130
+passed.
+
+**How the work was done.** I wrote the core, display and double buffering
+myself. Three sub-agents (cheaper model) wrote sprites+fill, tiles and
+keyboard+palette in parallel from written specs; their code was reviewed
+and everything re-run here on both models.
 
 ---
 

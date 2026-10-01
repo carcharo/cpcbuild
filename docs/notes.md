@@ -269,6 +269,41 @@ Decisions and versions. The detailed Phase -1/0 findings are in
 - 2026-10-01: Phase 4b committed to zxbasic `cpc-arch` as 7e173480 (full
   suite 2120).
 
+- 2026-10-01: **Phase 4c library done** (cpc-port-notes.md §13): display
+  (ScreenInit, WaitRetrace, double buffering, PokeScreen/PeekScreen),
+  sprites, fill, tiles, keyboard and palette, all MIT and clean-room. 21/21
+  conformance programs pass on the 6128 and the 464. New generic compiler
+  hook: backend `RESERVED_RANGE_LABELS` (double buffering reserves
+  &4000-&7FFF only in programs that call EnableDoubleBuffer). Remaining 4c
+  item: the asset pipeline.
+
+- 2026-10-01: Phase 4c library committed to zxbasic `cpc-arch`: 44bb41bf
+  (generic RESERVED_RANGE_LABELS hook in check_memory_layout; suite 2120),
+  1a3a93f6 (cpcbuild library, tests, goldens; suite 2130).
+- 2026-10-01: **Demo:** `examples/bounce.bas` (mode 0, 16-colour palette,
+  tilemap background, 8 masked sprites, double-buffered, ESC quits). Runs at
+  about 10 updates a second. A first version managed about 6: redrawing the
+  tiles behind each ball with BASIC divisions and 16-bit multiplies cost
+  more than the library calls. Shifts and 8-bit variables fixed most of it;
+  -O2/-O3 made no difference. Run it with
+  `zxbasic/tools/cpc/run.sh ../cpcbuild/examples/bounce.bas`.
+- 2026-10-01: **Next steps (parked here for the day):**
+  1. **Asset pipeline** (the last Phase 4c item): our own MIT Python tools in
+     `cpcbuild/tools`. `img2cpc.py`: PNG to mode 0/1 sprites or 8x8 tiles as
+     Boriel `.bas` include files (`DIM ... => {...}`), masks from a
+     transparent colour, the nearest of the 27 CPC colours, a `SetPalette`
+     list, and Spectrum output (1bpp + attributes) from the same PNG.
+     `tmx2bas.py`: Tiled `.tmx` maps to `TileMap` bytes. Then convert
+     `bounce.bas` to load real assets.
+  2. **Speed-ups:** unrolled sprite routines for common widths (2/4/8 bytes),
+     unrolled masked sprites and tiles (always 8 rows), keeping the generic
+     routines for other sizes and clipped draws. Expected about 3x (16x16
+     mode-0 sprite: about 6,100 to about 2,000 T-states; most of today's
+     cost is per-row overhead around a short LDIR, not the copy). Target:
+     bounce.bas at 25 fps or better.
+  3. Then Phase 4d (AY primitive), which needs question 2 (own interrupt
+     handler) answered.
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
