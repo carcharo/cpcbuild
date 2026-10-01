@@ -205,6 +205,70 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   (cpc runtime/stdlib/tests, Phase 4a), 80710f35 (run.sh CPC_MODEL and
   screenshot fix); each passes the full suite (2093, 2117, 2117).
 
+- 2026-10-01: Answers to questions 8 and 16:
+  - Q8: UDGs 144-164 always on (168 B table in the existing private block).
+    Block graphics 128-143 by translating the code to the CPC's own quadrant
+    characters if their bit order allows (to be verified), else a 128 B table
+    in the private block. The full 224-character font is opt-in: a library
+    (e.g. `#include <font.bas>`, `SetFont(@MyFont)`), so programs that don't
+    include it pay nothing. Its table must be in the central 32K; plan is to
+    allocate it from the heap on first use (settle in 4b).
+  - Q16: port SCREEN$ (`screen.bas`) in Phase 4b on TXT_RD_CHAR (&BB60),
+    saving and restoring the text cursor. Check in the emulator which
+    paper colours and UDGs it recognises.
+
+- 2026-10-01: **Phase 4c writes its own routines (MIT), not CPCtelera's.**
+  CPCtelera is LGPL v3 with no linking exception, so games statically linking
+  its routines would have to allow relinking (ship source or object files).
+  That would break Boriel's promise that compiled programs can be closed
+  source. So sprite/tile/keyboard/palette routines are written from scratch,
+  clean-room: nobody working on them reads CPCtelera's source, and only
+  public knowledge of CPC hardware and techniques is used. Supersedes the
+  plan's "prefer extracting CPCtelera" for the asm layer. Its tools
+  (img2cpc etc.) are separate programs with their own licences, and may
+  still be used in the asset pipeline as external tools.
+- 2026-10-01: Measured: the firmware's user character table always runs from
+  its first character to 255 (`SYMBOL AFTER 144` takes 896 bytes, `SYMBOL
+  AFTER 32` 1792), so UDGs from 144 need 896 bytes, not 168. The Q8 answer's
+  "168 B in the private block" doesn't fit (832 bytes free); see the Q20
+  answer below.
+
+- 2026-10-01: Q20 answered: the 896-byte UDG table is set up only in
+  programs that use USR "a" (the usual way to define UDGs), allocated from
+  the heap at start-up (central 32K, as the firmware needs). Programs without
+  UDGs pay nothing. The opt-in full font (1792 bytes, chars 32-255) replaces
+  it and keeps the UDG data, so there's no double cost.
+
+- 2026-10-01: **Phase 4b complete** (cpc-port-notes.md §12): UDGs (heap
+  table when USR "a" is used), block graphics 128-143 by code translation,
+  opt-in `font.bas` (SetFont), SCREEN$ on TXT_RD_CHAR. 15/15 conformance
+  programs pass on the 6128 and the 464. SCREEN$ misreads cells where both
+  INK and PAPER differ from the current colours (firmware behaviour, differs
+  between the 464 and 6128); documented, not fixed.
+- 2026-10-01: Phase 4c design drafted in `phase4c-design.md`, with open
+  decisions Q-4c.1 to Q-4c.5.
+
+- 2026-10-01: **Phase 4c decisions** (all as recommended in
+  `phase4c-design.md`):
+  - Q-4c.1: double buffering is opt-in, back buffer at &4000, with a build
+    check that code fits below it (&1000-&3FFF) when it's used.
+  - Q-4c.2: library coordinates are x in bytes, y in pixel rows, from the
+    top-left.
+  - Q-4c.3: the library reads the firmware's hardware-scroll offset
+    (SCR_GET_LOCATION) every frame, so text scrolling doesn't break drawing.
+  - Q-4c.4: 8x8 tiles in modes 0 and 1 first; 16x16 drawn as four 8x8 for
+    now.
+  - Q-4c.5: NextBuild-style names wherever NextBuild has an equivalent.
+  - Palette: SetPalette/SetInk/SetBorder call the firmware (to keep its
+    tables right) and also write the same colours to the gate array, so they
+    show at once. Measured: through the firmware alone a colour change only
+    appears at the next frame flyback that happens inside a firmware call
+    (a SetBorder before a long loop never showed).
+  - The own interrupt handler (question 2) stays in Phase 4d, not 4c.
+
+- 2026-10-01: Phase 4b committed to zxbasic `cpc-arch` as 7e173480 (full
+  suite 2120).
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
@@ -225,7 +289,8 @@ cpc-port-notes.md.
    BRIGHT ignored; FLASH open (question 17).
 6. ~~ATTR().~~ Answered 2026-10-01: not available (compile-time `#error`).
 7. ~~print42/print64.~~ Answered 2026-10-01: `#error` on cpc.
-8. **UDGs and the character set (Phase 4b).** Cover 128-143 so Spectrum
+8. ~~UDGs and the character set.~~ Answered 2026-10-01 (see Decisions).
+   Was: **UDGs and the character set (Phase 4b).** Cover 128-143 so Spectrum
    block graphics render (the CPC's own glyphs differ), and support a full
    224-character custom font (about 1.75 KB more private block)?
 9. **Upstream plan (deferred: fork-only for now, see decision above).** If and when to offer PRs to boriel-basic/zxbasic. The
@@ -272,7 +337,7 @@ cpc-port-notes.md.
     a delay. Alternative: INKEY$ reports the key held *now*, scanned with
     KM_TEST_KEY, like the Spectrum. Keep the buffered model (and leave
     held-key tests to the Phase 4c keyboard library), or switch?
-16. **SCREEN$.** The firmware can read a character back from the screen
+16. ~~SCREEN$.~~ Answered 2026-10-01: port it in 4b. Was: **SCREEN$.** The firmware can read a character back from the screen
     (TXT_RD_CHAR), so `screen.bas` could be ported instead of being an
     `#error`. Worth doing in Phase 4b with the character set work?
 17. **FLASH.** The firmware's flashing inks (SCR_SET_FLASHING plus two-colour

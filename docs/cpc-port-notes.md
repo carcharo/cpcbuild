@@ -8,7 +8,7 @@ and Phase 0 (recon) found, and what Phase 1 should start from.
 `tests/…`, `docs/…`, `mkdocs.yml`) are relative to the compiler fork
 `../zxbasic` (branch `cpc-arch`).
 
-Status (2026-10-01): Phase -1 and Phase 0 done. **Phase 1** (§8), **Phase 2** (§9), **Phase 3** (§10) and **Phase 4a** (§11) done; next is Phase 4b (UDGs and fonts).
+Status (2026-10-01): Phase -1 and Phase 0 done. **Phase 1** (§8), **Phase 2** (§9), **Phase 3** (§10) and **Phase 4a** (§11) and **Phase 4b** (§12) done; next is Phase 4c (graphics library, design in `phase4c-design.md`).
 Phase 1 summary:
 `--arch cpc` compiles to a flat binary at &1000, and every ROM or hardware
 runtime routine is stubbed or ported. A compiled POKE/FOR/DO-LOOP program runs
@@ -904,6 +904,66 @@ stub hits, all LOAD/SAVE/CODE (Phase 5 territory). 152 don't build: 148
 fail on zx48k too, and 4 are the new `#error` libraries (print42, print64,
 stdlib_attr, stdlib_screen). No PLOT/DRAW/CIRCLE/BORDER/BEEP/PAUSE stub hits
 remain.
+
+---
+
+## 12. Phase 4b results (2026-10-01)
+
+Phase 4b (UDGs, character set, SCREEN$) is complete on the 6128 and the
+464. Decisions: notes.md questions 8, 16 and 20.
+
+**The firmware's character table.** TXT_SET_M_TABLE (&BBAB) installs a
+"user matrix table" that always covers its first character up to 255
+(measured with `SYMBOL AFTER`: 896 bytes from 144, 1792 from 32), must be in
+the central 32K, and is filled with the glyphs in use when installed. UDGs
+in the existing 1 KB private block (the plan's 168 bytes) were therefore
+impossible.
+
+- **UDGs** (`udg.asm`, pulled in by the cpc copy of `usr_str.asm`): programs
+  that use USR "a" get the 144-255 table (896 bytes) from the heap at
+  start-up, via `#init .core.__UDG_INIT`, named to sort after
+  `__MEM_INIT`. UDG points at it, so `POKE USR "a"+n` and `PRINT CHR$ 144`
+  work as on the Spectrum. Error 3 if the heap can't hold it (or is below
+  &4000). Programs without USR "a" pay nothing. The UDGs start as the CPC's
+  own glyphs 144-164, not copies of A-U.
+- **Block graphics 128-143**: no table needed. They are the CPC's own
+  quadrant characters with the bits paired differently (Spectrum: 0 top
+  right, 1 top left, 2 bottom right, 3 bottom left; CPC: 0 top left, 1 top
+  right, 2 bottom left, 3 bottom right), so print.asm swaps bits 0<->1 and
+  2<->3.
+- **Full font** (cpc stdlib `font.bas`, opt-in): `SetFont(@font)` takes 768
+  bytes for characters 32-127 (the Spectrum's font format). The first call
+  allocates the 32-255 table (1792 bytes of heap), installs it, frees the
+  UDG table (whose glyphs the firmware has just copied) and points UDG into
+  the new one. CHARS = table - 256, as on the Spectrum. Later calls only
+  copy. While switching, both tables exist briefly, so a program that also
+  uses USR "a" needs 2688 bytes of free heap at its first SetFont.
+  Spectrum programs that POKE CHARS (23606) directly won't work: on the CPC
+  that address is inside the program. Use SetFont.
+- **SCREEN$** (cpc stdlib `screen.bas`): TXT_RD_CHAR (&BB60) at the cell,
+  with the text cursor saved and restored. Block graphics are translated
+  back to the Spectrum's codes, and UDGs are recognised (the Spectrum's
+  SCREEN$ doesn't). Off-screen row/column gives "", as does a cell with
+  PLOTted pixels that change the glyph. **Colours:** cells with the current
+  colours, or with only INK or only PAPER changed, read back correctly. With
+  both changed (pen 2 on pen 3) the firmware misreads the cell: as a space
+  on the 6128 and as a solid block on the 464 (their firmware versions
+  differ here).
+
+**Tests.** cpcbuild conformance `udg.bas` (17 checks), `font.bas` (17),
+`screen.bas` (29). **15/15 programs pass on the 6128 and the 464.** zxbasic:
+corpus entries for screen.bas and font.bas, screen.bas removed from the
+"Spectrum-only" error test. Full suite: 2120 passed.
+
+**How the work was done.** SCREEN$ and font.bas were written by two
+sub-agents (cheaper model) in parallel from written specs, then reviewed
+here. The review caught a test that didn't test what it claimed: its
+"different paper" check used PAPER 1, which is pen 0 in mode 1, the same
+pen as the default paper. The real check found the misread above.
+
+**Functional sweep:** 845 clean END (844 after 4a). The only change is
+stdlib_screen.bas, which now builds and runs instead of hitting the
+`#error`. No regressions.
 
 ---
 
