@@ -12,6 +12,7 @@ REM from the bottom-left) where an independent view is wanted.
 #include <cpcbuild/fill.bas>
 
 DIM results$ AS STRING
+DIM tallv, tallp AS UINTEGER
 SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
   IF gotv = wantv THEN
     results$ = results$ + "PASS " + name + CHR$ 13
@@ -181,6 +182,15 @@ CLS
 REM clearing: a rectangle covering one whole line, 80 wide
 FillRect(0, 50, 80, 1, 2)
 CHK("fill_full_line", STR$(CountEq(15)), "80")
+
+REM a tall fill crossing character rows and 2 KB blocks (the no-wrap fast loop)
+CLS
+FillRect(11, 5, 30, 60, 2)
+tallv = CountEq(15)
+tallp = POINT(11 * 4, 199 - 5) + POINT(40 * 4 + 3, 199 - 64) + POINT(10 * 4 + 3, 199 - 30) + POINT(41 * 4, 199 - 30) + POINT(20 * 4, 199 - 65) + POINT(20 * 4, 199 - 4)
+CLS
+FillRect(0, 3, 80, 197, 1)
+CHK("tall", STR$(tallv) + "," + STR$(tallp) + "," + STR$(CountEq(240)), "1800,4,15760")
 
 REM --- ClearScreen ---
 ClearScreen(2)

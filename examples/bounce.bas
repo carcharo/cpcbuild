@@ -2,8 +2,9 @@
 ' bounce.bas -- cpcbuild demo (Amstrad CPC, mode 0)
 '
 ' A tiled background with eight shaded balls bouncing around it,
-' double-buffered. Tiles and sprites are built by the program itself
-' (no asset pipeline yet). ESC quits.
+' double-buffered. The graphics come from the asset pipeline: the PNG and
+' TMX sources in assets/ are converted by tools/build_assets.sh
+' (img2cpc.py, tmx2bas.py) into the .bas includes below. ESC quits.
 '
 '   zxbasic/tools/cpc/run.sh cpcbuild/examples/bounce.bas
 ' ----------------------------------------------------------------
@@ -12,98 +13,16 @@
 #include <cpcbuild.bas>
 
 CONST NBALLS AS UBYTE = 8
-CONST MAPW AS UBYTE = 20          ' mode 0: 20 tiles of 8x8 pixels across
-CONST MAPH AS UBYTE = 25
 
-' Firmware colours for pens 0-15: black, blue, bright blue, sky blue,
-' bright cyan, bright white, red, bright red, orange, bright yellow,
-' green, bright green, magenta, bright magenta, white, cyan.
-DIM pal(15) AS UBYTE => {0, 1, 2, 11, 20, 26, 3, 6, 15, 24, 9, 18, 4, 8, 13, 10}
-
-DIM tiles(95) AS UBYTE            ' 3 tiles x 32 bytes (4 bytes x 8 rows)
-DIM map(499) AS UBYTE             ' 20 x 25 tiles
-DIM spr(383) AS UBYTE             ' 3 balls x 4 bytes x 16 rows x (mask, pixels)
-
-' --- building the graphics -------------------------------------------
-
-' Mode 0 has 2 pixels per byte: the left one in the bits of &AA, the
-' right one in &55; PenByte gives a byte with both pixels in a pen.
-SUB TilePixel(t AS UBYTE, px AS UBYTE, py AS UBYTE, pen AS UBYTE)
-  DIM i AS UINTEGER
-  DIM m AS UBYTE
-  i = t * 32 + py * 4 + px / 2
-  IF px bAND 1 THEN m = $55 ELSE m = $AA
-  tiles(i) = (tiles(i) bAND (m bXOR $FF)) bOR (PenByte(pen) bAND m)
-END SUB
-
-SUB MakeTiles()
-  DIM x, y AS UBYTE
-  FOR y = 0 TO 7
-    FOR x = 0 TO 7
-      ' tile 0: dark blue with a faint dot
-      IF x = 3 AND y = 3 THEN TilePixel(0, x, y, 2) ELSE TilePixel(0, x, y, 1)
-      ' tile 1: brick, black mortar
-      IF y = 3 OR y = 7 OR (y < 3 AND x = 7) OR (y > 3 AND x = 3) THEN
-        TilePixel(1, x, y, 0)
-      ELSEIF y = 0 OR y = 4 THEN
-        TilePixel(1, x, y, 8)
-      ELSE
-        TilePixel(1, x, y, 7)
-      END IF
-      ' tile 2: lighter blue with a sky-blue corner
-      IF x < 2 AND y < 2 THEN TilePixel(2, x, y, 3) ELSE TilePixel(2, x, y, 2)
-    NEXT x
-  NEXT y
-END SUB
-
-SUB MakeMap()
-  DIM x, y AS UINTEGER                ' 16-bit: y * MAPW goes past 255
-  FOR y = 0 TO MAPH - 1
-    FOR x = 0 TO MAPW - 1
-      IF x = 0 OR y = 0 OR x = MAPW - 1 OR y = MAPH - 1 THEN
-        map(y * MAPW + x) = 1
-      ELSEIF (x + y) bAND 1 THEN
-        map(y * MAPW + x) = 2
-      ELSE
-        map(y * MAPW + x) = 0
-      END IF
-    NEXT x
-  NEXT y
-END SUB
-
-' Ball b (0-2), 8x16 pixels -- round on screen, since a mode 0 pixel is
-' twice as wide as it is tall -- shaded with pens dark/mid/light plus a
-' white highlight; outside the circle is transparent (mask bits set).
-' Distances are in half-line units: a pixel is 4 wide and 2 tall.
-SUB MakeBall(b AS UINTEGER, dark AS UBYTE, mid AS UBYTE, lite AS UBYTE)
-  DIM px, py AS INTEGER               ' signed 16-bit: 2 * px - 15 < 0
-  DIM d, h AS INTEGER
-  DIM pen AS UBYTE
-  DIM i AS UINTEGER
-  DIM m AS UBYTE
-  FOR py = 0 TO 15
-    FOR px = 0 TO 7
-      d = (4 * px - 14) * (4 * px - 14) + (2 * py - 15) * (2 * py - 15)
-      h = (4 * px - 8) * (4 * px - 8) + (2 * py - 9) * (2 * py - 9)
-      i = b * 128 + (py * 4 + px / 2) * 2
-      IF px bAND 1 THEN m = $55 ELSE m = $AA
-      IF d > 225 THEN
-        spr(i) = spr(i) bOR m              ' transparent: keep background
-      ELSE
-        IF h < 20 THEN
-          pen = 5
-        ELSEIF h < 90 THEN
-          pen = lite
-        ELSEIF d < 150 THEN
-          pen = mid
-        ELSE
-          pen = dark
-        END IF
-        spr(i + 1) = spr(i + 1) bOR (PenByte(pen) bAND m)
-      END IF
-    NEXT px
-  NEXT py
-END SUB
+' bgtiles: 3 tiles x 32 bytes (4 bytes x 8 rows), and bgtiles_pal, the
+'   firmware colours of pens 0-15: black, blue, bright blue, sky blue,
+'   bright cyan, bright white, red, bright red, orange, bright yellow,
+'   green, bright green, magenta, bright magenta, white, cyan.
+' level: the 20 x 25 tile map (level_W x level_H), from level.tmx.
+' balls: 3 balls x 4 bytes x 16 rows x (mask, pixels), 128 bytes each.
+#include "assets/bgtiles.bas"
+#include "assets/level.bas"
+#include "assets/balls.bas"
 
 ' Redraws the background tiles under a ball (4 bytes x 16 lines): the
 ' 2 or 3 rows of 1 or 2 tile cells it covers. Shifts, not division, and
@@ -117,7 +36,7 @@ SUB EraseBall(x AS UBYTE, y AS UBYTE)
   FOR cy = y >> 3 TO cy1
     p = (CAST(UINTEGER, cy) << 4) + (CAST(UINTEGER, cy) << 2)   ' cy * 20
     FOR cx = cx0 TO cx1
-      DoTile8(cx, cy, map(p + cx))
+      DoTile8(cx, cy, level(p + cx))
     NEXT cx
   NEXT cy
 END SUB
@@ -133,18 +52,12 @@ DIM oy(1, 7) AS UBYTE                 ' 255 = none yet
 DIM i, buf AS UBYTE
 
 Mode 0
-SetPalette(@pal(0), 16)
+SetPalette(@bgtiles_pal(0), bgtiles_PENS)
 SetBorder 0
 ScreenInit()
 
-MakeTiles()
-MakeMap()
-MakeBall(0, 6, 7, 8)      ' red
-MakeBall(1, 10, 11, 9)    ' green
-MakeBall(2, 12, 13, 4)    ' magenta
-
-SetTileSet(@tiles(0))
-TileMap(@map(0), 0, 0, MAPW, MAPH)
+SetTileSet(@bgtiles(0))
+TileMap(@level(0), 0, 0, level_W, level_H)
 EnableDoubleBuffer()
 
 FOR i = 0 TO NBALLS - 1
@@ -174,7 +87,7 @@ DO
       vy(i) = 0 - vy(i)
       by(i) = by(i) + 2 * vy(i)
     END IF
-    PutSpriteMasked(bx(i), by(i), 4, 16, @spr(CAST(UINTEGER, i MOD 3) * 128))
+    PutSpriteMasked(bx(i), by(i), balls_W, balls_H, @balls(CAST(UINTEGER, i MOD 3) * balls_SIZE))
     ox(buf, i) = bx(i)
     oy(buf, i) = by(i)
   NEXT i

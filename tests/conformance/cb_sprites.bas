@@ -82,17 +82,21 @@ REM it only the routine under test runs, which never touches the shadow
 REM registers, so the interrupt handler is safe. It reads the clock (KL TIME
 REM PLEASE, &BD0D), calls the target 500 times with a fake IX frame (x=10,
 REM y=50, w=4, h=16, data/buffer = addr), reads the clock again and returns
-REM the ticks elapsed. which: 0 = empty (just a RET), 1 = PutSprite,
+REM the ticks elapsed (w, h: the frame's width in bytes and height). which: 0 = empty (just a RET), 1 = PutSprite,
 REM 2 = PutSpriteMasked, 3 = GetBlock, 4 = calibration (a counted delay loop
 REM of 1,400,000 T-states -- 50000 passes of 28 T on the CPC, whose Z80 rounds
 REM every instruction up to a whole microsecond).
-FUNCTION Bench(which AS UBYTE, addr AS UINTEGER) AS UINTEGER
+FUNCTION Bench(which AS UBYTE, addr AS UINTEGER, w AS UBYTE, h AS UBYTE) AS UINTEGER
   ASM
   ld a, (ix+5)
   ld (BN_WHICH), a
   ld l, (ix+6)
   ld h, (ix+7)
   ld (BN_FRAME + 8), hl
+  ld a, (ix+9)
+  ld (BN_FRAME + 5), a
+  ld a, (ix+11)
+  ld (BN_FRAME + 7), a
   call .core.__FW_CALL
   defw BN_BODY
   ld hl, (BN_T1)
@@ -169,21 +173,33 @@ BN_END:
   END ASM
 END FUNCTION
 
-DIM sd(0 TO 599) AS UBYTE
+DIM sd(0 TO 719) AS UBYTE
 DIM gbuf(0 TO 599) AS UBYTE
 DIM bgv AS UBYTE = $A5
+
+REM Sprite data starts doff bytes into sd (default 0): the unrolled masked
+REM loops step through the data with INC L when it can't cross a 256-byte
+REM page, so the data's low address byte matters (SetDoff).
+DIM doff AS UINTEGER
 
 REM Sprite data: n plain bytes, or n (mask, pixels) pairs.
 SUB MakeData(n AS UINTEGER, masked AS UBYTE)
   DIM i AS UINTEGER
   FOR i = 0 TO n - 1
     IF masked THEN
-      sd(2 * i) = (i * 29 + 3) BAND 255
-      sd(2 * i + 1) = (i * 71 + 9) BAND 255
+      sd(doff + 2 * i) = (i * 29 + 3) BAND 255
+      sd(doff + 2 * i + 1) = (i * 71 + 9) BAND 255
     ELSE
-      sd(i) = (i * 53 + 17) BAND 255
+      sd(doff + i) = (i * 53 + 17) BAND 255
     END IF
   NEXT i
+END SUB
+
+REM Make the sprite data start at a given low address byte.
+SUB SetDoff(target AS UBYTE)
+  DIM a AS UINTEGER
+  a = @sd(0)
+  doff = (CAST(UINTEGER, target) + 256 - (a BAND 255)) BAND 255
 END SUB
 
 REM Background value over the rectangle and a one-byte margin around it.
@@ -210,9 +226,9 @@ FUNCTION CheckSprite(x AS INTEGER, y AS INTEGER, w AS UBYTE, h AS UBYTE, masked 
         IF xx >= x AND xx < x + w AND yy >= y AND yy < y + h THEN
           idx = (yy - y) * w + (xx - x)
           IF masked THEN
-            want = (bgv BAND sd(2 * idx)) BOR sd(2 * idx + 1)
+            want = (bgv BAND sd(doff + 2 * idx)) BOR sd(doff + 2 * idx + 1)
           ELSE
-            want = sd(idx)
+            want = sd(doff + idx)
           END IF
         ELSE
           want = bgv
@@ -232,10 +248,10 @@ SUB TestSprite(name AS STRING, x AS INTEGER, y AS INTEGER, w AS UBYTE, h AS UBYT
   MakeData(n, masked)
   PutBg(x, y, w, h)
   IF masked THEN
-    PutSpriteMasked(x, y, w, h, @sd(0))
+    PutSpriteMasked(x, y, w, h, @sd(doff))
     CHK(name + "_masked", STR$(CheckSprite(x, y, w, h, 1)), "0")
   ELSE
-    PutSprite(x, y, w, h, @sd(0))
+    PutSprite(x, y, w, h, @sd(doff))
     CHK(name, STR$(CheckSprite(x, y, w, h, 0)), "0")
   END IF
 END SUB
@@ -493,6 +509,70 @@ SUB WrapSuite(m AS STRING, ppb AS UBYTE, fullpen AS UBYTE)
   END IF
 END SUB
 
+#include "lib/cb_fastcase.bas"
+
+DIM fx(0 TO 9) AS UBYTE
+DIM fy(0 TO 9) AS UBYTE
+DIM fh(0 TO 9) AS UBYTE
+
+REM Forces the library's idea of the hardware-scroll offset (a value the
+REM firmware wouldn't set, to reach particular address patterns).
+SUB ForceOffset(v AS UINTEGER)
+  ASM
+  ld l, (ix+4)
+  ld h, (ix+5)
+  ld (.core.CB_OFFSET), hl
+  END ASM
+END SUB
+
+REM The unrolled fast paths (widths 1, 2, 4, 8, drawn whole on the screen,
+REM no row wrapping) against the byte-exact expectation, for PutSprite,
+REM PutSpriteMasked and GetBlock: heights that stay inside a character row,
+REM start mid-row and cross one or two character-row boundaries, rows whose
+REM low address byte sits at the end of a 256-byte page (the masked loops'
+REM safe path), and masked data whose low address byte is at the edge of
+REM the page test (SetDoff). Only the failures are reported.
+SUB FastSuite(m AS STRING, npos AS UBYTE, ndat AS UBYTE)
+  DIM wi, w, pp, dj, x, y, th AS UBYTE
+  fy(0) = 0:   fh(0) = 16: fx(0) = 10
+  fy(1) = 3:   fh(1) = 13: fx(1) = 20
+  fy(2) = 7:   fh(2) = 2:  fx(2) = 0
+  fy(3) = 184: fh(3) = 16: fx(3) = 80
+  fy(4) = 24:  fh(4) = 9:  fx(4) = 13
+  fy(5) = 24:  fh(5) = 1:  fx(5) = 14
+  fy(6) = 57:  fh(6) = 1:  fx(6) = 33
+  fy(7) = 190: fh(7) = 10: fx(7) = 5
+  fy(8) = 8:   fh(8) = 25: fx(8) = 60
+  fy(9) = 120: fh(9) = 24: fx(9) = 2
+  FOR wi = 0 TO 3
+    w = 1
+    IF wi = 1 THEN w = 2
+    IF wi = 2 THEN w = 4
+    IF wi = 3 THEN w = 8
+    FOR pp = 0 TO npos - 1
+      x = fx(pp)
+      IF x + w > 80 THEN x = 80 - w
+      y = fy(pp)
+      doff = 0
+      FastChk(FastCase(x, y, w, fh(pp), 0), m, 0, w, pp, 0)
+      FastChk(FastCase(x, y, w, fh(pp), 1), m, 1, w, pp, 0)
+      FastChk(FastCase(x, y, w, fh(pp), 2), m, 2, w, pp, 0)
+      REM masked data starting at the page test's edge, one byte either side, and at 255
+      IF pp < ndat THEN
+        th = 255 - 16 * w
+        FOR dj = 0 TO 3
+          IF dj = 0 THEN SetDoff(th)
+          IF dj = 1 THEN SetDoff(th + 1)
+          IF dj = 2 THEN SetDoff(th - 1)
+          IF dj = 3 THEN SetDoff(255)
+          FastChk(FastCase(x, y, w, fh(pp), 1), m, 1, w, pp, dj + 1)
+        NEXT dj
+        doff = 0
+      END IF
+    NEXT pp
+  NEXT wi
+END SUB
+
 REM Time n calls with the 300 Hz clock (see main).
 DIM t0, t1 AS ULONG
 DIM i AS UINTEGER
@@ -503,6 +583,12 @@ ScreenInit()
 ClearScreen(0)
 CHK("mode1_clear", STR$(CountEq(0)), "16000")
 Suite("m1", 1)
+FastSuite("m1", 10, 5)
+ForceOffset(6)
+FastSuite("m1_off6", 5, 2)
+ForceOffset(48)
+FastSuite("m1_off48", 4, 1)
+ScreenInit()
 FarOff("m1")
 PixelChecks("m1", 4, 1, 2, $CC)
 WrapSuite("m1", 4, 3)
@@ -512,6 +598,10 @@ Mode 0
 ScreenInit()
 ClearScreen(0)
 Suite("m0", 0)
+FastSuite("m0", 10, 5)
+ForceOffset(50)
+FastSuite("m0_off50", 3, 1)
+ScreenInit()
 FarOff("m0")
 PixelChecks("m0", 2, 5, 12, $AA)
 WrapSuite("m0", 2, 15)
@@ -533,15 +623,19 @@ FOR j = 0 TO 127
   sd(j) = (j * 5 + 1) BAND 255
 NEXT j
 DIM tc, te, tp, tm, tg AS UINTEGER
-tc = Bench(4, @sd(0))
-te = Bench(0, @sd(0))
-tp = Bench(1, @sd(0))
-tm = Bench(2, @sd(0))
-tg = Bench(3, @gbuf(0))
+tc = Bench(4, @sd(0), 4, 16)
+te = Bench(0, @sd(0), 4, 16)
+tp = Bench(1, @sd(0), 4, 16)
+tm = Bench(2, @sd(0), 4, 16)
+tg = Bench(3, @gbuf(0), 4, 16)
 results$ = results$ + "INFO ticks: calibration(1.4M T)=" + STR$(tc) + " empty=" + STR$(te) + " put=" + STR$(tp) + " masked=" + STR$(tm) + " get=" + STR$(tg) + " (per 500 calls, 1/300 s)" + CHR$ 13
 IF tc > 0 THEN
   REM T per call = (ticks - empty ticks) * (1400000 / tc) / 500
   results$ = results$ + "INFO CPC T-states per 4x16 call (routine only): put=" + STR$(CAST(ULONG, tp - te) * 2800 / tc) + " masked=" + STR$(CAST(ULONG, tm - te) * 2800 / tc) + " get=" + STR$(CAST(ULONG, tg - te) * 2800 / tc) + CHR$ 13
+  REM other widths (1x8 and 8x16 = 16x16 pixels in mode 1... bytes 8 wide) and a clipped draw
+  results$ = results$ + "INFO T per call 8x16: put=" + STR$(CAST(ULONG, Bench(1, @sd(0), 8, 16) - te) * 2800 / tc) + " masked=" + STR$(CAST(ULONG, Bench(2, @sd(0), 8, 16) - te) * 2800 / tc) + " get=" + STR$(CAST(ULONG, Bench(3, @gbuf(0), 8, 16) - te) * 2800 / tc) + CHR$ 13
+  results$ = results$ + "INFO T per call 2x8: put=" + STR$(CAST(ULONG, Bench(1, @sd(0), 2, 8) - te) * 2800 / tc) + " masked=" + STR$(CAST(ULONG, Bench(2, @sd(0), 2, 8) - te) * 2800 / tc) + " get=" + STR$(CAST(ULONG, Bench(3, @gbuf(0), 2, 8) - te) * 2800 / tc) + CHR$ 13
+  results$ = results$ + "INFO T per call 3x16 (generic path): put=" + STR$(CAST(ULONG, Bench(1, @sd(0), 3, 16) - te) * 2800 / tc) + " masked=" + STR$(CAST(ULONG, Bench(2, @sd(0), 3, 16) - te) * 2800 / tc) + " get=" + STR$(CAST(ULONG, Bench(3, @gbuf(0), 3, 16) - te) * 2800 / tc) + CHR$ 13
 END IF
 
 PRINT AT 0, 0;
