@@ -411,8 +411,8 @@ overrides of Python emitters in the shared z80 backend, and every future
 upstream change that adds an `exx` becomes an intermittent crash. It can't be
 made robust.
 
-**Recommended (pending approval): give the firmware its registers at the
-boundary, in one place.**
+**Adopted: give the firmware its registers at the boundary, in one place.**
+(Stage 2 below was built in Phase 4d, see §15.)
 1. **Firmware gate (Phase 2).** Every firmware call made by the cpc runtime
    (and, by documented rule, by user `asm`) goes through one gate:
    `exx; ld bc,(FW_BC); exx`, call the entry, then `exx; ld (FW_BC),bc; exx`.
@@ -1116,6 +1116,54 @@ less BASIC per ball (no 2D arrays or MOD in the loop).
 while interrupts are off, but it must be changed for the Phase 4d
 interrupt handler. cb_keys is timing-sensitive on the 464 (SHIFT+Q typed
 by the emulator): a 14-byte layout change made it fail once.
+
+---
+
+## 15. Phase 4d results, part 1: the interrupt front-end (2026-10-02)
+
+Interrupts are now on in compiled code (Q2, always on). Design:
+`phase4d-design.md`. zxbasic f7505ba4.
+
+- `runtime/isr.asm`: `jp __CPC_ISR` at RAM &0038, the original target
+  read from &0039 at boot (the handler is the same code on the 464 and
+  6128: ROM &03CA / &03E7, RAM &B939 / &B941, ends with `ei; ret`). Inside
+  a firmware call (IN_FW = 1) it jumps straight to the original;
+  otherwise it saves AF, BC, DE, HL, IX, IY, AF', BC', DE', HL', loads
+  BC' = FW_BC and clears AF' carry, calls the original with IN_FW = 1
+  (so an interrupt between its `ei; ret` and our `di` goes direct),
+  keeps BC' back into FW_BC and restores.
+- Gate: `di` on entry (IN_FW and BC' change together), `ei` on exit.
+  Bootstrap installs the vector before the first firmware call; END and
+  errors `di` before `rst 0`.
+- Under DI now: ScanKeys (PPI), `__CB_GA_SET` (pen select + colour),
+  ClearScreen's PUSH fill (64-byte chunks, real SP back in between).
+  Plain `di ... ei`, not a saved IFF: `ld a,i` misreports on NMOS Z80s,
+  and compiled code always runs with interrupts on. So these routines
+  return with interrupts on; don't call them from DI code.
+- Firmware event routines (KL_NEW_FRAME_FLY etc.) are called with the
+  lower ROM on, so the routine and its block must be in the central 32K
+  (&4000-&BFFF): not in program code at &1000-&3FFF. Matters for 5b.
+
+**Tests.** Conformance `isr.bas`: interrupts on, vector ours, the 300 Hz
+clock runs during a compute loop with no firmware calls (5,169 ticks),
+a frame-fly event fires once per 6 ticks (861), and an exx-heavy workload
+(SUBs with parameters, 32-bit, float, fixed) matches its interrupts-off
+result. Mutation: skipping the BC' load in the ISR hangs it. Stress
+`tests/stress/isr_stress.bas` (3 minutes emulated, real time): workload,
+TXT_OUTPUT, INKEY$, ScanKeys, SetPalette, ClearScreen and a frame event
+together: 156 passes, no mismatches, frames = ticks / 6 on the 6128
+(9,039) and the 464 (9,036). **25/25 conformance on both models**;
+zxbasic 2130 passed (6 cpc goldens regenerated).
+
+**Behaviour changes found by the suite.**
+- The firmware's key buffer now fills during compiled code. cb_keys'
+  Q and RETURN now reach it too, so INKEY$ returns Q, RETURN, Z, RETURN.
+  (Caprice32 holds a typed key down for 1-2 frames by time, not until
+  it's read, so the firmware scan and ScanKeys both see it; the old
+  note that the firmware "takes" the key was wrong.)
+- Timing with KL_TIME_PLEASE now measures compiled code too: textio's
+  zero-duration BEEP took 16 ticks, its float pitch maths, where it used
+  to read 0. The check now tests that no note is queued.
 
 ---
 

@@ -328,6 +328,14 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   now the main cost, see §14). Open: TileMap with a map stride.
   `__CB_CLEAR` uses SP as a pointer: fix with the 4d interrupt handler.
 
+- 2026-10-02: **Phase 4d part 1 done: own interrupt handler, always on**
+  (cpc-port-notes.md §15; zxbasic f7505ba4). 25/25 conformance on 6128
+  and 464, 3-minute stress test passes on both, zxbasic 2130. Decided
+  while building it: direct-hardware routines use plain DI/EI, not a
+  saved interrupt state (NMOS `ld a,i` bug), so they return with
+  interrupts on. Firmware event routines must live in &4000-&BFFF
+  (called with the lower ROM on). Next: AY_WRITE and the Play library.
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in

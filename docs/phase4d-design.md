@@ -1,5 +1,7 @@
 # Phase 4d design: own interrupt handler and AY primitive
 
+Status: sections 1-6 built (cpc-port-notes.md §15); 7 next.
+
 Decisions (notes.md, 2026-10-02): the handler is **always on**; `AY_WRITE`
 drives the **PPI directly** inside DI/EI.
 
@@ -101,8 +103,9 @@ Gate Array ROM config every interrupt, inks at flyback when flashing):
 - `cpcbuild/palette.asm` `__CB_GA_SET` (pen select + colour is two OUTs);
 - `cpcbuild/display.asm` anything that writes CRTC/GA directly (check);
 - the new `AY_WRITE`.
-Each saves and restores the interrupt state, not just `di ... ei`
-(`ld a,i` puts IFF2 in P/V), so they stay correct if called from DI code.
+Built with plain `di ... ei` (not a saved IFF: `ld a,i` misreports the
+state on NMOS Z80s if an interrupt arrives during it); compiled code
+always runs with interrupts on, so they return with interrupts on.
 Reading PPI port B (VSYNC) needs no DI.
 
 Nothing else in the runtime uses DI/EI/HALT (checked: only stub.asm and
