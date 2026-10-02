@@ -969,7 +969,8 @@ stdlib_screen.bas, which now builds and runs instead of hitting the
 
 ## 13. Phase 4c results: the cpcbuild library (2026-10-01)
 
-The library half of Phase 4c is done; the asset pipeline is still to come.
+The library half of Phase 4c. The asset pipeline and the unrolled routines
+are in §14.
 Design and decisions: `phase4c-design.md`, notes.md (Phase 4c decisions).
 Everything is written from scratch (MIT, clean-room): nobody working on it
 read CPCtelera's or any other CPC library's source.
@@ -1019,18 +1020,16 @@ the top-left.
   27-entry firmware-to-hardware colour table was verified on the 6128 and
   the 464 by screenshot comparison (`tools/palette_check.py`).
 
-**Speed** (CPC effective T-states, measured in Caprice32):
+**Speed** (CPC effective T-states, measured in Caprice32; "after" is the
+unrolled version of 2026-10-02, see §14):
 
-| Routine | T-states |
-|---|---|
-| PutSprite, 16x16 mode-0 sprite (4x16 bytes) | about 6,100 |
-| PutSpriteMasked, same | about 9,100 |
-| GetBlock, same | about 6,000 |
-| DoTile8 (mode 1) | about 1,850 |
-| TileMap, full screen (40x25 tiles, mode 1) | about 1.47 M (1,450 per tile) |
-
-Correct but not optimised: about 95 T-states per sprite byte, where unrolled
-LDI-based code would manage about a third of that. Left for later.
+| Routine | First version | Unrolled |
+|---|---|---|
+| PutSprite, 16x16 mode-0 sprite (4x16 bytes) | about 6,000 | 3,773 |
+| PutSpriteMasked, same | about 9,050 | 5,283 |
+| GetBlock, same | about 5,900 | 3,652 |
+| DoTile8 (mode 1 / mode 0) | 1,853 / 2,639 | 1,179 / 1,546 |
+| TileMap, full screen, per tile (mode 1 / mode 0) | 1,466 / 2,204 | 839 / 1,199 |
 
 **Found along the way.**
 - The 300 Hz firmware clock only advances during firmware calls (interrupts
@@ -1059,6 +1058,64 @@ passed.
 myself. Three sub-agents (cheaper model) wrote sprites+fill, tiles and
 keyboard+palette in parallel from written specs; their code was reviewed
 and everything re-run here on both models.
+
+---
+
+## 14. Phase 4c results: asset pipeline and unrolled routines (2026-10-02)
+
+Phase 4c is complete. Both parts were written by sub-agents (cheaper
+model) from written specs, then reviewed and re-verified here.
+
+**Asset pipeline** (cpcbuild `tools/`, MIT, clean-room, Python + Pillow):
+- `img2cpc.py`: PNG to a Boriel include (`DIM ... AS UBYTE => {...}` plus
+  `CONST`s). Mode 0/1/2 sprites (whole image or `--frame WxH` sheets),
+  `--masked` (mask, pixel) pairs from alpha or `--transparent`, `--tiles`
+  (8x8, `--dedupe` adds a map), palette fixed (`--palette`,
+  `--palette-file`) or built from the image (nearest of the 27 colours),
+  `--write-palette` to share one, and `--spectrum` (1bpp bitmap in UDG
+  order plus one attribute byte per 8x8 cell) from the same PNG.
+- `tmx2bas.py`: Tiled `.tmx` tile layer (csv, base64 plain/zlib/gzip) to a
+  byte map; flip/rotation bits stripped.
+- `build_assets.sh` regenerates every committed include (reproducible,
+  checked byte for byte). Tests: 44 unit tests (`python3 -m unittest
+  discover -s tests/tools`), conformance `cb_assets.bas`.
+- `examples/bounce.bas` now loads `examples/assets/` (PNG + TMX sources,
+  generated includes); the generated data is byte-identical to what its
+  old run-time drawing code built.
+
+**Unrolled routines** (zxbasic `runtime/cpcbuild/`):
+- Sprites: when the sprite is not clipped at a side, no row can wrap
+  (`nowrap.asm`: offset <= 48) and the width is 1, 2, 4 or 8, one dispatch
+  per call picks an LDI-chain inner loop per width; a row driver walks one
+  character row (up to 8 lines, 2 KB apart) at a time. Masked sprites use
+  INC L/INC E when neither the screen row nor the group's data crosses a
+  256-byte page, INC HL/INC DE otherwise. Everything else takes the old
+  generic loops.
+- Tiles: fully unrolled 8-row drawers per mode; TileMap has a per-mode fast
+  row loop (address of the next tile recovered from the drawer's end
+  state) when no row can wrap. FillRect skips the per-row wrap test then.
+- Code size: +1.28 KB for a program using the whole library.
+- Why not the 3x hoped for: on the CPC an LDI costs 20 T-states (measured),
+  so the 64 bytes of a 4x16 sprite cost 1,280 before any stepping.
+- New tests: wider `cb_sprites` (777 checks: every fast width, page edges,
+  offsets 0/6/48/50, modes 0 and 1), `cb_tiles` at forced offsets,
+  `cb_fill` tall fills, `cb_fastdbuf`/`cb_tilesdbuf` (fast paths on the
+  &4000 back screen). Mutation-checked.
+- **24/24 conformance programs pass on the 6128 and the 464**; zxbasic
+  suite 2130 passed. run.py's default timeout is now 120 s (cb_sprites
+  runs about 70 s emulated).
+
+**bounce.bas** went from about 10 to about 12 updates a second, not 25.
+Per frame about 103k T-states are the demo's own BASIC, the 8 masked
+sprites about 66k (42k in the routine), and each DoTile8 call about 2.3k
+including the BASIC call. Next levers: a TileMap that takes a map stride
+(erase a ball's background in one call instead of 4-6 DoTile8 calls), and
+less BASIC per ball (no 2D arrays or MOD in the loop).
+
+**Found:** `__CB_CLEAR` (ClearScreen) uses SP as the fill pointer. Safe
+while interrupts are off, but it must be changed for the Phase 4d
+interrupt handler. cb_keys is timing-sensitive on the 464 (SHIFT+Q typed
+by the emulator): a 14-byte layout change made it fail once.
 
 ---
 

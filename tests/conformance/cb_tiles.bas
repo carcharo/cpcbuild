@@ -172,6 +172,52 @@ FUNCTION FullBad(w AS UBYTE, wr AS UBYTE) AS UINTEGER
   RETURN bad
 END FUNCTION
 
+REM Like FullBad, but every row (the unrolled fast paths run when no row can
+REM wrap; some of their rows have tiles that cross a 256-byte page).
+FUNCTION FullBadAll(w AS UBYTE) AS UINTEGER
+  DIM cx, cy AS UBYTE
+  DIM bad AS UINTEGER = 0
+  FOR cy = 0 TO 24
+    FOR cx = 0 TO 80 / w - 1
+      bad = bad + TileBad(cx, cy, (cx + cy * 3) AND 15, w)
+    NEXT cx
+  NEXT cy
+  RETURN bad
+END FUNCTION
+
+REM Every cell of the screen through the fast paths at a forced offset
+REM (<= 48: no row wraps): TileMap over the whole screen, and (tile8 <> 0)
+REM DoTile8 cell by cell, each checked byte for byte.
+SUB AllRows(lbl AS STRING, w AS UBYTE, forced AS UINTEGER, tile8 AS UBYTE)
+  DIM cx, cy AS UBYTE
+  DIM cxs AS UBYTE
+  cxs = 80 / w
+  SetTileSet(@ts(0))
+  ForceOffset(forced)
+  FOR cy = 0 TO 24
+    FOR cx = 0 TO cxs - 1
+      mpf(CAST(UINTEGER, cy) * cxs + cx) = (cx + cy * 3) AND 15
+    NEXT cx
+  NEXT cy
+  ClearScr()
+  TileMap(@mpf(0), 0, 0, cxs, 25)
+  CHK(lbl + " allrows_map", STR$(FullBadAll(w)), "0")
+  IF tile8 THEN
+    ClearScr()
+    FOR cy = 0 TO 24
+      FOR cx = 0 TO cxs - 1
+        DoTile8(cx, cy, (cx + cy * 3) AND 15)
+      NEXT cx
+    NEXT cy
+    CHK(lbl + " allrows_tile8", STR$(FullBadAll(w)), "0")
+  END IF
+  REM a map offset inside the screen, partly overlapping rows: 7 x 5 at (3, 2)
+  ClearScr()
+  TileMap(@mpf(0), 0, 0, cxs, 1)
+  TileMap(@mpf(CAST(UINTEGER, 2) * cxs + 3), 3, 2, cxs - 3, 5)
+  CHK(lbl + " allrows_submap_count", STR$(CountNZ()), STR$(CAST(UINTEGER, w) * 8 * (cxs + (cxs - 3) * 5)))
+END SUB
+
 REM full = 0 skips the whole-screen checks (the slow ones).
 SUB Suite(lbl AS STRING, w AS UBYTE, forced AS UINTEGER, full AS UBYTE)
   DIM cxs, cx, cy, wr AS UBYTE
@@ -383,6 +429,11 @@ Mode 1
 ScreenInit()
 CLS
 Suite("m1", 2, 0, 1)
+AllRows("m1_off0", 2, 0, 1)
+AllRows("m1_off7", 2, 7, 1)
+AllRows("m1_off48", 2, 48, 0)
+ScreenInit()
+CLS
 RealScroll(1)
 CHK("m1_real_offset_nonzero", STR$(ScrollOffset() > 0), "1")
 Suite("m1_scrolled", 2, 0, 1)
@@ -395,6 +446,10 @@ Mode 0
 ScreenInit()
 CLS
 Suite("m0", 4, 0, 0)
+AllRows("m0_off6", 4, 6, 1)
+AllRows("m0_off2", 4, 2, 0)
+ScreenInit()
+CLS
 RealScroll(0)
 CHK("m0_real_offset_nonzero", STR$(ScrollOffset() > 0), "1")
 Suite("m0_scrolled", 4, 0, 1)
@@ -437,6 +492,21 @@ t0 = Ticks()
 TimedMaps(3, @mpf(0), 40)
 t1 = Ticks()
 sp$ = sp$ + CHR$ 13 + "SPEED 3 maps " + STR$(t1 - t0) + " ticks = " + STR$((t1 - t0) * 13333 / 3000) + " T/tile = " + STR$((t1 - t0) * 13333 / 3) + " T/map"
+
+REM --- speed, mode 0 (the tiles are 4 bytes wide; bounce.bas's mode) ---
+Mode 0
+ScreenInit()
+CLS
+FillTS(4)
+SetTileSet(@ts(0))
+t0 = Ticks()
+TimedTiles(500)
+t1 = Ticks()
+sp$ = sp$ + CHR$ 13 + "SPEED m0 500 tiles " + STR$(t1 - t0) + " ticks = " + STR$((t1 - t0) * 13333 / 500) + " T/tile"
+t0 = Ticks()
+TimedMaps(3, @mpf(0), 20)
+t1 = Ticks()
+sp$ = sp$ + CHR$ 13 + "SPEED m0 3 maps 20x25 " + STR$(t1 - t0) + " ticks = " + STR$((t1 - t0) * 13333 / 1500) + " T/tile"
 
 Mode 1
 ScreenInit()

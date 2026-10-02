@@ -1,0 +1,4 @@
+# bounce.bas pens 0-15 (firmware colours): black, blue, bright blue, sky
+# blue, bright cyan, bright white, red, bright red, orange, bright yellow,
+# green, bright green, magenta, bright magenta, white, cyan.
+0, 1, 2, 11, 20, 26, 3, 6, 15, 24, 9, 18, 4, 8, 13, 10

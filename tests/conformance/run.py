@@ -113,7 +113,7 @@ def run_one(bas_path: Path, timeout: float, model: str = "6128") -> Result:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("files", nargs="*", type=Path, help="specific .bas files (default: all in this directory)")
-    parser.add_argument("--timeout", type=float, default=20.0)
+    parser.add_argument("--timeout", type=float, default=120.0)
     parser.add_argument("-k", dest="pattern", default=None, help="only run files whose name contains PATTERN")
     parser.add_argument("-j", dest="jobs", type=int, default=8, help="parallel jobs (default 8)")
     parser.add_argument("--model", choices=("464", "664", "6128"), default="6128", help="CPC model (default 6128)")

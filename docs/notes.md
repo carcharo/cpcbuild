@@ -304,13 +304,38 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   3. Then Phase 4d (AY primitive), which needs question 2 (own interrupt
      handler) answered.
 
+- 2026-10-02: **Q2 answered (Phase 4d decisions):**
+  - Own IM1 interrupt handler, **always on** (the stage 2 plan in
+    cpc-port-notes.md §6.1): `jp CPC_ISR` at RAM &0038; it hands the
+    firmware its BC' and a clear AF' carry, chains to the original handler
+    and restores both register banks. Built as the first step of Phase 4d,
+    with a minutes-long stress test (exx-heavy loop, firmware calls,
+    frame-fly events). Code that drives the PPI or Gate Array directly
+    (ScanKeys, AY_WRITE, palette writes) must then run inside DI/EI, since
+    the firmware's interrupt-time key scan also uses the PPI.
+  - `AY_WRITE` uses a **direct PPI sequence** (port A data, port C
+    strobes) inside DI/EI, not MC_SOUND_REGISTER.
+- 2026-10-02: Phase 4c remaining work started: asset pipeline
+  (img2cpc.py, tmx2bas.py) and unrolled sprite/tile routines, both by
+  sub-agents from written specs.
+
+- 2026-10-02: **Phase 4c complete** (cpc-port-notes.md §14): asset
+  pipeline (`tools/img2cpc.py`, `tools/tmx2bas.py`, `build_assets.sh`,
+  bounce.bas on real assets) and unrolled sprite/tile routines (sprites
+  about 1.6x faster, tiles 1.6-1.8x; CPC LDI is 20 T, so 3x wasn't
+  reachable). 24/24 conformance on 6128 and 464; zxbasic 2130 passed.
+  bounce.bas about 12 updates/s (target 25 not met; the demo's BASIC is
+  now the main cost, see §14). Open: TileMap with a map stride.
+  `__CB_CLEAR` uses SP as a pointer: fix with the 4d interrupt handler.
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
 cpc-port-notes.md.
 
 1. ~~END and a program's output.~~ Answered 2026-10-01: END waits for a key.
-2. **Interrupts, stage 2 (§6.1).** Today interrupts only run inside firmware
+2. ~~Interrupts, stage 2.~~ Answered 2026-10-02: always-on own IM1
+   handler, built first in Phase 4d. Was: **Interrupts, stage 2 (§6.1).** Today interrupts only run inside firmware
    calls. Music driven by the frame-flyback event (Phase 4d/5b), and
    anything that should tick during long compute loops, needs the planned
    IM1 front-end at &0038. Approve building it before Phase 4d?

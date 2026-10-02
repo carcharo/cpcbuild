@@ -1,0 +1,28 @@
+#!/bin/sh
+# build_assets.sh -- regenerates every committed generated include (the
+# .bas files next to their .png/.tmx sources) with img2cpc.py/tmx2bas.py.
+# Run from anywhere; --draw also redraws the source art first.
+set -e
+cd "$(dirname "$0")/.."
+I="python3 tools/img2cpc.py"
+T="python3 tools/tmx2bas.py"
+
+if [ "$1" = "--draw" ]; then
+  python3 examples/assets/make_sources.py
+  python3 tests/conformance/assets/make_sources.py
+fi
+
+# examples/bounce.bas: mode 0, the 16 pens of bounce.pal shared by all
+A=examples/assets
+$I --mode 0 --name bgtiles --tiles --palette-file $A/bounce.pal $A/bgtiles.png -o $A/bgtiles.bas
+$I --mode 0 --name balls --sprite --frame 8x16 --masked --palette-file $A/bounce.pal --no-palette $A/balls.png -o $A/balls.bas
+$T --name level $A/level.tmx -o $A/level.bas
+
+# tests/conformance/cb_assets.bas
+C=tests/conformance/assets
+$I --mode 1 --name a_spr1 --palette 0,26,6,18 $C/spr1.png -o $C/spr1.bas
+$I --mode 1 --name a_msk1 --masked --palette 0,26,6,18 $C/msk1.png -o $C/msk1.bas
+$I --mode 1 --name a_pic --tiles --dedupe $C/pic1.png -o $C/pic1.bas
+$T --name a_map $C/level.tmx -o $C/level.bas
+$I --mode 0 --name a_spr0 --write-palette $C/pens16.pal $C/spr0.png -o $C/spr0.bas
+$I --mode 0 --name a_msk0 --masked --palette-file $C/pens16.pal $C/msk0.png -o $C/msk0.bas
