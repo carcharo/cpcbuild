@@ -361,6 +361,18 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   tune in bounce.bas through the firmware sound manager, non-blocking,
   measured with -D BENCH.
 
+- 2026-10-02: **Non-blocking firmware sound and bounce with audio.** cpc.bas
+  SoundQueue/SoundFree/SoundBusy/SoundEnvelope/SoundStop (zxbasic
+  commit after eeaba4a9). Verified: the firmware copies sound blocks and
+  envelopes; 1 playing + 4 queued per channel; period = 62500 / f;
+  SoundQueue costs about 0.35 tick (1.2 ms). bounce.bas (8 balls):
+  silent 25.0 updates/s, wall blips 22.3, blips + two-channel tune 20.0
+  (464: 19.8). Work per update +3.4 % (blips) and +10.7 % (blips +
+  music) against about 13 % headroom at two frames per update, so some
+  updates spill into a third frame. Interrupt load: idle 12.3 %, three
+  plain notes 13.9 %, three channels with envelopes stepping every
+  1/100 s 22.9 % (tests/stress/sound_load.bas). Questions 21 and 22.
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
@@ -451,6 +463,12 @@ cpc-port-notes.md.
     count frames and call a frame hook, e.g. for music) and chain to it
     only when switched back, giving that 10 % back. Worth adding (Phase
     5b, with the music frame hook), or keep the firmware always running?
+
+22. **464 volume range.** With no volume envelope the 464's firmware (1.0)
+    takes start volumes 0-7 (writes (v AND 7) * 2), the 664/6128 0-15; with
+    an envelope 0-15 works everywhere. SoundQueue passes the value through
+    and documents it. Map 0-15 down to 0-7 on the 464 automatically (same
+    loudness on every model, one run-time model check), or leave it?
 
 ## Recommendations in use (see cpc-port-notes.md §5–§6)
 
