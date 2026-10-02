@@ -1140,6 +1140,8 @@ Interrupts are now on in compiled code (Q2, always on). Design:
   Plain `di ... ei`, not a saved IFF: `ld a,i` misreports on NMOS Z80s,
   and compiled code always runs with interrupts on. So these routines
   return with interrupts on; don't call them from DI code.
+- Cost: 12.3 % of the CPU in all (calibrated busy loop), about 2 % ours,
+  the rest the firmware's 300 Hz handler (notes.md question 21).
 - Firmware event routines (KL_NEW_FRAME_FLY etc.) are called with the
   lower ROM on, so the routine and its block must be in the central 32K
   (&4000-&BFFF): not in program code at &1000-&3FFF. Matters for 5b.
@@ -1164,6 +1166,64 @@ zxbasic 2130 passed (6 cpc goldens regenerated).
 - Timing with KL_TIME_PLEASE now measures compiled code too: textio's
   zero-duration BEEP took 16 ticks, its float pitch maths, where it used
   to read 0. The check now tests that no note is queued.
+
+---
+
+## 16. Phase 4d results, part 2: AY primitive, Play, fixes (2026-10-02)
+
+Phase 4d is complete. zxbasic fd38011e (swap32), 8b0ee4ad (tiles),
+eeaba4a9 (AY/Play). AY/Play and the TileRestore tests were written by
+sub-agents from written specs, then reviewed and re-verified here.
+
+**AY primitive.** `runtime/ay.asm`: `__CPC_AY_WRITE` (A = register, C =
+value) and `__CPC_AY_READ`, the direct PPI sequence with port C's
+cassette bits kept, for callers that already have interrupts off; `_DI`
+variants for everyone else. `cpc.bas`: `AyWrite(reg, value)`,
+`AyRead(reg)`. About 58 us per write.
+
+**Play** (`stdlib/play.bas`, a copy of zx48k's; its header lists the 8
+changes, zx81sd style):
+- AY writes through a FASTCALL helper calling the raw write: Play runs
+  its whole tune inside its own `di ... ei` (cycle-counted timing), and
+  writes nothing before the `di`.
+- Dividers for the CPC's 1 MHz AY: round(1000000 / 16 / f) with A4 =
+  440 Hz; the zx48k table is exactly the same formula at 1,773,447.5 Hz.
+- Timing: microtick 28 T (the Wait loop is 7 NOPs on the CPC), overhead
+  constants recalibrated (113 / 185 microticks). Tempo within 0.6 % in
+  every trial (`tests/stress/play_tempo.bas`, KL_TIME with a reference
+  loop to remove the interrupt share); a wall-clock check of a 64 s tune
+  agreed to 0.15 %.
+- SOUND_RESET once at the start, so the firmware sound manager is idle.
+- Mixer: `DefaultMixer` %00111000 and `M` masked to 6 bits, because bit 6
+  of AY register 7 set would turn the AY's I/O port (the keyboard) into
+  an output and stop the keyboard.
+- Not supported with `--enable-break` (the gate's `ei` mid-tune would let
+  the keyboard scan collide with AY writes). No audio check is possible:
+  Caprice32 can't record sound, so pitch and length are checked through
+  registers and timing.
+
+**Bug: `__SWAP32` vs interrupts.** The zx48k `swap32.asm` (inherited:
+cpc falls back to zx48k runtime files it doesn't override) does `inc sp`
+x2 ... `dec sp` x2, so the stacked low word is below SP for a few
+instructions. With interrupts on at 300 Hz the handler's pushes
+overwrote it: about 1 in 200 32-bit divisions/MODs went wrong. Fixed with
+a cpc override that only pushes and pops. My §15 audit had searched only
+for `ld sp`; the full audit (inc/dec sp, add hl,sp, ld sp, saves of sp,
+over cpc *and* zx48k runtime and stdlib) found nothing else live: the
+compiler's own `inc sp` only discards; zx0's is a pop; `load.asm` is
+overridden; the rest are Spectrum screen libraries (puttile, SP/Fill,
+cb/maskedsprites, radastan) that can't run on the CPC anyway. Rule for
+new code: nothing live below SP, ever. Conformance `swap32.bas` (6,000
+operations; fails on the old routine).
+
+**TileMapPart / TileRestore** (see notes.md, bounce at 25 updates/s):
+conformance `cb_tilerestore.bas`, 971 checks: modes 0/1/2, scroll
+offsets 0/48 (short path) and 50/2046 (general path), edge clipping,
+off-screen, a 324-position ball sweep, maps wider than the screen, a
+whole-screen stray-write count; 4 of 4 mutations caught.
+
+**Totals: 28/28 conformance programs on the 6128 and the 464; zxbasic
+2137 passed.**
 
 ---
 

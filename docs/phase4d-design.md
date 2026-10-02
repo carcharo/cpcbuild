@@ -1,6 +1,6 @@
 # Phase 4d design: own interrupt handler and AY primitive
 
-Status: sections 1-6 built (cpc-port-notes.md §15); 7 next.
+Status: built (cpc-port-notes.md §15, §16).
 
 Decisions (notes.md, 2026-10-02): the handler is **always on**; `AY_WRITE`
 drives the **PPI directly** inside DI/EI.
@@ -76,7 +76,8 @@ Why IN_FW stays set during the chain: the firmware handler's final
 the firmware's and AF' carry is clear, so the direct path is correct.
 IX/IY are saved because firmware event routines may use them.
 Cost: about 250 T-states over the firmware's own handler, 300 times a
-second (about 2 % of the CPU with the firmware's work).
+second (about 2 % of the CPU). Measured afterwards: with the firmware's
+own handler the total is **12.3 %** (notes.md question 21).
 
 ## 3. The firmware gate (`fwcall.asm`)
 
@@ -109,7 +110,9 @@ always runs with interrupts on, so they return with interrupts on.
 Reading PPI port B (VSYNC) needs no DI.
 
 Nothing else in the runtime uses DI/EI/HALT (checked: only stub.asm and
-fwcall.asm). One file uses SP as a data pointer: `cpcbuild/fill.asm`
+fwcall.asm). (Correction, §16: this search missed `inc sp`/`dec sp` and
+the zx48k files cpc falls back to; zx48k's `swap32.asm` was a live case,
+now overridden.) One file uses SP as a data pointer: `cpcbuild/fill.asm`
 `__CB_CLEAR` (ClearScreen fills with PUSH). An interrupt there would push
 into screen memory, so it must fill in short DI chunks (DI, a few dozen
 PUSHes, restore SP, EI) or drop the PUSH trick; a single DI over the whole

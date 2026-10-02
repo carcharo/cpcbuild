@@ -336,6 +336,31 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   interrupts on. Firmware event routines must live in &4000-&BFFF
   (called with the lower ROM on). Next: AY_WRITE and the Play library.
 
+- 2026-10-02: **bounce.bas at 25 updates/s** (was 10.5). New library
+  calls `TileMapPart` (block out of a wider map: TileMap with a map row
+  length) and `TileRestore` (redraws the tiles under a pixel rectangle, in
+  one call, with a short path when it's on screen and no row wraps). Steps:
+  TileRestore instead of BASIC EraseBall loops 10.5 -> 12.5; ball state in
+  16-byte records via PEEK/POKE instead of indexed arrays 12.5 -> 20.0
+  (every variable-index array access calls Boriel's general `__ARRAY`
+  routine, a few hundred T-states: worth an upstream optimisation for 1D
+  arrays some day); TileRestore short path 20.0 -> 25.0. `-D BENCH` builds
+  of bounce.bas print the rate.
+- 2026-10-02: **Measured: the firmware's interrupt handler takes 12.3 % of
+  the CPU** now that interrupts are always on (calibrated busy loop: 2,394
+  ticks for 2,100 nominal); our front-end is about 2 % of that, the rest is
+  the firmware's own 300 Hz work (key scan, timers, sound manager). The
+  design doc's "about 2 %" was our part only. Question 21 below.
+
+- 2026-10-02: **Phase 4d complete** (cpc-port-notes.md §16): AY_WRITE
+  (direct PPI) and AyWrite/AyRead, Play ported (1 MHz dividers, CPC
+  timing within 0.6 %, SOUND_RESET at start, mixer bit 6 kept clear),
+  interrupt-safe `__SWAP32` (the inherited one corrupted ~0.5 % of 32-bit
+  divisions once interrupts were always on). 28/28 conformance on 6128
+  and 464, zxbasic 2137. Next (asked for): sound effects and a background
+  tune in bounce.bas through the firmware sound manager, non-blocking,
+  measured with -D BENCH.
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
@@ -418,6 +443,14 @@ cpc-port-notes.md.
 19. **664/6128-only firmware.** Some useful entries (GRA_FILL flood fill,
     KL_BANK_SWITCH) don't exist on the 464. Offer them in cpc.bas with a
     run-time model check, or keep cpc.bas to what every model has?
+
+21. **Firmware interrupt load (12.3 % of the CPU).** Always-on interrupts
+    run the whole firmware handler 300 times a second. For games that
+    don't need the firmware's key buffer, timers or sound queue while
+    running, a "game mode" could have our handler skip the firmware (just
+    count frames and call a frame hook, e.g. for music) and chain to it
+    only when switched back, giving that 10 % back. Worth adding (Phase
+    5b, with the music frame hook), or keep the firmware always running?
 
 ## Recommendations in use (see cpc-port-notes.md §5–§6)
 
