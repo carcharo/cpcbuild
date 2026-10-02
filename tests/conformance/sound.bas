@@ -39,11 +39,23 @@ END FUNCTION
 
 REM The volume the AY holds for a note's start volume v with no volume
 REM envelope. 664/6128: v. 464 (firmware 1.0): its volumes are 0-7, doubled
-REM into the AY's 0-15 (the 8 is masked off): (v AND 7) * 2. With an
-REM envelope all models use v as 0-15. Found at start-up (Is464).
+REM into the AY's 0-15, and SoundQueue passes min(7, (v + 1) / 2), so the
+REM AY gets the even volume nearest v. With an envelope all models use v
+REM as 0-15. The 464 is told by its firmware's interrupt handler address
+REM (&B939; &B941 on the 664/6128), as SoundQueue does.
+FUNCTION FASTCALL FwIsrAddr() AS UINTEGER
+  ASM
+  ld hl, (.core.__CPC_ISR_ORIG + 1)
+  END ASM
+END FUNCTION
 DIM is464 AS UBYTE
 FUNCTION Want(v AS UBYTE) AS UBYTE
-  IF is464 THEN RETURN (v BAND 7) * 2
+  DIM h AS UBYTE
+  IF is464 THEN
+    h = (v + 1) >> 1
+    IF h > 7 THEN h = 7
+    RETURN h * 2
+  END IF
   RETURN v
 END FUNCTION
 
@@ -55,11 +67,7 @@ DIM t0, t1 AS ULONG
 DIM p, last AS UINTEGER
 
 REM ---------------- idle ----------------
-SoundStop
-r = SoundQueue(1, 239, 100, 8, 0)
-Wait(5)
-is464 = (Vol(0) = 0)
-SoundStop
+is464 = (FwIsrAddr() = $B939)
 PRINT "INFO is464="; is464
 CHK("idle_free_A", STR$(SoundFree(1)), "4")
 CHK("idle_free_B", STR$(SoundFree(2)), "4")
