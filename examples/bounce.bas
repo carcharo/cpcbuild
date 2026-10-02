@@ -14,7 +14,7 @@
 ' when a ball hits a wall (pitch by ball, an octave lower for the floor and
 ' ceiling), and a looping four-bar tune on channels B (melody) and C
 ' (bass), topped up every 8th update from tables below. Build switches:
-' -D NOMUSIC = effects only, -D NOSOUND = silent.
+' -D NOMUSIC = effects only, -D NOSFX = music only, -D NOSOUND = silent.
 '
 ' Benchmark: built with -D BENCH it runs 250 updates, then prints the
 ' rate (headless: tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D
@@ -24,7 +24,12 @@
 #include <cpc.bas>
 #include <cpcbuild.bas>
 
+' Number of balls, 1-8: 8 unless built with -D BALLS=n.
+#ifdef BALLS
+CONST NBALLS AS UBYTE = BALLS
+#else
 CONST NBALLS AS UBYTE = 8
+#endif
 
 ' bgtiles: 3 tiles x 32 bytes (4 bytes x 8 rows), and bgtiles_pal, the
 '   firmware colours of pens 0-15: black, blue, bright blue, sky blue,
@@ -52,6 +57,9 @@ DIM benchN AS UINTEGER
 #ifndef NOMUSIC
 #define NOMUSIC
 #endif
+#ifndef NOSFX
+#define NOSFX
+#endif
 #endif
 
 ' --- sound -----------------------------------------------------------
@@ -63,7 +71,7 @@ DIM envBlip(2) AS UBYTE = {8, 254, 1}
 DIM envPluck(2) AS UBYTE = {8, 255, 2}
 
 ' Tone periods of the balls' blips (62500 / Hz): C5 D5 E5 G5 A5 C6 D6 E6.
-DIM ballPer(NBALLS - 1) AS UINTEGER = {119, 106, 95, 80, 71, 60, 53, 47}
+DIM ballPer(7) AS UINTEGER = {119, 106, 95, 80, 71, 60, 53, 47}
 
 ' A blip, unless two are already waiting: SoundQueue never waits (it
 ' returns 0 if the channel's queue is full) but a long queue would play
@@ -183,7 +191,7 @@ DO
       v = 0 - v
       POKE p + VX, v
       x = x + v + v
-#ifndef NOSOUND
+#ifndef NOSFX
       Blip(PEEK(UINTEGER, p + PER))
 #endif
     END IF
@@ -193,7 +201,7 @@ DO
       v = 0 - v
       POKE p + VY, v
       y = y + v + v
-#ifndef NOSOUND
+#ifndef NOSFX
       Blip(PEEK(UINTEGER, p + PER) * 2)
 #endif
     END IF

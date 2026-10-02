@@ -388,6 +388,42 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     to the nearest it can play, min(7, (v + 1) / 2) doubled; detected from
     the firmware interrupt handler's address (&B939 vs &B941). Done.
 
+- 2026-10-02: bounce.bas build switches: `-D BALLS=n` (1-8, default 8),
+  `-D NOMUSIC` (blips only), `-D NOSFX` (music only), `-D NOSOUND`
+  (silent). Listened to all of them in Caprice32 (first real listen; tests
+  only check AY registers): blips and tune sound right.
+
+## Pick up here (written 2026-10-02, end of day)
+
+State: Phases 4c and 4d complete and committed. bounce.bas: 25 updates/s
+silent, 22.3 with blips, 20.0 with blips + music. 29/29 conformance on
+the 6128 and 464, zxbasic 2137 passed.
+
+1. **Push** (only committed so far): zxbasic `cpc-arch` has 7 commits
+   not on origin (f7505ba4 .. 8dab664f), cpcbuild `phase-0-1-docs` 6.
+   Origin is carcharo/* only (fork-only rule; nothing upstream).
+2. **Next phase per the plan: 5a** (tests, docs; the upstream part is
+   deferred). Open choices to settle first: question 10 (does the
+   floooh/chips CI harness live in zxbasic, cpcrun.py stays here?) and
+   question 11 (cpcbuild branches: still on `phase-0-1-docs`, never merged
+   to `main`). 5a items: expected-asm snapshot tests for --arch cpc,
+   a CI job, `make run`, a Retro Virtual Machine accuracy check, a docs
+   page for the cpc arch and the cpcbuild library.
+3. **Or 5b first** (music): Arkos Tracker 2 player wrapper plus the
+   opt-in game mode (Q21: our ISR stops chaining to the firmware outside
+   firmware calls, counts frames, calls a frame hook). Firmware event
+   routines and the frame hook data must be at &4000-&BFFF. Target:
+   bounce.bas with Arkos music at 25 updates/s (interrupt load 12-23 %
+   -> ~2 %).
+4. Still open, lower priority: questions 3 (float PRINT/VAL), 12
+   (`#pragma zxnext` on cpc), 14 (ORG), 15 (INKEY$ model; note the key
+   buffer now fills during compiled code), 17 (FLASH), 18 (keys.bas on
+   cpc), 19 (664/6128-only firmware).
+5. Ideas parked: Boriel 1D-array indexing calls the general `__ARRAY`
+   routine (a few hundred T-states per access): an upstream optimisation
+   candidate. A double-buffer (&4000) variant of cb_tilerestore was not
+   written.
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
