@@ -373,6 +373,21 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   plain notes 13.9 %, three channels with envelopes stepping every
   1/100 s 22.9 % (tests/stress/sound_load.bas). Questions 21 and 22.
 
+- 2026-10-02: **Q21 and Q22 answered.**
+  - Q21: an opt-in **game mode** in Phase 5b, built with the music player.
+    The default stays as now (firmware handler always running: INKEY$,
+    BEEP, timers, events just work). In game mode our handler stops
+    chaining to the firmware outside firmware calls: it counts frames
+    and calls a frame hook at the flyback (music player, user code).
+    Inside firmware calls interrupts still go to the firmware, so PRINT,
+    MC_WAIT_FLYBACK and KM_WAIT_KEY keep working. Given up while in game
+    mode: firmware key buffer, 300 Hz clock, sound queue (use ScanKeys,
+    the frame counter, the music player, which owns the AY). Benchmark:
+    bounce.bas with music in game mode, expected back at 25 updates/s.
+  - Q22: SoundQueue scales volumes on the 464 (firmware 1.0, no envelope)
+    to the nearest it can play, min(7, (v + 1) / 2) doubled; detected from
+    the firmware interrupt handler's address (&B939 vs &B941). Done.
+
 ## Questions for when you're back (raised up to Phase 4a)
 
 Decisions the next phases need, most urgent first. Detail is in
@@ -456,7 +471,7 @@ cpc-port-notes.md.
     KL_BANK_SWITCH) don't exist on the 464. Offer them in cpc.bas with a
     run-time model check, or keep cpc.bas to what every model has?
 
-21. **Firmware interrupt load (12.3 % of the CPU).** Always-on interrupts
+21. ~~Firmware interrupt load.~~ Answered 2026-10-02: opt-in game mode in 5b. Was: **Firmware interrupt load (12.3 % of the CPU).** Always-on interrupts
     run the whole firmware handler 300 times a second. For games that
     don't need the firmware's key buffer, timers or sound queue while
     running, a "game mode" could have our handler skip the firmware (just
@@ -464,7 +479,7 @@ cpc-port-notes.md.
     only when switched back, giving that 10 % back. Worth adding (Phase
     5b, with the music frame hook), or keep the firmware always running?
 
-22. **464 volume range.** With no volume envelope the 464's firmware (1.0)
+22. ~~464 volume range.~~ Answered 2026-10-02: scale automatically (done). Was: **464 volume range.** With no volume envelope the 464's firmware (1.0)
     takes start volumes 0-7 (writes (v AND 7) * 2), the 664/6128 0-15; with
     an envelope 0-15 works everywhere. SoundQueue passes the value through
     and documents it. Map 0-15 down to 0-7 on the 464 automatically (same
