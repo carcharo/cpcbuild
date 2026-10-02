@@ -399,9 +399,9 @@ State: Phases 4c and 4d complete and committed. bounce.bas: 25 updates/s
 silent, 22.3 with blips, 20.0 with blips + music. 29/29 conformance on
 the 6128 and 464, zxbasic 2137 passed.
 
-1. **Push** (only committed so far): zxbasic `cpc-arch` has 7 commits
-   not on origin (f7505ba4 .. 8dab664f), cpcbuild `phase-0-1-docs` 6.
-   Origin is carcharo/* only (fork-only rule; nothing upstream).
+1. ~~Push.~~ Done 2026-10-02: zxbasic `cpc-arch` at 8dab664f and cpcbuild
+   `phase-0-1-docs` pushed to carcharo/* (fork-only rule; nothing
+   upstream).
 2. **Next phase per the plan: 5a** (tests, docs; the upstream part is
    deferred). Open choices to settle first: question 10 (does the
    floooh/chips CI harness live in zxbasic, cpcrun.py stays here?) and
