@@ -84,11 +84,18 @@ d = 0.05
 BEEP d, p
 CHK("beep_runtime_octave_down", STR$(PEEK(UINTEGER, $9EAF)), "478")
 
+REM A zero duration plays nothing: no note is queued (the period stays
+REM at the last one, 478, though p now asks for 239) and BEEP returns
+REM without waiting. The time is the float pitch maths alone (about 50 ms;
+REM the clock runs during compiled code since Phase 4d); a 0.1 s note
+REM would take 30 ticks or more.
 d = 0
+p = 0
 t0 = Ticks()
 BEEP d, p
 t1 = Ticks()
-CHKRANGE("beep_zero_duration", t1 - t0, 0, 6)
+CHK("beep_zero_no_note", STR$(PEEK(UINTEGER, $9EAF)), "478")
+CHKRANGE("beep_zero_duration", t1 - t0, 0, 25)
 
 REM --- BORDER c shows PAPER c's colour ---
 BORDER 2

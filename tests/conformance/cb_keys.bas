@@ -1,12 +1,12 @@
 REM Conformance: cpcbuild keyboard (Phase 4c) -- direct matrix scan.
 REM cpcrun.py types Q (with SHIFT, it is upper case) then RETURN, and a
 REM second later Z then RETURN, into the running program (run.py reads the
-REM lines below). The emulator presses each key only for a moment, and its
-REM key is gone once the Z80 has read it, so the program scans in a tight
-REM loop with interrupts off (as compiled code runs) to catch it, for up to
-REM about 10 seconds. The firmware's own scan never runs during that loop,
-REM so Q and its RETURN do not reach the firmware's key buffer; Z, typed
-REM after the loop, does: that shows the firmware still works afterwards.
+REM lines below). The emulator holds each key down for only a frame or
+REM two, so the program scans in a tight loop to catch it, for up to about
+REM 10 seconds. Interrupts are on in compiled code (Phase 4d), so the
+REM firmware's own scan runs alongside and its key buffer gets every key
+REM too: INKEY$ at the end must return Q, RETURN, Z, RETURN, which shows
+REM the firmware's keyboard still works after thousands of direct scans.
 REM TYPE: Q
 REM TYPE: Z
 
@@ -69,15 +69,15 @@ CHK("released_any", STR$(AnyKeyDown()), "0")
 CHK("released_q", STR$(KeyDown(KEY_Q)), "0")
 
 REM --- the firmware still works after thousands of direct scans: its
-REM interrupt (on during WaitRetrace) now sees Z, and INKEY$ returns it ---
+REM interrupt-time scan saw every key, and INKEY$ returns them in order ---
 got$ = ""
 frames = 0
 DO
   WaitRetrace(1)
   got$ = got$ + INKEY$
   frames = frames + 1
-LOOP UNTIL LEN(got$) >= 2 OR frames >= 500
-CHK("firmware_inkey", got$, "Z" + CHR$ 13)
+LOOP UNTIL LEN(got$) >= 4 OR frames >= 500
+CHK("firmware_inkey", got$, "Q" + CHR$ 13 + "Z" + CHR$ 13)
 CHK("inkey_empty_now", STR$(LEN(INKEY$)), "0")
 
 REM --- direct scans between firmware calls don't upset it either ---
