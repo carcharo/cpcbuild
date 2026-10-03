@@ -542,29 +542,29 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   songs/sprites above &8000 (heap area) or into the 6128's extra banks,
   or single buffering.
 
-## Pick up here (written 2026-10-03)
+## Pick up here (updated 2026-10-03, after Phase 5b)
 
-State: pre-5a and Phase 5a complete, merged into cpcbuild `main`; zxbasic
-`cpc-arch` pushed. Tests: conformance 30/30 on chips (464, 6128) and
-Caprice32 (464, 664, 6128); screen tests 16/16; zxbasic 2168; CI green.
+State: Phases pre-5a, 5a and 5b complete and merged into cpcbuild `main`;
+zxbasic `cpc-arch` pushed. Conformance 33/33 on chips (464, 6128) and
+Caprice32 (464, 664, 6128); screen tests 16/16; zxbasic 2169; CI green.
+bounce: 25 updates/s with Arkos music and effects in game mode.
 
-1. **Next phase: 5b** (music): Arkos Tracker 2 player wrapper
-   (`music.bas`: MusicInit/MusicFrame/MusicStop, maybe SfxPlay) plus the
-   opt-in game mode agreed for Q21 (our ISR stops chaining to the firmware
-   outside firmware calls, counts frames, calls a frame hook; frame-hook
-   code and data at &4000-&BFFF). Target: bounce.bas with Arkos music at
-   25 updates/s. Start a `phase-5b` branch. Plans name the agent model
-   per step.
+1. **Next: Phase 5c**, the demo game: one small game (single-screen
+   platformer or shooter) from one .bas codebase for `--arch zx48k` and
+   `--arch cpc`, per-platform assets, Arkos tune on both (PLAN
+   "Phase 5c"). It needs the Spectrum side of music.bas (deferred from 5b)
+   and a plan for code space: bounce is within ~12 bytes of the &4000
+   ceiling under double buffering (see the 2026-10-03 note: lower ORG,
+   data above &8000, 6128 banks, or single buffering). Start a `phase-5c`
+   branch; plans name the agent model per step.
 2. Small open item (low priority): the cpcbuild library's false-positive
-   compiler warnings (W150 unused parameter, W190 no return, W170 never
-   called) on every program that includes it. (The stale Caprice32 README
-   line about Plus interrupts is left alone: outside our forks, and its
-   maintainers may have reasons. Decided 2026-10-03.)
-3. Still-open questions: 3 (float PRINT/VAL), 14 (ORG), 15 (INKEY$
-   model), 17 (FLASH), 18 (keys.bas on cpc), 19 (664/6128-only firmware).
+   compiler warnings (W150/W190/W170).
+3. Still-open questions: 3 (float PRINT/VAL), 14 (ORG; now relevant),
+   15 (INKEY$ model), 17 (FLASH), 18 (keys.bas on cpc), 19 (664/6128-only
+   firmware).
 4. Ideas parked: Boriel 1D-array indexing optimisation (upstream
    candidate); a double-buffer variant of cb_tilerestore; RVM spot-check
-   of bounce when convenient (optional).
+   (optional).
 
 ## Pick up here (written 2026-10-02, end of day; superseded)
 
