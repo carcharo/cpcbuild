@@ -527,6 +527,20 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     started failing after the ISR change shifted timing): it combines the
     scans while Q is held.
 
+- 2026-10-03: Listening report: a Caprice32 launched from a background
+  shell ran with no visible window and its audio froze for ~1 s every
+  ~2.3 s (held notes; user recording). A probe in bounce (channel B period
+  and volume sampled every update) showed the music advancing at every one
+  of 250 updates in normal and game mode, on chips and Caprice32 headless:
+  our player doesn't stall. Cause: the host throttling the windowless
+  emulator (macOS App Nap). Listen with the Caprice32 window visible.
+- 2026-10-03: **bounce.bas is within ~12 bytes of its code ceiling** (code
+  and data must stay below &4000 when double buffering; with music it
+  ends just under). The 5c demo game will need room: options include a
+  lower ORG (question 14: &0040-&0FFF is unused), moving data such as
+  songs/sprites above &8000 (heap area) or into the 6128's extra banks,
+  or single buffering.
+
 ## Pick up here (written 2026-10-03)
 
 State: pre-5a and Phase 5a complete, merged into cpcbuild `main`; zxbasic
