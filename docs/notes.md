@@ -451,7 +451,39 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     unit tests, chips conformance on 464/6128, screen tests).
   - Docs: docs/library.md (API reference), README refresh.
 
-## Pick up here (written 2026-10-02, end of day)
+- 2026-10-03: **Phase 5a complete.** CI green on GitHub (first run 5m29s;
+  with caches 4m06s): zxbasic pytest on Linux, chipsrun built with gcc,
+  chips conformance 30/30 on 464 and 6128, screen tests 16/16. A
+  deliberately broken branch (one UDG byte) failed CI with "6 pixels
+  differ" on both models and uploaded the diff images. Actions moved to
+  checkout v7 / setup-python v7 / cache v6 / upload-artifact v7 (Node 24).
+  Merged `phase-5a` into `main`.
+
+## Pick up here (written 2026-10-03)
+
+State: pre-5a and Phase 5a complete, merged into cpcbuild `main`; zxbasic
+`cpc-arch` pushed. Tests: conformance 30/30 on chips (464, 6128) and
+Caprice32 (464, 664, 6128); screen tests 16/16; zxbasic 2168; CI green.
+
+1. **Next phase: 5b** (music): Arkos Tracker 2 player wrapper
+   (`music.bas`: MusicInit/MusicFrame/MusicStop, maybe SfxPlay) plus the
+   opt-in game mode agreed for Q21 (our ISR stops chaining to the firmware
+   outside firmware calls, counts frames, calls a frame hook; frame-hook
+   code and data at &4000-&BFFF). Target: bounce.bas with Arkos music at
+   25 updates/s. Start a `phase-5b` branch. Plans name the agent model
+   per step.
+2. Small open items: the cpcbuild library's false-positive compiler
+   warnings (W150 unused parameter, W190 no return, W170 never called) on
+   every program that includes it; the stale Caprice32 README line about
+   Plus interrupts (could be reported upstream to Caprice32, outside our
+   fork rule? ask first).
+3. Still-open questions: 3 (float PRINT/VAL), 14 (ORG), 15 (INKEY$
+   model), 17 (FLASH), 18 (keys.bas on cpc), 19 (664/6128-only firmware).
+4. Ideas parked: Boriel 1D-array indexing optimisation (upstream
+   candidate); a double-buffer variant of cb_tilerestore; RVM spot-check
+   of bounce when convenient (optional).
+
+## Pick up here (written 2026-10-02, end of day; superseded)
 
 **Superseded by the pre-5a / Phase 5a plan (entries of 2026-10-03 above).**
 
