@@ -603,6 +603,22 @@ Decisions and versions. The detailed Phase -1/0 findings are in
 
 - 2026-10-03: **Phase 5c complete** (games/shooter): Starfall, a single-screen shooter for CPC 464/6128 and Spectrum 48K/128K from one .bas codebase. Four builds, one disc per CPC with the disc loader auto-selecting 6128 or 464. Speeds: CPC 6128 25.0 steps/s (with music/effects in game mode), CPC 464 ~25.0 (single-buffered, ~30 % spare), Spectrum 128K 24.2 (about 20 of 250 steps overrun at formation moves; the player costs ~0.2 frame per step), Spectrum 48K 25.0 silent. Logic 25 Hz, 128x160 logical units shared by all builds. Tests: 102 logic checks plus title/gameplay screenshot goldens for every build on chips; disc test manual (Caprice32, not CI). Platform layers: custom 8x8 sprite routines on CPC (20.5 KB library didn't fit below &4000), custom 16x16 masked sprites on Spectrum (Boriel's maskedsprites took 2.3 frames). Banking (6128): `MusicInitBank` pages songs from extra RAM around ticks; paging costs ~110 T-states/frame, 0.14 % overhead. The disc loader (Z80 asm) detects the extra RAM with its own copy of the banks library's probe. Notes: Spectrum 128K at 24.2 Hz is tight but usable (options to reach 25 Hz: cheaper player, trim peak steps); own sprite routines candidates for later folding into libraries; game sits in `games/` for visibility as a Phase 5c artifact.
 
+- 2026-10-03: **Open questions answered** (user, all as recommended):
+  - Q3 float text: PRINT/STR$ get Spectrum-style exponent notation for large
+    and small values; VAL stays single-literal (documented).
+  - Q14 ORG: the default becomes &0040 for --arch cpc (proven on all models
+    and both emulators; RUN" unaffected by the LOAD+CALL &0040 caveat).
+  - Q15 INKEY$: Spectrum semantics, the key held now (keyboard matrix +
+    the firmware's key translation table); INPUT stays buffered; a -D switch
+    keeps the old buffered INKEY$.
+  - Q17 FLASH: stays ignored (documented).
+  - Q18 keys.bas: a cpc keys.bas in the fork's stdlib with the zx48k API and
+    key constants mapped onto the CPC matrix (own scan, no cpcbuild
+    dependency), so ported Spectrum code works unchanged.
+  - Q19 664/6128-only firmware: cpc.bas keeps to the common set; banking is
+    cpcbuild's banks library; GRA_FILL later in cpcbuild with a model check
+    if needed.
+
 ## Pick up here (updated 2026-10-03, after Phase 5c)
 
 State: Phases pre-5a, 5a, 5b and 5c (the shooter) complete and merged into
@@ -628,10 +644,9 @@ or the follow-ups below first.
    compiler warnings (W150/W190/W170).
 3. ~~Restructure the zxbasic cpc page; move the cpcbuild library out of the
    fork.~~ Done 2026-10-03 (zxbasic b1872f72, 10370615; cpcbuild 7cff646).
-4. Still-open questions: 3 (float PRINT/VAL), 14 (ORG: &0040 is proven safe,
-   the default stays &1000 until decided),
-   15 (INKEY$ model), 17 (FLASH), 18 (keys.bas on cpc), 19 (664/6128-only
-   firmware).
+4. ~~Still-open questions~~ All answered 2026-10-03 (see the entry above).
+   To implement: Q3 (exponent notation), Q14 (default &0040), Q15 (INKEY$
+   held key), Q18 (cpc keys.bas).
 5. Ideas parked: Boriel 1D-array indexing optimisation (upstream
    candidate); a double-buffer variant of cb_tilerestore; RVM spot-check
    (optional).
@@ -680,7 +695,7 @@ cpc-port-notes.md.
    calls. Music driven by the frame-flyback event (Phase 4d/5b), and
    anything that should tick during long compute loops, needs the planned
    IM1 front-end at &0038. Approve building it before Phase 4d?
-3. **Float text format.** zx81sd's float printer (ported as-is) has no
+3. ~~Float text format.~~ Answered 2026-10-03: exponent notation in PRINT/STR$; VAL literal-only. Was: **Float text format.** zx81sd's float printer (ported as-is) has no
    exponent notation, so very large or small values print as long
    fixed-point strings or 0. VAL() accepts a single numeric literal only
    (`VAL("2+2")` doesn't work). Is that enough for now, or should a fuller
@@ -724,9 +739,9 @@ cpc-port-notes.md.
     Newton-method SQR (estimated 112 -> ~20 ms). Beyond that: a faster
     calculator core (~1.3-1.6x on functions), or switching cpc FLOAT to the
     CPC firmware's maths (Locomotive's speed; big change).
-14. **ORG.** &0040-&0FFF (4 KB) is unused. Keep ORG &1000 (standing
+14. ~~ORG.~~ Answered 2026-10-03: default &0040. Was: **ORG.** &0040-&0FFF (4 KB) is unused. Keep ORG &1000 (standing
     decision), or allow/default to a lower ORG later if space gets tight?
-15. **INKEY$ model.** INKEY$ reads the firmware's key buffer (CPC/Locomotive
+15. ~~INKEY$ model.~~ Answered 2026-10-03: key held now (Spectrum). Was: **INKEY$ model.** INKEY$ reads the firmware's key buffer (CPC/Locomotive
     style, per the plan). Spectrum games that move while `INKEY$ = "p"` will
     feel different: a held key gives one character, then auto-repeat after
     a delay. Alternative: INKEY$ reports the key held *now*, scanned with
@@ -735,14 +750,14 @@ cpc-port-notes.md.
 16. ~~SCREEN$.~~ Answered 2026-10-01: port it in 4b. Was: **SCREEN$.** The firmware can read a character back from the screen
     (TXT_RD_CHAR), so `screen.bas` could be ported instead of being an
     `#error`. Worth doing in Phase 4b with the character set work?
-17. **FLASH.** The firmware's flashing inks (SCR_SET_FLASHING plus two-colour
+17. ~~FLASH.~~ Answered 2026-10-03: stays ignored. Was: **FLASH.** The firmware's flashing inks (SCR_SET_FLASHING plus two-colour
     inks) could emulate FLASH 1 by switching to a spare flashing pen. Wanted,
     or leave FLASH ignored?
-18. **keys.bas.** `MultiKeys`/`GetKeyScanCode` read Spectrum keyboard ports
+18. ~~keys.bas.~~ Answered 2026-10-03: a cpc keys.bas on the CPC matrix. Was: **keys.bas.** `MultiKeys`/`GetKeyScanCode` read Spectrum keyboard ports
     and use Spectrum scan codes, so they don't work on cpc (they compile but
     read nothing useful). Give them a cpc version with KM_TEST_KEY now, or
     wait for the Phase 4c keyboard scan?
-19. **664/6128-only firmware.** Some useful entries (GRA_FILL flood fill,
+19. ~~664/6128-only firmware.~~ Answered 2026-10-03: common set only. Was: **664/6128-only firmware.** Some useful entries (GRA_FILL flood fill,
     KL_BANK_SWITCH) don't exist on the 464. Offer them in cpc.bas with a
     run-time model check, or keep cpc.bas to what every model has?
 
