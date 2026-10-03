@@ -78,8 +78,8 @@ in `platform_cpc.bas` or `platform_zx.bas`.
 | `PlatClear()` | clear the playfield (new wave, title) |
 | `PlatInput() AS UBYTE` | bits: 1 left, 2 right, 4 fire, 8 any key/start. Keys: O / P / Space plus the cursor keys on the CPC, and a joystick (CPC joystick 0; Kempston on the Spectrum) |
 | `PlatFrames() AS UINTEGER` | the frame counter (low 16 bits) |
-| `PlatMusic(tune)` | 0 off, 1 title, 2 in-game (no-op on silent builds) |
-| `PlatSfx(n)` | effect n (no-op on silent builds) |
+| `PlatMusic(tune)` | 0 off, 1 title, 2 in-game (no-op on the 48K) |
+| `PlatSfx(n)` | effect n (AY on CPC/128K, beeper on the 48K) |
 | `PlatEnd()` | called at game end; used by -D SHOT/BENCH to exit |
 | `PlatShot(name$)` | triggers a screenshot (used by -D SHOT for test goldens) |
 
@@ -102,7 +102,7 @@ in `platform_cpc.bas` or `platform_zx.bas`.
   maskedsprites took 2.3 frames for 25 sprites). PRINT AT for text.
   - **128K:** `music/music.bas` with the IM2 frame hook; double-buffered using shadow
     screens (banks 5 and 7).
-  - **48K:** silent, single-buffered.
+  - **48K:** single-buffered; no music, short beeper effects through `PlatSfx`.
   - **Own sprite routines:** draw sprites at any pixel x (0-240, from pre-shifted data
     to nearest 2-pixel boundary; only the shifts used are stored since x steps are 4 pixels)
     and any line y (0-176), save/restore the background. Sprites 16x8 pixels (8x8 logical

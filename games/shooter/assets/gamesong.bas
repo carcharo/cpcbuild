@@ -58,16 +58,24 @@ sf_game_EmptyInstrument:
 sf_game_Instrument1:
     db 1    ; The speed (>0, 0 for 256).
 
-    db 177    ; Soft only. Volume: 6. Volume only.
+    db 233    ; Soft only. Volume: 13. Volume only.
 
-    db 177    ; Soft only. Volume: 6. Volume only.
+    db 233    ; Soft only. Volume: 13. Volume only.
 
-    db 169    ; Soft only. Volume: 5. Volume only.
+    db 225    ; Soft only. Volume: 12. Volume only.
 
-    db 169    ; Soft only. Volume: 5. Volume only.
+    db 225    ; Soft only. Volume: 12. Volume only.
+
+    db 225    ; Soft only. Volume: 12. Volume only.
+
+    db 217    ; Soft only. Volume: 11. Volume only.
+
+    db 217    ; Soft only. Volume: 11. Volume only.
+
+    db 217    ; Soft only. Volume: 11. Volume only.
 
 sf_game_Instrument1_Loop:
-    db 161    ; Soft only. Volume: 4. Volume only.
+    db 209    ; Soft only. Volume: 10. Volume only.
 
     db 7    ; Loop.
 sf_game_DisarkWordForceReference6:
@@ -76,9 +84,19 @@ sf_game_DisarkWordForceReference6:
 sf_game_Instrument2:
     db 1    ; The speed (>0, 0 for 256).
 
+    db 233    ; Soft only. Volume: 13. Volume only.
+
+    db 225    ; Soft only. Volume: 12. Volume only.
+
+    db 217    ; Soft only. Volume: 11. Volume only.
+
     db 209    ; Soft only. Volume: 10. Volume only.
 
+    db 201    ; Soft only. Volume: 9. Volume only.
+
     db 193    ; Soft only. Volume: 8. Volume only.
+
+    db 185    ; Soft only. Volume: 7. Volume only.
 
     db 177    ; Soft only. Volume: 6. Volume only.
 
@@ -97,11 +115,11 @@ sf_game_Instrument2:
     ; The indexes of the effect blocks used by this song.
 sf_game_EffectBlockTable:
 sf_game_DisarkPointerRegionStart7:
-    dw sf_game_EffectBlock_P5P6P8    ; Index 0
+    dw sf_game_EffectBlock_P5P2P8    ; Index 0
 sf_game_DisarkPointerRegionEnd7:
-sf_game_EffectBlock_P5P6P8:
+sf_game_EffectBlock_P5P2P8:
     db 5
-    db 6
+    db 2
     db 8
 
 sf_game_DisarkByteRegionEnd0:
