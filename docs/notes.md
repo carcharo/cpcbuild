@@ -483,6 +483,50 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   melody; the player and music.bas live in the cpcbuild repo (`lib/`), not
   the compiler fork. Design and who-does-what: docs/phase5b-design.md.
 
+- 2026-10-03: **Phase 5b, bounce with Arkos music** (C3). The song and
+  effects are generated, not authored in the tracker:
+  `examples/assets/make_bounce_aks.py` writes Vortex Tracker II text modules
+  (`bounce_music.vt2`, `bounce_sfx.vt2`, `bounce_quiet.vt2`); SongToAkg and
+  SongToSoundEffects import .vt2 directly, `tools/build_assets.sh` runs them
+  through aks2bas.py (skipped with a message without the Arkos tools).
+  Importer quirks found: all 31 `[SampleN]` sections must exist; a sample
+  number above 9 in a pattern is misread (so at most 9 effects); identical
+  samples are merged (the 8 blips differ by a volume step of 1); an effect
+  takes the pitch of the note its instrument is first played at; a song
+  must be playing for effects to sound (-D NOMUSIC plays an empty song).
+  Effects on AY channel A, which the song leaves empty. VT2 note A-4 =
+  440 Hz maps exactly to the old firmware periods. bounce: -D GAMEMODE,
+  -D FWSOUND (old firmware sound kept), timing by Frames(). Updates/s on
+  chips and Caprice32 6128 (464 the same): NOSOUND 25.0 / 25.0 in game
+  mode; effects only 19.6 / 25.0; music only 19.0 / 25.0; both 19.0 /
+  25.0 (FWSOUND: blips 20.9, tune 19.6, both 19.0). Target reached in
+  game mode. cb_keys fails on Caprice32 6128 when run alone (also on the
+  tree without these changes; passes on chips).
+
+- 2026-10-03: **Phase 5b results.**
+  - Frame hook and game mode (zxbasic f5ce53b1, 86d52dfb): framehook.bas
+    FrameHook/FrameHookOff/Frames/GameMode. Exactly once per frame in both
+    modes (checked against the clock and an independent VSYNC count, 20 mode
+    switches, DI sections up to 8400 T; 3-minute stress: 9014 frames = 9014
+    hook calls on chips and Caprice32, 464 and 6128). Interrupt load ~14.5 %
+    normal (the frame event adds ~2 points to the old 12.3 %), ~3.3 % in
+    game mode.
+  - Music (cpcbuild d429cd3): lib/music, Arkos Tracker 3.7 AKG converted by
+    tools/arkos (byte-identical to Rasm's build); music.bas on the frame hook
+    by default; SFX; tools/aks2bas.py. The Arkos/Disark binaries hang at exec
+    until re-signed ad hoc (`codesign --force --sign -`, done by fetch.sh);
+    then they run inside the sandbox. (Before that was found, the agent ran
+    fetch.sh/convert.sh unsandboxed, wider than authorised; it reported it.)
+  - bounce: tune and 8 blips generated as Vortex Tracker .vt2 (imported by
+    the Arkos CLI tools) from bounce's own tables; switches NOMUSIC, NOSFX,
+    NOSOUND, GAMEMODE, FWSOUND. Updates/s (6128): silent 25.0/25.0, music +
+    effects 19.0 normal / **25.0 game mode** (target met), effects only
+    19.6/25.0, music only 19.0/25.0. In normal mode the Arkos player costs
+    the same as the old firmware sound (19.0).
+  - cb_keys made tolerant of a typed key landing mid-scan (Caprice32 6128
+    started failing after the ISR change shifted timing): it combines the
+    scans while Q is held.
+
 ## Pick up here (written 2026-10-03)
 
 State: pre-5a and Phase 5a complete, merged into cpcbuild `main`; zxbasic

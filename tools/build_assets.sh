@@ -9,6 +9,7 @@ T="python3 tools/tmx2bas.py"
 
 if [ "$1" = "--draw" ]; then
   python3 examples/assets/make_sources.py
+  python3 examples/assets/make_bounce_aks.py
   python3 tests/conformance/assets/make_sources.py
 fi
 
@@ -17,6 +18,19 @@ A=examples/assets
 $I --mode 0 --name bgtiles --tiles --palette-file $A/bounce.pal $A/bgtiles.png -o $A/bgtiles.bas
 $I --mode 0 --name balls --sprite --frame 8x16 --masked --palette-file $A/bounce.pal --no-palette $A/balls.png -o $A/balls.bas
 $T --name level $A/level.tmx -o $A/level.bas
+
+# bounce's music and effects: make_bounce_aks.py writes the .vt2 sources
+# (always, it is plain Python); the Arkos command-line tools turn them into
+# .bas includes (skipped, keeping the committed ones, if they aren't installed:
+# tools/arkos/fetch.sh installs them).
+python3 $A/make_bounce_aks.py
+if [ -x "${AT3_TOOLS:-tools/arkos/work/bin}/SongToAkg" ] && [ -x "${AT3_TOOLS:-tools/arkos/work/bin}/SongToSoundEffects" ]; then
+  python3 tools/aks2bas.py $A/bounce_music.vt2 $A/bounce_music.bas --name bounce_music
+  python3 tools/aks2bas.py $A/bounce_quiet.vt2 $A/bounce_quiet.bas --name bounce_quiet
+  python3 tools/aks2bas.py --sfx $A/bounce_sfx.vt2 $A/bounce_sfx.bas --name bounce_sfx
+else
+  echo "build_assets: Arkos tools not found (run tools/arkos/fetch.sh); keeping the committed bounce_*.bas"
+fi
 
 # tests/conformance/cb_assets.bas
 C=tests/conformance/assets

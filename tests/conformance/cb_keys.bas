@@ -23,7 +23,7 @@ SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
 END SUB
 
 DIM frames AS UINTEGER
-DIM seenQ, wWithQ, anyWithQ, shiftWithQ, seenRet AS UBYTE
+DIM seenQ, wWithQ, anyWithQ, shiftWithQ, seenRet, held AS UBYTE
 DIM got$, k$ AS STRING
 
 REM --- nothing typed yet: the first scan sees an idle keyboard ---
@@ -38,14 +38,22 @@ seenQ = 0
 frames = 0
 DO
   ScanKeys()
-  IF KeyDown(KEY_Q) THEN
-    seenQ = 1
-    wWithQ = KeyDown(KEY_W)
-    anyWithQ = AnyKeyDown()
-    shiftWithQ = KeyDown(KEY_SHIFT)
-  END IF
+  IF KeyDown(KEY_Q) THEN seenQ = 1
   frames = frames + 1
 LOOP UNTIL seenQ = 1 OR frames >= 30000
+REM The emulator's key press can land between two row reads of a scan
+REM (SHIFT's row is read before Q's), so that first scan may show Q
+REM without SHIFT. Keep scanning while Q is held and combine the scans.
+held = 0
+DO WHILE seenQ = 1 AND held < 40
+  IF KeyDown(KEY_Q) THEN
+    wWithQ = wWithQ bOR KeyDown(KEY_W)
+    anyWithQ = anyWithQ bOR AnyKeyDown()
+    shiftWithQ = shiftWithQ bOR KeyDown(KEY_SHIFT)
+  END IF
+  ScanKeys()
+  held = held + 1
+LOOP
 CHK("q_seen", STR$(seenQ), "1")
 CHK("w_not_with_q", STR$(wWithQ), "0")
 CHK("any_with_q", STR$(anyWithQ), "1")
