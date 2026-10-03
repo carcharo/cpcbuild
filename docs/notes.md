@@ -884,3 +884,36 @@ from test_cpc_no_spectrum_refs.py.
   below &4000; 25.0 updates/s on chips 6128. Caprice32 keeps running a few instructions
   after the address-0 breakpoint (RAM at 0), which can print junk after the END marker
   at low origins; cpcrun.py now drops everything from the marker on.
+
+## 2026-10-03: Phase 6 B0, bare-metal switch, memory map, boot (zxbasic 14af9259)
+
+- `-D CPC_BAREMETAL` selects bare-metal mode at compile time (design:
+  docs/phase6-design.md; the run-time `FirmwareOff()` alternative is noted
+  there to revisit if feedback prefers it, so bare entry points stay the
+  same as firmware-mode ones).
+- Bare memory map (backend `_layout()`): code+data+heap from &0040 up to
+  &B800, stack &B800-&BBFF (top &BC00), private block &BC00-&BFFF, screen
+  &C000. The firmware map is unchanged (private &9E00, stack top &A600).
+  A 45,000-byte array that fails in firmware mode builds bare.
+- runtime/bareboot.asm replaces the firmware start-up: di, IM 1, both ROMs
+  off, private block zeroed and our &0038 handler installed *first* (the
+  palette helper ends with EI; installing later hung chips 6128 in the
+  firmware's handler), RAM config &C0, PPI, CRTC 0-13, AY silent, sysvar
+  defaults, mode 1, firmware default inks, screen cleared, EI. Works after
+  RUN" and is written for a cold start (no firmware ever ran).
+- Bare interrupt handler: every interrupt goes to the frame detector
+  (framecore.asm, split out of framehook.asm): FH_FRAMES counts frames and
+  the frame hook runs once per frame; GameMode() has no effect.
+- Firmware calls refuse to build bare: the gate `__FW_CALL` isn't defined,
+  so any firmware call is an undefined label (tests/arch/cpc/
+  test_cpc_baremetal.py, 7 tests). kscan's firmware translation, the frame
+  event registration and error.asm's TXT_OUTPUT are firmware-mode only.
+- END bare: echo builds send the END marker via the printer port
+  (`__CPC_PRN_CHAR`) and reset; otherwise wait for a key and reset (lower
+  ROM in, RST 0).
+- Verified: bare smoke programs (POKE, 50 frames) exit 0 on chips 464/6128
+  and Caprice32 464/664/6128; firmware mode unchanged (chips 42/42 6128,
+  39/39 464, Caprice32 6128 43/43, Starfall 6/6, screens 16/16); zxbasic
+  pytest 2175 passed.
+- Next: B1 harness (`--bare`, chipsrun `--cold`), B2 text, B3 keyboard,
+  B4 sound/timing, then the stage gate (whole suite bare).
