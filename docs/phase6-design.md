@@ -31,6 +31,13 @@ Programs compile unchanged. Firmware-only features become compile errors in
 bare mode: LOAD/SAVE, BankLoad, SoundQueue/firmware sound, direct firmware
 calls through `.core.__FW_CALL`.
 
+**Alternative kept on file:** a run-time switch. The program starts with the
+firmware (so it can still load files), then calls `FirmwareOff()` to go bare.
+That means linking both implementations and dispatching between them (bigger,
+more complex), so it isn't built now. Revisit if user feedback prefers it.
+Keep the bare runtime's entry points the same as the firmware ones, so this
+stays possible later.
+
 ## Runtime in bare mode
 
 - **Boot:** works whether or not the firmware ran first (disc, or a cold

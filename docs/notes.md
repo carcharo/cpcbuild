@@ -621,7 +621,8 @@ Decisions and versions. The detailed Phase -1/0 findings are in
 
 - 2026-10-03: **Phase 6 decisions** (user): bare-metal mode with full API
   parity except disc (LOAD/SAVE/BankLoad/firmware sound are compile errors);
-  chosen by a compile-time switch; proven by bare builds of Starfall CPC
+  chosen by a compile-time switch (a run-time `FirmwareOff()` switch is noted
+  as an alternative to revisit if feedback prefers it); proven by bare builds of Starfall CPC
   (6128 and 464) against the firmware builds; designed for no-firmware
   cartridge boot (Phase 7). The plan's 6128 bank helpers are already done
   (banks library, 5c). Design and who-does-what: docs/phase6-design.md.

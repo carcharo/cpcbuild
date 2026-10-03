@@ -1,5 +1,8 @@
 REM Conformance: Phase 4a keyboard input (INPUT from the cpc input.bas,
-REM INKEY$). cpcrun.py types the keys below while the program runs, each
+REM INKEY$ in its buffered mode: this program is built with
+REM -D CPC_INKEY_BUFFERED, the default INKEY$ is tested in inkey.bas).
+REM ZXBC: -D CPC_INKEY_BUFFERED
+REM cpcrun.py types the keys below while the program runs, each
 REM after a delay and followed by RETURN (run.py reads these lines):
 REM TYPE: HELLO
 REM TYPE: ABCDE
