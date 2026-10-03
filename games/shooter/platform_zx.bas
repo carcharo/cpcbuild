@@ -6,7 +6,7 @@
 '   -D ZX128   Spectrum 128K: double-buffered (screens 5 and 7), Arkos music
 '              and effects (music/music.bas, IM2 frame hook). If the machine
 '              turns out to have no paging, it falls back to the 48K way.
-'   -D ZX48    Spectrum 48K: single-buffered, silent (no player included).
+'   -D ZX48    Spectrum 48K: single-buffered, beeper effects only (no player).
 '   (neither is taken as ZX128)
 '
 '   -D NOJOY      never read the Kempston port (31)
@@ -239,6 +239,9 @@ DIM pzDbl AS UBYTE                  ' 1: double-buffered
 DIM pzDs AS UBYTE                   ' drawing set (0/1): the HUD shadows
 DIM pzBank0 AS UBYTE                ' the bank that was at C000 before we paged in 7
 DIM pzLast AS UINTEGER              ' FRAMES at the last flip
+#ifdef ZX48
+DIM pzSfxDone AS UBYTE              ' 1: a beeper effect already played this step
+#endif
 DIM pzJoy AS UBYTE                  ' 1: read Kempston
 DIM pzHScore(1) AS UINTEGER            ' HUD values as drawn, per screen
 DIM pzHLives(1) AS UBYTE
@@ -399,6 +402,9 @@ SUB PlatInit()
 END SUB
 
 SUB PlatFrameBegin()
+#ifdef ZX48
+  pzSfxDone = 0
+#endif
   ASM
     call __PZ_QRESET
   END ASM
@@ -509,11 +515,141 @@ SUB PlatMusic(tune AS UBYTE)
 #endif
 END SUB
 
+#ifdef ZX48
+' ---------------- 48K beeper effects ----------------
+' PlatSfx(n) on the 48K plays short effects on the beeper (bit 4 of port &FE;
+' the border colour bits are kept as BORDER set them (BORDCR), MIC off),
+' interrupts off while it plays, blocking, then EI. At most one effect per
+' logic step (PlatFrameBegin re-arms): a second PlatSfx in the same step is
+' dropped. A table-driven routine: segments (count, d, step, mode); a tone
+' segment is `count` square-wave cycles with half period delay d (DJNZ
+' loops, 13 T per d), d += step after each cycle; a noise segment is `count`
+' pseudo-random toggles (5x+1 xor R) with delay d. Durations (3.5 MHz):
+'   1 shoot   19 cycles d 10..28 falling            ~10.5K T   ~3.0 ms
+'   2 boom    4 noise bursts d 2,4,7,11 (14 each)    ~8.8K T   ~2.5 ms
+'   3 hit     noise burst, then 20 cycles d 120..177  ~82K T   ~23 ms
+'   4 wave    arpeggio C6 E6 G6, 25 ms each          ~263K T   ~75 ms
 SUB PlatSfx(n AS UBYTE)
-#ifdef ZX128
-  SfxPlay(n, 2, 0)
-#endif
+  IF pzSfxDone <> 0 THEN RETURN
+  IF n = 0 THEN RETURN
+  IF n > 4 THEN RETURN
+  pzSfxDone = 1
+  ASM
+    ld a,(ix+5)
+    push ix
+    ld hl,__PZ_BEEP_TAB
+    dec a
+    add a,a
+    ld e,a
+    ld d,0
+    add hl,de
+    ld e,(hl)
+    inc hl
+    ld d,(hl)
+    push de
+    pop ix                      ; IX = the effect's segments
+    ld a,(23624)                ; BORDCR: border colour in bits 3-5
+    rrca
+    rrca
+    rrca
+    and 7
+    ld c,a                      ; C = port value with the speaker low
+    di
+__PZ_BEEP_SEG:
+    ld e,(ix+0)                 ; E = count; 0 ends the effect
+    ld a,e
+    or a
+    jr z,__PZ_BEEP_END
+    ld d,(ix+1)                 ; D = delay
+    ld h,(ix+2)                 ; H = step
+    ld a,(ix+3)
+    ld l,a                      ; L = mode (then the noise state)
+    inc ix
+    inc ix
+    inc ix
+    inc ix
+    or a
+    jr nz,__PZ_BEEP_NOISE
+__PZ_BEEP_TONE:
+    ld a,c
+    or 16
+    out (254),a
+    ld b,d
+__PZ_BEEP_T1:
+    djnz __PZ_BEEP_T1
+    ld a,c
+    out (254),a
+    ld b,d
+__PZ_BEEP_T2:
+    djnz __PZ_BEEP_T2
+    ld a,d
+    add a,h
+    ld d,a
+    dec e
+    jr nz,__PZ_BEEP_TONE
+    jr __PZ_BEEP_SEG
+__PZ_BEEP_NOISE:
+    ld a,l
+    add a,a
+    add a,a
+    add a,l
+    inc a
+    ld l,a
+    ld a,r
+    xor l
+    and 16
+    or c
+    out (254),a
+    ld b,d
+__PZ_BEEP_N1:
+    djnz __PZ_BEEP_N1
+    dec e
+    jr nz,__PZ_BEEP_NOISE
+    jr __PZ_BEEP_SEG
+__PZ_BEEP_END:
+    ld a,c
+    out (254),a                 ; speaker low, border as it was
+    ld (__PZ_BEEP_LAST),a
+    ld hl,__PZ_BEEP_LAST+1
+    inc (hl)                    ; effects played
+    ei
+    pop ix
+    jp __PZ_BEEP_DATA_END
+__PZ_BEEP_LAST:
+    db 0, 0
+__PZ_BEEP_TAB:
+    dw __PZ_BEEP_1, __PZ_BEEP_2, __PZ_BEEP_3, __PZ_BEEP_4
+__PZ_BEEP_1:
+    db 19, 10, 1, 0, 0
+__PZ_BEEP_2:
+    db 14, 2, 0, 1, 14, 4, 0, 1, 14, 7, 0, 1, 14, 11, 0, 1, 0
+__PZ_BEEP_3:
+    db 10, 20, 0, 1, 20, 120, 3, 0, 0
+__PZ_BEEP_4:
+    db 26, 127, 0, 0, 33, 100, 0, 0, 39, 84, 0, 0, 0
+__PZ_BEEP_DATA_END:
+  END ASM
 END SUB
+
+#ifdef BEEPTEST
+' The port value the last effect finished with (for the layer tests)
+FUNCTION PzBeepLast() AS UBYTE
+  ASM
+    ld a,(__PZ_BEEP_LAST)
+  END ASM
+END FUNCTION
+
+FUNCTION PzBeepCount() AS UBYTE
+  ASM
+    ld a,(__PZ_BEEP_LAST+1)
+  END ASM
+END FUNCTION
+#endif
+#else
+SUB PlatSfx(n AS UBYTE)
+  SfxPlay(n, 2, 0)
+END SUB
+#endif
 
 ' Back to the machine's own world, for text output (main.bas under -D BENCH
 ' or -D SHOT, which then PRINTs and ENDs): music off, screen 5 shown and

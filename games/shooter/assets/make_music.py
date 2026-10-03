@@ -5,7 +5,7 @@ Tracker II text modules, imported by the Arkos command-line tools
 
     make_music.py [outdir]        (default: next to this script)
 
-Writes title.vt2 (the title tune), game.vt2 (the quieter in-game loop),
+Writes title.vt2 (the title tune), game.vt2 (the in-game loop, quieter than the effects),
 sfx.vt2 (the effect bank, CPC clock) and zx/sfx_zx.vt2 (the same effects
 for the Spectrum 128K's 1.7734 MHz AY: sound effects store AY periods, so
 the sweeps are rescaled).
@@ -126,7 +126,7 @@ def title():
     return (mod("starfall title", SPEED, "L0,1") + orn() + s1 + s2 + pad(3) + pats).rstrip() + "\n"
 
 
-# --- in-game loop: a quiet pulse and a few slow notes ---
+# --- in-game loop: a pulse and a few slow notes (about two-thirds volume, under the effects) ---
 def game():
     roots = ["A-2", "F-2", "G-2", "E-2"]
     mel0 = [[(0, "E-5"), (4, "C-5")], [(0, "C-5"), (4, "A-4")], [(0, "D-5"), (4, "B-4")], [(0, "B-4"), (4, "G#4")]]
@@ -137,15 +137,15 @@ def game():
         m = []
         bs = []
         for b, root in zip(mel, roots):
-            m += bar(b, 3, "9")
+            m += bar(b, 3, "D")
             hi = root[:2] + str(int(root[2]) + 1)
             row = [cell(None, 4)] * 8
             for r in range(8):
-                row[r] = cell(hi if r in (2, 5) else root, 4, "9")
+                row[r] = cell(hi if r in (2, 5) else root, 4, "D")
             bs += row
         pats += pattern(k, [(EMPTY, m[i], bs[i]) for i in range(32)])
-    s3 = sample(3, [("T..", 0, 0, 6), ("T..", 0, 0, 6), ("T..", 0, 0, 5), ("T..", 0, 0, 5), ("T..", 0, 0, 4)])
-    s4 = sample(4, [("T..", 0, 0, a) for a in (10, 8, 6, 5, 4, 3, 2, 1, 0)])
+    s3 = sample(3, [("T..", 0, 0, a) for a in (13, 13, 12, 12, 12, 11, 11, 11, 10, 10, 10)])
+    s4 = sample(4, [("T..", 0, 0, a) for a in (13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)])
     return (mod("starfall game", SPEED, "L0,1") + orn() + sample(1, [("T..", 0, 0, 0)])
             + sample(2, [("T..", 0, 0, 0)]) + s3 + s4 + pad(5) + pats).rstrip() + "\n"
 
