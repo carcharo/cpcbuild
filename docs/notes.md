@@ -611,7 +611,14 @@ bounce: 25 updates/s with music in game mode. Starfall: 25.0 CPC, 24.2 Spectrum 
 
 1. **Phase 5c additions / follow-up (user asks):**
    - (a) Spectrum 128K to 25 Hz if practical (see options above).
-   - (b) Fold game sprite routines into the libraries / slimmer library modules.
+   - (b) Fold game sprite routines into the libraries / slimmer library modules:
+     a fast plain-background sprite routine and a compact font for cpcbuild,
+     and the Spectrum sprite engine as a reusable zx library. Both game
+     layers carry ~600-800 lines of their own assembly today (speed: ~28
+     sprites per 25 Hz step; size: the 6128 build must fit below &4000).
+   - (b2) **Then revisit Starfall** (user, 2026-10-03): rewrite its platform
+     layers on those library routines so the game is mostly BASIC on both
+     platforms and showcases the libraries; re-check speed and size.
    - (c) The platformer extra (deferred from the Phase 5c scope).
 2. Small open item (low priority): the cpcbuild library's false-positive
    compiler warnings (W150/W190/W170).
