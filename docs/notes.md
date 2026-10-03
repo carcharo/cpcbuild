@@ -393,7 +393,36 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   (silent). Listened to all of them in Caprice32 (first real listen; tests
   only check AY registers): blips and tune sound right.
 
+- 2026-10-03: RVM is now optional manual spot-check (used at Plus milestones, Phase 7, or when emulators disagree), not the accuracy gate before each milestone.
+- 2026-10-03: Automated accuracy reference: floooh/chips (github.com/floooh/chips, systems/cpc.h, zlib/libpng licence, NOT MIT) is the second reference. A headless chipsrun harness in cpcbuild/tools/chipsrun/ runs conformance checks and is the CI runner on 464 and 6128. Passes ZEXALL with all chips ticked, cycle-stepped Z80.
+- 2026-10-03: Caprice32 stays day-to-day emulator and carries the Plus phase. Its Plus interrupt support improved in commits 082eb57 (2026-07-17, raster interrupt test in Arnold system test cartridge works) and 20a2604 (2026-09-04, minor fixes); its code now serves raster and DMA interrupts with vectors (the DMA path not yet verified; the README's "missing vectored & DMA" is out of date).
+- 2026-10-03: Considered and rejected: writing our own emulator. The work is almost all in exact CRTC/Gate Array timing; embedded chips and kept Caprice32 instead.
+- 2026-10-03: vscode-kcide (github.com/floooh/vscode-kcide, MIT): chips compiled to WASM in VS Code tab with chip-level debugger. Phase 8 (tooling) design reference alongside NextBuild Studio.
+- 2026-10-03: cpcbuild branch convention set: main was fast-forwarded to old phase-0-1-docs (deleted); from now one short-lived branch per phase (pre-5a, phase-5a, etc.) merged to main at milestone. zxbasic keeps long-lived cpc-arch.
+- 2026-10-03: `#pragma zxnext=TRUE` on cpc will be compile error (CPC Z80 can't run Z80N opcodes). Being implemented now.
+
+- 2026-10-03: **Pre-5a complete.** `tools/chipsrun/` (C, chips pinned at
+  9e88298c, zlib licence in LICENSE.chips; `build.sh` fetches and builds).
+  It boots 120 frames, quickloads the AMSDOS .bin (`CALL &1000`), captures
+  the printer port in the per-tick debug callback with Caprice32's strobe
+  rule, stops at an M1 fetch from &0000, and types keys on Caprice32's
+  schedule (3-frame gap, not 2: with 2 chips loses repeated letters).
+  Typed key changes apply at the next row-0 select of a keyboard scan:
+  a change landing mid-scan showed Q without SHIFT in cb_keys, which
+  Caprice32 avoids only by timing luck. `cpcrun.py`/`run.py --emu chips`
+  (no 664: clear error). Start state: BC' = &7F8D (both ROMs off) on
+  every path (chips quickload, Caprice32 RUN", Caprice32 CALL from BASIC);
+  bootstrap unchanged, new `romoff.bas` checks it. **Conformance 30/30 on
+  chips (464, 6128) and Caprice32 (464, 664, 6128)**; chips runs the suite
+  in about 15 s (about 15x real time per program) against 1:42 on
+  Caprice32. Q12 done (zxbasic d6e02733, generic UNSUPPORTED_OPTIONS
+  hook; zxbasic 2147 passed). Work by sub-agents (haiku docs, sonnet
+  code), reviewed here; review caught an in-process option leak in the
+  Q12 change.
+
 ## Pick up here (written 2026-10-02, end of day)
+
+**Superseded by the pre-5a / Phase 5a plan (entries of 2026-10-03 above).**
 
 State: Phases 4c and 4d complete and committed. bounce.bas: 25 updates/s
 silent, 22.3 with blips, 20.0 with blips + music. 29/29 conformance on
@@ -467,15 +496,9 @@ cpc-port-notes.md.
    - STR$ of a compile-time-constant expression is folded in Python at full
      precision (`STR$(SIN(PI/6))` gives `0.49999999999999994`), which
      differs from the runtime's 5-decimal output. Worth making consistent?
-10. **Where the harness lives.** `cpcrun.py` and the conformance suite are
-    in cpcbuild (tooling). The plan's Phase 5a CI harness (floooh/chips) and
-    snapshot tests belong in zxbasic. Keep this split?
-11. **cpcbuild branches.** Work is on `phase-0-1-docs` (not merged into
-    `main`, not pushed). Merge to `main`, rename, or keep a long-lived dev
-    branch?
-12. **`#pragma zxnext=TRUE` on cpc.** It re-enables Z80N opcodes, which a
-    CPC can't run (the backend only forces `zxnext` off in `init()`). Make it
-    an error for `--arch cpc`?
+10. ~~Where the harness lives.~~ Answered 2026-10-03: cpcbuild. The chips harness lives in cpcbuild/tools/chipsrun/, zxbasic keeps only upstream-shaped tests. Was: **Where the harness lives.** `cpcrun.py` and the conformance suite are in cpcbuild (tooling). The plan's Phase 5a CI harness (floooh/chips) and snapshot tests belong in zxbasic. Keep this split?
+11. ~~cpcbuild branches.~~ Answered 2026-10-03: one short-lived branch per phase (pre-5a, phase-5a, etc.) is merged into main at its milestone. Was: **cpcbuild branches.** Work is on `phase-0-1-docs` (not merged into `main`, not pushed). Merge to `main`, rename, or keep a long-lived dev branch?
+12. ~~`#pragma zxnext=TRUE` on cpc.~~ Answered 2026-10-03: it will be a compile error (the CPC's Z80 can't run Z80N opcodes). Being implemented now. Was: **`#pragma zxnext=TRUE` on cpc.** It re-enables Z80N opcodes, which a CPC can't run (the backend only forces `zxnext` off in `init()`). Make it an error for `--arch cpc`?
 13. **Float speed. Decided 2026-09-28: accept for now (option d) and see how
     it goes.** Compiled floats are about 3.4x slower than Locomotive BASIC;
     per operation, `+ - * /` are roughly even but SIN/COS/EXP/ATN are about

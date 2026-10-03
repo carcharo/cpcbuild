@@ -50,6 +50,9 @@ Two repos plus a locally built emulator, as siblings:
   the compiler, as NextBuild sits outside Boriel), asset converters,
   emulator scripts, the demo game, and later the Studio extension fork.
   Its `CLAUDE.md` names the sibling paths.
+- **Branches:** one short-lived branch per phase (e.g. `pre-5a`, `phase-5a`)
+  is merged into `main` at its milestone. zxbasic keeps its long-lived
+  `cpc-arch` branch.
 - Start Claude Code in the repo the phase touches: `zxbasic` for Phases 0
   to 4b and 4d; `cpcbuild` for -1 (emulator/tooling), 4c, 5b, 5c, 7, 8.
   Use `claude --add-dir ../zxbasic` when a session needs both trees.
@@ -268,18 +271,19 @@ Claude Code does the rest (session started in `cpcbuild`, with
   (github.com/ColinPitrat/caprice32, build from source with
   `make APP_PATH="$PWD"`; open source C++/SDL, debugger, memory editor,
   `-a` autocmd for `cap32 prog.dsk -a 'run"prog'`). Add a `make run`
-  target that compiles, wraps the .dsk and launches it. Plus support is
-  "mostly working" (no vectored/DMA interrupts) — fine until Phase 7.
-- Accuracy check before each milestone: Retro Virtual Machine 2.0 (the
-  version its developers recommend for development; 2.1 is the general
-  release, 2.2 pending) — Apple Silicon native, CPC + Plus + Spectrum,
-  reference-grade emulation; command-line launch with machine/disk/run
-  command (check the 2.0 docs for exact flags).
-- Automated: build a headless harness on floooh's `chips` CPC core
-  (header-only C, MIT): boot, load binary, run N frames, dump framebuffer
-  and RAM for assertions. Runs in CI. Evaluate ZEsarUX (Mac, Spectrum +
-  Next + CPC, scriptable remote protocol) as an alternative.
-- Docs page; PR to upstream following the zx81sd PR structure.
+  target that compiles, wraps the .dsk and launches it. Plus support
+  improved by commits 082eb57 (2026-07-17, raster interrupt) and 20a2604
+  (2026-09-04, interrupt fixes); used for Phase 7.
+- Automated reference: a headless harness on floooh's `chips` CPC core
+  (`systems/cpc.h`, header-only C, zlib/libpng licence): boot, load
+  AMSDOS `.bin`, run N frames, assert framebuffer/RAM. Lives in
+  `cpcbuild/tools/chipsrun/` and is the CI runner. Models CPC 464 and
+  6128 (no 664, no Plus); its Z80 is cycle-stepped and passes ZEXALL,
+  with all chips ticked together.
+- Optional manual spot-check: Retro Virtual Machine 2.0 (reference-grade
+  emulation, used at Plus milestones, Phase 7, or when emulators disagree).
+- Upstream: the PR is deferred (fork-only, see decision above).
+- Docs page.
 
 ## Phase 5b — Music player wrapper
 
@@ -339,7 +343,9 @@ ASIC facts:
 Tooling: PNG → one-byte-per-pixel sprite blob converter; `.cpr` cartridge
 writer for the Plus range (a `.dsk` still works on the 6128+).
 
-Emulators with ASIC support: WinAPE, Arnold, CPCEC.
+Acceptance check: the Arnold system test cartridge, run in Caprice32. Its
+raster interrupt test passes since commit 082eb57 (fixes in 20a2604); DMA
+interrupt vectors are implemented in Caprice32's code but not yet verified. Emulators with ASIC support: WinAPE, Arnold, CPCEC.
 
 ## Phase 8 — Tooling: CPC support in NextBuild Studio extensions (leg 4)
 
@@ -359,6 +365,12 @@ as `.vsix`. Extend rather than replace:
 - File icons and templates for `.dsk`, `.cdt`, `.cpr` and CPC projects.
 - Build/run action buttons: `zxbc --arch cpc` + dsk packaging + emulator
   launch.
+
+Design reference: vscode-kcide (github.com/floooh/vscode-kcide, MIT) is
+chips compiled to WASM running in a VS Code tab with a chip-level debugger
+(cycle stepping, memory/IO/interrupt breakpoints); it supports CPC6128 and
+builds only from its own assembler. Offers a model for tighter VS Code
+integration than the NextBuild Studio approach.
 
 Contact em00k once the Phase 5c demo exists: the README asks for contributors and a shared
 Next/CPC codebase for the extensions benefits both platforms.

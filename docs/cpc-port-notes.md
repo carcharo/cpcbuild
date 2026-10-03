@@ -36,6 +36,16 @@ in Caprice32. Committed on `cpc-arch` (e7370b55..024b9b0e).
 | iDSK | no Homebrew formula (`brew search idsk` only finds `libdsk`) | Not needed: we have `tools/cpc/mkdsk.py` |
 | Retro Virtual Machine | `/Applications/Retro Virtual Machine 2.app`, `CFBundleShortVersionString` 2.0.0, build 6783 (2019-07-09); `--help` banner says **v2.0 BETA-1 r7** | CLI: `-b=cpc6128` boot, `-l=0x1000 file.bin` load, `-j=0x1000` jump (after ~100 frames), `-i disk.dsk` insert, `-c='run"prog\n'` type, `-w` warp. No headless mode and no dump flag. `-boot` not actually launched (it's a Cocoa app, so it's assumed to open a window). |
 
+### Emulator roles (2026-10-03)
+
+| Emulator | Role | Notes |
+|---|---|---|
+| Caprice32 | Day-to-day build/run, conformance tests on 464/664/6128, Plus phases | Open source C++/SDL, built locally. Plus interrupts improved (082eb57, 20a2604): the Arnold raster interrupt test passes; DMA vectors implemented, not yet verified. Runs the Arnold system test cartridge for Phase 7. |
+| chips/chipsrun | Automated second reference on 464/6128, CI runner | Header-only C (zlib/libpng licence). Cycle-stepped Z80 (passes ZEXALL), all chips ticked together. No 664, Plus, DSK or printer port. Screenshot/RAM assertions planned in 5a. |
+| RVM | Optional manual spot-check | Used at Plus milestones (Phase 7) or when the other two disagree. Reference-grade emulation. |
+
+Caprice32 and chips together cover the workflow (development/testing) and CI. RVM is available when independent verification is needed or behaviour differs.
+
 ### Verified run loop
 
 `tools/cpc/run.sh [--shot] prog.bas|prog.bin` compiles (once `--arch cpc`
