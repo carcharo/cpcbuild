@@ -472,11 +472,11 @@ Caprice32 (464, 664, 6128); screen tests 16/16; zxbasic 2168; CI green.
    code and data at &4000-&BFFF). Target: bounce.bas with Arkos music at
    25 updates/s. Start a `phase-5b` branch. Plans name the agent model
    per step.
-2. Small open items: the cpcbuild library's false-positive compiler
-   warnings (W150 unused parameter, W190 no return, W170 never called) on
-   every program that includes it; the stale Caprice32 README line about
-   Plus interrupts (could be reported upstream to Caprice32, outside our
-   fork rule? ask first).
+2. Small open item (low priority): the cpcbuild library's false-positive
+   compiler warnings (W150 unused parameter, W190 no return, W170 never
+   called) on every program that includes it. (The stale Caprice32 README
+   line about Plus interrupts is left alone: outside our forks, and its
+   maintainers may have reasons. Decided 2026-10-03.)
 3. Still-open questions: 3 (float PRINT/VAL), 14 (ORG), 15 (INKEY$
    model), 17 (FLASH), 18 (keys.bas on cpc), 19 (664/6128-only firmware).
 4. Ideas parked: Boriel 1D-array indexing optimisation (upstream
