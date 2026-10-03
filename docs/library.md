@@ -39,14 +39,14 @@ Typical start of a program:
 
 ## 2. Program origin
 
-By default a CPC program loads at &1000 (4,096). The lowest address is &0040 (64 bytes), which gives about 4 KB more code space. Use the origin with the compiler and tools:
+By default a CPC program loads at &0040 (64), the lowest safe address, which leaves the most room for code and data (about 34.8 KB with the default heap). Any origin from &0040 up works with `--org`. Use the origin with the compiler and tools:
 
 | Tool / build script | Option | Example |
 |---|---|---|
-| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x40 ...` |
-| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x40` |
-| Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x40` |
-| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x40 tools/cpc/run.sh prog.bas` |
+| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x4000 ...` |
+| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x4000` |
+| Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x4000` |
+| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x4000 tools/cpc/run.sh prog.bas` |
 
 The tools read the actual origin from the compiled binary's memory map, so `--org` and the default can never disagree with the packer.
 
@@ -379,7 +379,7 @@ DisableDoubleBuffer()
 Rules:
 
 * **Memory.** A program that calls `EnableDoubleBuffer` must fit its code and
-  data in &1000-&3FFF (12 KB), and its heap must lie above &7FFF. The compiler
+  data in &0040-&3FFF (about 16 KB), and its heap must lie above &7FFF. The compiler
   stops with an error if not. Programs that never call it are unaffected.
 * **What draws where.** After `EnableDoubleBuffer`, every cpcbuild call
   (`PutSprite`, `FillRect`, `TileMap`, `ClearScreen`, `PokeScreen`,
@@ -630,7 +630,7 @@ into a buffer (interrupts off for the scan, back on after; no firmware call).
 Call it once per frame (for example after `WaitRetrace` or `FlipBuffer`), then
 test any number of keys with `KeyDown`. It leaves the PPI as the firmware expects,
 so `INKEY$` and `INPUT` keep working, and the firmware's own scan still fills its
-key buffer during the program. Two keys held together can "ghost" a third, as on
+key buffer during the program (INPUT empties it when it starts). Two keys held together can "ghost" a third, as on
 any CPC. A key pressed for less than a frame can be missed.
 
 A key number is `row * 8 + bit` of the matrix. Use the constants:
@@ -709,7 +709,7 @@ the firmware's 300 Hz clock in programs that switch game mode.
 
 **GameMode(1)** switches to game mode: outside firmware calls the firmware's own interrupt
 handler stops, saving about 10-11 % of the CPU (from about 12 % baseline to about 1-2 %).
-While in game mode and not inside a firmware call, the firmware's key buffer (INKEY$),
+While in game mode and not inside a firmware call, the firmware's key buffer (INPUT; INKEY$ is a direct scan and keeps working),
 300 Hz clock, sound queue (BEEP/SoundQueue) and ink refresh stop; use `ScanKeys`, `Frames()`,
 the music player and its sound effects, or `AyWrite` instead. Firmware calls themselves still
 work, and inside them the firmware handles interrupts as usual. **GameMode(0)** switches back

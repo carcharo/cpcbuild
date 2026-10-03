@@ -14,8 +14,8 @@
 ' ScanKeys leaves the PPI as the firmware expects it, so INKEY$, INPUT
 ' and the rest keep working. The firmware's own scan (in its interrupt
 ' handler, which runs all the time) still collects typed keys into its
-' buffer: after a loop of ScanKeys, INKEY$ still returns what was typed
-' meanwhile.
+' buffer; INPUT empties it when it starts. (INKEY$ is a direct scan of its
+' own and does not use the buffer.)
 ' Two keys can "ghost" a third on the matrix, as on any CPC.
 '
 ' Written from scratch for this project (MIT).

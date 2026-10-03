@@ -88,7 +88,7 @@ a speed figure (T-states per 16x16 sprite) in the notes.
 
 - **Q-4c.1 Double buffering memory.** The CRTC can only show a screen at
   &0000, &4000, &8000 or &C000 of main RAM. A second screen at &4000 takes
-  16 KB of the program area (code would have to fit &1000-&3FFF, 12 KB);
+  16 KB of the program area (code would have to fit &0040-&3FFF, 16 KB at the new default);
   at &8000 it collides with the heap and runtime block. Options: (a) back
   buffer at &4000, opt-in, with a build check that the code fits below it;
   (b) no hardware double buffering, just draw during the flyback;

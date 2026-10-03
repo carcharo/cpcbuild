@@ -16,7 +16,7 @@ runs, in every mode.
 - `FrameHook(addr)` / `FrameHookOff()` in cpc.bas. The hook is always
   registered as a firmware frame-flyback event (KL_NEW_FRAME_FLY) with a
   **far address, ROM select &FF** (both ROMs off), so the routine can live
-  anywhere, including program code at &1000-&3FFF.
+  anywhere, including program code at &0040-&3FFF.
 - A wrapper (runtime `framehook.asm`) saves AF, BC, DE, HL, IX, IY and the
   alternate bank, runs the hook with interrupts off, and restores them. It
   counts frames (`Frames()`).

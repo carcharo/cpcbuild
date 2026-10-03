@@ -503,7 +503,11 @@ def main(argv: list[str] | None = None) -> int:
         # output.
         if exit_code == 0:
             if END_MARKER in text:
-                text = text.replace(END_MARKER, "", 1)
+                # The marker is the program's last output. Caprice32 runs a few
+                # instructions after the address-0 breakpoint (RAM at 0, not the
+                # ROM), and that can print junk after it, so drop everything
+                # from the marker on.
+                text = text.split(END_MARKER, 1)[0]
             else:
                 error_match = ERROR_LINE_RE.search(text)
                 if error_match:

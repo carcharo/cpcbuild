@@ -17,8 +17,8 @@
 '   PeekScreen(x, y)        reads it back (0 off the screen)
 '
 ' Double buffering costs memory: &4000-&7FFF becomes the second screen,
-' so a program that uses it must fit its code and data in &1000-&3FFF
-' (12 KB); the compiler stops with an error if it doesn't. PRINT always
+' so a program that uses it must fit its code and data in &0040-&3FFF
+' (about 16 KB); the compiler stops with an error if it doesn't. PRINT always
 ' draws on the screen being shown, and text must not scroll while double
 ' buffering is on (see cpcbuild/display.asm).
 '

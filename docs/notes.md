@@ -627,6 +627,45 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   cartridge boot (Phase 7). The plan's 6128 bank helpers are already done
   (banks library, 5c). Design and who-does-what: docs/phase6-design.md.
 
+- 2026-10-03: **Q15 (INKEY$ = key held now) and Q18 (cpc keys.bas) implemented**
+  (zxbasic: runtime/io/keyboard/kscan.asm, inkey.asm, stdlib/keys.bas,
+  input.bas; not committed yet when written).
+  - One shared scan, `__CPC_KSCAN_ROWS` (D = first row, E = count): PPI/AY
+    matrix read with plain di/ei, PPI restored (as cpcbuild's `__CB_SCAN_KEYS`,
+    which stays separate: no dependency either way). `__CPC_KEYS` holds the
+    last scan, bit = 1 pressed.
+  - INKEY$ (`__CPC_KEYHELD`): first held key in matrix order (row 0 bit 0
+    first) that yields a character; SHIFT (key 21) and CONTROL (23) are
+    modifiers, joystick row 9 bits 0-6 ignored, DEL (79) kept. Translation
+    (`__CPC_KEYCHAR`, B = key, E = modifiers) through the firmware: CONTROL
+    table if CONTROL held, else SHIFT table if SHIFT held or shift lock on,
+    else normal; entries &FD/&FE/&FF = no key; &80-&9F expansion tokens give
+    the first character of the token's string via KM_GET_EXPAND (default
+    keypad: digits, ".", RETURN); everything else as is (ESC 252, COPY 224,
+    cursors 240-243). Caps lock turns a-z into A-Z whatever SHIFT says.
+  - **Firmware entries (the brief had two wrong):** KM_GET_STATE &BB21 (L =
+    shift lock, H = caps lock), KM_GET_TRANSLATE &BB2A, KM_GET_SHIFT **&BB30**
+    (&BB2D is KM_SET_SHIFT), KM_GET_CONTROL **&BB36** (&BB30 is GET_SHIFT),
+    KM_GET_EXPAND &BB12. Tables are identical on 464 and 6128 (probed).
+    KM_SET_LOCKS (&BD3A, H = caps, L = shift lock) and KM_FLUSH (&BD3D)
+    exist on the 664/6128 only (inkey_locks.bas is MODELS 664 6128).
+    Calling KM_SET_LOCKS while keys were being typed hung chips once: set
+    locks only when idle.
+  - Observed firmware behaviour used: shift lock + SHIFT stays shifted (no
+    inversion); caps lock + SHIFT + letter stays upper case.
+  - `-D CPC_INKEY_BUFFERED` keeps the KM_READ_CHAR INKEY$ exactly. INPUT
+    flushes the firmware buffer at its start (`__CPC_FLUSH_KEYS`).
+  - keys.bas: zx48k API and names; value = (row << 8) | bit mask; KEYCAPS =
+    SHIFT, KEYSYMBOL = CONTROL (aliases KEYSHIFT, KEYCONTROL), KEYENTER =
+    RETURN; CPC-only names listed in the file header. MultiKeys with a row
+    above 9 (a Spectrum constant) returns 0.
+  - Tests: conformance inkey.bas, inkey_locks.bas, keys_cpc.bas, keys_port.bas
+    (same source also compiles with --arch zx48k); keyboard.bas now builds with
+    `REM ZXBC: -D CPC_INKEY_BUFFERED` (new run.py directive); cb_keys.bas reads
+    the firmware buffer with KM_READ_CHAR. Caveat for test authors: a typed key
+    is held ~2 frames, so slow work (STR$, CHK) between a poll and the next
+    poll can miss it.
+
 ## Pick up here (updated 2026-10-03, after Phase 5c)
 
 State: Phases pre-5a, 5a, 5b and 5c (the shooter) complete and merged into
@@ -653,8 +692,8 @@ or the follow-ups below first.
 3. ~~Restructure the zxbasic cpc page; move the cpcbuild library out of the
    fork.~~ Done 2026-10-03 (zxbasic b1872f72, 10370615; cpcbuild 7cff646).
 4. ~~Still-open questions~~ All answered 2026-10-03 (see the entry above).
-   To implement: Q3 (exponent notation), Q14 (default &0040), Q15 (INKEY$
-   held key), Q18 (cpc keys.bas).
+   To implement: Q3 (exponent notation), Q14 (default &0040); Q15 (INKEY$
+   held key) and Q18 (cpc keys.bas) done 2026-10-03.
 5. Ideas parked: Boriel 1D-array indexing optimisation (upstream
    candidate); a double-buffer variant of cb_tilerestore; RVM spot-check
    (optional).
@@ -838,3 +877,10 @@ from test_cpc_no_spectrum_refs.py.
   (GAMEMODE+BENCH, was &3F01): 4,032 bytes more room under &4000.
   BENCH 19.0-19.2 updates/s default (frame counts 650-658 = phase jitter,
   seen at other origins too), 25.0 in game mode, unchanged.
+
+- 2026-10-03: **Default ORG is now &0040** (zxbasic cpc backend `_ORG`, mkdsk/run.sh
+  defaults, bench.py pack; Q14 revised). cpc goldens regenerated (21). banks464.bas no
+  longer needs `--org=0x40`. bounce GAMEMODE+BENCH: 12,051 bytes, ends &2F52, 4,269 bytes
+  below &4000; 25.0 updates/s on chips 6128. Caprice32 keeps running a few instructions
+  after the address-0 breakpoint (RAM at 0), which can print junk after the END marker
+  at low origins; cpcrun.py now drops everything from the marker on.

@@ -47,7 +47,7 @@
 '      SfxInit(@fx)
 '
 ' Songs in a bank (6128 extra RAM, cpcbuild/banks.bas). A song can sit in
-' one of the extra 16 KB banks, which leaves main RAM (&1000-&3FFF with
+' one of the extra 16 KB banks, which leaves main RAM (&0040-&3FFF with
 ' double buffering) for code and graphics:
 '
 '      python3 tools/aks2bas.py tune.aks tune.bas --name tune --at 0x4000
