@@ -9,6 +9,13 @@
 '   MusicInit(song, subsong)   start playing a song (the address of AKG
 '                              song data, e.g. @tune; subsong 0 is the
 '                              first). Takes over the sound chip.
+'   MusicInitBank(song, subsong, bank)
+'                              as MusicInit, for a song kept in extra RAM
+'                              (6128): song is its address inside
+'                              &4000-&7FFF *of that bank* (0-3), where the
+'                              player finds it whenever it runs. Needs
+'                              #include <cpcbuild/banks.bas> before this
+'                              library; see "Songs in a bank" below.
 '   MusicFrame()               manual mode only (MusicAuto = 0): play one
 '                              tick (one 50 Hz frame) of the song; call it
 '                              once per frame, right after WaitRetrace(1).
@@ -38,6 +45,42 @@
 '      #include "fx.bas"
 '      MusicInit(@tune, 0)
 '      SfxInit(@fx)
+'
+' Songs in a bank (6128 extra RAM, cpcbuild/banks.bas). A song can sit in
+' one of the extra 16 KB banks, which leaves main RAM (&1000-&3FFF with
+' double buffering) for code and graphics:
+'
+'      python3 tools/aks2bas.py tune.aks tune.bas --name tune --at 0x4000
+'
+'      #include <cpcbuild/banks.bas>     (before music.bas)
+'      #include <music/music.bas>
+'      #include "tune.bas"                (the image of the bank, see below)
+'      BankCopyIn(1, &H4000, @tune, tune_length)    ' or BankLoad("TUNE.BIN", 1, &H4000)
+'      MusicInitBank(&H4000, 0, 1)
+'
+' The song is assembled for its bank address (aks2bas.py --at ADDR: the
+' addresses inside the song are absolute); --at also writes the raw bytes
+' for BankLoad (--bin) and the include defines NAME (the image in the
+' program, for BankCopyIn) and NAME_length. MusicInitBank does nothing on a
+' machine without extra RAM (check BankAvailable()); it does not load
+' anything. Several songs can share a bank (give each its own --at).
+' Around every tick (and the initialisation) the player is called with
+' the bank paged in and interrupts off; afterwards the RAM configuration
+' is put back from the library's shadow, so a bank the main program has
+' selected with BankSelect survives. The paging costs about 110 T-states
+' a tick (measured sequence 84 T with the game-mode interrupt load, plus
+' the CALL/RET of the wrapper), 0.14 % of a frame, on top of the player's
+' own cost. The program
+' may do anything with banks between frames (BankSelect, copies, BankLoad)
+' except changing the song's bytes while it plays. MusicStop and MusicFrame
+' work as before; MusicInit (main RAM) on top of a banked song switches
+' back to main RAM.
+'
+' Sound effects stay in main RAM, below &4000 or above &7FFF (the program
+' reserves &4000-&7FFF, so the compiler enforces this): the effects bank
+' is read while the song's bank is paged in, so it cannot be in the
+' window, and keeping it in main RAM keeps SfxPlay (which runs with the
+' main program's configuration) simple. There is no banked SFX.
 '
 ' Interrupt-driven by default. MusicInit registers the player on the
 ' runtime's frame hook (framehook.bas), so the song advances exactly one
@@ -133,7 +176,8 @@ DIM MusicAuto AS UBYTE = 1
 '                 restores, EI.
 '   __MUSIC_CORE  the frame hook routine: with interrupts off and
 '                 registers saved by the caller, plays one tick if a
-'                 song is active.
+'                 song is active (calls __MUSIC_PLAYFN: PLY_AKG_Play, or
+'                 for a banked song MusicInitBank's wrapper).
 '   __MUSIC_HOOKED  returns Z if the frame hook is ours (HL, DE, AF
 '                 clobbered).
 asm
@@ -144,6 +188,10 @@ __MUSIC_ACTIVE:
     db 0                        ; 1 while a song is playing
 __MUSIC_SFX_READY:
     db 0                        ; 1 once SfxInit has been called
+__MUSIC_PLAYFN:
+    dw PLY_AKG_Play             ; what one tick calls (a banked song: its wrapper)
+__MUSIC_BANKCFG:
+    db 0                        ; MusicInitBank: the song's RAM configuration
 
 __MUSIC_RUN:
     di
@@ -177,7 +225,8 @@ __MUSIC_CORE:
     ld a, (__MUSIC_ACTIVE)
     or a
     ret z
-    jp PLY_AKG_Play
+    ld hl, (__MUSIC_PLAYFN)
+    jp (hl)
 
 __MUSIC_HOOKED:
     ld hl, (.core.FH_ADDR)
@@ -199,6 +248,8 @@ sub MusicInit(song as uinteger, subsong as ubyte)
     asm
     xor a
     ld (__MUSIC_ACTIVE), a
+    ld hl, PLY_AKG_Play
+    ld (__MUSIC_PLAYFN), hl     ; main RAM song (a banked one may have run)
     ld l, (ix+4)
     ld h, (ix+5)
     ld a, (ix+7)
@@ -207,7 +258,12 @@ sub MusicInit(song as uinteger, subsong as ubyte)
     ld a, 1
     ld (__MUSIC_ACTIVE), a
     end asm
-    ' Hooked only now that the player is initialised and active.
+    MusicHookUp()
+end sub
+
+' Hooked only after the player is initialised and active (MusicInit and
+' MusicInitBank): the hook if MusicAuto <> 0, else our own hook off.
+sub MusicHookUp()
     if MusicAuto <> 0 then
         asm
         ld hl, __MUSIC_CORE
@@ -225,6 +281,64 @@ __music_init_nohook:
     end if
 end sub
 
+#ifdef __LIBRARY_CPCBUILD_BANKS__
+' Like MusicInit, for a song in extra bank 0-3 (see "Songs in a bank").
+' song = its address in &4000-&7FFF. Does nothing (the previous song, if
+' any, keeps playing) if bank > 3 or the machine has no extra RAM.
+sub MusicInitBank(song as uinteger, subsong as ubyte, bank as ubyte)
+    CbReserve4000()
+    if bank > 3 then return
+    if BankAvailable() = 0 then return
+    SoundStop()
+    asm
+    jp __music_ib_start
+; the two player calls with the bank paged in (interrupts are off, the
+; caller has saved what it needs): the song's configuration in, the call,
+; the library's shadow configuration back.
+__MUSIC_PLAY_BANKED:
+    ld a, (__MUSIC_BANKCFG)
+    ld b, $7F
+    ld c, a
+    out (c), c
+    call PLY_AKG_Play
+    ld a, (.core.CBK_CFG)
+    ld b, $7F
+    ld c, a
+    out (c), c
+    ret
+__MUSIC_INIT_BANKED:            ; HL = song, A = subsong
+    ld d, a
+    ld a, (__MUSIC_BANKCFG)
+    ld b, $7F
+    ld c, a
+    out (c), c
+    ld a, d
+    call PLY_AKG_Init
+    ld a, (.core.CBK_CFG)
+    ld b, $7F
+    ld c, a
+    out (c), c
+    ret
+__music_ib_start:
+    xor a
+    ld (__MUSIC_ACTIVE), a
+    ld a, (ix+9)
+    or $C4
+    ld (__MUSIC_BANKCFG), a
+    ld hl, __MUSIC_PLAY_BANKED
+    ld (__MUSIC_PLAYFN), hl
+    ld l, (ix+4)
+    ld h, (ix+5)
+    ld a, (ix+7)
+    ld de, __MUSIC_INIT_BANKED
+    call __MUSIC_RUN
+    ld a, 1
+    ld (__MUSIC_ACTIVE), a
+    end asm
+    MusicHookUp()
+end sub
+#endif
+
 ' Manual mode: plays one tick of the song. Does nothing when no song is
 ' playing, or while the frame hook drives it.
 sub MusicFrame()
@@ -234,7 +348,7 @@ sub MusicFrame()
     jr z, __music_frame_done
     call __MUSIC_HOOKED
     jr z, __music_frame_done
-    ld de, PLY_AKG_Play
+    ld de, (__MUSIC_PLAYFN)
     call __MUSIC_RUN
 __music_frame_done:
     end asm

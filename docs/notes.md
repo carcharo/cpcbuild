@@ -553,6 +553,54 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   page restructured; all CPC builds start at &0040. Plan:
   docs/phase5c-design.md.
 
+- 2026-10-03: **Phase 5c D4: 6128 banks** (`lib/cpcbuild/banks.bas`/`.asm`,
+  `MusicInitBank` in music_cpc.bas, `aks2bas.py --at ADDR [--bin F]`,
+  `cpcrun.py --disk-file NAME=PATH`, run.py `REM MODELS:/EMUS:/DISKFILE:`).
+  Findings (6128 ROM disassembly, evidence in banks.asm's header):
+  - The firmware writes the RAM configuration only in MC_START_PROGRAM (at
+    &062D of the lower ROM: it resets to &C0 and wipes &B100-&B8F9, which
+    includes KL BANK SWITCH's record &B8D5) and in KL BANK SWITCH (&BD5B:
+    stores A at &B8D5, writes &C0+A, uses B'=&7F). No interrupt handler, ROM
+    or AMSDOS code touches it and nothing calls KL BANK SWITCH, so the
+    library writes the Gate Array directly (the gate would turn interrupts
+    on, which the frame hook can't) and keeps a shadow (CBK_CFG); &B8D5 is
+    left alone.
+  - Extra RAM is detected at start-up (#init CPC_INIT_BANKS: complement
+    written into bank 0, main RAM must keep its byte). Caprice32 gives a 464
+    or 664 128 KB by default (a DK'tronics-style expansion), so cpcrun now
+    passes `system.ram_size=64` for those models.
+  - Any program using banks reserves &4000-&7FFF. Two libraries (double
+    buffering, banks) need the one label `.core.__CPC_RESERVE_4000`, which
+    can only be defined once and only inside a sub to be conditional, so it
+    moved into `cpcbuild/reserve.bas` (CbReserve4000), called by both
+    (+18 bytes in bounce). A `#ifndef` guard doesn't work: it is evaluated
+    by the .bas preprocessor whether or not the sub is used.
+  - The music hook pages the song's bank around PLY_AKG_Play/Init and
+    restores the *shadow* (so a bank the main program selected survives);
+    the hook calls `__MUSIC_PLAYFN` (PLY_AKG_Play or the banked wrapper).
+    MusicInitBank exists only if banks.bas is included first (so music-only
+    programs pay nothing: +10 bytes for the indirection).
+  - **MC_START_PROGRAM, which `RUN"` ends with, hands the program the tape's
+    CAS vectors** (&BC77 = RST 1 instead of AMSDOS's RST 3) and an empty RSX
+    chain (KL_FIND_COMMAND "DISC" fails; CAS_IN_OPEN shows "Press PLAY then
+    any key" and hangs). BankLoad therefore checks the vector and runs
+    KL_INIT_BACK for ROM 7 (DE=&0100, HL=&B0FF) to patch AMSDOS in again; no
+    disc ROM -> returns 0. KL_ROM_WALK (&BCCB) must not be used: it hands
+    AMSDOS the top of memory &FAFD, i.e. its workspace lands in the
+    screen. After the re-init AMSDOS's workspace is at &AB7C-&B0FF (boot:
+    &A67C-&B0FF), still outside the program's area.
+  - The CAS buffer and the file name must be in the central 32 KB: BankLoad
+    takes 2064 bytes from the heap (needs 2 KB spare; default heap 4.7 KB).
+  - Copies run in chunks of 256 bytes with interrupts off (1.3 ms of 3.3 ms
+    between interrupts), so no interrupt is lost during a long copy.
+  Measured (chips, game mode; bench/boriel/banks_bench.bas, T-states): paging
+  sequence in+out 84 (~110 per music tick with CALL/RET, 0.14 % of a
+  frame), BankPeek/Poke ~550 a call from BASIC, copy ~1200 per call + 25
+  per byte. Conformance: banks, banks_hook, banks_music, banks464,
+  banks_disc (36/36 and 34/34 on chips 6128/464 incl. skips; 38/38 on
+  Caprice32 6128, 35/35 on 464 and 664). Mutation checks: a hook that
+  doesn't restore the shadow, or a song in the wrong bank, are both caught.
+
 ## Pick up here (updated 2026-10-03, after Phase 5b)
 
 State: Phases pre-5a, 5a and 5b complete and merged into cpcbuild `main`;
