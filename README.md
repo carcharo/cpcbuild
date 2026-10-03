@@ -12,9 +12,9 @@ CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` co
 - Interrupts always on through our own &0038 handler, firmware sound without blocking, AY register access, the Play library (4d).
 - A headless reference emulator on floooh/chips that runs the whole test suite (pre-5a).
 
-**In progress:** Phase 5a — tests, CI, documentation.
+**Done:** Phase 5a — tests, CI, documentation. Phase 5b — music player (Arkos Tracker 3.7), sound effects, opt-in game mode.
 
-**Next:** Phase 5b — music player (Arkos Tracker 2) and opt-in game mode (interrupt-driven frame hook, for games that don't need the firmware's background sound queue or key buffer).
+**Next:** Phase 5c — a demo game for Spectrum 128K and CPC.
 
 **Supported models:** Amstrad CPC 464, 664, 6128. The runtime is firmware-first (text, graphics, sound and files go through the jumpblock at &BB00-&BDxx); the `cpcbuild` library drives the screen, keyboard and palette directly for speed. CPC Plus features are planned for Phase 7.
 
@@ -61,11 +61,12 @@ make bench
 
 ### Measured speeds (bounce.bas, 8 balls, CPC 6128)
 
-- Silent: 25.0 updates/sec
-- With wall-hit sound effects: 22.3 updates/sec
-- With blips + two-channel background tune: 20.0 updates/sec
+Normal mode: Silent 25.0 updates/sec, with wall blips 22.3, with blips and music 20.0.
+Game mode: Silent 25.0, with effects 25.0, with effects and music 25.0 (CPU available elsewhere).
 
-Build switches: `-D BALLS=n` (1–8, default 8), `-D NOMUSIC`, `-D NOSFX`, `-D NOSOUND`.
+Build switches: `-D BALLS=n` (1–8, default 8), `-D NOMUSIC` (effects only), `-D NOSFX` (music only),
+`-D NOSOUND` (silent), `-D GAMEMODE` (game mode on), `-D FWSOUND` (firmware sound), `-D BENCH`,
+`-D SHOT=n` (screenshot after n updates).
 
 ## Repository layout
 
@@ -109,7 +110,9 @@ PLAN-boriel-cpc.md        # Implementation plan and architecture
 
 This project and library routines are licensed under the MIT License (see [LICENSE](LICENSE)). The cpcbuild library routines (sprites, tiles, keyboard, etc.) are written clean-room and licensed MIT.
 
-The asset tools (`img2cpc.py`, `tmx2bas.py`) are MIT.
+The asset tools (`img2cpc.py`, `tmx2bas.py`) and the bounce demo are MIT.
+
+The Arkos Tracker 3.7 music player (Phase 5b) is MIT, copyright (c) 2016-2025 Julien Nevo. See `lib/music/LICENSE.arkos`.
 
 The chips emulator used in CI is licensed under the zlib/libpng licence (see `tools/chipsrun/LICENSE.chips`).
 

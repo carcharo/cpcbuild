@@ -254,6 +254,32 @@ TileMap(@level(0), 0, 0, level_W, level_H)
 `tools/build_assets.sh --draw` redraws the source art first. The output is
 reproducible byte for byte.
 
+### Assets: songs
+
+Songs and sound-effects banks are generated from Arkos Tracker files (.aks, or other
+formats the Arkos command-line tools import, like Vortex Tracker .vt2) using `tools/aks2bas.py`:
+
+```sh
+python3 tools/aks2bas.py tune.aks tune.bas --name tune
+python3 tools/aks2bas.py --sfx sfx.aks sfx.bas --name sfx
+```
+
+The output is a Boriel include with the song or effects data. Use them with the music library:
+
+```basic
+#include <music/music.bas>
+#include "tune.bas"
+#include "sfx.bas"
+
+MusicInit(@tune, 0)                 ' start the song on subsong 0
+SfxInit(@sfx)
+SfxPlay(1, 0, 0)                    ' play effect 1 on channel A at full volume
+```
+
+The Arkos Tracker tools are MIT licensed (see `tools/arkos/README.md` for versions and sources).
+Test songs come from the Arkos Tracker repository with its MIT licence notice; the bundled
+example songs have no licence and are not used in cpcbuild.
+
 ## 5. Double buffering
 
 Opt-in. The CRTC can only display a screen at &0000, &4000, &8000 or &C000, so the
@@ -302,14 +328,18 @@ The AY sound chip has one owner at a time.
 
 * The **firmware sound manager** (BEEP, `SoundQueue`, `SoundEnvelope`) plays
   from the interrupt handler and writes the chip by itself whenever a note is
-  queued.
+  queued. For programs without a music player, running outside game mode.
+* The **music player** (Arkos Tracker 3: `MusicInit`, `SfxPlay`) plays from the
+  frame hook. It owns the AY while a song plays; sound effects work in game mode
+  and normal mode.
 * **Direct access** (`AyWrite`, the Play library) programs the chip itself.
 
 A program uses one of them at a time. Before direct access, call `SoundStop`
-once (Play does this for you), and queue no firmware sounds while it lasts. After
-using direct access, call `SoundStop` before BEEP or `SoundQueue` again. Play
-runs with interrupts off and does not return until the tune ends, so the
-keyboard and the firmware clock stop meanwhile.
+once (Play does this for you), and queue no firmware sounds while it lasts. `MusicInit`
+calls `SoundStop` so the manager is idle. After using direct access, call `SoundStop`
+before BEEP or `SoundQueue` again. Play and the music player run with interrupts
+off, so the keyboard and the firmware clock stop meanwhile (the music player only
+outside firmware calls; in game mode the firmware stops anyway).
 
 ## 7. API reference
 
@@ -574,7 +604,121 @@ SetPalette(@pal(0), 4)
 PalUpload(@pal(0), 2, 8)                  ' pens 8 and 9
 ```
 
-### 7.8 Firmware sound (`cpc.bas`)
+### 7.8 Frame hook and game mode (`framehook.bas`)
+
+| Call | Parameters | Returns |
+|---|---|---|
+| `FrameHook(addr)` | `addr AS UINTEGER`: address of a machine-code routine | sub |
+| `FrameHookOff()` | | sub |
+| `Frames()` | | `ULONG`: frames since the program started |
+| `GameMode(on)` | `on AS UBYTE`: 1 to enable, 0 to disable | sub |
+
+The frame hook is a machine-code routine that runs once per frame at the frame flyback,
+with interrupts off and all registers saved (BC, DE, HL, AF, IX, IY and the alternate
+bank). It is called in every screen mode, including while the program waits inside a
+firmware call (PRINT, WaitRetrace, etc.), exactly once per frame.
+
+**FrameHook** installs a routine to run on every frame. The routine must not call the
+firmware, PRINT, or use floats or strings: write it in an `asm` block with a label,
+and pass its address (`@label`). A typical use is a music player that advances one tick
+per frame regardless of the main loop's speed.
+
+**FrameHookOff** stops the hook.
+
+**Frames** returns a count since the program started, one per frame. Use it instead of
+the firmware's 300 Hz clock in programs that switch game mode.
+
+**GameMode(1)** switches to game mode: outside firmware calls the firmware's own interrupt
+handler stops, saving about 10-11 % of the CPU (from about 12 % baseline to about 1-2 %).
+While in game mode and not inside a firmware call, the firmware's key buffer (INKEY$),
+300 Hz clock, sound queue (BEEP/SoundQueue) and ink refresh stop; use `ScanKeys`, `Frames()`,
+the music player and its sound effects, or `AyWrite` instead. Firmware calls themselves still
+work, and inside them the firmware handles interrupts as usual. **GameMode(0)** switches back
+to normal mode.
+
+The frame hook and game mode are best proven in an emulator first, as the design uses
+firmware features (a far-address frame-flyback event with ROM select &FF) to run at every
+frame outside the normal interrupt model.
+
+Cost: each call is one or two lines of inline assembly.
+
+```basic
+#include <framehook.bas>
+
+GameMode(1)                         ' opt-in: more CPU for the loop
+DO
+    WaitRetrace(1)                  ' wait for the next frame flyback
+    ScanKeys()                      ' read the keyboard (firmware's buffer is off)
+    f = Frames()                    ' the frame counter
+    ' ... game loop ...
+LOOP UNTIL KeyDown(KEY_ESC)
+GameMode(0)                         ' back to normal
+```
+
+### 7.9 Music and sound effects (Arkos) (`music.bas`)
+
+| Call | Parameters | Returns |
+|---|---|---|
+| `MusicInit(song, subsong)` | `song AS UINTEGER`: address of AKG song data; `subsong AS UBYTE`: subsong number (0 = first) | sub |
+| `MusicFrame()` | | sub |
+| `MusicStop()` | | sub |
+| `SfxInit(effects)` | `effects AS UINTEGER`: address of AKX effects data | sub |
+| `SfxPlay(n, channel, invvol)` | `n AS UBYTE` 1 = first effect; `channel AS UBYTE` 0-2 (A, B, C); `invvol AS UBYTE` 0-16 inverted volume (0 full, 16 mute) | sub |
+| `SfxStop(channel)` | `channel AS UBYTE` 0-2 | sub |
+| `MusicAuto` | `DIM MusicAuto AS UBYTE` (default 1) | — |
+
+The music player is Arkos Tracker 3.7's PlayerAkg (MIT), converted for Boriel. It plays
+songs and sound effects through the AY, with each effect assigned to a channel. `MusicAuto`
+controls the mode (read before `MusicInit`):
+
+* **Auto mode (MusicAuto = 1, the default):** `MusicInit` puts the player on the frame hook,
+  so the song advances one tick per frame at 50 Hz, steady whatever the main loop does. It
+  keeps playing through PRINT, WaitRetrace, firmware calls and long calculations. A program
+  just calls `MusicInit` and forgets; `MusicFrame` is not needed. The player works in normal
+  mode and in game mode (music plays even when the firmware stops). This is the recommended mode.
+
+* **Manual mode (MusicAuto = 0):** `MusicInit` does not touch the frame hook. Call `MusicFrame`
+  once per frame yourself (after `WaitRetrace(1)`), and the song advances at your loop's rate.
+  The hook's single slot remains free for user code.
+
+**MusicInit** starts a song. The song data is the address of AKG data (usually `@name` from
+an aks2bas.py include). Subsong is 0 for the first of a multi-part song; the Arkos exporter
+splits them. Calling it while a song plays restarts with the new one. It calls `SoundStop` first,
+so the firmware sound manager is idle.
+
+**MusicStop** silences the chip, takes the music off the frame hook (if it is the music's),
+and stops any effect playing.
+
+**SfxInit** gives the player a sound-effects bank (the address of AKX data from aks2bas.py
+`--sfx`). Call it once, before the first `SfxPlay`; it can be called while a song plays.
+
+**SfxPlay** plays effect n on a channel. Effects only advance while a song plays (so the
+song's tempo is correct; an effects-only demo needs to play an empty song). `SfxStop` stops
+the effect on a channel.
+
+Cost: the player takes about 16 scanlines per frame (~4,200 T-states) with light test songs;
+about 5 % of the CPU. It is always interrupt-driven on the frame hook (auto mode) or runs
+with interrupts off during `MusicFrame` (manual mode), so every call runs under DI. In auto
+mode a program that runs its own code on the hook must use manual mode instead (set `MusicAuto = 0`).
+
+```basic
+#include <music/music.bas>
+#include "tune.bas"
+#include "sfx.bas"
+
+SfxInit(@sfx)
+MusicInit(@tune, 0)                 ' auto mode, starts the tune
+
+DO
+    WaitRetrace(1)
+    ScanKeys()
+    IF KeyDown(KEY_A) THEN SfxPlay(1, 0, 0)  ' effect 1 on channel A at full volume
+LOOP UNTIL KeyDown(KEY_ESC)
+
+MusicStop()
+```
+
+### 7.10 Firmware sound (`cpc.bas`)
 
 These queue notes on the firmware sound manager and return at once. The manager
 plays from the interrupt handler. Each of the 3 channels (A = 1, B = 2, C = 4) has
@@ -633,7 +777,7 @@ SoundEnvelope 1, @decay(0), 1
 IF SoundFree(1) > 2 THEN r = SoundQueue(1, 239, 20, 15, 1)    ' middle C, 0.2 s, envelope 1
 ```
 
-### 7.9 Direct AY access (`cpc.bas`)
+### 7.11 Direct AY access (`cpc.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -654,7 +798,7 @@ AyWrite 0, 239 BAND 255: AyWrite 1, 0
 AyWrite 8, 15
 ```
 
-### 7.10 Play (`play.bas`)
+### 7.12 Play (`play.bas`)
 
 ```basic
 #include <play.bas>
@@ -678,7 +822,7 @@ compiler fork. Points that matter on the CPC:
 * It needs the default optimisation level (`-O2`); at level 1 or lower it does
   not work.
 
-### 7.11 Font (`font.bas`)
+### 7.13 Font (`font.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -704,7 +848,7 @@ DIM myfont(767) AS UBYTE => { ... }
 SetFont(@myfont(0))
 ```
 
-### 7.12 Also in the cpc standard library
+### 7.14 Also in the cpc standard library
 
 | Call | Notes |
 |---|---|
@@ -721,6 +865,13 @@ is 80,000 of them. **Interrupts are always on in compiled code** and the firmwar
 runtime's front-end; calibrated with a busy loop), more when sound envelopes play
 (13.9 % with three plain notes, 22.9 % with three channels of envelopes). Budget
 for about 88 % of the machine, less with music.
+
+**Game mode.** In game mode the firmware's interrupt work stops outside firmware calls,
+cutting the baseline from 12.3 % to about 1-2 %. The music player (if running) takes
+about 5 % on top, so game mode with music leaves about 94 % free vs 80 % in normal mode
+with music. Measured with bounce.bas: silent 25.0 updates/s (normal), 25.0 (game mode);
+with effects only 19.6 (normal), 25.0 (game mode); with music and effects 20.0 (normal),
+25.0 (game mode).
 
 **Array indexing.** An array element with a variable index calls the compiler's
 general array routine, a few hundred T-states per access, whatever the optimisation
@@ -790,8 +941,10 @@ mode-0 background, double buffered): about 10 updates a second at first, about 1
 with unrolled sprite and tile routines, 25 with `TileRestore` and pointer records.
 Before those changes, about 103k T per iteration were the demo's own BASIC, about
 66k the 8 masked sprites (42k inside the routine), and each ball's erase 4-6
-`DoTile8` calls at about 2.3k each. Build switches: `-D BALLS=n` (1-8), `-D NOMUSIC`,
-`-D NOSFX`, `-D NOSOUND`, `-D BENCH` (runs 250 updates and prints the rate).
+`DoTile8` calls at about 2.3k each. Build switches: `-D BALLS=n` (1-8, default 8),
+`-D NOMUSIC` (effects only), `-D NOSFX` (music only), `-D NOSOUND` (silent),
+`-D GAMEMODE` (game mode on), `-D FWSOUND` (firmware sound instead of music player),
+`-D BENCH` (runs 250 updates and prints the rate), `-D SHOT=n` (n updates then screenshot).
 
 **Other things that cost time or memory.**
 
