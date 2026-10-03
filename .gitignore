@@ -5,3 +5,4 @@ bench/_work/
 bench/micro/
 bench/*.log
 build/
+tools/arkos/work/
