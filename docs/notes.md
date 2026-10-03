@@ -459,6 +459,22 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   checkout v7 / setup-python v7 / cache v6 / upload-artifact v7 (Node 24).
   Merged `phase-5a` into `main`.
 
+- 2026-10-03: **Phase 5b decisions** (user):
+  - Music is driven from the frame interrupt: `MusicInit(@song)` puts the
+    player on the frame hook (steady 50 Hz whatever the game loop does); a
+    manual `MusicFrame` stays available.
+  - Sound effects go through the music player's own effects support (one AY
+    owner; works in game mode). Firmware sound calls stay for programs
+    without music, outside game mode.
+  - 5b targets the CPC with an architecture-neutral API; Spectrum 128K
+    support comes with the 5c demo.
+  - Frame-hook design: the hook is always registered as a firmware
+    frame-flyback event with a far address and ROM select &FF (so the code
+    can live anywhere); in game mode our handler also calls it for frames
+    outside firmware calls (frames inside firmware calls still reach the
+    firmware, which runs the event). A wrapper saves the alternate
+    registers and IX/IY. To be proven in the emulator first.
+
 ## Pick up here (written 2026-10-03)
 
 State: pre-5a and Phase 5a complete, merged into cpcbuild `main`; zxbasic
