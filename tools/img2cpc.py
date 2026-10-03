@@ -243,6 +243,28 @@ def pack_block(grid, x0: int, y0: int, wpx: int, hpx: int, mode: int, masked: bo
 # ---------------------------------------------------------------- Spectrum
 
 
+def spectrum_sprite_bits(img: Image) -> list[int]:
+    """Spectrum sprite data (--zx-sprite): bit = 1 for every opaque pixel
+    that isn't black, whatever the colour balance of its cell, in the same
+    8x8-cell order as spectrum_convert. For sprites drawn by OR-ing (or
+    through a mask) with colour set by the program's own attributes: the
+    picture rule (paper = the most frequent colour of a cell) would invert
+    cells where the sprite's pixels outnumber the background."""
+    if img.w % 8 or img.h % 8:
+        raise SystemExit(f"img2cpc: Spectrum image size {img.w}x{img.h} must be a multiple of 8")
+    bitmap: list[int] = []
+    for cy in range(0, img.h, 8):
+        for cx in range(0, img.w, 8):
+            for y in range(cy, cy + 8):
+                b = 0
+                for c in range(8):
+                    p = img.pix[y][cx + c]
+                    if p is not None and p[:3] != (0, 0, 0):
+                        b |= 1 << (7 - c)
+                bitmap.append(b)
+    return bitmap
+
+
 def spectrum_convert(img: Image) -> tuple[list[int], list[int]]:
     if img.w % 8 or img.h % 8:
         raise SystemExit(f"img2cpc: Spectrum image size {img.w}x{img.h} must be a multiple of 8")
@@ -324,6 +346,8 @@ def convert(args, img: Image) -> tuple[str, str]:
     body: list[str] = []
     if args.spectrum:
         bitmap, attrs = spectrum_convert(img)
+        if args.zx_sprite:
+            bitmap = spectrum_sprite_bits(img)
         body.append(fmt_array(name, bitmap))
         body.append(fmt_array(name + "_attr", attrs))
         body.append(fmt_const(name + "_COLS", img.w // 8))
@@ -420,10 +444,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-palette", action="store_true", help="don't emit NAME_pal / NAME_PENS")
     ap.add_argument("--write-palette", metavar="F", help="save the palette used")
     ap.add_argument("--spectrum", action="store_true", help="emit ZX Spectrum bitmap + attributes")
+    ap.add_argument("--zx-sprite", action="store_true",
+                    help="with --spectrum: sprite data, bit = 1 for every opaque non-black pixel (no per-cell ink/paper choice)")
     args = ap.parse_args(argv)
 
     if not args.spectrum and args.mode is None:
         ap.error("--mode is required (or --spectrum)")
+    if args.zx_sprite and not args.spectrum:
+        ap.error("--zx-sprite needs --spectrum")
     if args.pen0 is not None and not 0 <= args.pen0 <= 26:
         ap.error("--pen0 must be a firmware colour 0-26")
     if args.palette is not None and args.palette_file is not None:

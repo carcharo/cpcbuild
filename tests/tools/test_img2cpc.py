@@ -314,6 +314,21 @@ class TestSpectrum(Tmp):
         self.assertEqual(arr["z"], [0b11100000] * 8)
         self.assertEqual((c["z_COLS"], c["z_ROWS"]), (1, 1))
 
+    def test_zx_sprite_dense_cell_not_inverted(self):
+        # A sprite cell where the sprite's colour outnumbers the background:
+        # the picture rule makes it the paper (inverted bits); --zx-sprite
+        # keeps bit = 1 for every sprite pixel.
+        rows = [[WHITE if x < 6 else (0, 0, 0, 0) for x in range(8)] for _ in range(8)]
+        p = self.png("s.png", rows)
+        pic, _, _ = self.run_tool("--spectrum", "--name", "s", p)
+        spr, _, _ = self.run_tool("--spectrum", "--zx-sprite", "--name", "s", p)
+        self.assertEqual(pic["s"], [0b00000011] * 8)   # inverted by the picture rule
+        self.assertEqual(spr["s"], [0b11111100] * 8)   # sprite pixels set
+
+    def test_zx_sprite_needs_spectrum(self):
+        p = self.png("t.png", [[WHITE] * 8] * 8)
+        self.assertIn("--zx-sprite needs --spectrum", self.fails("--mode", 0, "--zx-sprite", p))
+
     def test_normal_level(self):
         d7 = (0xD7, 0, 0xD7)  # normal magenta (idx 3)
         rows = [[d7] * 4 + [BLACK] * 4 for _ in range(8)]
