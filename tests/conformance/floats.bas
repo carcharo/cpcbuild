@@ -7,9 +7,11 @@ REM The first block below is exact binary fractions (halves/quarters/
 REM eighths) so there is no float-rounding ambiguity to account for by
 REM hand.
 REM
-REM The "round_*" block exercises fp_tostr's rounding of the 5th printed
-REM decimal (half away from zero). It used to truncate instead (0.1 ->
-REM "0.09999", 2/3 -> "0.66666") -- see fp_tostr.asm for the fix.
+REM The "round_*" block exercises fp_tostr's rounding. Since the Spectrum-
+REM style text format (8 significant digits, exponent notation; see
+REM floatfmt.bas) the expectations are the Spectrum ROM's own output
+REM (2/3 -> "0.66666667", 4E-6 -> "4E-6"); they used to be the old 5-decimal
+REM format ("0.66667", "0").
 
 #include "lib/chk.bas"
 
@@ -41,7 +43,7 @@ DIM eq AS UByte
 eq = (a + b = 3.75)
 CHK("cmp_eq", STR$(eq), "1")
 
-REM --- fp_tostr rounding (round half away from zero to 5 decimals) ---
+REM --- fp_tostr rounding (8 significant digits, Spectrum style) ---
 REM
 REM Each value is computed into a Float variable in its own statement,
 REM then STR$'d in a separate CHK call. STR$ of a literal/constant
@@ -57,21 +59,21 @@ DIM two AS Float
 DIM three AS Float
 two = 2
 three = 3
-CHK("round_two_thirds", STR$(two / three), "0.66667")
-CHK("round_neg_two_thirds", STR$(-two / three), "-0.66667")
-CHK("round_one_third", STR$((two / two) / three), "0.33333")
+CHK("round_two_thirds", STR$(two / three), "0.66666667")
+CHK("round_neg_two_thirds", STR$(-two / three), "-0.66666667")
+CHK("round_one_third", STR$((two / two) / three), "0.33333333")
 
 DIM lnval AS Float
 lnval = LN(10)
-CHK("round_ln10", STR$(lnval), "2.30259")
+CHK("round_ln10", STR$(lnval), "2.3025851")
 
 DIM sqrval AS Float
 sqrval = SQR(2)
-CHK("round_sqr2", STR$(sqrval), "1.41421")
+CHK("round_sqr2", STR$(sqrval), "1.4142136")
 
 DIM expval AS Float
 expval = EXP(1)
-CHK("round_exp1", STR$(expval), "2.71828")
+CHK("round_exp1", STR$(expval), "2.7182818")
 
 DIM tenth AS Float
 tenth = 0.1
@@ -79,11 +81,11 @@ CHK("round_tenth", STR$(tenth), "0.1")
 
 DIM near1 AS Float
 near1 = 0.999996
-CHK("round_carry_to_1", STR$(near1), "1")
+CHK("round_carry_to_1", STR$(near1), "0.999996")
 
 DIM near10 AS Float
 near10 = 9.999996
-CHK("round_carry_to_10", STR$(near10), "10")
+CHK("round_carry_to_10", STR$(near10), "9.999996")
 
 REM 99999.999996 as a single literal loses precision in the compiler's
 REM own decimal->float packer (src/api/fp.py truncates rather than
@@ -99,11 +101,11 @@ CHK("round_carry_to_100000", STR$(hundredk - 4 / sixmil), "100000")
 
 DIM tiny AS Float
 tiny = 0.000004
-CHK("round_tiny_to_zero", STR$(tiny), "0")
+CHK("round_tiny_to_zero", STR$(tiny), "4E-6")
 
 DIM negtiny AS Float
 negtiny = -0.000004
-CHK("round_neg_tiny_no_sign", STR$(negtiny), "0")
+CHK("round_neg_tiny_no_sign", STR$(negtiny), "-4E-6")
 
 DIM mixed AS Float
 mixed = 123.456

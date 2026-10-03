@@ -55,7 +55,8 @@ CHK("int_wrap", STR$(si), "-32768")
 DIM sl AS Long
 sl = 2147483647
 sl = sl + 1
-CHK("long_wrap", STR$(sl), "-2147483648")
+REM STR$ of a LONG goes through FLOAT (as on the Spectrum: 8 digits, E notation)
+CHK("long_wrap", STR$(sl), "-2.1474836E+9")
 
 REM ---- multiplication overflow wrap ----
 DIM m1 AS UByte
