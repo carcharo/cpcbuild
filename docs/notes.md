@@ -559,10 +559,20 @@ bounce: 25 updates/s with Arkos music and effects in game mode.
    branch; plans name the agent model per step.
 2. Small open item (low priority): the cpcbuild library's false-positive
    compiler warnings (W150/W190/W170).
-3. Still-open questions: 3 (float PRINT/VAL), 14 (ORG; now relevant),
+3. **To do (user, 2026-10-03): restructure zxbasic
+   docs/architectures/amstrad_cpc.md** so it is about the zxbasic
+   `--arch cpc` differences only, with cpcbuild mentioned once in a closing
+   section ("an example project that uses and extends the CPC support")
+   linking to cpcbuild's library reference. Decide with it: move the
+   cpcbuild library (stdlib/cpcbuild + runtime/cpcbuild, Phase 4c) out of
+   the zxbasic fork into cpcbuild `lib/` like music (recommended: keeps the
+   fork to the backend, matches the plan's "library outside the compiler"),
+   or keep it in the fork as an optional bundled library. framehook.bas
+   stays in the fork (it is runtime).
+4. Still-open questions: 3 (float PRINT/VAL), 14 (ORG; now relevant),
    15 (INKEY$ model), 17 (FLASH), 18 (keys.bas on cpc), 19 (664/6128-only
    firmware).
-4. Ideas parked: Boriel 1D-array indexing optimisation (upstream
+5. Ideas parked: Boriel 1D-array indexing optimisation (upstream
    candidate); a double-buffer variant of cb_tilerestore; RVM spot-check
    (optional).
 
