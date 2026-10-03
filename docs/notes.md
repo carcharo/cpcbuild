@@ -475,6 +475,14 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     firmware, which runs the event). A wrapper saves the alternate
     registers and IX/IY. To be proven in the emulator first.
 
+- 2026-10-03: **Phase 5b, more decisions** (user, after the Arkos
+  research): player = Arkos Tracker 3.7 AKG (MIT, music + sound effects,
+  ~25-35 scanlines a frame); the Arkos tools (Rasm, Disark, SongToAkg) may
+  run outside the sandbox for the conversion and song export (they hang
+  inside it); bounce's tune is generated as an .aks from its existing
+  melody; the player and music.bas live in the cpcbuild repo (`lib/`), not
+  the compiler fork. Design and who-does-what: docs/phase5b-design.md.
+
 ## Pick up here (written 2026-10-03)
 
 State: pre-5a and Phase 5a complete, merged into cpcbuild `main`; zxbasic
