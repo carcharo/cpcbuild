@@ -17,10 +17,11 @@ $I --mode 0 --name sprites --sprite --frame 8x8 --palette-file $A/starfall.pal $
 $I --mode 0 --name shots --sprite --frame 2x4 --palette-file $A/starfall.pal --no-palette $A/shots.png -o $A/shots.bas
 $I --mode 0 --name tiles --tiles --palette-file $A/starfall.pal $A/tiles.png -o $A/tiles.bas
 
-# Spectrum: 1-bit art (see make_art.py for the layout)
-$I --spectrum --name zx_sprites $Z/zx_sprites.png -o $Z/zx_sprites.bas
-$I --spectrum --name zx_shots $Z/zx_shots.png -o $Z/zx_shots.bas
-$I --spectrum --name zx_icon $Z/zx_icon.png -o $Z/zx_icon.bas
+# Spectrum: 1-bit sprite art (see make_art.py for the layout); --zx-sprite
+# keeps every sprite pixel as ink (the picture rule would invert dense cells)
+$I --spectrum --zx-sprite --name zx_sprites $Z/zx_sprites.png -o $Z/zx_sprites.bas
+$I --spectrum --zx-sprite --name zx_shots $Z/zx_shots.png -o $Z/zx_shots.bas
+$I --spectrum --zx-sprite --name zx_icon $Z/zx_icon.png -o $Z/zx_icon.bas
 
 # Music and effects (skipped, keeping the committed ones, without the Arkos tools)
 T="${AT3_TOOLS:-tools/arkos/work/bin}"
