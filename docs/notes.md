@@ -1120,3 +1120,19 @@ sound (firmware sound manager). Waiting on B5 (bare graphics): font, udg,
 screen, graphics (+ screens/graphics), and cb_display, cb_fill,
 cb_sprites, cb_tiles, cb_tilerestore (POINT/graphics references and
 firmware-clock timing in the tests: bare variants due in B5).
+
+## 2026-10-03: CPCEC is the second Plus emulator (Phase 7)
+
+- Decision (user): test Phase 7 against **CPCEC** as well as Caprice32
+  (chips has no Plus). Details and reasons in PLAN-boriel-cpc.md Phase 7.
+  Arnold (rofl0r/arnold) and WinAPE not used.
+- Built and ran `-h` on macOS (Homebrew SDL2 2.32.10) from the cpcitor
+  mirror at release 20260303 in a scratch dir, nothing added to the repos.
+  Note `-I/opt/homebrew/include`: its source includes `<SDL2/SDL.h>`, which
+  `sdl2-config --cflags` doesn't cover.
+- Patching for our use case is fine: GPLv3 lets us modify it freely. It
+  stays a separate program run as a subprocess, so our own code is
+  unaffected. cpcbuild is a public repo, so a patch committed there is
+  distributed: keep it a GPLv3 patch file plus a fetch script pinned to an
+  upstream commit (tools/cpcec/, with the licence noted), not a vendored
+  copy mixed into our tools.

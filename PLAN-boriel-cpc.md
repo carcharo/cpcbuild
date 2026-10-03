@@ -343,9 +343,27 @@ ASIC facts:
 Tooling: PNG → one-byte-per-pixel sprite blob converter; `.cpr` cartridge
 writer for the Plus range (a `.dsk` still works on the 6128+).
 
-Acceptance check: the Arnold system test cartridge, run in Caprice32. Its
-raster interrupt test passes since commit 082eb57 (fixes in 20a2604); DMA
-interrupt vectors are implemented in Caprice32's code but not yet verified. Emulators with ASIC support: WinAPE, Arnold, CPCEC.
+Acceptance check: the Arnold system test cartridge, run in Caprice32 and
+CPCEC. (Here "Arnold" is Amstrad's codename for the Plus range: the
+cartridge is Amstrad's own diagnostic, unrelated to the Arnold emulator.)
+In Caprice32 its raster interrupt test passes since commit 082eb57 (fixes
+in 20a2604); DMA interrupt vectors are implemented but not yet verified.
+
+Plus emulators (decided 2026-10-03): Caprice32 (day-to-day, automated)
+and **CPCEC** as the second Plus emulator to test against (chips has no
+Plus). CPCEC (César Nicolás-González, GPLv3, mirror github.com/cpcitor/
+cpcec): ASIC support since 2020 with continued fixes, tested by its
+author with PLUSTEST and the Arnold 5 diagnostic ROM; `-m3` Plus/GX4000,
+a `.cpr` on the command line boots directly (a real no-firmware cartridge
+boot); debugger, unthrottled mode (`-R`), printer to file. Builds on macOS
+from one file: `cc -DSDL2 -O2 -xc cpcec.c -I/opt/homebrew/include
+$(sdl2-config --libs)`. Start with manual checks (ASIC library, Plus
+demos, our `.cpr` builds); if worth automating, keep a small patch in
+cpcbuild (`tools/cpcec/`: fetch script pinned to a commit + patch, like
+chipsrun) adding a printer file option, exit on reset and no window, so
+`run.py --emu cpcec` works. Not chosen: WinAPE (Windows only), the
+Arnold emulator (rofl0r/arnold: an old Linux port on SDL 1.2/GTK 2,
+fewer features than its Windows version, no automation).
 
 ## Phase 8 — Tooling: CPC support in NextBuild Studio extensions (leg 4)
 
