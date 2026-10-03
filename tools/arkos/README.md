@@ -1,6 +1,8 @@
 # tools/arkos: the Arkos Tracker music pipeline
 
-Builds `lib/music/akg_cpc.asm`, the Arkos Tracker 3 AKG player converted
+Builds `lib/music/akg_cpc.asm` (Amstrad CPC) and `lib/music/akg_zx.asm`
+(ZX Spectrum 128K: `PLY_AKG_HARDWARE_SPECTRUM`, AY at &FFFD/&BFFD, 1773400 Hz
+period table), the Arkos Tracker 3 AKG player converted
 for Boriel's assembler, and holds the song-export helpers' downloads.
 
 | Tool | Version | Used for |
@@ -14,7 +16,7 @@ URLs and SHA-256 sums are in `fetch.sh`.
 ## Regenerate
 
     sh tools/arkos/fetch.sh      # downloads into tools/arkos/work/ (gitignored)
-    sh tools/arkos/convert.sh    # writes lib/music/akg_cpc.asm
+    sh tools/arkos/convert.sh    # writes lib/music/akg_cpc.asm and akg_zx.asm
 
 `convert.sh` assembles `PlayerAkg.asm` with Rasm
 (`PLY_AKG_HARDWARE_CPC`, `PLY_AKG_MANAGE_SOUND_EFFECTS`, the default full
@@ -30,7 +32,7 @@ spelling restored, clashing labels like `end` renamed).
 
 **The check:** the converted file, assembled by `zxbasm` at ORG 0x8000,
 0x1234 and 0x4000, must be byte-identical to Rasm's binary at the same
-ORG (3412 bytes); `convert.sh` stops if not. The player also survives
+ORG (3412 bytes CPC, 3300 bytes Spectrum); `convert.sh` stops if not. The player also survives
 zxbc's optimizer unchanged (-O0, -O2, -O4: checked once by assembling
 Rasm at the address zxbc placed it and comparing the bytes).
 
@@ -38,8 +40,18 @@ Rasm at the address zxbc placed it and comparing the bytes).
 
     python3 tools/aks2bas.py tune.aks tune.bas --name tune          # SongToAkg
     python3 tools/aks2bas.py --sfx fx.aks fx.bas --name fx          # SongToSoundEffects
+    python3 tools/aks2bas.py --sfx --psg spectrum fx.aks fx.bas --name fx   # for the 128K
     python3 tools/aks2bas.py --from-asm src.asm out.bas --name n --prefix n_
 
+Songs (AKG) are identical for CPC and Spectrum (SongToAkg output is byte for
+byte the same whatever the .aks's PSG clock: the player has the period
+table). Sound-effect banks (AKX) bake software periods from the .aks's
+clock, so export them per machine: `--psg cpc` (1000000 Hz) or
+`--psg spectrum` (1773400 Hz) rewrites the clock in a temporary copy first
+(the Arkos tools have no option for it). The repo's test bank
+(`tests/conformance/assets/music/sfx.bas`) is a CPC export from an .asm
+source, so on a Spectrum it sounds about 10 semitones low; it is only used
+for register checks.
 See the header of `tools/aks2bas.py` and `lib/music/music.bas`.
 
 ## Notes
