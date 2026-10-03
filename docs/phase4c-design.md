@@ -1,5 +1,7 @@
 # Phase 4c design: the `cpcbuild` graphics library
 
+**Note:** statements about interrupts being off outside firmware calls predate Phase 4d (2026-10-02); since Phase 4d, compiled code runs with interrupts always on (cpc-port-notes.md §15).
+
 Decided 2026-10-01: all open decisions below were taken as recommended (notes.md). The plan's Phase 4c, with the 2026-10-01 decision to
 write our own routines (MIT, clean-room) instead of extracting CPCtelera's
 (LGPL v3). Open decisions are marked **Q-4c.n** and collected at the end.

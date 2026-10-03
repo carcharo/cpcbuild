@@ -420,6 +420,37 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   code), reviewed here; review caught an in-process option leak in the
   Q12 change.
 
+- 2026-10-03: Found by the screenshot work: the firmware's interrupt
+  handler rewrites all inks and the border from its own tables about every
+  10 frames (its flashing-ink cycle, even with steady inks). Since Phase 4d
+  that handler runs all the time, so a colour written only to the Gate
+  Array is lost within about 0.2 s. SetPalette/SetInk/SetBorder are
+  unaffected (they set the firmware's tables too); documented in
+  library.md. tools/palette_check.py's Gate-Array-only path now holds
+  interrupts off until its screenshot.
+
+- 2026-10-03: **Phase 5a work, locally complete** (CI to be confirmed on
+  GitHub):
+  - zxbasic: 21 asm snapshot programs (dcba88d7; suite 2168), the cpc
+    architecture page docs/architectures/amstrad_cpc.md (88379f44),
+    stdlib comments refreshed for always-on interrupts (6b0b7f97).
+  - chipsrun screenshots: `--shot`, `--shot-at`, and program-triggered
+    shots (printer line "\x04SHOT name"; `tests/screens/lib/shot.bas`).
+    PNG 768x272 (chips' visible area incl. border; 1 px = 1 mode-2
+    pixel), own PNG writer.
+  - tests/screens: 8 golden-screenshot tests x 2 models (text in modes
+    0/1/2, palette, UDGs, graphics, a cpcbuild scene, bounce frame 40),
+    exact comparison, diff images on failure; a one-byte UDG change is
+    caught. 464 and 6128 `graphics` goldens differ: the two ROMs'
+    GRA_LINE draws long shallow lines one scanline apart in some columns
+    (ROM difference; separate goldens per model).
+  - palette_check.py runs on chips too and passes on both emulators.
+  - Makefile: run, shot, unit, test, test-all, test-chips, chips, assets,
+    bench, ci, clean.
+  - CI: .github/workflows/ci.yml (zxbasic pytest plus `make ci` on ubuntu:
+    unit tests, chips conformance on 464/6128, screen tests).
+  - Docs: docs/library.md (API reference), README refresh.
+
 ## Pick up here (written 2026-10-02, end of day)
 
 **Superseded by the pre-5a / Phase 5a plan (entries of 2026-10-03 above).**

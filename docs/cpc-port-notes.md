@@ -756,8 +756,8 @@ Phase 3 (core language conformance) is complete.
 RST 6 (&0030; installed at boot by an `#init`). `fp_tostr`, `str`, `val`,
 `printf` and `arith/divf` are ported too. The FP workspace sits in the private
 block, which now uses 160 of 1024 bytes. The calculator's 84 `exx` are safe
-because compiled code runs with interrupts off and the firmware is only
-reached through the gate. Float output now **rounds** to 5 decimals: zx81sd
+because (before Phase 4d) compiled code runs with interrupts off and the firmware is only
+reached through the gate (since Phase 4d: interrupts always on; see §15). Float output now **rounds** to 5 decimals: zx81sd
 truncated, so `SIN(PI/6)` printed 0.49999, and `-0` is suppressed.
 Limitations kept from zx81sd: no exponent notation, and VAL accepts a single
 numeric literal. Division by zero gives "Error 5".
@@ -1042,11 +1042,8 @@ unrolled version of 2026-10-02, see §14):
 | TileMap, full screen, per tile (mode 1 / mode 0) | 1,466 / 2,204 | 839 / 1,199 |
 
 **Found along the way.**
-- The 300 Hz firmware clock only advances during firmware calls (interrupts
-  are off otherwise), so timing compiled code with KL_TIME_PLEASE around
-  BASIC calls reads near 0. The speed tests run their timed loops through
-  the firmware gate (interrupts on) and calibrate. This is another reason
-  for the own interrupt handler (question 2, Phase 4d).
+- The 300 Hz firmware clock only advances during firmware calls (superseded by §15: interrupts always on since Phase 4d; see there for the ISR front-end), so timing compiled code with KL_TIME_PLEASE now measures it too. The speed tests run their timed loops through
+  the firmware gate and calibrate.
 - A key pressed only for an instant (as Caprice32 types) can be taken by
   the firmware's own interrupt-time scan first, so a once-a-frame ScanKeys
   may miss it. Held keys are fine. Tests scan in a tight loop.

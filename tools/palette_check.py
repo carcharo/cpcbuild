@@ -3,7 +3,7 @@
 table (runtime/cpcbuild/palette.asm, __CB_HWCOL) against the firmware, in
 the emulator, by comparing screenshots.
 
-    palette_check.py [--model 464|6128] [--keep DIR]
+    palette_check.py [--model 464|6128] [--emu cap32|chips] [--keep DIR]
 
 For each of three paths a generated BASIC program steps through 27
 states (state s: border = colour s, pen p = colour (p+s) mod 27 for
@@ -15,7 +15,14 @@ to advance; the program waits for that q.
        through the firmware, so its interrupt writes the palette): the
        reference.
   hw   Gate Array only, through __CB_GA_SET, no firmware call at all
-       while a state is shown (keys read with ScanKeys): the table.
+       while a state is shown: the table. Interrupts are off from the last
+       Gate Array write until the next state's first one (the q is read
+       straight from the PPI, WaitQDi), because the firmware's interrupt
+       handler rewrites all 17 inks from its own tables every flash period
+       (10 frames, whether or not any ink flashes), which would wipe
+       writes that bypass the firmware (__CB_GA_SET returns with interrupts
+       on, and so does ScanKeys, so a window is left between the last
+       write and the DI: microseconds, tolerated).
   lib  the library's own SetBorder + SetPalette, again with no firmware
        call while the state is shown: firmware and direct together.
 
@@ -23,6 +30,14 @@ Pass criteria: for every state the border pixel and all 16 pen cells have
 the same RGB in hw and lib as in fw, and the 27 border RGBs are distinct.
 Exit status 0 if all of that holds. Needs PIL, the zxbasic fork and
 caprice32 (see tools/cpcrun.py).
+
+--emu chips runs the same programs on tools/chipsrun instead (no typed q:
+the program triggers each screenshot itself with tests/screens/lib/shot.bas
+and the colours are chips' Gate Array table, not Caprice32's). Note that
+this checks the library against the firmware *on the same emulator*: both
+the fw and the hw/lib paths show colours through chips' hardware colour
+table, so agreement says the firmware->Gate Array mapping is right, and
+the 27 distinct RGBs say chips' table has them all.
 """
 from __future__ import annotations
 
@@ -38,6 +53,7 @@ import cpcrun  # noqa: E402
 from PIL import Image  # noqa: E402
 
 STEPS = 27
+SHOT_LIB = Path(__file__).resolve().parent.parent / "tests" / "screens" / "lib" / "shot.bas"
 
 PROGRAM = r"""
 #include <cpc.bas>
@@ -107,6 +123,48 @@ SUB WaitQDirect
   LOOP UNTIL KeyDown(KEY_Q) = 0
 END SUB
 
+REM The same wait, with interrupts off throughout (ScanKeys returns with
+REM them on): reads row 8 (Q is bit 3) straight from the PPI, as
+REM __CB_SCAN_KEYS does, and returns with interrupts still off.
+SUB WaitQDi
+  ASM
+  di
+  ld b, $F6
+  in a, (c)
+  and $30
+  ld d, a
+  ld bc, $F40E
+  out (c), c
+  ld b, $F6
+  or $C0
+  out (c), a
+  out (c), d
+  ld bc, $F792
+  out (c), c
+  ld a, d
+  or $48
+  ld e, a
+waitq_down:
+  ld b, $F6
+  out (c), e
+  ld b, $F4
+  in a, (c)
+  bit 3, a
+  jr nz, waitq_down
+waitq_up:
+  ld b, $F6
+  out (c), e
+  ld b, $F4
+  in a, (c)
+  bit 3, a
+  jr z, waitq_up
+  ld bc, $F782
+  out (c), c
+  ld b, $F6
+  out (c), d
+  END ASM
+END SUB
+
 Mode 0
 FOR p = 0 TO 15
   FOR s = 5 TO 9
@@ -135,13 +193,49 @@ STEP = {
   FOR p = 0 TO 15
     HwInk(p, pal(p))
   NEXT p
-  WaitQDirect()
+  ASM
+  di
+  END ASM
+  WaitQDi()
+  ASM
+  ei
+  END ASM
 """,
     "lib": """SetBorder(s)
   SetPalette(@pal(0), 16)
   WaitQDirect()
 """,
 }
+
+
+# chips: same states, but the program takes its own shot (Shot) instead of
+# waiting for a typed q. The fw path waits 4 flybacks first so the
+# firmware's own interrupt has written the palette.
+CHIPS_STEP = {
+    "fw": STEP["fw"].replace("""  DO
+  LOOP UNTIL INKEY$ = "q"
+""", "CHIPS_SHOT"),
+    # (the hw step already holds interrupts off from its last Gate Array
+    # write: see the module docstring)
+    "hw": STEP["hw"].replace("WaitQDi()", "CHIPS_SHOT"),
+    "lib": STEP["lib"].replace("WaitQDirect()", "CHIPS_SHOT"),
+}
+CHIPS_SHOT = 'Shot("s" + CHR$(48 + s / 10) + CHR$(48 + s MOD 10))\n'
+
+
+def run_path_chips(path: str, model: str, workdir: Path, env: dict) -> list[Path]:
+    bas = workdir / f"pal{path}.bas"
+    step = CHIPS_STEP[path].replace("CHIPS_SHOT", CHIPS_SHOT)
+    text = PROGRAM.replace("@@STEP@@", step).replace(
+        "#include <cpcbuild/keyboard.bas>", f'#include <cpcbuild/keyboard.bas>\n#include "{SHOT_LIB}"')
+    bas.write_text(text)
+    shots = workdir / f"shots_{path}"
+    shots.mkdir()
+    code = cpcrun.main([str(bas), "--emu", "chips", "--model", model, "--shot-dir", str(shots), "--quiet",
+                        "--timeout", "120"])
+    if code != 0:
+        print(f"  cpcrun exited {code}")
+    return sorted(shots.glob("*.png"))
 
 
 def run_path(path: str, model: str, workdir: Path, env: dict) -> list[Path]:
@@ -174,6 +268,17 @@ def run_path(path: str, model: str, workdir: Path, env: dict) -> list[Path]:
     return files
 
 
+def sample_chips(png: Path):
+    """The same for chipsrun's 768x272 shot (tools/chipsrun/chipsrun.c): one
+    pixel per mode-2 pixel across and per scanline down; the 640x200 screen
+    starts at (64, 36); a mode 0 text cell is 32x8 of those pixels (pen p's
+    column is column p, rows 5-9 are y 76-115). The border is sampled at
+    the left edge."""
+    im = Image.open(png).convert("RGB")
+    assert im.size == (768, 272), im.size
+    return im.getpixel((10, 136)), [im.getpixel((64 + 32 * p + 16, 96)) for p in range(16)]
+
+
 def sample(png: Path):
     """(border RGB, [16 pen cell RGBs]) of one screenshot. cap32's shot is
     768x540: the 640x400 screen starts at (64, 82); a mode 0 text cell is
@@ -190,6 +295,7 @@ def sample(png: Path):
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", choices=["464", "6128"], default="6128")
+    ap.add_argument("--emu", choices=["cap32", "chips"], default="cap32")
     ap.add_argument("--keep", type=Path, help="keep screenshots and programs in this directory")
     args = ap.parse_args()
     env = cpcrun.subprocess_env()
@@ -197,12 +303,12 @@ def main() -> int:
     try:
         results = {}
         for path in ("fw", "hw", "lib"):
-            files = run_path(path, args.model, workdir, env)
+            files = (run_path_chips if args.emu == "chips" else run_path)(path, args.model, workdir, env)
             print(f"{path}: {len(files)} screenshots")
             if len(files) != STEPS:
                 print("  expected", STEPS, "- aborting")
                 return 2
-            results[path] = [sample(f) for f in files]
+            results[path] = [(sample_chips if args.emu == 'chips' else sample)(f) for f in files]
         bad = 0
         for path in ("hw", "lib"):
             for s in range(STEPS):

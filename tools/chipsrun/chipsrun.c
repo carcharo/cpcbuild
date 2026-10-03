@@ -8,6 +8,29 @@
  * the printer port to stdout, types --type strings, and stops when an M1
  * fetch from address 0 happens.
  *
+ * Screenshots (all PNG, 8-bit RGB, written with a built-in minimal PNG
+ * writer: stored deflate blocks, no compression, no dependencies):
+ *   --shot FILE.png    write the screen when the run ends (END, address 0,
+ *                      or timeout).
+ *   --shot-at FRAMES   also write --shot's file FRAMES frames after program
+ *                      start, then keep running (a later end-of-run shot
+ *                      overwrites it; with --shot-at the end-of-run shot is
+ *                      written only if --shot-end is also given).
+ *   --shot-dir DIR     directory for program-triggered shots (default ".").
+ *   Program-triggered: the program sends the printer-transcript line
+ *       "\x04SHOT name\n"
+ *   (control-D, "SHOT ", a name of [A-Za-z0-9_.-], LF -- the same shape as
+ *   the "\x04END" marker and sent the same way, through MC_PRINT_CHAR).
+ *   The line is removed from the transcript and DIR/name.png is written
+ *   SHOT_DELAY (2) frames after chipsrun sees the line, so the program
+ *   should keep the screen unchanged for ~4 frames after sending it.
+ *   Image: the visible display, 768x272, exactly chips' native display area
+ *   (AM40010_DISPLAY_WIDTH x HEIGHT: 48 CRTC characters of 16 pixels, 272
+ *   scanlines, border included), no scaling. One pixel is one mode-2 pixel
+ *   wide (mode 1: 2 px, mode 0: 4 px) and one scanline high. Colours come
+ *   from the Gate Array hardware colour table in chips (cpc_display_info()
+ *   palette), converted to RGB.
+ *
  * Exit: 0 = reached address 0 and the END marker line was seen (marker
  * stripped from the transcript); 2 = timeout; 4 = reached address 0 without
  * the marker; 1 = usage/IO error.
@@ -41,6 +64,7 @@
 #define KEY_GAP 3   /* 2 loses repeated letters (HELLO -> HELO) in chips */
 #endif
 #define FIRST_TYPE_DELAY (4 * BOOT_DELAY)
+#define SHOT_DELAY 2           /* frames between a SHOT marker and the grab */
 
 static cpc_t cpc;
 static bool stopped;
@@ -109,6 +133,133 @@ static void debug_cb(void *ud, uint64_t pins) {
     }
 }
 
+
+/* ---- minimal PNG writer (stored deflate) ------------------------------ */
+static uint32_t crc_table[256];
+static void crc_init(void) {
+    for (uint32_t n = 0; n < 256; n++) {
+        uint32_t c = n;
+        for (int k = 0; k < 8; k++) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
+        crc_table[n] = c;
+    }
+}
+static uint32_t crc_update(uint32_t crc, const uint8_t *p, size_t n) {
+    for (size_t i = 0; i < n; i++) crc = crc_table[(crc ^ p[i]) & 0xFF] ^ (crc >> 8);
+    return crc;
+}
+static void put32(uint8_t *p, uint32_t v) { p[0] = v >> 24; p[1] = v >> 16; p[2] = v >> 8; p[3] = v; }
+static void png_chunk(FILE *f, const char *type, const uint8_t *data, uint32_t len) {
+    uint8_t b[4];
+    put32(b, len); fwrite(b, 1, 4, f);
+    fwrite(type, 1, 4, f);
+    uint32_t crc = crc_update(0xFFFFFFFFu, (const uint8_t *)type, 4);
+    if (len) { fwrite(data, 1, len, f); crc = crc_update(crc, data, len); }
+    put32(b, ~crc); fwrite(b, 1, 4, f);
+}
+/* rgb: w*h*3 bytes. Returns false on I/O error. */
+static bool write_png(const char *path, const uint8_t *rgb, int w, int h) {
+    FILE *f = fopen(path, "wb");
+    if (!f) return false;
+    size_t rowlen = (size_t)w * 3 + 1;
+    size_t rawlen = rowlen * h;
+    uint8_t *raw = malloc(rawlen);
+    for (int y = 0; y < h; y++) {
+        raw[y * rowlen] = 0;    /* filter: none */
+        memcpy(raw + y * rowlen + 1, rgb + (size_t)y * w * 3, (size_t)w * 3);
+    }
+    size_t nblk = (rawlen + 65534) / 65535;
+    size_t zlen = 2 + rawlen + nblk * 5 + 4;
+    uint8_t *z = malloc(zlen), *q = z;
+    *q++ = 0x78; *q++ = 0x01;
+    uint32_t a = 1, b = 0;
+    for (size_t off = 0; off < rawlen; ) {
+        size_t n = rawlen - off > 65535 ? 65535 : rawlen - off;
+        *q++ = (off + n == rawlen) ? 1 : 0;
+        *q++ = n & 0xFF; *q++ = n >> 8; *q++ = ~n & 0xFF; *q++ = (~n >> 8) & 0xFF;
+        memcpy(q, raw + off, n); q += n;
+        for (size_t i = 0; i < n; i++) { a = (a + raw[off + i]) % 65521; b = (b + a) % 65521; }
+        off += n;
+    }
+    put32(q, (b << 16) | a); q += 4;
+    uint8_t ihdr[13];
+    put32(ihdr, w); put32(ihdr + 4, h);
+    ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+    static const uint8_t sig[8] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
+    fwrite(sig, 1, 8, f);
+    png_chunk(f, "IHDR", ihdr, 13);
+    png_chunk(f, "IDAT", z, (uint32_t)(q - z));
+    png_chunk(f, "IEND", NULL, 0);
+    free(raw); free(z);
+    bool ok = !ferror(f);
+    return fclose(f) == 0 && ok;
+}
+
+/* Grab the visible display (see the header comment for the format). */
+static bool save_shot(const char *path) {
+    chips_display_info_t di = cpc_display_info(&cpc);
+    const int w = di.screen.width, h = di.screen.height;
+    const uint8_t *fb = di.frame.buffer.ptr;
+    const uint32_t *pal = di.palette.ptr;
+    const int stride = di.frame.dim.width;
+    uint8_t *rgb = malloc((size_t)w * h * 3);
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            uint32_t c = pal[fb[(di.screen.y + y) * stride + di.screen.x + x] & 63];
+            uint8_t *d = rgb + ((size_t)y * w + x) * 3;
+            d[0] = c & 0xFF; d[1] = (c >> 8) & 0xFF; d[2] = (c >> 16) & 0xFF;
+        }
+    }
+    bool ok = write_png(path, rgb, w, h);
+    free(rgb);
+    if (!ok) fprintf(stderr, "chipsrun: cannot write %s\n", path);
+    return ok;
+}
+
+/* program-triggered shots: queued by scan_markers(), written SHOT_DELAY
+   frames later */
+typedef struct { char name[64]; int due; } shot_t;
+static shot_t shots[64]; static int nshots, shot_next;
+static size_t scan_pos;     /* transcript bytes already scanned for markers */
+static const char *shot_dir = ".";
+
+/* Look for complete "\x04SHOT name\n" lines in the transcript, queue them
+   and remove them from it. */
+static void scan_markers(int now) {
+    static const char pre[] = "\x04" "SHOT ";
+    const size_t plen = sizeof pre - 1;
+    for (;;) {
+        size_t i = scan_pos;
+        while (i < xlen && xbuf[i] != 0x04) i++;
+        scan_pos = i;
+        if (i >= xlen) return;
+        /* is there a complete line here? */
+        size_t e = i;
+        while (e < xlen && xbuf[e] != '\n') e++;
+        if (e >= xlen) return;          /* incomplete: look again later */
+        if (e - i > plen && !memcmp(xbuf + i, pre, plen) && e - i - plen < sizeof shots[0].name && nshots < 64) {
+            shot_t *s = &shots[nshots++];
+            size_t n = e - i - plen;
+            memcpy(s->name, xbuf + i + plen, n);
+            s->name[n] = 0;
+            for (char *c = s->name; *c; c++)
+                if (!((*c >= 'a' && *c <= 'z') || (*c >= 'A' && *c <= 'Z') || (*c >= '0' && *c <= '9') || *c == '_' || *c == '-' || *c == '.')) *c = '_';
+            s->due = now + SHOT_DELAY;
+            memmove(xbuf + i, xbuf + e + 1, xlen - e - 1);
+            xlen -= e - i + 1;
+        } else {
+            scan_pos = i + 1;           /* not ours (e.g. the END line) */
+        }
+    }
+}
+static void run_shots(int now) {
+    while (shot_next < nshots && shots[shot_next].due <= now) {
+        char path[4352];
+        snprintf(path, sizeof path, "%s/%s.png", shot_dir, shots[shot_next].name);
+        save_shot(path);
+        shot_next++;
+    }
+}
+
 static uint8_t *read_file(const char *path, size_t *size) {
     FILE *f = fopen(path, "rb");
     if (!f) { fprintf(stderr, "chipsrun: cannot open %s\n", path); exit(1); }
@@ -157,7 +308,9 @@ static void build_schedule(char **types, int ntypes) {
 int main(int argc, char **argv) {
     const char *model = "6128", *romdir = NULL, *binpath = NULL;
     double timeout = 15.0;
-    bool trace = false;
+    bool trace = false, shot_end = true;
+    const char *shot_path = NULL;
+    int shot_at = -1;
     char **types = calloc(argc + 1, sizeof(char *));
     int ntypes = 0;
     for (int i = 1; i < argc; i++) {
@@ -166,8 +319,12 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--type") && i + 1 < argc) types[ntypes++] = argv[++i];
         else if (!strcmp(argv[i], "--timeout") && i + 1 < argc) timeout = atof(argv[++i]);
         else if (!strcmp(argv[i], "--trace")) trace = true;
+        else if (!strcmp(argv[i], "--shot") && i + 1 < argc) shot_path = argv[++i];
+        else if (!strcmp(argv[i], "--shot-at") && i + 1 < argc) { shot_at = atoi(argv[++i]); shot_end = false; }
+        else if (!strcmp(argv[i], "--shot-end")) shot_end = true;
+        else if (!strcmp(argv[i], "--shot-dir") && i + 1 < argc) shot_dir = argv[++i];
         else if (argv[i][0] != '-' && !binpath) binpath = argv[i];
-        else { fprintf(stderr, "usage: chipsrun --model 464|6128 [--rom-dir DIR] [--type STR]... [--timeout S] [--trace] prog.bin\n"); return 1; }
+        else { fprintf(stderr, "usage: chipsrun --model 464|6128 [--rom-dir DIR] [--type STR]... [--timeout S] [--trace] [--shot F.png [--shot-at N] [--shot-end]] [--shot-dir D] prog.bin\n"); return 1; }
     }
     if (!binpath) { fprintf(stderr, "chipsrun: no program given\n"); return 1; }
     bool is464 = !strcmp(model, "464");
@@ -192,6 +349,7 @@ int main(int argc, char **argv) {
         desc.roms.cpc6128.amsdos = (chips_range_t){ amsdos, 0x4000 };
     }
     cpc_init(&cpc, &desc);
+    crc_init();
 
     clock_t wall0 = clock();
     double wall_cap = timeout * 4 + 20;
@@ -227,11 +385,19 @@ int main(int argc, char **argv) {
         } else due_since = -1;
         cpc_exec(&cpc, FRAME_US);
         pframe++;
+        scan_markers(pframe);
+        run_shots(pframe);
+        if (shot_path && shot_at >= 0 && pframe == shot_at) save_shot(shot_path);
         if (pframe >= max_frames) { timed_out = true; break; }
         if ((pframe & 255) == 0 && (double)(clock() - wall0) / CLOCKS_PER_SEC > wall_cap) { timed_out = true; break; }
     }
     if (trace) fprintf(stderr, "chipsrun: ended after %d program frames (%.2f emulated s): %s\n",
                        pframe, pframe / 50.0, at_zero ? "M1 fetch at address 0" : "timeout");
+
+    /* shots still pending (the program ended first) are taken now */
+    scan_markers(pframe);
+    run_shots(1 << 30);
+    if (shot_path && shot_end) save_shot(shot_path);
 
     int rc = 0;
     if (timed_out && !at_zero) rc = 2;
