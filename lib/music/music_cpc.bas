@@ -114,6 +114,13 @@
 ' by the song itself (the player is called once per tick: a 25 Hz song
 ' wants MusicFrame every second frame, a 100 Hz one twice a frame ...).
 '
+' Bare-metal mode (-D CPC_BAREMETAL): works as it is. The bare runtime's
+' interrupt handler runs the frame hook every frame (always, like game
+' mode), the player writes the AY itself, and MusicInit's SoundStop becomes
+' "silence the AY" (volumes 0, mixer off) because there is no firmware sound
+' manager to reset. BEEP also drives the AY directly there, so the ownership
+' rule below still holds: no BEEP, Play or AyWrite while a song plays.
+'
 ' Sound chip ownership. The player writes the AY itself, straight to the
 ' PPI. While a song plays, nothing else may drive the chip: no BEEP, no
 ' SoundQueue, no Play, no AyWrite (AyRead is harmless). The firmware sound

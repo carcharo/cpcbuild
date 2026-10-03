@@ -12,6 +12,7 @@ REM tests/stress/play_tempo.bas (it needs the clock, so interrupts on).
 #include <cpc.bas>
 #include <play.bas>
 #include "lib/chk.bas"
+#include "lib/ticks.bas"
 
 REM P/V after LD A,I is IFF2 (bit 2 of F); an interrupt during that
 REM instruction can make an NMOS Z80 report 0, so callers try twice.
@@ -25,13 +26,6 @@ FUNCTION FASTCALL IntsOn() AS UBYTE
   END ASM
 END FUNCTION
 
-REM KL TIME PLEASE (&BD0D): DEHL = the 300 Hz clock.
-FUNCTION FASTCALL Ticks() AS ULONG
-  ASM
-  call .core.__FW_CALL
-  defw $BD0D
-  END ASM
-END FUNCTION
 
 REM The raw routines with interrupts off by hand: port C is set to the
 REM cassette bits ($30 = motor and write data) first; the routine must

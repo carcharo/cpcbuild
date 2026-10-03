@@ -1,3 +1,4 @@
+REM BARE: skip uses the firmware clock (KL_TIME_PLEASE), GameMode and firmware calls; bareframes.bas is the bare counterpart
 REM Conformance: the frame hook and game mode (Phase 5b, zxbasic
 REM framehook.bas / runtime/framehook.asm / isr.asm).
 REM

@@ -6,12 +6,28 @@ printer.
     cpcrun.py prog.bas [--org ADDR] [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
                        [--emu cap32|chips] [--model 464|6128]
                       [--shot F.png [--shot-at N]] [--shot-dir D]   (chips only)
+                      [--bare] [--cold]
                       [--disk-file NAME=PATH ...]                   (Caprice32 only)
 
 --disk-file NAME=PATH puts PATH on the DSK as the AMSDOS file NAME (8.3, upper
 case; an AMSDOS header is added: binary, load address &4000, no entry), next
 to the program, so the program can read it (e.g. with BankLoad). Repeatable.
 chips has no disc, so --emu chips refuses it.
+
+--bare adds `-D CPC_BAREMETAL` to the compile (bare-metal runtime, Phase 6).
+--cold (chips only) rehearses a no-firmware boot, e.g. a GX4000-style
+cartridge: chipsrun does not run the firmware at all; it fills RAM with a junk
+pattern, puts the image at its load address with both ROMs paged out, and
+starts the CPU at the entry with interrupts off. The program must set up
+everything itself, so it only makes sense with --bare (a firmware-mode
+program would call into a ROM that isn't there). See chipsrun.c's header for
+the exact power-on state.
+A --bare run ends, like a firmware-mode one, at the reset to address 0 after
+the END marker; --end-on-marker ends it as soon as the marker line has been
+captured instead (chipsrun --end-on-marker; on Caprice32 the printer file is
+polled), for debugging a runtime whose reset misbehaves. The "\x04STATE" lines of
+tests/conformance/lib/bareout.bas BState() are removed from cap32 transcripts
+too (chipsrun consumes them itself).
 
 The program's origin: --org ADDR (e.g. 0x40) is passed to zxbc as --org; with
 no --org zxbc uses its own default. Either way the AMSDOS header (load and
@@ -83,6 +99,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent  # cpcbuild/
@@ -273,6 +290,7 @@ def run_emulator(
     env: dict[str, str],
     model: str = "6128",
     typed: list[str] | None = None,
+    end_on_marker: bool = False,
 ) -> None:
     cap32 = cap32_bin()
     if not cap32.exists():
@@ -321,6 +339,25 @@ def run_emulator(
     run_env = dict(env)
     run_env["SDL_VIDEODRIVER"] = "dummy"
 
+    if end_on_marker:
+        # --end-on-marker: stop as soon as the END marker is in the printer
+        # file, instead of waiting for the address-0 breakpoint.
+        proc = subprocess.Popen(cmd, env=run_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        deadline = time.monotonic() + timeout
+        marker = END_MARKER.encode("latin-1")
+        try:
+            while proc.poll() is None:
+                if time.monotonic() > deadline:
+                    raise TimeoutHit()
+                time.sleep(0.2)
+                if printer_out.exists() and marker in printer_out.read_bytes():
+                    time.sleep(0.3)
+                    return
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            proc.wait()
+        return
     try:
         subprocess.run(cmd, env=run_env, capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
@@ -337,12 +374,18 @@ def run_chips(
     shot: Path | None = None,
     shot_dir: Path | None = None,
     shot_at: int | None = None,
+    cold: bool = False,
+    end_on_marker: bool = False,
 ) -> tuple[int, str]:
     """Run chipsrun; returns (exit code, transcript with END marker stripped)."""
     if model not in ("464", "6128"):
         raise BuildError(f"chips has no {model}")
     cmd = [str(chipsrun_bin()), "--model", model, "--rom-dir", os.environ.get("CPC_ROM_DIR") or str(REPO_ROOT.parent / "caprice32" / "rom"),
            "--timeout", str(timeout)]
+    if cold:
+        cmd.append("--cold")
+    if end_on_marker:
+        cmd.append("--end-on-marker")
     for text in typed or []:
         cmd += ["--type", text]
     if shot:
@@ -390,6 +433,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--disk-file", dest="disk_files", action="append", default=[], metavar="NAME=PATH",
                         help="put PATH on the DSK as AMSDOS file NAME (repeatable; Caprice32 only, chips has no disc)")
+    parser.add_argument("--bare", action="store_true", help="compile with -D CPC_BAREMETAL (bare-metal runtime)")
+    parser.add_argument("--cold", action="store_true",
+                        help="--emu chips: cold start, no firmware (junk RAM, ROMs out, jump to the entry); implies a bare build is expected")
+    parser.add_argument("--end-on-marker", action="store_true",
+                        help="end the run when the END marker line is captured, without waiting for the reset to address 0")
     parser.add_argument("--shot", type=Path, default=None, metavar="FILE.png",
                         help="--emu chips: save the screen (768x272 RGB PNG) when the run ends")
     parser.add_argument("--shot-at", type=int, default=None, metavar="FRAMES",
@@ -399,6 +447,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if (args.shot or args.shot_dir or args.shot_at is not None) and args.emu != "chips":
         parser.error("--shot/--shot-at/--shot-dir need --emu chips")
+    if args.cold and args.emu != "chips":
+        parser.error("--cold needs --emu chips")
+    if args.cold and not args.bare:
+        parser.error("--cold needs --bare (a firmware-mode program cannot start without the firmware)")
+    if args.bare:
+        args.zxbc_args = ["-D", "CPC_BAREMETAL", *args.zxbc_args]
 
     extra_files: list[tuple[str, Path]] = []
     for spec in args.disk_files:
@@ -439,7 +493,8 @@ def main(argv: list[str] | None = None) -> int:
             amsdos_path.write_bytes(amsdos_bin(bin_path, stem, org))
             try:
                 code, text = run_chips(amsdos_path, args.timeout, args.model, args.typed,
-                                       args.shot, args.shot_dir, args.shot_at)
+                                       args.shot, args.shot_dir, args.shot_at, args.cold,
+                                       args.end_on_marker)
             except BuildError as exc:
                 print(f"cpcrun.py: {exc}", file=sys.stderr)
                 return 1
@@ -484,7 +539,8 @@ def main(argv: list[str] | None = None) -> int:
         pack_dsk(bin_path, dsk_path, stem, env, org, extra_files)
 
         try:
-            run_emulator(dsk_path, stem, printer_out, args.timeout, env, args.model, args.typed)
+            run_emulator(dsk_path, stem, printer_out, args.timeout, env, args.model, args.typed,
+                         args.end_on_marker)
         except TimeoutHit:
             print(f"cpcrun.py: timeout after {args.timeout}s (hang -- unimplemented stub?)", file=sys.stderr)
             exit_code = 2
@@ -501,6 +557,7 @@ def main(argv: list[str] | None = None) -> int:
         # END. Strip it from the reported transcript either way: it's an
         # implementation detail of this harness, not part of the program's
         # output.
+        text = text.replace("\x04STATE\n", "")
         if exit_code == 0:
             if END_MARKER in text:
                 # The marker is the program's last output. Caprice32 runs a few

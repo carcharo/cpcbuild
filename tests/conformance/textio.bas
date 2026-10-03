@@ -9,6 +9,7 @@ REM The firmware's sound manager keeps time even with emulator audio off.
 #include <cpc.bas>
 #include <pos.bas>
 #include <csrlin.bas>
+#include "lib/ticks.bas"
 
 DIM results$ AS STRING
 SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
@@ -27,21 +28,34 @@ SUB CHKRANGE(name AS STRING, gotv AS ULONG, lo AS ULONG, hi AS ULONG)
   END IF
 END SUB
 
-REM Firmware: KL_TIME_PLEASE (&BD0D) -> DEHL.
-FUNCTION FASTCALL Ticks AS ULONG
+REM Border colour (firmware colour 0-26). Firmware: SCR_GET_BORDER (&BC3B)
+REM -> B. Bare metal: the runtime's palette shadow (PAL_SHADOW + 16, kept by
+REM gacolour.asm), which holds the same firmware colour number.
+#ifdef CPC_BAREMETAL
+FUNCTION FASTCALL BorderColour AS UBYTE
   ASM
-  call .core.__FW_CALL
-  defw $BD0D
+  ld a, (.core.PAL_SHADOW + 16)
   END ASM
 END FUNCTION
-
-REM Firmware: SCR_GET_BORDER (&BC3B) -> B, C.
+#else
 FUNCTION FASTCALL BorderColour AS UBYTE
   ASM
   call .core.__FW_CALL
   defw $BC3B
   ld a, b
   END ASM
+END FUNCTION
+#endif
+
+REM The tone period the last BEEP queued. Firmware: the runtime's
+REM SOUND_BLK (sysvars.asm: private block $9E00 + $AC, period at +3).
+REM Bare metal: tone A's period registers (0, 1), which BEEP leaves set.
+FUNCTION BeepPeriod() AS UINTEGER
+#ifdef CPC_BAREMETAL
+  RETURN CAST(UINTEGER, AyRead(0)) + 256 * CAST(UINTEGER, AyRead(1))
+#else
+  RETURN PEEK(UINTEGER, $9EAF)
+#endif
 END FUNCTION
 
 DIM t0, t1 AS ULONG
@@ -67,7 +81,7 @@ t1 = Ticks()
 CHKRANGE("beep_const_0.5s", t1 - t0, 140, 170)
 REM The tone period BEEP queued, from the runtime's SOUND_BLK
 REM (sysvars.asm: private block $9E00 + $AC, period at +3).
-CHK("beep_const_middle_c_period", STR$(PEEK(UINTEGER, $9EAF)), "239")
+CHK("beep_const_middle_c_period", STR$(BeepPeriod()), "239")
 
 REM --- BEEP, run-time arguments (calculator-converted) ---
 DIM d, p AS FLOAT
@@ -76,13 +90,19 @@ p = 7
 t0 = Ticks()
 BEEP d, p
 t1 = Ticks()
+#ifdef CPC_BAREMETAL
+REM 13 whole frames plus the wait for a frame boundary plus the float
+REM maths (about 2.5 frames): 1/50 s granularity
+CHKRANGE("beep_runtime_0.25s", t1 - t0, 65, 110)
+#else
 CHKRANGE("beep_runtime_0.25s", t1 - t0, 65, 95)
+#endif
 REM 62500 / (261.6256 * 2^(7/12)) = 159.4
-CHK("beep_runtime_period", STR$(PEEK(UINTEGER, $9EAF)), "159")
+CHK("beep_runtime_period", STR$(BeepPeriod()), "159")
 p = -12
 d = 0.05
 BEEP d, p
-CHK("beep_runtime_octave_down", STR$(PEEK(UINTEGER, $9EAF)), "478")
+CHK("beep_runtime_octave_down", STR$(BeepPeriod()), "478")
 
 REM A zero duration plays nothing: no note is queued (the period stays
 REM at the last one, 478, though p now asks for 239) and BEEP returns
@@ -94,7 +114,7 @@ p = 0
 t0 = Ticks()
 BEEP d, p
 t1 = Ticks()
-CHK("beep_zero_no_note", STR$(PEEK(UINTEGER, $9EAF)), "478")
+CHK("beep_zero_no_note", STR$(BeepPeriod()), "478")
 CHKRANGE("beep_zero_duration", t1 - t0, 0, 25)
 
 REM --- BORDER c shows PAPER c's colour ---

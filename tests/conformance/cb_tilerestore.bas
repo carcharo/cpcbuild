@@ -1,3 +1,4 @@
+REM BARE: skip calls the firmware directly (KL_TIME_PLEASE timing, firmware scroll)
 REM Conformance: cpcbuild TileRestore and TileMapPart (Phase 4d) in modes 0, 1
 REM and 2, at several forced hardware-scroll offsets.
 REM

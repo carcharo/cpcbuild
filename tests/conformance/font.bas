@@ -1,3 +1,4 @@
+REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Conformance: SetFont (font.bas) -- a custom font for characters 32-127,
 REM and how it coexists with UDGs and the CPC glyphs above 127.
 REM
@@ -84,7 +85,11 @@ FOR k = 0 TO 7
 NEXT k
 PRINT AT 19, 0; CHR$ 147;
 CHK("udg_d_after_right", STR$(Lit(4, 40, 4, 8)) + "/" + STR$(Lit(0, 40, 4, 8)), "32/0")
+#ifdef CPC_BAREMETAL
+CHK("usr_a_in_central_32k", STR$(USR "a" >= $0040 AND USR "a" < $B800), "1")
+#else
 CHK("usr_a_in_central_32k", STR$(USR "a" >= $4000 AND USR "a" < $C000), "1")
+#endif
 CHK("usr_b_next", STR$(USR "b" - USR "a"), "8")
 
 REM --- a second SetFont replaces the glyphs (no new allocation) ---

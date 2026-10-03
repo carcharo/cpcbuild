@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-zx test-games chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-bare test-zx test-games chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -32,6 +32,14 @@ test-chips: chips ## Build chipsrun and run conformance tests with chips emulato
 	$(PYTHON) tests/conformance/run.py --emu chips --model 6128
 	$(PYTHON) tests/conformance/run.py --emu chips --model 464
 	$(if $(wildcard tests/screens/run.py),$(PYTHON) tests/screens/run.py)
+
+test-bare: chips ## Bare-metal (-D CPC_BAREMETAL) conformance and screenshots on chips: 464/6128 disc start and cold start (no firmware)
+	$(PYTHON) tests/conformance/run.py --emu chips --model 6128 --bare
+	$(PYTHON) tests/conformance/run.py --emu chips --model 464 --bare
+	$(PYTHON) tests/conformance/run.py --emu chips --model 6128 --cold
+	$(PYTHON) tests/conformance/run.py --emu chips --model 464 --cold
+	$(PYTHON) tests/screens/run.py --bare
+	$(PYTHON) tests/screens/run.py --cold
 
 test-zx: chips ## Spectrum 48K/128K conformance and screenshot tests on chips (tests/zx)
 	$(PYTHON) tests/zx/run.py

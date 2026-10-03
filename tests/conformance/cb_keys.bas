@@ -1,3 +1,4 @@
+REM BARE: skip checks the firmware key buffer (KM_READ_CHAR) through __FW_CALL
 REM Conformance: cpcbuild keyboard (Phase 4c) -- direct matrix scan.
 REM cpcrun.py types Q (with SHIFT, it is upper case) then RETURN, and a
 REM second later Z then RETURN, into the running program (run.py reads the

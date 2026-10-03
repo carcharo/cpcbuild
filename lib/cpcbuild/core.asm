@@ -53,7 +53,26 @@ CPC_INIT_CB_CORE:
 ; Firmware entry called: SCR_GET_LOCATION (&BC0B, -> A = base high
 ; byte, HL = offset in bytes).
 ; Registers clobbered: AF, HL (main); BC', DE', HL', AF' (the gate).
+;
+; Bare-metal mode (-D CPC_BAREMETAL): no firmware to ask. The shown
+; screen is always &C000 outside double buffering and the scroll offset
+; is 0: the bare runtime never moves the CRTC start address except by
+; this library's FlipBuffer (its text scrolls in software). If the bare
+; text ever scrolls with the CRTC start address, this is the one place to
+; read that offset from (replace the "ld hl, 0" below).
+; Registers clobbered: AF, HL.
 __CB_SYNC:
+#ifdef CPC_BAREMETAL
+    ld   hl, 0
+    ld   (CB_OFFSET), hl
+    ld   a, (CB_DBUF)
+    or   a
+    ret  nz
+    ld   a, $C0
+    ld   (CB_BASE), a
+    ld   (CB_SHOWN), a
+    ret
+#else
     call .core.__FW_CALL
     defw $BC0B
     ld   (CB_OFFSET), hl
@@ -65,6 +84,7 @@ __CB_SYNC:
     ld   (CB_BASE), a
     ld   (CB_SHOWN), a
     ret
+#endif
 
 ; __CB_ADDR -- B = y (pixel line 0-199), C = x (byte 0-79) -> HL = its
 ; address on the screen the library draws on. No range check.
