@@ -605,9 +605,13 @@ Decisions and versions. The detailed Phase -1/0 findings are in
 
 ## Pick up here (updated 2026-10-03, after Phase 5c)
 
-State: Phases pre-5a, 5a, 5b and 5c complete and merged into cpcbuild `main`;
-zxbasic `cpc-arch` pushed. Starfall four builds all on chips; disc test manual.
-bounce: 25 updates/s with music in game mode. Starfall: 25.0 CPC, 24.2 Spectrum 128K.
+State: Phases pre-5a, 5a, 5b and 5c (the shooter) complete and merged into
+cpcbuild `main`; zxbasic `cpc-arch` pushed; CI green (conformance, screens,
+Spectrum tests, Starfall's four builds). Starfall played by the user on all
+four builds (sound fixed: audible in-game loop, 48K beeper effects).
+Speeds: CPC 6128/464 25.0, Spectrum 48K 25.0, 128K 24.2 steps/s.
+Next per the plan: Phase 6 (bare-metal mode), 7 (CPC Plus), 8 (tooling);
+or the follow-ups below first.
 
 1. **Phase 5c additions / follow-up (user asks):**
    - (a) Spectrum 128K to 25 Hz if practical (see options above).
@@ -622,17 +626,10 @@ bounce: 25 updates/s with music in game mode. Starfall: 25.0 CPC, 24.2 Spectrum 
    - (c) The platformer extra (deferred from the Phase 5c scope).
 2. Small open item (low priority): the cpcbuild library's false-positive
    compiler warnings (W150/W190/W170).
-3. **To do (user, 2026-10-03): restructure zxbasic
-   docs/architectures/amstrad_cpc.md** so it is about the zxbasic
-   `--arch cpc` differences only, with cpcbuild mentioned once in a closing
-   section ("an example project that uses and extends the CPC support")
-   linking to cpcbuild's library reference. Decide with it: move the
-   cpcbuild library (stdlib/cpcbuild + runtime/cpcbuild, Phase 4c) out of
-   the zxbasic fork into cpcbuild `lib/` like music (recommended: keeps the
-   fork to the backend, matches the plan's "library outside the compiler"),
-   or keep it in the fork as an optional bundled library. framehook.bas
-   stays in the fork (it is runtime).
-4. Still-open questions: 3 (float PRINT/VAL), 14 (ORG; now relevant),
+3. ~~Restructure the zxbasic cpc page; move the cpcbuild library out of the
+   fork.~~ Done 2026-10-03 (zxbasic b1872f72, 10370615; cpcbuild 7cff646).
+4. Still-open questions: 3 (float PRINT/VAL), 14 (ORG: &0040 is proven safe,
+   the default stays &1000 until decided),
    15 (INKEY$ model), 17 (FLASH), 18 (keys.bas on cpc), 19 (664/6128-only
    firmware).
 5. Ideas parked: Boriel 1D-array indexing optimisation (upstream
