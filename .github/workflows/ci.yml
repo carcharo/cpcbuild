@@ -20,19 +20,19 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout cpcbuild
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: cpcbuild
 
       - name: Checkout zxbasic (cpc-arch)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: carcharo/zxbasic
           ref: cpc-arch
           path: zxbasic
 
       - name: Fetch CPC ROMs (caprice32 rom/ at pinned commit)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ColinPitrat/caprice32
           ref: ${{ env.CAPRICE32_SHA }}
@@ -41,7 +41,7 @@ jobs:
           sparse-checkout-cone-mode: true
 
       - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -54,7 +54,7 @@ jobs:
           poetry config virtualenvs.in-project true
 
       - name: Cache zxbasic venv
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: zxbasic/.venv
           key: venv-${{ runner.os }}-py-${{ env.PYTHON_VERSION }}-${{ hashFiles('zxbasic/poetry.lock') }}
@@ -71,7 +71,7 @@ jobs:
         run: poetry run pytest -q --no-cov
 
       - name: Cache chips checkout
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: cpcbuild/tools/chipsrun/chips
           key: chips-${{ env.CHIPS_SHA }}
@@ -85,7 +85,7 @@ jobs:
 
       - name: Upload screen-test diffs
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screen-diffs
           path: |
