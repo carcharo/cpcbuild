@@ -311,6 +311,17 @@ __BKO_END:
     end asm
 end function
 
+#ifdef CPC_BAREMETAL
+' Bare-metal mode (-D CPC_BAREMETAL): no firmware, so no AMSDOS. BankLoad is
+' refused at compile time (an "Undefined GLOBAL label" error whose name says
+' why; an unused BankLoad is ignored as usual). BankCopyIn/BankCopyOut and
+' the rest of this library work, for data that is already in the program.
+function BankLoad(filename as string, bank as ubyte, addr as uinteger) as ubyte
+    asm
+    call .core.BankLoad_needs_the_firmware__not_available_with_CPC_BAREMETAL
+    end asm
+end function
+#else
 ' Loads the AMSDOS file into the bank at addr. 1 = loaded.
 ' Firmware entries called (through __FW_CALL_IX): KL_FIND_COMMAND (&BCD4:
 ' HL = command name, last character with bit 7 set; carry set = found, C =
@@ -451,6 +462,7 @@ __BKL_END:
     pop namespace
     end asm
 end function
+#endif
 
 #pragma pop(case_insensitive)
 

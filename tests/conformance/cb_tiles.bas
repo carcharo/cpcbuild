@@ -1,3 +1,4 @@
+REM BARE: skip calls the firmware directly (KL_TIME_PLEASE timing, firmware scroll)
 REM Conformance: cpcbuild tiles (Phase 4c) -- SetTileSet, DoTile8, DoTile16,
 REM TileMap in modes 0, 1 and 2, at the screen edges, off screen, and with a
 REM hardware-scroll offset (rows wrapping in their 2 KB block).

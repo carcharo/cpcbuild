@@ -1,3 +1,4 @@
+REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Conformance: Phase 4b UDGs (POKE USR "a"), Spectrum block graphics
 REM CHR$ 128-143, and the CPC's own characters above 164.
 REM
@@ -31,7 +32,12 @@ END FUNCTION
 DIM i AS UBYTE
 
 REM --- USR "a" addresses: consecutive 8-byte cells, in the central 32K ---
+#ifdef CPC_BAREMETAL
+REM bare mode: the UDGs are part of the program's glyph table, anywhere in RAM below the stack
+CHK("usr_a_central_32k", STR$(USR "a" >= $0040 AND USR "a" < $B800), "1")
+#else
 CHK("usr_a_central_32k", STR$(USR "a" >= $4000 AND USR "a" < $C000), "1")
+#endif
 CHK("usr_b_next", STR$(USR "b" - USR "a"), "8")
 CHK("usr_u_last", STR$(USR "u" - USR "a"), "160")
 

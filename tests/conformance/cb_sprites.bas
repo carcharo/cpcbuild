@@ -1,3 +1,4 @@
+REM BARE: skip calls the firmware directly (KL_TIME_PLEASE timing, SCR_GET_LOCATION scroll offset)
 REM Conformance: cpcbuild sprites (Phase 4c) -- PutSprite, PutSpriteMasked,
 REM GetBlock: clipping on every edge, off-screen, round trips, rows that
 REM wrap with a hardware-scroll offset, in mode 1 and mode 0; then speed.

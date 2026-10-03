@@ -1,3 +1,4 @@
+REM BARE: skip calls the firmware directly (KL_TIME_PLEASE clock, SCR_GET_LOCATION scroll offset)
 REM Conformance: cpcbuild core (Phase 4c) -- screen addressing with and
 REM without a hardware-scroll offset, double buffering, WaitRetrace.
 REM

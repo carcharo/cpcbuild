@@ -1,3 +1,4 @@
+REM BARE: skip needs -D CPC_INKEY_BUFFERED, the firmware's key buffer, which bare mode does not have
 REM Conformance: Phase 4a keyboard input (INPUT from the cpc input.bas,
 REM INKEY$ in its buffered mode: this program is built with
 REM -D CPC_INKEY_BUFFERED, the default INKEY$ is tested in inkey.bas).

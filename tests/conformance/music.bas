@@ -21,17 +21,11 @@ REM frame loop is WaitRetrace(1) then MusicFrame(), as music.bas documents.
 #include <cpcbuild/display.bas>
 #include <music/music.bas>
 #include "lib/chk.bas"
+#include "lib/ticks.bas"
 #include "assets/music/soft123.bas"
 #include "assets/music/softhard.bas"
 #include "assets/music/sfx.bas"
 
-REM KL TIME PLEASE (&BD0D): DEHL = the 300 Hz clock.
-FUNCTION FASTCALL Ticks() AS ULONG
-  ASM
-  call .core.__FW_CALL
-  defw $BD0D
-  END ASM
-END FUNCTION
 
 DIM a0(410) AS UBYTE
 DIM a1(410) AS UBYTE
@@ -218,6 +212,7 @@ MusicFrame()
 CHK("sfx_bad_args_ignored", STR$(VolReg(0)) + " " + STR$(VolReg(1)) + " " + STR$(VolReg(2)), "9 0 0")
 MusicStop()
 
+#ifndef CPC_BAREMETAL
 REM ---------------- the firmware sound manager is kept out ----------------
 REM A queued firmware note, then MusicInit (which calls SoundStop): the
 REM firmware must not touch the chip afterwards.
@@ -230,6 +225,7 @@ Wait(60)
 CHK("fw_idle_A", STR$(Per(0)) + " " + STR$(VolReg(0)), "239 15")
 CHK("fw_idle_B", STR$(Per(1)) + " " + STR$(VolReg(1)), "0 0")
 MusicStop()
+#endif
 
 REM ---------------- interrupts, clock, tempo ----------------
 MusicInit(@softhard, 0)

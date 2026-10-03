@@ -17,17 +17,11 @@ REM busy loops, PRINT, firmware waits, in normal and in game mode.
 #include <cpcbuild/display.bas>
 #include <music/music.bas>
 #include "lib/chk.bas"
+#include "lib/ticks.bas"
 #include "assets/music/soft123.bas"
 #include "assets/music/softhard.bas"
 #include "assets/music/sfx.bas"
 
-REM KL TIME PLEASE (&BD0D): DEHL = the 300 Hz clock (stopped in game mode).
-FUNCTION FASTCALL Ticks() AS ULONG
-  ASM
-  call .core.__FW_CALL
-  defw $BD0D
-  END ASM
-END FUNCTION
 
 REM The frame hook slot, and a hook of our own that counts.
 FUNCTION FASTCALL HookAddr() AS UINTEGER

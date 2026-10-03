@@ -1,3 +1,4 @@
+REM BARE: skip checks the firmware clock and frame-flyback event (KL_TIME_PLEASE, KL_NEW_FRAME_FLY)
 REM Conformance: the interrupt front-end (Phase 4d, zxbasic isr.asm).
 REM Compiled code runs with interrupts on; the &0038 vector points to
 REM our handler, which hands the firmware its registers. Checks:

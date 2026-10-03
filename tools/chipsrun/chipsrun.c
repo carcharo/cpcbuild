@@ -1,12 +1,43 @@
 /* chipsrun -- headless Amstrad CPC test runner on floooh/chips (zlib).
  *
  *   chipsrun --model 464|6128 [--rom-dir DIR] [--type STRING]...
- *            [--timeout SECONDS] [--trace] prog.bin
+ *            [--timeout SECONDS] [--trace] [--cold] [--end-on-marker] prog.bin
  *
  * prog.bin is an AMSDOS binary (128-byte header + code). Boots the CPC to
  * the BASIC Ready prompt, quickloads the binary (CALL &xxxx), captures
  * the printer port to stdout, types --type strings, and stops when an M1
  * fetch from address 0 happens.
+ *
+ * --cold: rehearse a no-firmware boot (a GX4000-style cartridge) instead.
+ * The firmware never runs. All RAM (all eight 16K banks) is filled with a
+ * deterministic junk pattern (xorshift32, seed 0x2545F491) so any reliance on
+ * firmware-initialised RAM shows up; the program image is then written at its
+ * load address and the CPU starts at the entry address. Power-on state:
+ *   CPU:   interrupts disabled (IFF1/2 = 0), IM 0, AF = SP = &FFFF (chips'
+ *          reset values), then SP set to &C000 and PC to the entry address.
+ *   Memory: RAM configuration 0 (banks 0-3 at &0000-&FFFF); both ROMs
+ *          PAGED OUT (Gate Array config &0C, i.e. mode 0, lower and upper ROM
+ *          disabled) so the image can sit at &0040. A real cartridge would
+ *          have its own memory at the entry; ROMs-out is the closest match.
+ *   Gate Array: mode 0, all 16 pens and the border = hardware colour 0
+ *          (chips zeroes the registers), RAM config 0, upper ROM select 0.
+ *   CRTC (MC6845, UM6845R type): all registers 0 (chips zeroes them; a real
+ *          chip's are undefined), so no valid display or frame timing is
+ *          produced until the program programs them -- the Gate Array
+ *          interrupt (from CRTC HSYNC) therefore does not run until then.
+ *   PPI (8255): all ports input (control &9B), port A output latch 0.
+ *   PSG (AY): all registers 0 (mixer 0 = every channel enabled with volume 0).
+ *   FDC: idle, no disc. Printer/keyboard capture, END detection, typed keys
+ *   and screenshots work as in a normal run; typed keys keep the normal run's
+ *   schedule (from program start) so tests behave the same.
+ *
+ * --end-on-marker: stop at the first frame boundary after the "\x04END\n" line
+ * has been captured, instead of waiting for the M1 fetch at address 0, and
+ * drop anything printed after it. For bare-metal builds, whose reset path
+ * (__CPC_RESET in bareboot.asm) pages the lower ROM in under code that sits
+ * below &4000, so the fetch at 0 can be missed (seen on the 464); the marker
+ * line proves the program reached END either way. Without it a missing
+ * address-0 fetch is a timeout (exit 2).
  *
  * Screenshots (all PNG, 8-bit RGB, written with a built-in minimal PNG
  * writer: stored deflate blocks, no compression, no dependencies):
@@ -24,6 +55,16 @@
  *   The line is removed from the transcript and DIR/name.png is written
  *   SHOT_DELAY (2) frames after chipsrun sees the line, so the program
  *   should keep the screen unchanged for ~4 frames after sending it.
+ *   Program-triggered state dump: the line "\x04STATE\n" (same way) is removed
+ *   from the transcript and, at the next frame boundary, one line is written
+ *   to stderr:
+ *     chipsrun-state: mode=M lrom=on|off urom=on|off ramcfg=N border=H
+ *       ink=H,H,...(16) crtc=R0,...,R13
+ *   (H = the 5-bit hardware colour numbers in the Gate Array's pen
+ *   registers; ROM on/off and mode from the GA's ROM/mode register). It is
+ *   how the bare-metal boot's hardware state is tested (the Gate Array
+ *   cannot be read back by the program). The program should sit in a busy
+ *   loop for a few frames after sending it.
  *   Image: the visible display, 768x272, exactly chips' native display area
  *   (AM40010_DISPLAY_WIDTH x HEIGHT: 48 CRTC characters of 16 pixels, 272
  *   scanlines, border included), no scaling. One pixel is one mode-2 pixel
@@ -222,6 +263,15 @@ static shot_t shots[64]; static int nshots, shot_next;
 static size_t scan_pos;     /* transcript bytes already scanned for markers */
 static const char *shot_dir = ".";
 
+static void dump_state(void) {
+    const uint8_t cfg = cpc.ga.regs.config;
+    fprintf(stderr, "chipsrun-state: mode=%d lrom=%s urom=%s ramcfg=%d border=%d ink=", cfg & 3,
+            (cfg & 4) ? "off" : "on", (cfg & 8) ? "off" : "on", cpc.ga.ram_config & 7, cpc.ga.regs.border & 0x1F);
+    for (int i = 0; i < 16; i++) fprintf(stderr, "%s%d", i ? "," : "", cpc.ga.regs.ink[i] & 0x1F);
+    fprintf(stderr, " crtc=");
+    for (int i = 0; i < 14; i++) fprintf(stderr, "%s%d", i ? "," : "", cpc.crtc.reg[i]);
+    fprintf(stderr, "\n");
+}
 /* Look for complete "\x04SHOT name\n" lines in the transcript, queue them
    and remove them from it. */
 static void scan_markers(int now) {
@@ -236,7 +286,11 @@ static void scan_markers(int now) {
         size_t e = i;
         while (e < xlen && xbuf[e] != '\n') e++;
         if (e >= xlen) return;          /* incomplete: look again later */
-        if (e - i > plen && !memcmp(xbuf + i, pre, plen) && e - i - plen < sizeof shots[0].name && nshots < 64) {
+        if (e - i == 6 && !memcmp(xbuf + i, "\x04" "STATE", 6)) {
+            dump_state();
+            memmove(xbuf + i, xbuf + e + 1, xlen - e - 1);
+            xlen -= e - i + 1;
+        } else if (e - i > plen && !memcmp(xbuf + i, pre, plen) && e - i - plen < sizeof shots[0].name && nshots < 64) {
             shot_t *s = &shots[nshots++];
             size_t n = e - i - plen;
             memcpy(s->name, xbuf + i + plen, n);
@@ -250,6 +304,11 @@ static void scan_markers(int now) {
             scan_pos = i + 1;           /* not ours (e.g. the END line) */
         }
     }
+}
+static bool has_end_marker(void) {
+    for (size_t i = 0; i + 5 <= xlen; i++)
+        if (!memcmp(xbuf + i, "\x04" "END\n", 5)) return true;
+    return false;
 }
 static void run_shots(int now) {
     while (shot_next < nshots && shots[shot_next].due <= now) {
@@ -308,7 +367,7 @@ static void build_schedule(char **types, int ntypes) {
 int main(int argc, char **argv) {
     const char *model = "6128", *romdir = NULL, *binpath = NULL;
     double timeout = 15.0;
-    bool trace = false, shot_end = true;
+    bool trace = false, shot_end = true, cold = false, end_on_marker = false;
     const char *shot_path = NULL;
     int shot_at = -1;
     char **types = calloc(argc + 1, sizeof(char *));
@@ -319,12 +378,14 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--type") && i + 1 < argc) types[ntypes++] = argv[++i];
         else if (!strcmp(argv[i], "--timeout") && i + 1 < argc) timeout = atof(argv[++i]);
         else if (!strcmp(argv[i], "--trace")) trace = true;
+        else if (!strcmp(argv[i], "--cold")) cold = true;
+        else if (!strcmp(argv[i], "--end-on-marker")) end_on_marker = true;
         else if (!strcmp(argv[i], "--shot") && i + 1 < argc) shot_path = argv[++i];
         else if (!strcmp(argv[i], "--shot-at") && i + 1 < argc) { shot_at = atoi(argv[++i]); shot_end = false; }
         else if (!strcmp(argv[i], "--shot-end")) shot_end = true;
         else if (!strcmp(argv[i], "--shot-dir") && i + 1 < argc) shot_dir = argv[++i];
         else if (argv[i][0] != '-' && !binpath) binpath = argv[i];
-        else { fprintf(stderr, "usage: chipsrun --model 464|6128 [--rom-dir DIR] [--type STR]... [--timeout S] [--trace] [--shot F.png [--shot-at N] [--shot-end]] [--shot-dir D] prog.bin\n"); return 1; }
+        else { fprintf(stderr, "usage: chipsrun --model 464|6128 [--rom-dir DIR] [--type STR]... [--timeout S] [--trace] [--cold] [--end-on-marker] [--shot F.png [--shot-at N] [--shot-end]] [--shot-dir D] prog.bin\n"); return 1; }
     }
     if (!binpath) { fprintf(stderr, "chipsrun: no program given\n"); return 1; }
     bool is464 = !strcmp(model, "464");
@@ -354,6 +415,30 @@ int main(int argc, char **argv) {
     clock_t wall0 = clock();
     double wall_cap = timeout * 4 + 20;
     int frame = 0;
+    if (cold) {
+        /* see the header comment: junk RAM, ROMs out, image in, jump to it */
+        uint32_t x = 0x2545F491u;
+        uint8_t *ram = &cpc.ram[0][0];
+        for (size_t i = 0; i < sizeof cpc.ram; i++) {
+            x ^= x << 13; x ^= x >> 17; x ^= x << 5;
+            ram[i] = (uint8_t)(x >> 11);
+        }
+        cpc.ga.regs.config = 0x0C;
+        cpc.ga.ram_config = 0;
+        cpc.ga.rom_select = 0;
+        _cpc_bankswitch(cpc.ga.ram_config, cpc.ga.regs.config, cpc.ga.rom_select, &cpc);
+        const unsigned load = bin[0x15] | (bin[0x16] << 8);
+        const unsigned len = bin[0x18] | (bin[0x19] << 8);
+        const unsigned exec = bin[0x1A] | (bin[0x1B] << 8);
+        if (binsize < 128 + (size_t)len || load + len > 0x10000) { fprintf(stderr, "chipsrun: bad image\n"); return 1; }
+        for (unsigned i = 0; i < len; i++) mem_wr(&cpc.mem, load + i, bin[128 + i]);
+        cpc.cpu.sp = 0xC000;
+        cpc.pins = z80_prefetch(&cpc.cpu, exec);
+        if (trace) fprintf(stderr, "chipsrun: cold start: %u bytes at &%04X, entry &%04X, SP &C000, ROMs out, CRTC R0-R13 = %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+                           len, load, exec, cpc.crtc.reg[0], cpc.crtc.reg[1], cpc.crtc.reg[2], cpc.crtc.reg[3], cpc.crtc.reg[4], cpc.crtc.reg[5], cpc.crtc.reg[6],
+                           cpc.crtc.reg[7], cpc.crtc.reg[8], cpc.crtc.reg[9], cpc.crtc.reg[10], cpc.crtc.reg[11], cpc.crtc.reg[12], cpc.crtc.reg[13]);
+        if (trace) trace_entry = exec;
+    } else {
     /* Boot. BASIC's Ready prompt is reached about 50 frames in (both
        models, measured); the firmware's idle loop is in ROM at model-
        specific addresses, so rather than hook those we run a fixed,
@@ -385,8 +470,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "chipsrun: quickload failed\n");
         return 1;
     }
+    }
     program_started = true;
-    if (trace) trace_entry = cpc_quickload_exec_addr((chips_range_t){ bin, binsize });
+    if (trace && !cold) trace_entry = cpc_quickload_exec_addr((chips_range_t){ bin, binsize });
     build_schedule(types, ntypes);
 
     pframe = 0;
@@ -403,12 +489,14 @@ int main(int argc, char **argv) {
         pframe++;
         scan_markers(pframe);
         run_shots(pframe);
+        if (end_on_marker && xlen >= 5 && has_end_marker()) { at_zero = true; break; }
         if (shot_path && shot_at >= 0 && pframe == shot_at) save_shot(shot_path);
         if (pframe >= max_frames) { timed_out = true; break; }
         if ((pframe & 255) == 0 && (double)(clock() - wall0) / CLOCKS_PER_SEC > wall_cap) { timed_out = true; break; }
     }
     if (trace) fprintf(stderr, "chipsrun: ended after %d program frames (%.2f emulated s): %s\n",
                        pframe, pframe / 50.0, at_zero ? "M1 fetch at address 0" : "timeout");
+    if (trace && !at_zero) fprintf(stderr, "chipsrun: PC=%04X SP=%04X IFF1=%d GA config=%02X\n", cpc.cpu.pc, cpc.cpu.sp, cpc.cpu.iff1, cpc.ga.regs.config);
 
     /* shots still pending (the program ended first) are taken now */
     scan_markers(pframe);
@@ -423,6 +511,7 @@ int main(int argc, char **argv) {
     bool found = false;
     for (size_t i = 0; i + mlen <= xlen; i++) {
         if (!memcmp(xbuf + i, marker, mlen)) {
+            if (end_on_marker) { xlen = i; found = true; break; }
             memmove(xbuf + i, xbuf + i + mlen, xlen - i - mlen);
             xlen -= mlen;
             found = true;

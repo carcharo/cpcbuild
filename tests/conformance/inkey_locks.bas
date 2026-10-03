@@ -1,3 +1,4 @@
+REM BARE: skip sets the firmware's caps/shift locks (KM_SET_LOCKS) through __FW_CALL
 REM Conformance: the caps lock and the shift lock in INKEY$'s key translation.
 REM KM_SET_LOCKS (&BD3A) exists on the 664 and 6128 only, hence this separate
 REM test. Nothing is typed: the lock states are set through the firmware and

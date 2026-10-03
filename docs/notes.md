@@ -917,3 +917,143 @@ from test_cpc_no_spectrum_refs.py.
   pytest 2175 passed.
 - Next: B1 harness (`--bare`, chipsrun `--cold`), B2 text, B3 keyboard,
   B4 sound/timing, then the stage gate (whole suite bare).
+
+## Phase 6 B1: bare test harness (2026-10-03)
+
+- `tools/cpcrun.py --bare` adds `-D CPC_BAREMETAL`; `--cold` (chips only,
+  needs `--bare`) = chipsrun `--cold`: no firmware at all. RAM (all 8 banks)
+  is filled with an xorshift junk pattern, both ROMs are paged out (GA
+  config &0C), the image is written at its load address and the CPU starts at
+  the entry with interrupts off, IM 0, SP &C000. Power-on state otherwise is
+  what chips gives after `cpc_init`: Gate Array mode 0, pens and border all
+  hardware colour 0, RAM config 0; CRTC registers all 0 (so no display or
+  interrupts until the boot programs them); PPI all inputs; AY registers 0.
+  The cold run takes the same typed-key schedule as a normal run (from
+  program start). Printer capture, END detection, shots all work as before.
+- chipsrun `--end-on-marker` (cpcrun/run.py `--end-on-marker`, opt-in): the
+  run ends when the END marker line is captured, instead of waiting for the
+  M1 fetch at address 0. B1 found that **bareboot's `__CPC_RESET` paged the
+  lower ROM in and then executed `rst 0` from code below &4000**, so the
+  next fetch came from ROM at that address (chips 464: ROM code ran, address
+  0 never fetched; Caprice32 464/664 hung on some programs). Fixed in the
+  runtime: the last three instructions are copied to the private block
+  (&BC00) and run there. Bare runs again require the reset to address 0.
+- chipsrun `--trace` also prints PC/SP/IFF1/GA config at a timeout; the
+  program-triggered `"\x04STATE\n"` line makes chipsrun print the Gate Array
+  mode, ROM bits, RAM config, pen/border registers and CRTC R0-R13 to
+  stderr (`chipsrun-state:`), checked by `REM STATE: key=value ...` in a test.
+- conformance `run.py --bare/--cold/--end-on-marker`; `REM BARE: skip <reason>`
+  (firmware-only tests) and `REM BARE: only` (bare tests, written with
+  `tests/conformance/lib/bareout.bas` instead of PRINT/CHK). `make test-bare`
+  (not in `ci`): chips 6128 and 464 bare, chips 6128 cold.
+
+## Phase 6 B2: bare text (2026-10-03)
+
+- `runtime/txtbare.asm` (only under `-D CPC_BAREMETAL`): glyph renderer, cursor,
+  CLS, scroll, Mode, SCREEN$ read-back. print.asm, cls.asm, sposn.asm,
+  copy_attr.asm, error.asm (`__ERR_SCR`), border.asm, gacolour.asm, udg.asm and
+  cpc.bas (`Mode`, `GetMode`), font.bas (`SetFont`), screen.bas have `#ifdef`
+  bare paths; firmware builds are unchanged.
+- Drawing: `Mp ^ (S & (Mi ^ Mp))` per screen byte, where S is the glyph bits
+  spread over the byte's pixels and Mi/Mp are the ink/paper pens as byte masks
+  (`__BT_PENMASKS`, recomputed at each COPY_ATTR/INK_TMP/INVERSE_TMP). Mode 1/0
+  look the byte up in a 16/4-entry table (`BT_TBL`), mode 2 uses two registers.
+  A cell is written whole (no transparency); OVER/BOLD/ITALIC/FLASH/BRIGHT
+  ignored for text, as in firmware mode. Bare text is pixel-identical to
+  firmware text with the ROM font (screen goldens mode0/1/2text, udg: 0 pixels
+  differ, 464 and 6128).
+- Cursor and wrap behave like the firmware's: lazy wrap (column = TXT_COLS is a
+  pending wrap) and **lazy scroll** (an LF on row 24 only moves the cursor to
+  row 25, so CSRLIN reads 25; the next character scrolls first). Software
+  scroll: eight 1920-byte block moves with unrolled LDI, about 3 frames per
+  scroll (the firmware's hardware scroll is free; not used so the screen base
+  stays fixed for graphics and libraries).
+- Font: the glyph table (chars 32-255, 1792 bytes, 8-byte aligned, in the program
+  image) is filled at start-up (`CPC_INIT_10_TEXT`) by a 25-byte routine copied
+  to the private block (`BT_TRAMP`) that pages the lower ROM in (interrupts
+  off) and copies &3900-&3FFF. `-D CPC_OWNFONT` instead bundles our own MIT font
+  for 32-127 (the data is the table: no copy, no ROM) with UDG 144-164 = A-U
+  and 165-255 blank. 128-143 are generated, in the Spectrum's numbering (no swap
+  anywhere). CHARS = table - 256, UDG = glyph 144 as on the Spectrum, so
+  `POKE USR "a"+n` and `SetFont` just work and the UDGs need no heap; in bare
+  mode USR "a" is anywhere in RAM (the central-32K assertions in udg.bas and
+  font.bas are bare-aware).
+- SCREEN$ (`__BT_RDCHAR`) decodes the cell into pens (at most two) and matches
+  the glyph table from char 32 up, then the inverted glyph; it reads cells in
+  any colours back correctly (the firmware misreads PAPER 2 + INK 4; screen.bas
+  has a bare variant of that check).
+- Sysvars added at `$100-$13F`, `$140-$17F`, `$200-$20F` and `PAL_SHADOW` at
+  `$C0` (colour of each pen, written by `__CPC_GA_SET`, so BORDER can use the
+  pen's colour without SCR_GET_INK).
+- New test `tests/conformance/text.bas` (both modes): pixel bytes in modes 0/1/2,
+  INVERSE/PAPER/INK, wrap, lazy scroll, TAB/comma, CLS, SCREEN$ round trip of
+  ASCII, `__ERR_SCR`. It assumes the ROM font.
+- Still needs other bare pieces: font.bas, udg.bas, screen.bas, graphics.bas
+  (POINT/PLOT: B5), framehook.bas (fhlib calls the firmware).
+
+## Phase 6 B3: bare keyboard (2026-10-03)
+
+- Key tables (zxbasic runtime/io/keyboard/kbare.asm): normal/SHIFT/CONTROL,
+  80 bytes each, taken from the firmware's own KM_GET_TRANSLATE/SHIFT/
+  CONTROL (dump program tools/keytables_dump.bas; 464 and 6128 identical).
+  Keypad expansion tokens resolved to their default strings' first
+  character. tests/conformance/keytables.bas checks all 240 entries in both
+  modes (no differences).
+- Caps lock / shift lock: kept in kbare.asm (`__CPC_KB_LOCKS`, a byte in
+  the program image), toggled when a scan sees CAPS LOCK go down (CONTROL
+  held: shift lock). A press between two scans is missed; keys.bas's own
+  scans don't track locks.
+- INPUT bare: same BASIC loop, keys from `__CPC_KEY_NEXT` (edge detection
+  on the key number; repeat after 30 frames then every 4, on FH_FRAMES),
+  underscore cursor (no firmware cursor), `__CPC_KEY_FLUSH` ignores a key
+  already down at the start until it is released.
+- `-D CPC_INKEY_BUFFERED` with `-D CPC_BAREMETAL` is an `#error`.
+- Phase 7 note: like the rest of the runtime, this keeps state in the
+  program image, so a cartridge build must run from RAM (copy the code
+  out of ROM first).
+
+## Phase 6 B4: bare sound and timing (2026-10-03)
+
+- BEEP on the AY (tone A, volume 15, whole frames on FH_FRAMES, starts at a
+  frame boundary), PAUSE n on frames (ends on a *new* key press: edge
+  detection, closer to the Spectrum than the firmware's buffered key),
+  WaitVsync = next frame (runtime waitframes.asm). Play and MusicInit's
+  SoundStop silence the AY directly (`__CPC_AY_SILENCE`, bare only).
+- Refused in bare mode: SoundQueue/SoundFree/SoundBusy/SoundEnvelope and
+  cpcbuild BankLoad build to an undefined label named
+  `..._needs_the_firmware__not_available_with_CPC_BAREMETAL` (only when
+  used; a file-level #error would fire for every program including cpc.bas).
+  Play's benchmark mode is an #error.
+- cpcbuild: `__CB_SET_BASE` writes CRTC R12/R13 directly in bare mode and
+  points SCREEN_ADDR at the shown screen (bare PRINT follows the flip like
+  the firmware's); `__CB_SYNC` uses offset 0 (bare text scrolls in
+  software); WaitRetrace on frames. Palette was already Gate Array only.
+- Tests: bare_sound.bas, cb_bare_display.bas (bare only); play, music,
+  music_hook, textio run in both modes through tests/conformance/lib/
+  ticks.bas (`Frames()*6` bare), music.bas's SoundQueue checks firmware
+  only, textio's border check reads PAL_SHADOW bare and its BEEP period
+  from AY registers 0/1.
+
+## Phase 6 stage gate passed (2026-10-03)
+
+The whole conformance suite, bar firmware-only tests, passes built bare,
+every run ending with the reset to address 0:
+
+| Run | Result |
+|---|---|
+| chips 6128, disc start / cold start | 32/32 / 32/32 |
+| chips 464, disc start / cold start | 29/29 / 29/29 |
+| Caprice32 464 / 664 / 6128 | 29/29 / 29/29 / 32/32 |
+| screens bare, disc start / cold (464+6128) | 14/14 / 14/14, pixel-identical to the firmware goldens |
+
+Firmware mode unchanged (`make ci`: unit 69, chips 45/45 and 42/42,
+screens 16/16, zx 29/29, Starfall 6/6 + 14/14; zxbasic pytest 2175).
+
+Skipped bare (`REM BARE: skip`), by design (firmware-only): banks_disc,
+banks464 (AMSDOS), cb_keys, keyboard (firmware key buffer), inkey_locks
+(KM_SET_LOCKS), cb_palette (firmware ink tables), isr, framehook (firmware
+clock/event; bareframes.bas is the bare counterpart), romoff (FW_BC),
+sound (firmware sound manager). Waiting on B5 (bare graphics): font, udg,
+screen, graphics (+ screens/graphics), and cb_display, cb_fill,
+cb_sprites, cb_tiles, cb_tilerestore (POINT/graphics references and
+firmware-clock timing in the tests: bare variants due in B5).

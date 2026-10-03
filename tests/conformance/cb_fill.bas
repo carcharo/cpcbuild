@@ -1,3 +1,4 @@
+REM BARE: skip calls the firmware directly (GRA_TEST_ABSOLUTE reference, SCR_GET_LOCATION scroll offset)
 REM Conformance: cpcbuild fill (Phase 4c) -- PenByte against the firmware's
 REM SCR_INK_ENCODE in modes 0, 1 and 2, FillRect (clipping on every edge,
 REM rows that wrap with a hardware-scroll offset), ClearScreen.

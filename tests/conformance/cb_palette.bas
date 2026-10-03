@@ -1,3 +1,4 @@
+REM BARE: skip compares with the firmware's ink tables through __FW_CALL
 REM Conformance: cpcbuild palette (Phase 4c) -- the firmware's ink and
 REM border tables after SetPalette, PalUpload, SetInk and SetBorder
 REM (SCR_GET_INK / SCR_GET_BORDER), range handling, and that drawing

@@ -19,7 +19,16 @@
 ; Text must not scroll while double buffering (the firmware's scroll
 ; would move only the shown screen).
 
+; Bare-metal mode (-D CPC_BAREMETAL, no firmware): the waits count the
+; interrupt handler's frames (FH_FRAMES; waitframes.asm in the compiler's
+; runtime) and the screen start address is set by writing the CRTC's
+; registers 12 and 13 directly (__CB_SET_BASE). The scroll offset is
+; always 0 (core.asm's __CB_SYNC). Everything else is as described here.
+
 #include once <cpcbuild/core.asm>
+#ifdef CPC_BAREMETAL
+#include once <waitframes.asm>
+#endif
 
     push namespace core
 
@@ -33,6 +42,15 @@
 ; (&BC0B).
 ; Registers clobbered: AF, BC, HL (main); BC', DE', HL', AF' (the gate).
 __CB_WAIT_RETRACE:
+#ifdef CPC_BAREMETAL
+    ld   a, b
+    or   c
+    jr   nz, __CWR_BARE
+    inc  c
+__CWR_BARE:
+    call .core.__CPC_WAIT_FRAMES
+    jp   __CB_SYNC
+#else
     PROC
     LOCAL __CWR_LOOP, __CWR_INFLY
 
@@ -56,6 +74,52 @@ __CWR_INFLY:
     jr   nz, __CWR_LOOP
     jp   __CB_SYNC
     ENDP
+#endif
+
+; __CB_SET_BASE -- A = base high byte (&00, &40, &80 or &C0): shows that
+; 16 KB screen (and, in firmware mode, makes the firmware's text go there
+; too). Takes effect at the next frame.
+; Firmware entry called: SCR_SET_BASE (&BC08).
+; Registers clobbered: AF (main); BC', DE', HL', AF' (the gate).
+;
+; Bare-metal mode (-D CPC_BAREMETAL): CRTC registers 12 and 13 directly
+; (start address = base, plus CB_OFFSET/2 words; the CRTC reads it at the
+; start of the next frame, so writing after the flyback is safe). The
+; bare runtime's text base (SCREEN_ADDR) is pointed at the same screen,
+; so PRINT follows the shown screen as the firmware's does. Hardware
+; used: CRTC (&BCxx/&BDxx).
+; Registers clobbered: AF, BC, DE, HL.
+__CB_SET_BASE:
+#ifdef CPC_BAREMETAL
+    ld   h, a
+    ld   l, 0
+    ld   (SCREEN_ADDR), hl
+    rrca
+    rrca
+    and  $30                ; R12 bits 5-4: address bits 15-14
+    ld   d, a
+    ld   hl, (CB_OFFSET)
+    srl  h
+    rr   l                  ; offset in words
+    ld   a, h
+    and  3
+    or   d
+    ld   d, a               ; R12
+    ld   e, l               ; R13
+    ld   bc, $BC0C
+    out  (c), c
+    ld   b, $BD
+    out  (c), d
+    ld   bc, $BC0D
+    out  (c), c
+    ld   b, $BD
+    out  (c), e
+    ret
+#else
+    call .core.__FW_CALL
+    defw $BC08
+    ret
+#endif
 
 ; __CB_DBUF_ON -- starts double buffering: copies the shown screen to
 ; the back screen (&4000), then draws there while &C000 is shown.
@@ -68,8 +132,7 @@ __CB_DBUF_ON:
     or   a
     ret  nz
     ld   a, $C0
-    call .core.__FW_CALL
-    defw $BC08              ; SCR_SET_BASE: show &C000
+    call __CB_SET_BASE      ; SCR_SET_BASE: show &C000
     ld   hl, $C000
     ld   de, $4000
     ld   bc, $4000
@@ -101,8 +164,7 @@ __CB_DBUF_OFF:
     ld   bc, $4000
     ldir
     ld   a, $C0
-    call .core.__FW_CALL
-    defw $BC08              ; SCR_SET_BASE: show &C000
+    call __CB_SET_BASE      ; SCR_SET_BASE: show &C000
 __CDO_SHOWN_C0:
     xor  a
     ld   (CB_DBUF), a
@@ -123,8 +185,7 @@ __CB_FLIP:
     or   a
     ret  z
     ld   a, (CB_BASE)
-    call .core.__FW_CALL
-    defw $BC08              ; SCR_SET_BASE: show the screen just drawn
+    call __CB_SET_BASE      ; SCR_SET_BASE: show the screen just drawn
     ld   hl, (CB_BASE)      ; L = CB_BASE, H = CB_SHOWN (adjacent)
     ld   a, l
     ld   l, h

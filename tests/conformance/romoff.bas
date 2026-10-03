@@ -1,3 +1,4 @@
+REM BARE: skip reads the firmware's captured BC' (FW_BC sysvar); bare boot state is tested by barestate.bas
 REM Conformance: both ROMs are off when the program starts.
 REM The firmware's BC' (gate-array/ROM state) is captured at entry and
 REM trusted by the runtime; if BASIC's upper ROM were still paged in, reads

@@ -1,3 +1,4 @@
+REM BARE: skip SoundQueue/SoundFree/SoundBusy/SoundEnvelope/SoundStop are the firmware sound manager
 REM Conformance: non-blocking firmware sound on the CPC (zxbasic
 REM runtime/fwsound.asm, stdlib/cpc.bas: SoundQueue, SoundFree,
 REM SoundBusy, SoundEnvelope, SoundStop).

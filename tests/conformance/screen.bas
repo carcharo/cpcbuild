@@ -1,3 +1,4 @@
+REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Conformance: SCREEN$(row, col) (firmware TXT_RD_CHAR).
 REM
 REM Cells are printed and read back. Behaviour of the firmware that the
@@ -51,7 +52,12 @@ CHK("paper2_default_ink", Cd(SCREEN$(4, 2)), "67")
 REM Known limitation (measured): with both pen and paper changed (pen 2 on
 REM pen 3) the firmware misreads the cell -- as a space (32) on the 6128,
 REM as a solid block (143) on the 464 -- documented in screen.bas.
+#ifdef CPC_BAREMETAL
+REM Bare mode reads a cell through its own two pens, so it reads back correctly.
+CHK("paper2_ink4_bare_reads_it", Cd(SCREEN$(4, 4)), "67")
+#else
 CHK("paper2_ink4_misread", STR$(Cd(SCREEN$(4, 4)) <> "67"), "1")
+#endif
 
 REM Spectrum block graphics round trip
 PRINT AT 5, 0; CHR$ 129; CHR$ 130; CHR$ 132; CHR$ 136; CHR$ 143; CHR$ 128;

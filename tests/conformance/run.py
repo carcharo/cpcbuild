@@ -16,12 +16,25 @@ ask for data files on the disc (Caprice32): `REM DISKFILE: NAME.BIN=path`, the
 path relative to this directory. Other combinations are reported as SKIP and
 not counted.
 
+Bare-metal mode (Phase 6): --bare compiles every program with -D CPC_BAREMETAL
+(tools/cpcrun.py --bare); --cold (chips only, implies --bare) also starts it
+from a no-firmware cold start (chipsrun --cold). Two header lines say how a
+test relates to it:
+`REM BARE: skip <reason>` -- the test can never work bare (firmware-only
+features: disc, firmware sound/key buffer/clock, direct firmware calls);
+reported as SKIP under --bare/--cold, run normally otherwise.
+`REM BARE: only` -- a bare-specific test (it can't use PRINT/CHK: see
+lib/bareout.bas); reported as SKIP in a normal run.
+`REM STATE: key=value ...` (chips only) -- after the run, compare the state
+the program asked chipsrun to dump (lib/bareout.bas BState(), see chipsrun.c
+for the keys) with these key=value pairs; a difference is a FAIL.
+
 A program may mark itself expected-to-fail with a `REM XFAIL: <reason>`
 line anywhere in the source (e.g. the float test, until the float
 calculator port lands) -- such a program is reported separately and
 does not count against the pass total.
 
-Usage: run.py [--timeout SECONDS] [-k PATTERN] [--model M] [--emu cap32|chips] [--org ADDR] [file.bas ...]
+Usage: run.py [--timeout SECONDS] [-k PATTERN] [--model M] [--emu cap32|chips] [--org ADDR] [--bare] [--cold] [file.bas ...]
 """
 
 from __future__ import annotations
@@ -41,6 +54,9 @@ MODELS_RE = re.compile(r"^\s*REM\s+MODELS:\s*(.*?)\s*$", re.IGNORECASE)
 EMUS_RE = re.compile(r"^\s*REM\s+EMUS:\s*(.*?)\s*$", re.IGNORECASE)
 ZXBC_RE = re.compile(r"^\s*REM\s+ZXBC:\s*(.*?)\s*$", re.IGNORECASE)
 DISKFILE_RE = re.compile(r"^\s*REM\s+DISKFILE:\s*(\S+)\s*$", re.IGNORECASE)
+BARE_RE = re.compile(r"^\s*REM\s+BARE:\s*(\w+)\b\s*(.*?)\s*$", re.IGNORECASE)
+STATE_RE = re.compile(r"^\s*REM\s+STATE:\s*(.*?)\s*$", re.IGNORECASE)
+STATE_OUT_RE = re.compile(r"^chipsrun-state: (.*)$", re.MULTILINE)
 TYPE_RE = re.compile(r"^\s*REM\s+TYPE:\s*(\S*)\s*$", re.IGNORECASE)
 FAIL_LINE_RE = re.compile(r"^FAIL\b.*$", re.MULTILINE)
 
@@ -106,9 +122,42 @@ def find_directive(bas_path: Path, regex: re.Pattern) -> list[str]:
     return [m.group(1) for m in map(regex.match, bas_path.read_text().splitlines()) if m]
 
 
-def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap32", org: str | None = None) -> Result:
+def bare_directive(bas_path: Path) -> tuple[str | None, str]:
+    """(`skip` | `only` | None, reason) from the `REM BARE:` line, if any."""
+    for line in bas_path.read_text().splitlines():
+        m = BARE_RE.match(line)
+        if m:
+            return m.group(1).lower(), m.group(2)
+    return None, ""
+
+
+def check_state(result: Result, bas_path: Path) -> None:
+    """Compare chipsrun's state dump with the `REM STATE:` pairs; add FAIL
+    lines to the output for any difference."""
+    want = [tok for line in find_directive(bas_path, STATE_RE) for tok in line.split()]
+    if not want:
+        return
+    m = STATE_OUT_RE.search(result.stderr)
+    if not m:
+        result.output += "FAIL state_missing (no chipsrun-state line)\n"
+        return
+    got = dict(tok.partition("=")[::2] for tok in m.group(1).split())
+    for tok in want:
+        key, _, val = tok.partition("=")
+        if got.get(key) != val:
+            result.output += f"FAIL state_{key} got={got.get(key)} want={val}\n"
+        else:
+            result.output += f"PASS state_{key}\n"
+
+
+def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap32", org: str | None = None,
+            bare: bool = False, cold: bool = False, end_on_marker: bool = False) -> Result:
     result = Result(bas_path)
     result.xfail_reason = find_xfail(bas_path)
+    kind, _reason = bare_directive(bas_path)
+    if (bare and kind == "skip") or (not bare and kind == "only"):
+        result.skipped = True
+        return result
     models = [m for line in find_directive(bas_path, MODELS_RE) for m in line.split()]
     emus = [e for line in find_directive(bas_path, EMUS_RE) for e in line.split()]
     if (models and model not in models) or (emus and emu not in emus):
@@ -117,6 +166,12 @@ def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap
     cmd = [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout), "--model", model, "--emu", emu]
     if org:
         cmd += ["--org", org]
+    if bare:
+        cmd.append("--bare")
+    if cold:
+        cmd.append("--cold")
+    if end_on_marker:
+        cmd.append("--end-on-marker")
     for line in find_directive(bas_path, ZXBC_RE):
         for arg in line.split():
             cmd.append(f"--zxbc-arg={arg}")
@@ -140,6 +195,8 @@ def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap
         result.exit_code = 2
         result.output = exc.stdout.decode() if exc.stdout else ""
         result.stderr = exc.stderr.decode() if exc.stderr else ""
+    if emu == "chips" and result.exit_code == 0:
+        check_state(result, bas_path)
     return result
 
 
@@ -152,7 +209,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", choices=("464", "664", "6128"), default="6128", help="CPC model (default 6128)")
     parser.add_argument("--emu", choices=("cap32", "chips"), default="cap32", help="emulator (default cap32)")
     parser.add_argument("--org", default=None, metavar="ADDR", help="build every program at this origin (e.g. 0x40); default: the compiler's")
+    parser.add_argument("--bare", action="store_true", help="build with -D CPC_BAREMETAL; skip `REM BARE: skip` tests")
+    parser.add_argument("--cold", action="store_true", help="chips only: cold start with no firmware (implies --bare)")
+    parser.add_argument("--end-on-marker", action="store_true", help="end each run at the END marker line, not the reset (cpcrun.py --end-on-marker)")
     args = parser.parse_args(argv)
+    if args.cold:
+        args.bare = True
+        if args.emu != "chips":
+            parser.error("--cold needs --emu chips")
 
     files = args.files or sorted(CONFORMANCE_DIR.glob("*.bas"))
     if args.pattern:
@@ -163,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
 
     results: list[Result] = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(run_one, f, args.timeout, args.model, args.emu, args.org): f for f in files}
+        futures = {pool.submit(run_one, f, args.timeout, args.model, args.emu, args.org, args.bare, args.cold, args.end_on_marker): f for f in files}
         for fut in as_completed(futures):
             results.append(fut.result())
 
