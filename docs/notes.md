@@ -735,3 +735,34 @@ that use the library. The reserved-range label is now the generic
 `.core.__CPC_RESERVE_4000`. Fork tests: cb_* snapshots deleted, the phase-4c
 tests define the label themselves, the cpcbuild corpus entry was dropped
 from test_cpc_no_spectrum_refs.py.
+
+## 2026-10-03: tools honour the origin; &0040 proven (Phase 5c, D1)
+
+- `cpcrun.py --org ADDR` (also `tests/conformance/run.py --org`,
+  `tests/screens/run.py --org`, `make run|shot ORG=0x40`, and
+  `ORG=0x40 zxbasic/tools/cpc/run.sh`). The AMSDOS header and DSK use the
+  origin zxbc actually compiled for, read back from its memory map
+  (`.core.__START_PROGRAM` in `-M`), so `--zxbc-arg=--org=...` and the
+  default can't disagree with the packer. run.sh does the same for .bas;
+  for a prebuilt .bin set ORG (default 0x1000).
+- `--org` below &0040 is a compile error on cpc (new generic
+  `MIN_CODE_ADDRESS`/`MIN_CODE_REASON` on the backend, checked in
+  `check_memory_layout`; tests in tests/arch/cpc/test_cpc_memory_layout.py).
+- Result: RUN" at &0040 works on Caprice32 464 (with DDI-1), 664, 6128;
+  chips quickload works on 464/6128 after a chipsrun fix: BASIC's CALL
+  command writes &0040-&0047 (BASIC ROM ~&E008) between the quickload and
+  the first instruction, so for loads below &0048 chipsrun enters through
+  a 22-byte stub at &A300 that restores the first 8 bytes. RUN" is not
+  affected (AMSDOS loads last), so real RUN" at &0040 is fine; a program
+  loaded by BASIC `LOAD` + `CALL &0040` would need the same care.
+- The whole conformance suite (new lowram.bas included) passes built at
+  &0040 on Caprice32 464/664/6128 and chips 464/6128; screen goldens are
+  origin-independent (16/16 at &0040).
+- &0000-&003F identical across org &1000 and &0040 builds at program start
+  on all five model/emulator pairs except our own &0039-&003A (the &0038
+  IM 1 vector's target); lowram.bas checks they don't change during a run
+  (floats via RST 6, PRINT, PAUSE, interrupts).
+- bounce at &0040: same binary size, ends &2F2B (default+BENCH) and &2F41
+  (GAMEMODE+BENCH, was &3F01): 4,032 bytes more room under &4000.
+  BENCH 19.0-19.2 updates/s default (frame counts 650-658 = phase jitter,
+  seen at other origins too), 25.0 in game mode, unchanged.

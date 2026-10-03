@@ -365,6 +365,22 @@ int main(int argc, char **argv) {
         fprintf(stderr, "chipsrun: load address 0x%02X%02X, exec address 0x%04X, %zu bytes\n",
                 bin[0x16], bin[0x15], cpc_quickload_exec_addr((chips_range_t){ bin, binsize }), binsize - 128);
     }
+    /* BASIC's CALL command scribbles on &0040-&0047 (its ROM, around E008,
+       writes there while it parses and starts the call), after the image is
+       loaded and before the first instruction runs; RUN" is unaffected, as
+       AMSDOS loads the file last. So for a program loaded below &0048 the
+       entry point is a small stub that puts the program's first 8 bytes
+       back and jumps to the real entry:
+           ld hl,saved / ld de,load / ld bc,8 / ldir / jp exec / saved: db ... */
+    if (binsize > 128 + 8 && (bin[0x15] | (bin[0x16] << 8)) < 0x48) {
+        const unsigned load = bin[0x15] | (bin[0x16] << 8), exec = bin[0x1A] | (bin[0x1B] << 8);
+        const unsigned stub = 0xA300;
+        uint8_t code[22] = { 0x21, (stub + 14) & 0xFF, (stub + 14) >> 8, 0x11, load & 0xFF, load >> 8,
+                             0x01, 0x08, 0x00, 0xED, 0xB0, 0xC3, exec & 0xFF, exec >> 8 };
+        memcpy(code + 14, bin + 128, 8);
+        for (unsigned i = 0; i < sizeof code; i++) mem_wr(&cpc.mem, stub + i, code[i]);
+        bin[0x1A] = stub & 0xFF; bin[0x1B] = stub >> 8;
+    }
     if (!cpc_quickload(&cpc, (chips_range_t){ bin, binsize }, true)) {
         fprintf(stderr, "chipsrun: quickload failed\n");
         return 1;

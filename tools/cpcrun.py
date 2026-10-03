@@ -3,9 +3,15 @@
 --arch cpc, headlessly, and print whatever it sent to the (virtual)
 printer.
 
-    cpcrun.py prog.bas [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
+    cpcrun.py prog.bas [--org ADDR] [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
                        [--emu cap32|chips] [--model 464|6128]
                       [--shot F.png [--shot-at N]] [--shot-dir D]   (chips only)
+
+The program's origin: --org ADDR (e.g. 0x40) is passed to zxbc as --org; with
+no --org zxbc uses its own default. Either way the AMSDOS header (load and
+exec address) and the DSK file use the origin zxbc actually compiled for,
+read back from the memory map it writes (-M, `.core.__START_PROGRAM`), so the
+two can never disagree -- even with `--zxbc-arg=--org=...`.
 
 --emu chips runs the same program in the floooh/chips-based tools/chipsrun
 (built on demand; AMSDOS-headered .bin quickloaded, no DSK).
@@ -135,8 +141,20 @@ def amsdos_stem(bas_path: Path) -> str:
     return safe[:8] or "PROG"
 
 
-def compile_program(bas_path: Path, out_bin: Path, extra_zxbc_args: list[str], env: dict[str, str]) -> None:
+def read_origin(map_path: Path) -> int:
+    """The origin zxbc compiled for: the address of .core.__START_PROGRAM
+    in its memory map (-M), the first byte of the .bin and its entry point."""
+    for line in map_path.read_text().splitlines():
+        addr, _, label = line.partition(":")
+        if label.strip() == ".core.__START_PROGRAM":
+            return int(addr, 16)
+    raise BuildError(f"no .core.__START_PROGRAM in {map_path}; cannot tell the program's origin")
+
+
+def compile_program(bas_path: Path, out_bin: Path, extra_zxbc_args: list[str], env: dict[str, str]) -> int:
+    """Compile; returns the origin zxbc used (see read_origin)."""
     zxdir = zxbasic_dir()
+    map_path = out_bin.with_suffix(".map")
     cmd = [
         "poetry",
         "run",
@@ -147,6 +165,8 @@ def compile_program(bas_path: Path, out_bin: Path, extra_zxbc_args: list[str], e
         "__CPC_PRINTER_ECHO__",
         "-I",
         str(REPO_ROOT / "lib"),
+        "-M",
+        str(map_path),
         "-o",
         str(out_bin),
         str(bas_path),
@@ -157,9 +177,10 @@ def compile_program(bas_path: Path, out_bin: Path, extra_zxbc_args: list[str], e
         sys.stderr.write(proc.stdout)
         sys.stderr.write(proc.stderr)
         raise BuildError(f"zxbc exited {proc.returncode}")
+    return read_origin(map_path)
 
 
-def pack_dsk(bin_path: Path, dsk_path: Path, stem: str, env: dict[str, str]) -> None:
+def pack_dsk(bin_path: Path, dsk_path: Path, stem: str, env: dict[str, str], org: int) -> None:
     mkdsk = zxbasic_dir() / "tools" / "cpc" / "mkdsk.py"
     cmd = [
         sys.executable,
@@ -167,9 +188,9 @@ def pack_dsk(bin_path: Path, dsk_path: Path, stem: str, env: dict[str, str]) -> 
         "-o",
         str(dsk_path),
         "--load",
-        "0x1000",
+        f"0x{org:04X}",
         "--exec",
-        "0x1000",
+        f"0x{org:04X}",
         "--name",
         f"{stem}.BIN",
         str(bin_path),
@@ -200,8 +221,8 @@ def chipsrun_bin() -> Path:
     return CHIPSRUN_BIN
 
 
-def amsdos_bin(bin_path: Path, stem: str) -> bytes:
-    """The compiled .bin with its 128-byte AMSDOS header (load/exec 0x1000),
+def amsdos_bin(bin_path: Path, stem: str, org: int) -> bytes:
+    """The compiled .bin with its 128-byte AMSDOS header (load/exec = org),
     built with the fork's mkdsk.py."""
     sys.path.insert(0, str(zxbasic_dir() / "tools" / "cpc"))
     try:
@@ -209,7 +230,7 @@ def amsdos_bin(bin_path: Path, stem: str) -> bytes:
     finally:
         sys.path.pop(0)
     data = bin_path.read_bytes()
-    return mkdsk.build_amsdos_header(f"{stem}.BIN", data, load_addr=0x1000, exec_addr=0x1000) + data
+    return mkdsk.build_amsdos_header(f"{stem}.BIN", data, load_addr=org, exec_addr=org) + data
 
 
 class TimeoutHit(Exception):
@@ -322,6 +343,8 @@ def main(argv: list[str] | None = None) -> int:
         metavar="ARG",
         help="extra argument to pass to zxbc (repeatable, e.g. --zxbc-arg --enable-break)",
     )
+    parser.add_argument("--org", default=None, metavar="ADDR",
+                        help="program origin passed to zxbc (e.g. 0x40); the AMSDOS header and DSK follow what zxbc used")
     parser.add_argument("--expect", type=Path, default=None, help="diff captured printer text against this file")
     parser.add_argument("--quiet", action="store_true", help="don't print the captured printer text to stdout")
     parser.add_argument("--model", choices=sorted(MODELS), default="6128", help="CPC model to emulate (default 6128)")
@@ -353,6 +376,9 @@ def main(argv: list[str] | None = None) -> int:
     if not bas_path.exists():
         parser.error(f"{bas_path}: not found")
 
+    if args.org is not None:
+        args.zxbc_args = ["--org", args.org, *args.zxbc_args]
+
     env = subprocess_env()
     tmpdir = Path(tempfile.mkdtemp(prefix="cpcrun-"))
     try:
@@ -362,7 +388,7 @@ def main(argv: list[str] | None = None) -> int:
         stem = amsdos_stem(bas_path)
 
         try:
-            compile_program(bas_path, bin_path, args.zxbc_args, env)
+            org = compile_program(bas_path, bin_path, args.zxbc_args, env)
         except BuildError as exc:
             print(f"cpcrun.py: build error: {exc}", file=sys.stderr)
             return 1
@@ -373,7 +399,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("cpcrun.py: chips has no 664", file=sys.stderr)
                 return 1
             amsdos_path = tmpdir / "prog.amsdos"
-            amsdos_path.write_bytes(amsdos_bin(bin_path, stem))
+            amsdos_path.write_bytes(amsdos_bin(bin_path, stem, org))
             try:
                 code, text = run_chips(amsdos_path, args.timeout, args.model, args.typed,
                                        args.shot, args.shot_dir, args.shot_at)
@@ -418,7 +444,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 3
             return exit_code
 
-        pack_dsk(bin_path, dsk_path, stem, env)
+        pack_dsk(bin_path, dsk_path, stem, env, org)
 
         try:
             run_emulator(dsk_path, stem, printer_out, args.timeout, env, args.model, args.typed)

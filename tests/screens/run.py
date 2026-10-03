@@ -56,7 +56,7 @@ def spec(bas: Path) -> tuple[Path, list[str]]:
     return source, args
 
 
-def run_test(bas: Path, model: str, timeout: float, update: bool) -> list[tuple[str, str, str]]:
+def run_test(bas: Path, model: str, timeout: float, update: bool, org: str | None = None) -> list[tuple[str, str, str]]:
     """Returns [(status, "<model>/<test>:<shot>", detail)], status one of
     PASS, FAIL, NEW (golden written/updated), UPDATED, ERROR."""
     label = f"{model}/{bas.stem}"
@@ -64,6 +64,8 @@ def run_test(bas: Path, model: str, timeout: float, update: bool) -> list[tuple[
     with tempfile.TemporaryDirectory(prefix="screens-") as tmp:
         cmd = [sys.executable, str(CPCRUN), str(source), "--emu", "chips", "--model", model,
                "--timeout", str(timeout), "--quiet", "--shot-dir", tmp]
+        if org:
+            cmd += ["--org", org]
         for a in zargs:
             cmd.append(f"--zxbc-arg={a}")
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout * 4 + 120)
@@ -123,6 +125,7 @@ def main() -> int:
     ap.add_argument("-k", dest="pattern", default=None, help="only tests whose name contains PATTERN")
     ap.add_argument("-j", dest="jobs", type=int, default=8)
     ap.add_argument("--timeout", type=float, default=60.0)
+    ap.add_argument("--org", default=None, metavar="ADDR", help="build at this origin (e.g. 0x40); goldens are origin-independent")
     args = ap.parse_args()
 
     files = [f.resolve() for f in args.files] or sorted(HERE.glob("*.bas"))
@@ -133,7 +136,7 @@ def main() -> int:
         return 1
     jobs = [(f, m) for f in files for m in (args.model or MODELS)]
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = list(pool.map(lambda j: run_test(j[0], j[1], args.timeout, args.update), jobs))
+        results = list(pool.map(lambda j: run_test(j[0], j[1], args.timeout, args.update, args.org), jobs))
     flat = sorted((r for rs in results for r in rs), key=lambda r: r[1])
     for status, name, detail in flat:
         print(f"{status:8} {name}" + (f"  ({detail})" if detail else ""))
