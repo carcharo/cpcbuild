@@ -32,6 +32,8 @@
 #error "cpcbuild is for --arch cpc only"
 #endif
 
+#include once <cpcbuild/reserve.bas>
+
 #pragma push(case_insensitive)
 #pragma case_insensitive = TRUE
 
@@ -53,13 +55,14 @@ sub fastcall WaitRetrace(frames as uinteger)
     end asm
 end sub
 
-' Defines __CPC_RESERVE_4000 (the compiler's generic label for "this
-' program reserves &4000-&7FFF"), which makes the compiler reserve it for
-' the back screen -- only in programs that call this sub.
+' Calls CbReserve4000 (reserve.bas), which defines __CPC_RESERVE_4000 (the
+' compiler's generic label for "this program reserves &4000-&7FFF"), so the
+' compiler reserves it for the back screen -- only in programs that call this
+' sub (or another sub that reserves it, such as the banks library's).
 sub fastcall EnableDoubleBuffer()
+    CbReserve4000()
     asm
     push namespace core
-__CPC_RESERVE_4000:
     call __CB_DBUF_ON
     pop namespace
     end asm

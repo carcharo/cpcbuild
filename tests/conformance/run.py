@@ -8,6 +8,13 @@ Each conformance program prints one line per check ("PASS name" or
 "FAIL name got=... want=..." -- see any tests/conformance/*.bas for the
 convention) and ends with "DONE" if every check ran.
 
+A program may restrict where it runs with header lines (anywhere in the source):
+`REM MODELS: 6128` (only on those models, space separated: 464 664 6128),
+`REM EMUS: cap32` (only on that emulator: e.g. a test that needs a disc), and
+ask for data files on the disc (Caprice32): `REM DISKFILE: NAME.BIN=path`, the
+path relative to this directory. Other combinations are reported as SKIP and
+not counted.
+
 A program may mark itself expected-to-fail with a `REM XFAIL: <reason>`
 line anywhere in the source (e.g. the float test, until the float
 calculator port lands) -- such a program is reported separately and
@@ -29,6 +36,9 @@ CONFORMANCE_DIR = Path(__file__).resolve().parent
 CPCRUN = CONFORMANCE_DIR.parent.parent / "tools" / "cpcrun.py"
 
 XFAIL_RE = re.compile(r"^\s*REM\s+XFAIL:\s*(.*)$", re.IGNORECASE)
+MODELS_RE = re.compile(r"^\s*REM\s+MODELS:\s*(.*?)\s*$", re.IGNORECASE)
+EMUS_RE = re.compile(r"^\s*REM\s+EMUS:\s*(.*?)\s*$", re.IGNORECASE)
+DISKFILE_RE = re.compile(r"^\s*REM\s+DISKFILE:\s*(\S+)\s*$", re.IGNORECASE)
 TYPE_RE = re.compile(r"^\s*REM\s+TYPE:\s*(\S*)\s*$", re.IGNORECASE)
 FAIL_LINE_RE = re.compile(r"^FAIL\b.*$", re.MULTILINE)
 
@@ -41,6 +51,7 @@ class Result:
         self.output: str = ""
         self.stderr: str = ""
         self.timed_out = False
+        self.skipped = False
 
     @property
     def fail_lines(self) -> list[str]:
@@ -56,6 +67,8 @@ class Result:
 
     @property
     def status(self) -> str:
+        if self.skipped:
+            return "SKIP"
         if self.ok:
             return "XPASS" if self.xfail_reason else "PASS"
         if self.xfail_reason:
@@ -86,14 +99,27 @@ def find_typed(bas_path: Path) -> list[str]:
     return typed
 
 
+def find_directive(bas_path: Path, regex: re.Pattern) -> list[str]:
+    """The (stripped) argument of every header line matching regex."""
+    return [m.group(1) for m in map(regex.match, bas_path.read_text().splitlines()) if m]
+
+
 def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap32", org: str | None = None) -> Result:
     result = Result(bas_path)
     result.xfail_reason = find_xfail(bas_path)
+    models = [m for line in find_directive(bas_path, MODELS_RE) for m in line.split()]
+    emus = [e for line in find_directive(bas_path, EMUS_RE) for e in line.split()]
+    if (models and model not in models) or (emus and emu not in emus):
+        result.skipped = True
+        return result
     cmd = [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout), "--model", model, "--emu", emu]
     if org:
         cmd += ["--org", org]
     for text in find_typed(bas_path):
         cmd += ["--type", text]
+    for spec in find_directive(bas_path, DISKFILE_RE):
+        name, _, path = spec.partition("=")
+        cmd += ["--disk-file", f"{name}={CONFORMANCE_DIR / path}"]
     try:
         proc = subprocess.run(
             cmd,
@@ -138,10 +164,12 @@ def main(argv: list[str] | None = None) -> int:
 
     results.sort(key=lambda r: r.path.name)
 
-    n_pass = n_fail = n_timeout = n_builderr = n_xfail = n_xpass = 0
+    n_pass = n_fail = n_timeout = n_builderr = n_xfail = n_xpass = n_skip = 0
     for r in results:
         print(f"{r.status:8} {r.path.name}")
-        if r.status == "PASS":
+        if r.status == "SKIP":
+            n_skip += 1
+        elif r.status == "PASS":
             n_pass += 1
         elif r.status == "XFAIL":
             n_xfail += 1
@@ -162,10 +190,11 @@ def main(argv: list[str] | None = None) -> int:
             if not r.reached_done:
                 print("           (did not print DONE)")
 
-    total = len(results)
+    total = len(results) - n_skip
     print(
         f"\n{n_pass}/{total} passed, {n_fail} failed, {n_timeout} timed out, "
         f"{n_builderr} build errors, {n_xfail} expected failures, {n_xpass} unexpected passes"
+        + (f", {n_skip} skipped (other model/emulator)" if n_skip else "")
     )
 
     return 0 if (n_fail == 0 and n_timeout == 0 and n_builderr == 0) else 1

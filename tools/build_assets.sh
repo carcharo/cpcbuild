@@ -32,6 +32,15 @@ else
   echo "build_assets: Arkos tools not found (run tools/arkos/fetch.sh); keeping the committed bounce_*.bas"
 fi
 
+# tests/conformance/banks*.bas: bounce's tune twice -- for main RAM, and
+# assembled for the bank window at &4000 (.bas image + raw .bin for BankLoad)
+M=tests/conformance/assets/music
+if [ -x "${AT3_TOOLS:-tools/arkos/work/bin}/SongToAkg" ]; then
+  python3 tools/aks2bas.py $A/bounce_music.vt2 $M/bank_tune_main.bas --name bank_tune_main
+  python3 tools/aks2bas.py $A/bounce_music.vt2 $M/bank_tune.bas --name bank_tune --at 0x4000 --bin $M/bank_tune.bin
+fi
+python3 -c "open('tests/conformance/assets/bankdat.bin','wb').write(bytes(((i*7+(i>>8))&255) for i in range(3000)))"
+
 # tests/conformance/cb_assets.bas
 C=tests/conformance/assets
 $I --mode 1 --name a_spr1 --palette 0,26,6,18 $C/spr1.png -o $C/spr1.bas

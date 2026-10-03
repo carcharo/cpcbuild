@@ -3,6 +3,7 @@
 
     aks2bas.py song.aks   out.bas [--name NAME] [--subsongs 1,3]  # SongToAkg
     aks2bas.py --sfx bank.aks out.bas [--name NAME]               # SongToSoundEffects
+    aks2bas.py song.aks   out.bas --at 0x4000 [--bin out.bin]       # a song for a 6128 RAM bank
     aks2bas.py [--sfx] in.aks out.bas --psg spectrum|cpc          # set the sound chip's clock
     aks2bas.py --from-asm src.asm out.bas [--name NAME] [--prefix P]
                                           # no Arkos tool: convert an
@@ -14,6 +15,18 @@ assembler, done here by post-processing (no custom source profile needed):
 labels get a ':' (and go on their own line), '#hex' becomes '0x', and the
 whole thing is wrapped in an `asm` block. The tools are run with
 --labelPrefix NAME_ so several songs in one program can't clash.
+
+Songs for a 6128 RAM bank (--at). AKG song data holds absolute addresses, so
+a song that lives in an extra bank (paged in at &4000-&7FFF, see lib/music
+and lib/cpcbuild/banks.bas) must be exported for the address it will have
+there: `--at 0x4000` runs SongToAkg's binary export (--exportAsBinary
+--encodingAddress) instead of the source export. The include then defines
+NAME (the image, in the program, for BankCopyIn(bank, 0x4000, @NAME,
+NAME_length)) and the constant NAME_length; `--bin FILE` also writes the
+raw bytes (to put on a disc for BankLoad: `cpcrun.py --disk-file
+TUNE.BIN=FILE`, and the AMSDOS header gets added by the disc tools). Every
+subsong chosen with --subsongs (default all) goes into the one image; the
+song is then started with MusicInitBank(0x4000, subsong, bank).
 
 Sound chip clock (--psg). The Arkos exporters take the PSG clock from the
 song itself (the .aks's <frequencyHz>, 1 MHz for a CPC song, 1.7734 MHz for
@@ -156,6 +169,32 @@ def to_boriel(text: str, name: str, prefix: str = "", kind: str = "song") -> str
     return "\n".join(head + out + tail)
 
 
+def bank_include(data: bytes, name: str, adr: int) -> str:
+    """A .bas include holding a binary song image assembled for `adr`."""
+    guard = "__AKS_" + name.upper() + "__"
+    skip = "__aks_" + name + "_end"
+    lines = []
+    for i in range(0, len(data), 16):
+        lines.append("    db " + ", ".join(f"0x{b:02X}" for b in data[i:i + 16]))
+    head = [
+        f"' {name}.bas -- Arkos AKG song assembled for bank address {adr:#06x}, converted by tools/aks2bas.py --at.",
+        f"' Do not edit. {name} is the image (in the program, to copy into a bank at {adr:#06x} with",
+        f"' BankCopyIn); {name}_length is its size; start it with MusicInitBank({adr:#06x}, subsong, bank).",
+        "",
+        f"#ifndef {guard}",
+        f"#define {guard}",
+        "",
+        f"const {name}_length as uinteger = {len(data)}",
+        "asm",
+        f"    jp {skip}",
+        "end asm",
+        f"{name}:",
+        "asm",
+    ]
+    tail = [f"{skip}:", "end asm", "", "#endif", ""]
+    return "\n".join(head + lines + tail)
+
+
 PSG_HZ = {"cpc": 1_000_000, "spectrum": 1_773_400}
 FREQ_RE = re.compile(rb"(<frequencyHz>)\s*[0-9.]+\s*(</frequencyHz>)")
 
@@ -205,13 +244,47 @@ def main(argv=None) -> int:
     ap.add_argument("--psg", choices=sorted(PSG_HZ),
                     help="set the sound chip clock before exporting: cpc (1000000 Hz) or "
                          "spectrum (1773400 Hz, 128K AY); matters for --sfx (see above)")
+    ap.add_argument("--at", metavar="ADDR",
+                    help="export the song as a binary assembled for ADDR (0x4000-0x7FFF: a 6128 RAM bank "
+                         "window); the include holds the image as data (see above)")
+    ap.add_argument("--bin", metavar="FILE", help="--at: also write the raw binary here")
     ap.add_argument("--prefix", default="", help="--from-asm: prefix added to every label")
     a = ap.parse_args(argv)
 
+    if a.at and (a.sfx or a.from_asm):
+        ap.error("--at is for songs exported from an .aks/.vt2 (not with --sfx or --from-asm)")
+    if a.bin and not a.at:
+        ap.error("--bin needs --at")
     if a.psg and a.from_asm:
         ap.error("--psg can't be used with --from-asm (the periods are already in the source)")
     name = sanitize_name(a.name or Path(a.output).stem)
     kind = "sfx" if a.sfx else "song"
+    if a.at:
+        try:
+            adr = int(a.at, 0)
+        except ValueError:
+            ap.error(f"--at {a.at}: not a number")
+        if not 0x4000 <= adr <= 0x7FFF:
+            ap.error("--at must be inside the bank window, 0x4000-0x7FFF")
+        with tempfile.TemporaryDirectory() as td:
+            tmp = str(Path(td) / "out.bin")
+            inp = a.input
+            if a.psg:
+                patched = Path(td) / "in.aks"
+                try:
+                    patched.write_bytes(set_psg_clock(Path(a.input).read_bytes(), PSG_HZ[a.psg]))
+                except ValueError as e:
+                    sys.exit(f"aks2bas: {a.input}: {e}")
+                inp = str(patched)
+            extra = ["-s", a.subsongs] if a.subsongs else []
+            run_tool("SongToAkg", extra + ["--exportAsBinary", "--encodingAddress", hex(adr), inp, tmp])
+            data = Path(tmp).read_bytes()
+        if adr + len(data) > 0x8000:
+            sys.exit(f"aks2bas: the song ({len(data)} bytes) doesn't fit between {adr:#06x} and 0x7FFF")
+        if a.bin:
+            Path(a.bin).write_bytes(data)
+        Path(a.output).write_text(bank_include(data, name, adr), encoding="utf-8")
+        return 0
     if a.from_asm:
         src = Path(a.input).read_text(encoding="utf-8")
         prefix = a.prefix

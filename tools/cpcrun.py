@@ -6,6 +6,12 @@ printer.
     cpcrun.py prog.bas [--org ADDR] [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
                        [--emu cap32|chips] [--model 464|6128]
                       [--shot F.png [--shot-at N]] [--shot-dir D]   (chips only)
+                      [--disk-file NAME=PATH ...]                   (Caprice32 only)
+
+--disk-file NAME=PATH puts PATH on the DSK as the AMSDOS file NAME (8.3, upper
+case; an AMSDOS header is added: binary, load address &4000, no entry), next
+to the program, so the program can read it (e.g. with BankLoad). Repeatable.
+chips has no disc, so --emu chips refuses it.
 
 The program's origin: --org ADDR (e.g. 0x40) is passed to zxbc as --org; with
 no --org zxbc uses its own default. Either way the AMSDOS header (load and
@@ -180,7 +186,23 @@ def compile_program(bas_path: Path, out_bin: Path, extra_zxbc_args: list[str], e
     return read_origin(map_path)
 
 
-def pack_dsk(bin_path: Path, dsk_path: Path, stem: str, env: dict[str, str], org: int) -> None:
+def pack_dsk(bin_path: Path, dsk_path: Path, stem: str, env: dict[str, str], org: int,
+             extra_files: list[tuple[str, Path]] | None = None) -> None:
+    if extra_files:
+        # mkdsk.py's command line gives every input the same name rules and
+        # load address, so use its DiskImage directly: the program first,
+        # then each data file under its own name.
+        sys.path.insert(0, str(zxbasic_dir() / "tools" / "cpc"))
+        try:
+            import mkdsk  # type: ignore
+        finally:
+            sys.path.pop(0)
+        disk = mkdsk.DiskImage()
+        disk.add_file(f"{stem}.BIN", bin_path.read_bytes(), load_addr=org, exec_addr=org)
+        for name, path in extra_files:
+            disk.add_file(name, path.read_bytes(), load_addr=0x4000, exec_addr=0)
+        dsk_path.write_bytes(disk.to_dsk_bytes())
+        return
     mkdsk = zxbasic_dir() / "tools" / "cpc" / "mkdsk.py"
     cmd = [
         sys.executable,
@@ -269,6 +291,10 @@ def run_emulator(
         "sound.enabled=0",
         "-O",
         f"system.model={MODELS[model]}",
+        # a stock 464 or 664 has 64 KB; Caprice32's default (128) would give
+        # them a RAM expansion, which the bank library would then (rightly) use
+        "-O",
+        f"system.ram_size={64 if model in ('464', '664') else 128}",
         "-O",
         "rom.slot07=amsdos.rom",
         "-a",
@@ -362,6 +388,8 @@ def main(argv: list[str] | None = None) -> int:
         metavar="TEXT",
         help="keys to type while the program runs, then RETURN (repeatable; each after a delay)",
     )
+    parser.add_argument("--disk-file", dest="disk_files", action="append", default=[], metavar="NAME=PATH",
+                        help="put PATH on the DSK as AMSDOS file NAME (repeatable; Caprice32 only, chips has no disc)")
     parser.add_argument("--shot", type=Path, default=None, metavar="FILE.png",
                         help="--emu chips: save the screen (768x272 RGB PNG) when the run ends")
     parser.add_argument("--shot-at", type=int, default=None, metavar="FRAMES",
@@ -371,6 +399,15 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if (args.shot or args.shot_dir or args.shot_at is not None) and args.emu != "chips":
         parser.error("--shot/--shot-at/--shot-dir need --emu chips")
+
+    extra_files: list[tuple[str, Path]] = []
+    for spec in args.disk_files:
+        name, sep, path = spec.partition("=")
+        if not sep or not name or not path or not Path(path).is_file():
+            parser.error(f"--disk-file {spec!r}: want NAME=PATH with an existing PATH")
+        extra_files.append((name.upper(), Path(path).resolve()))
+    if extra_files and args.emu == "chips":
+        parser.error("--disk-file needs --emu cap32 (chips has no disc)")
 
     bas_path = args.program.resolve()
     if not bas_path.exists():
@@ -444,7 +481,7 @@ def main(argv: list[str] | None = None) -> int:
                     return 3
             return exit_code
 
-        pack_dsk(bin_path, dsk_path, stem, env, org)
+        pack_dsk(bin_path, dsk_path, stem, env, org, extra_files)
 
         try:
             run_emulator(dsk_path, stem, printer_out, args.timeout, env, args.model, args.typed)

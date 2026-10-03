@@ -6,8 +6,9 @@
 ; Double buffering (notes.md, Q-4c.1, opt-in): the CRTC can only show a
 ; screen at &0000/&4000/&8000/&C000, so the back screen is &4000-&7FFF.
 ; Programs that call EnableDoubleBuffer (cpcbuild/display.bas) get the
-; label __CPC_RESERVE_4000, defined inside that sub, so only when it is
-; actually used: it makes the compiler's memory-layout check reserve
+; label __CPC_RESERVE_4000 (defined in reserve.bas's CbReserve4000, which
+; that sub calls, so only when it is actually used; the banks library
+; calls it too): it makes the compiler's memory-layout check reserve
 ; &4000-&7FFF (src/arch/cpc/backend/main.py RESERVED_RANGE_LABELS).
 ; Code+data must then end below &4000 and the heap stay above &7FFF.
 ;
