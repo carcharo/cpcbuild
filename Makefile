@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-zx chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-zx test-games chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -36,6 +36,10 @@ test-chips: chips ## Build chipsrun and run conformance tests with chips emulato
 test-zx: chips ## Spectrum 48K/128K conformance and screenshot tests on chips (tests/zx)
 	$(PYTHON) tests/zx/run.py
 
+test-games: chips ## Starfall: logic tests and screenshot goldens for all four builds on chips
+	$(PYTHON) games/shooter/tests/run.py
+	$(PYTHON) games/shooter/tests/zx/run.py
+
 chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
 	sh tools/chipsrun/build.sh
 
@@ -45,7 +49,7 @@ assets: ## Build assets
 bench: ## Run benchmark
 	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
 
-ci: unit test-chips test-zx ## What CI runs - unit tests, then everything on chips (no Caprice32)
+ci: unit test-chips test-zx test-games ## What CI runs - unit tests, then everything on chips (no Caprice32)
 
 clean: ## Clean build artifacts
 	rm -f tools/chipsrun/chipsrun
