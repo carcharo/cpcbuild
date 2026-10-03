@@ -71,39 +71,43 @@ in `platform_cpc.bas` or `platform_zx.bas`.
 |---|---|
 | `PlatInit()` | screen mode, palette or attributes, screens, music and effects setup, keyboard |
 | `PlatFrameBegin()` | start of a drawn frame: erase the sprites drawn last time on the drawing screen |
-| `PlatSprite(kind, frame, x, y)` | queue or draw a sprite (kind: ship, enemy row 0-2, diver, bullet, bomb, explosion) at logical x, y |
-| `PlatFrameEnd()` | finish the frame: flip (double-buffered builds) or nothing (single-buffered), then wait so frames are paced |
+| `PlatSprite(kind, frame, x, y)` | queue or draw a sprite (kind: 0 ship, 1-3 enemy rows 0-2, 4 diver, 5 bullet, 6 bomb, 7 explosion) at logical x, y |
+| `PlatFrameEnd()` | finish the frame: flip (double-buffered) or nothing (single-buffered), then wait so frames are paced |
 | `PlatHud(score, lives, wave, hiscore)` | redraw the HUD where it changed |
-| `PlatText(col, row, s$)` | text for the title and game over, in character cells of the platform (the logic uses a few fixed positions per platform from a table) |
+| `PlatText(col, row, s$)` | text for the title and game over, in character cells of the platform (the logic uses fixed positions per platform from a table) |
 | `PlatClear()` | clear the playfield (new wave, title) |
 | `PlatInput() AS UBYTE` | bits: 1 left, 2 right, 4 fire, 8 any key/start. Keys: O / P / Space plus the cursor keys on the CPC, and a joystick (CPC joystick 0; Kempston on the Spectrum) |
 | `PlatFrames() AS UINTEGER` | the frame counter (low 16 bits) |
 | `PlatMusic(tune)` | 0 off, 1 title, 2 in-game (no-op on silent builds) |
 | `PlatSfx(n)` | effect n (no-op on silent builds) |
+| `PlatEnd()` | called at game end; used by -D SHOT/BENCH to exit |
+| `PlatShot(name$)` | triggers a screenshot (used by -D SHOT for test goldens) |
+
+**Sprite kinds:** 0 ship, 1 enemy row 0 (bottom, 10 points), 2 enemy row 1 (20 points), 3 enemy row 2 (top, 30 points), 4 diver, 5 bullet, 6 bomb, 7 explosion. Erasing on the Spectrum happens at the end of each frame; on the CPC per platform (on 6128 after the flip, on 464 just before redraw).
 
 ### Per-platform notes
 
-- **CPC** (`platform_cpc.bas`): cpcbuild (sprites, masked; tiles for the
-  border and HUD frame; ScanKeys; SetPalette), `music/music.bas`, and
-  framehook.bas with `GameMode(1)` while playing. Erasing restores the
-  background from the tile map with TileRestore, as bounce does.
-  - **6128:** double-buffered (`EnableDoubleBuffer`); songs and effects in
-    an extra bank (`MusicInitBank`), loaded from the disc at start.
-  - **464:** single-buffered. It draws in flyback order (wait for the
-    flyback, then erase and redraw each sprite in turn, top to bottom) to
-    keep tearing down. Music in main RAM.
-- **Spectrum** (`platform_zx.bas`): Boriel's zx48k libraries.
-  `cb/maskedsprites.bas` (MIT) draws the masked sprites with background
-  save and restore, and on the 128K switches screens 5 and 7 for double
-  buffering. Text is PRINT AT.
-  - **128K:** `music/music.bas` with the IM2 frame hook, double-buffered.
-  - **48K:** silent (`-D ZX48`), single-buffered.
-  - maskedsprites draws **16x16-pixel** sprites at any pixel x (0-240,
-    from pre-shifted copies; only the shifts we use need storing, since our
-    x steps are 4 pixels) and any line y (0-176), saving and restoring the
-    background. Our sprites are 16x8 pixels (8x8 logical units), so the art
-    is padded to 16x16 with the lower half transparent. Collision stays in
-    logical units, so gameplay is identical on every build.
+- **CPC** (`platform_cpc.bas`): cpcbuild library (sprites, masked; tiles for the
+  border and HUD frame; ScanKeys; SetPalette), `music/music.bas`, framehook.bas
+  with `GameMode(1)` while playing. Custom 8x8 sprite routines (the cpcbuild library
+  at 20.5 KB didn't fit below &4000 when added to the game code). Erasing restores
+  the background from the tile map with TileRestore-like logic per platform.
+  - **6128:** double-buffered with `EnableDoubleBuffer`; songs and effects in
+    an extra bank via `MusicInitBank`, loaded from the disc at start.
+  - **464:** single-buffered. Draws in flyback order (wait for flyback, erase and
+    redraw each sprite in turn, top to bottom) to keep tearing to one line.
+    Music in main RAM; pacing at 25.0 steps/s with about 30 % CPU to spare (not
+    held to a frame).
+- **Spectrum** (`platform_zx.bas`): custom 16x16-pixel masked sprite routines (Boriel's
+  maskedsprites took 2.3 frames for 25 sprites). PRINT AT for text.
+  - **128K:** `music/music.bas` with the IM2 frame hook; double-buffered using shadow
+    screens (banks 5 and 7).
+  - **48K:** silent, single-buffered.
+  - **Own sprite routines:** draw sprites at any pixel x (0-240, from pre-shifted data
+    to nearest 2-pixel boundary; only the shifts used are stored since x steps are 4 pixels)
+    and any line y (0-176), save/restore the background. Sprites 16x8 pixels (8x8 logical
+    units), padded to 16x16 with transparent lower half. Collision stays in logical units.
+    Candidates for later folding into per-platform sprite libraries.
 
 ## Builds
 

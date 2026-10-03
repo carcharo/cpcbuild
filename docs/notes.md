@@ -601,21 +601,18 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   Caprice32 6128, 35/35 on 464 and 664). Mutation checks: a hook that
   doesn't restore the shadow, or a song in the wrong bank, are both caught.
 
-## Pick up here (updated 2026-10-03, after Phase 5b)
+- 2026-10-03: **Phase 5c complete** (games/shooter): Starfall, a single-screen shooter for CPC 464/6128 and Spectrum 48K/128K from one .bas codebase. Four builds, one disc per CPC with the disc loader auto-selecting 6128 or 464. Speeds: CPC 6128 25.0 steps/s (with music/effects in game mode), CPC 464 ~25.0 (single-buffered, ~30 % spare), Spectrum 128K 24.2 (about 20 of 250 steps overrun at formation moves; the player costs ~0.2 frame per step), Spectrum 48K 25.0 silent. Logic 25 Hz, 128x160 logical units shared by all builds. Tests: 102 logic checks plus title/gameplay screenshot goldens for every build on chips; disc test manual (Caprice32, not CI). Platform layers: custom 8x8 sprite routines on CPC (20.5 KB library didn't fit below &4000), custom 16x16 masked sprites on Spectrum (Boriel's maskedsprites took 2.3 frames). Banking (6128): `MusicInitBank` pages songs from extra RAM around ticks; paging costs ~110 T-states/frame, 0.14 % overhead. The disc loader (Z80 asm) detects the extra RAM with its own copy of the banks library's probe. Notes: Spectrum 128K at 24.2 Hz is tight but usable (options to reach 25 Hz: cheaper player, trim peak steps); own sprite routines candidates for later folding into libraries; game sits in `games/` for visibility as a Phase 5c artifact.
 
-State: Phases pre-5a, 5a and 5b complete and merged into cpcbuild `main`;
-zxbasic `cpc-arch` pushed. Conformance 33/33 on chips (464, 6128) and
-Caprice32 (464, 664, 6128); screen tests 16/16; zxbasic 2169; CI green.
-bounce: 25 updates/s with Arkos music and effects in game mode.
+## Pick up here (updated 2026-10-03, after Phase 5c)
 
-1. **Next: Phase 5c**, the demo game: one small game (single-screen
-   platformer or shooter) from one .bas codebase for `--arch zx48k` and
-   `--arch cpc`, per-platform assets, Arkos tune on both (PLAN
-   "Phase 5c"). It needs the Spectrum side of music.bas (deferred from 5b)
-   and a plan for code space: bounce is within ~12 bytes of the &4000
-   ceiling under double buffering (see the 2026-10-03 note: lower ORG,
-   data above &8000, 6128 banks, or single buffering). Start a `phase-5c`
-   branch; plans name the agent model per step.
+State: Phases pre-5a, 5a, 5b and 5c complete and merged into cpcbuild `main`;
+zxbasic `cpc-arch` pushed. Starfall four builds all on chips; disc test manual.
+bounce: 25 updates/s with music in game mode. Starfall: 25.0 CPC, 24.2 Spectrum 128K.
+
+1. **Phase 5c additions / follow-up (user asks):**
+   - (a) Spectrum 128K to 25 Hz if practical (see options above).
+   - (b) Fold game sprite routines into the libraries / slimmer library modules.
+   - (c) The platformer extra (deferred from the Phase 5c scope).
 2. Small open item (low priority): the cpcbuild library's false-positive
    compiler warnings (W150/W190/W170).
 3. **To do (user, 2026-10-03): restructure zxbasic

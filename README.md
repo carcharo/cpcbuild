@@ -12,15 +12,20 @@ CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` co
 - Interrupts always on through our own &0038 handler, firmware sound without blocking, AY register access, the Play library (4d).
 - A headless reference emulator on floooh/chips that runs the whole test suite (pre-5a).
 
-**Done:** Phase 5a — tests, CI, documentation. Phase 5b — music player (Arkos Tracker 3.7), sound effects, opt-in game mode.
-
-**Next:** Phase 5c — a demo game for Spectrum 128K and CPC.
+**Done:** Phase 5a — tests, CI, documentation. Phase 5b — music player (Arkos Tracker 3.7), sound effects, opt-in game mode. Phase 5c — single-screen shooter (Starfall) for CPC 6128/464 and Spectrum 128K/48K, cross-platform build machinery.
 
 **Supported models:** Amstrad CPC 464, 664, 6128. The runtime is firmware-first (text, graphics, sound and files go through the jumpblock at &BB00-&BDxx); the `cpcbuild` library drives the screen, keyboard and palette directly for speed. CPC Plus features are planned for Phase 7.
 
-## Screenshot
+## Screenshots
 
-A tiled background (8×8 mode-0 tiles, 16-colour palette) with eight masked sprites bouncing, double-buffered at 25 updates per second (a new frame every other 50 Hz screen refresh).
+**Starfall (Phase 5c):** a single-screen shooter for CPC and Spectrum.
+
+![Starfall on CPC 6128](docs/images/starfall-cpc.png)
+![Starfall on Spectrum 128K](docs/images/starfall-zx.png)
+
+See [games/shooter/README.md](games/shooter/README.md) for how to play and build all four versions (CPC 6128/464, Spectrum 128K/48K).
+
+**bounce.bas demo:** A tiled background (8×8 mode-0 tiles, 16-colour palette) with eight masked sprites bouncing, double-buffered at 25 updates per second (a new frame every other 50 Hz screen refresh).
 
 ![bounce demo](docs/images/bounce.png)
 

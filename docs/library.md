@@ -9,13 +9,15 @@ architecture itself behaves (memory map, firmware gate, PRINT, floats) see
 Contents
 
 1. [Using the library](#1-using-the-library)
-2. [Coordinates](#2-coordinates)
-3. [Data formats](#3-data-formats)
-4. [Asset pipeline](#4-asset-pipeline)
-5. [Double buffering](#5-double-buffering)
-6. [Sound ownership](#6-sound-ownership)
-7. [API reference](#7-api-reference)
-8. [Performance tips](#8-performance-tips)
+2. [Program origin](#2-program-origin)
+3. [Coordinates](#3-coordinates)
+4. [Data formats](#4-data-formats)
+5. [Asset pipeline](#5-asset-pipeline)
+6. [Extra RAM banks (6128)](#6-extra-ram-banks-6128)
+7. [Double buffering](#7-double-buffering)
+8. [Sound ownership](#8-sound-ownership)
+9. [API reference](#9-api-reference)
+10. [Performance tips](#10-performance-tips)
 
 ## 1. Using the library
 
@@ -34,6 +36,23 @@ All of it is for `--arch cpc` only (the files stop with `#error` otherwise).
 The routines are written from scratch and licensed MIT.
 
 Typical start of a program:
+
+## 2. Program origin
+
+By default a CPC program loads at &1000 (4,096). The lowest address is &0040 (64 bytes), which gives about 4 KB more code space. Use the origin with the compiler and tools:
+
+| Tool / build script | Option | Example |
+|---|---|---|
+| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x40 ...` |
+| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x40` |
+| Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x40` |
+| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x40 tools/cpc/run.sh prog.bas` |
+
+The tools read the actual origin from the compiled binary's memory map, so `--org` and the default can never disagree with the packer.
+
+**Caveat:** BASIC's firmware CALL writes &0040-&0047 just before a program starts, so a program loaded by `LOAD` + `CALL &0040` needs special handling (a stub at &A300 to restore the first 8 bytes; `cpcrun.py` does this for quickloads at &0040). **RUN" is safe:** AMSDOS loads last, after BASIC's write, so real RUN" at &0040 works fine on every model (464, 664, 6128).
+
+## 3. Coordinates
 
 ```basic
 #include <cpc.bas>
@@ -98,7 +117,7 @@ after a scroll the top-left byte moves. The library reads the offset (in
 scroll. Several routines have fast paths that need no wrapping (see
 [Performance tips](#8-performance-tips)).
 
-## 3. Data formats
+## 4. Data formats
 
 All graphics data is in **screen-byte format for the mode in use**: bytes copied
 as they are to screen memory. A program for one mode needs assets built for
@@ -155,7 +174,7 @@ Entries above 26 are skipped; only pens 0-15 can be set.
 These are the firmware's numbers (as in Locomotive BASIC's INK), not the Gate
 Array's hardware codes.
 
-## 4. Asset pipeline
+## 5. Asset pipeline
 
 Two Python tools in `tools/` turn art into Boriel include files. They are MIT
 licensed, written from scratch, and generate plain `DIM ... => {...}` arrays and
@@ -280,7 +299,67 @@ The Arkos Tracker tools are MIT licensed (see `tools/arkos/README.md` for versio
 Test songs come from the Arkos Tracker repository with its MIT licence notice; the bundled
 example songs have no licence and are not used in cpcbuild.
 
-## 5. Double buffering
+## 6. Extra RAM banks (6128)
+
+The CPC 6128 has 64 KB of extra RAM in four 16 KB banks. A program can use banks to hold
+songs, sprites, tiles, or code, freeing main RAM for other data.
+
+```basic
+#include <cpcbuild/banks.bas>
+
+IF BankAvailable() THEN
+    BankLoad("TUNE.DAT", 0, &H4000)     ' load a song into bank 0
+    MusicInitBank(&H4000, 0, 0)         ' play it from there
+END IF
+```
+
+### API
+
+| Call | Returns | Notes |
+|---|---|---|
+| `BankAvailable()` | 1 or 0 | 1 on a 6128 or equipped 464/664; 0 otherwise |
+| `BankSelect(n)` | — | Select bank 0-3 (appears at &4000-&7FFF), or 255 for main RAM |
+| `BankOff()` | — | Equivalent to BankSelect(255) |
+| `BankSelected()` | 0-3 or 255 | Which bank is in, or 255 for main RAM |
+| `BankPeek(bank, addr)` | Byte value | Read from a bank without selecting it; addr = &4000-&7FFF |
+| `BankPoke(bank, addr, v)` | — | Write to a bank without selecting it |
+| `BankCopyIn(bank, bankaddr, src, len)` | 1 or 0 | Copy from main RAM into a bank (1 if done, 0 if no RAM or bad range) |
+| `BankCopyOut(bank, bankaddr, dst, len)` | 1 or 0 | Copy from a bank into main RAM |
+| `BankLoad(file$, bank, addr)` | 1 or 0 | Load an AMSDOS disc file into a bank; 1 if done, 0 on error |
+
+### Rules
+
+* **Reserved space:** Any program using these routines reserves &4000-&7FFF; the compiler refuses to run code that reaches it (same restriction as double buffering).
+* **Bank selection and drawing:** While a bank is selected, &4000-&7FFF is the bank. Do not call `FlipBuffer` or sprite/tile drawing while double buffering is on, as they would write to the bank instead of the screen. Select the bank, use it, then `BankOff()` before drawing.
+* **The music player:** `MusicInitBank(song, subsong, bank)` plays a song from a bank. It pages the bank in around each tick (about 110 T-states per frame) and restores the RAM configuration from the library's shadow, so a bank the main program selected survives the music hook.
+* **Copies:** `BankCopyIn` and `BankCopyOut` copy in chunks of at most 256 bytes with interrupts off (about 1.3 ms per chunk), so no interrupt is lost.
+* **BankLoad:** Loads an AMSDOS file (with its header) straight into a bank. The file needs the disc ROM (AMSDOS); BankLoad runs `|DISC` first. With no disc ROM it returns 0 at once. The call needs about 2 KB of heap; the default 4.7 KB is enough.
+* **464/664:** BankSelect/Off/Peek/Poke do nothing (Peek reads 0) and the copies return 0 on machines without extra RAM.
+
+### Songs in banks
+
+Generate the song at its bank address and include the raw bytes:
+
+```bash
+python3 tools/aks2bas.py tune.aks tune.bas --name tune --at 0x4000 --bin
+```
+
+This generates `tune.bas` (the image for `BankCopyIn`) and a raw binary for `BankLoad`:
+
+```basic
+#include <cpcbuild/banks.bas>
+#include <music/music.bas>
+#include "tune.bas"       ' defines tune and tune_length
+
+BankCopyIn(1, &H4000, @tune, tune_length)  ' or BankLoad("TUNE.BIN", 1, &H4000)
+MusicInitBank(&H4000, 0, 1)                ' play from bank 1
+```
+
+The song's addresses are absolute (&4000-&7FFF inside the bank); the player pages the bank in and out around each tick. `MusicInitBank` does nothing on a 464/664 without extra RAM; check `BankAvailable()` first if the program must run on every model.
+
+Cost (bench/boriel/banks_bench.bas, chips): BankPeek/Poke about 550 T-states from BASIC per call; a copy about 1,200 per call plus 25 per byte.
+
+## 7. Double buffering
 
 Opt-in. The CRTC can only display a screen at &0000, &4000, &8000 or &C000, so the
 second screen is &4000-&7FFF.
@@ -322,7 +401,7 @@ Rules:
 * `DisableDoubleBuffer` leaves &C000 shown with the last frame (copied from
   &4000 if that was showing).
 
-## 6. Sound ownership
+## 8. Sound ownership
 
 The AY sound chip has one owner at a time.
 
@@ -341,7 +420,7 @@ before BEEP or `SoundQueue` again. Play and the music player run with interrupts
 off, so the keyboard and the firmware clock stop meanwhile (the music player only
 outside firmware calls; in game mode the firmware stops anyway).
 
-## 7. API reference
+## 9. API reference
 
 Types are Boriel types. Calls that are **subs** return nothing. "Gate" means the
 call goes through the firmware gate (about 220 T-states plus the firmware
@@ -655,11 +734,12 @@ LOOP UNTIL KeyDown(KEY_ESC)
 GameMode(0)                         ' back to normal
 ```
 
-### 7.9 Music and sound effects (Arkos) (`music.bas`)
+### 7.9 Music and sound effects (Arkos) (`music.bas` — CPC and Spectrum 128K)
 
 | Call | Parameters | Returns |
 |---|---|---|
 | `MusicInit(song, subsong)` | `song AS UINTEGER`: address of AKG song data; `subsong AS UBYTE`: subsong number (0 = first) | sub |
+| `MusicInitBank(song, subsong, bank)` | CPC 6128 only: `song AS UINTEGER` = &4000 (inside the bank); `bank AS UBYTE` 0-3 | sub |
 | `MusicFrame()` | | sub |
 | `MusicStop()` | | sub |
 | `SfxInit(effects)` | `effects AS UINTEGER`: address of AKX effects data | sub |
@@ -670,6 +750,8 @@ GameMode(0)                         ' back to normal
 The music player is Arkos Tracker 3.7's PlayerAkg (MIT), converted for Boriel. It plays
 songs and sound effects through the AY, with each effect assigned to a channel. `MusicAuto`
 controls the mode (read before `MusicInit`):
+
+**Spectrum 128K support:** The same `music.bas` works on `--arch zx48k` (48K builds use `-D ZX48` to stub the music calls). On the 128K the player runs on the IM2 frame hook (like the CPC's frame hook) and chains to the ROM's IM1 routine, so FRAMES, PAUSE, INKEY$ keep working. The API is the same; `MusicInitBank` is CPC-only and has no effect on Spectrum.
 
 * **Auto mode (MusicAuto = 1, the default):** `MusicInit` puts the player on the frame hook,
   so the song advances one tick per frame at 50 Hz, steady whatever the main loop does. It
@@ -856,7 +938,7 @@ SetFont(@myfont(0))
 | `SCREEN$(row, col)` (`screen.bas`) | The character at a text cell, as a one-character string, or `""`. |
 | `INPUT(maxchars)` (`input.bas`) | Reads a line with the firmware cursor: `a$ = INPUT(20)`. |
 
-## 8. Performance tips
+## 10. Performance tips
 
 All figures are measured in Caprice32 unless marked otherwise. The CPC's Z80 runs at 4 MHz but every instruction takes a whole
 number of microseconds, so counts here are "effective" T-states; a frame (20 ms)
@@ -868,7 +950,7 @@ for about 88 % of the machine, less with music.
 
 **Game mode.** In game mode the firmware's interrupt work stops outside firmware calls,
 cutting the baseline from 12.3 % to about 1-2 %. The music player (if running) takes
-about 5 % on top, so game mode with music leaves about 94 % free vs 80 % in normal mode
+about 5 % on top, so game mode with music leaves about 92 % free vs 80 % in normal mode
 with music. Measured with bounce.bas: silent 25.0 updates/s (normal), 25.0 (game mode);
 with effects only 19.6 (normal), 25.0 (game mode); with music and effects 20.0 (normal),
 25.0 (game mode).
@@ -935,6 +1017,11 @@ with wall blips: 22.3; with blips and a two-channel tune: 20.0 (19.8 on the 464)
 `SoundQueue` itself is cheap (about 1.2 ms), the cost is the firmware's interrupt
 work. Top the queues up every few frames instead of every frame, and leave out
 envelopes that step every 1/100 s if the frame budget matters.
+
+**Starfall reference** (games/shooter, 25 Hz logic, CPC 6128 with music and effects in game mode):
+25.0 steps/s, all CPU available elsewhere. Single-buffered CPC 464: about 25.0 steps/s with about 30 %
+spare (no pacing). Spectrum 128K: 24.2 steps/s (about 20 of 250 steps overrun at formation moves; the Arkos
+player costs about 0.2 frame per step). See games/shooter/README.md for all four builds' performance.
 
 **bounce.bas reference** (the demo in `examples/`, 8 masked balls over a tiled
 mode-0 background, double buffered): about 10 updates a second at first, about 12
