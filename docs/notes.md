@@ -666,7 +666,70 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     is held ~2 frames, so slow work (STR$, CHK) between a poll and the next
     poll can miss it.
 
-## Pick up here (updated 2026-10-03, after Phase 5c)
+## Pick up here (updated 2026-10-03, end of day: Phase 6 stage gate passed)
+
+State: Phase 6 B0-B4 done on cpcbuild `phase-6` (5f376eb) and zxbasic
+`cpc-arch` (3335b40c), both pushed; CI green on phase-6 (14 min now). The
+stage gate passed (see "Phase 6 stage gate passed" below). Stopped there
+for the user, as agreed. Next: B5, B6, B7 (docs/phase6-design.md).
+
+**B5, bare graphics (sonnet):** PLOT, DRAW, CIRCLE, POINT, OVER without the
+firmware (graphics.asm etc. still call GRA_* through the gate).
+- First: add `make test-bare` to `make ci` and .github/workflows/ci.yml
+  (about 10 more minutes per CI run) so bare mode can't regress silently.
+- Remove the temporary markers: `grep -rn "until Phase 6 B5" tests/` (5
+  files: conformance font, udg, screen, graphics; screens/graphics).
+- Bare variants for cb_display, cb_fill, cb_sprites, cb_tiles,
+  cb_tilerestore (skipped bare today because the *tests* use the firmware
+  clock, SCR_GET_LOCATION or GRA_TEST_ABSOLUTE as references): time with
+  tests/conformance/lib/ticks.bas, compare against bare POINT, offset 0;
+  cb_tilerestore's "m1 real scroll offset is 0" check needs a bare meaning
+  (bare text scrolls in software, the CRTC offset is always 0).
+- Keep bare graphics pixel-identical to firmware mode (screens/graphics
+  golden, both models, disc and cold start).
+
+**B6, Starfall bare builds (sonnet):** 6128 and 464.
+- No disc in bare mode (BankLoad refused): a firmware-mode loader loads
+  the data/banks, then starts the bare program.
+- Size: a bare program carries ~3 KB more (boot, text code, 1.8 KB glyph
+  table): bare `PRINT "Hello"` 4651 bytes vs 1619. error.asm pulls in
+  txtbare.asm, so every bare program that can raise an error carries the
+  text code and font even if it never PRINTs. Starfall draws its own text:
+  look at making the error screen output optional/lighter, or -D
+  CPC_OWNFONT, before judging headroom. Bare code may go up to &B800 (vs
+  &9E00), but the 6128 build must still keep &4000-&7FFF for the back
+  screen.
+- Compare speed with the firmware builds (25.0 steps/s on both); try
+  fitting the full cpcbuild library in the 6128 build.
+- Double buffering bare: `__CB_SET_BASE` writes CRTC R12/R13 and points
+  SCREEN_ADDR at the shown screen.
+
+**B7, docs (haiku):** zxbasic docs/architectures/amstrad_cpc.md (bare mode:
+switch, memory map, what's refused and why, cold start / CPC_OWNFONT),
+cpcbuild docs/library.md (bare notes per call), README status. Check the
+figures against notes.md (doc agents have invented numbers before).
+
+**Choices to confirm with the user (made during B3/B4):** PAUSE bare ends
+on a *new* key press (firmware mode: a buffered key); bare INPUT shows an
+underscore cursor; the run-time FirmwareOff() alternative to the
+compile-time switch is still only noted (design doc).
+
+**For Phase 7 (cartridge):** the runtime keeps state in the program image
+(Boriel's way; kbare.asm's locks, INPUT's repeat state ...), so a
+cartridge build must copy the program to RAM before running it; cold
+starts need -D CPC_OWNFONT (the lower ROM may not be the CPC firmware);
+chipsrun --cold is the rehearsal (junk RAM, ROMs out, CRTC unprogrammed).
+
+**Agent hygiene:** an agent ran `git stash`/`pop` in cpcbuild while others
+had uncommitted work (nothing lost). Tell agents never to run git stash,
+checkout, reset or clean, and give each its own scratchpad subfolder (B1
+and B2 collided on generic scratch file names).
+
+Earlier follow-ups still open: see the next section (Starfall 128K to 25 Hz,
+fold the game's sprite/font routines into the libraries then revisit
+Starfall, the platformer, W150/W190/W170 warnings, parked ideas).
+
+## Pick up here (2026-10-03, after Phase 5c; Phase 6 items superseded above)
 
 State: Phases pre-5a, 5a, 5b and 5c (the shooter) complete and merged into
 cpcbuild `main`; zxbasic `cpc-arch` pushed; CI green (conformance, screens,
