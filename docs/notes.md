@@ -535,9 +535,11 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   our player doesn't stall. Cause: the host throttling the windowless
   emulator (macOS App Nap). Confirmed by the user: the stutter starts
   only when the Caprice32 window isn't visible. README notes it.
-- 2026-10-03: **bounce.bas is within ~12 bytes of its code ceiling** (code
-  and data must stay below &4000 when double buffering; with music it
-  ends just under). The 5c demo game will need room: options include a
+- 2026-10-03: **bounce.bas is near its code ceiling** (code and data must
+  stay below &4000 when double buffering). Corrected after the library
+  move: the default build ends near &3835 (~1.9 KB spare), the GAMEMODE +
+  music build near &3F01 (~250 bytes spare); the earlier "~12 bytes" came
+  from a probe whose 32-bit maths pulled in extra runtime. The 5c demo game will need room: options include a
   lower ORG (question 14: &0040-&0FFF is unused), moving data such as
   songs/sprites above &8000 (heap area) or into the 6128's extra banks,
   or single buffering.
@@ -717,3 +719,19 @@ cpc-port-notes.md.
 - Memory map (§6.2), recommended: ORG &1000; fixed heap top-aligned under a
   1 KB private block at &9E00; 1 KB stack with SP = &A600; &A67B is the top.
 - FP calculator on RST 6 (&0030) with `rst 30h` copies of 25 files (Q1).
+
+## 2026-10-03: library moved out of the fork (Phase 5c, D0)
+
+The cpcbuild library now lives in `lib/cpcbuild.bas`, `lib/cpcbuild/*.bas`
+and `lib/cpcbuild/*.asm` (build with `-I lib`). `#require "cpcbuild/x.asm"`
+resolves through `-I` (zxbc emits `#include once <...>` and zxbasm searches
+the include dirs), so no mechanism change was needed. In the fork:
+`runtime/gacolour.asm` holds the firmware-colour table, `__CPC_GA_SET`,
+`__CPC_SET_INK`, `__CPC_SET_BORDER` (used by cpc.bas; the library's
+palette.asm includes it for `PalUpload`). The library keeps its own state
+(CB_BASE, CB_SHOWN, CB_OFFSET, CB_DBUF, CB_TILESET in core.asm, CB_KEYS in
+keys.asm), so sysvars `$C0-$D0` are free; the cost is 17 bytes in programs
+that use the library. The reserved-range label is now the generic
+`.core.__CPC_RESERVE_4000`. Fork tests: cb_* snapshots deleted, the phase-4c
+tests define the label themselves, the cpcbuild corpus entry was dropped
+from test_cpc_no_spectrum_refs.py.

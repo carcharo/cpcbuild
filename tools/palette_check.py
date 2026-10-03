@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """palette_check.py -- checks cpcbuild's firmware-colour -> Gate Array
-table (runtime/cpcbuild/palette.asm, __CB_HWCOL) against the firmware, in
+table (the fork's runtime/gacolour.asm, __CPC_HWCOL) against the firmware, in
 the emulator, by comparing screenshots.
 
     palette_check.py [--model 464|6128] [--emu cap32|chips] [--keep DIR]
@@ -14,13 +14,13 @@ to advance; the program waits for that q.
   fw   firmware only (SCR_SET_INK/SCR_SET_BORDER, then flyback waits
        through the firmware, so its interrupt writes the palette): the
        reference.
-  hw   Gate Array only, through __CB_GA_SET, no firmware call at all
+  hw   Gate Array only, through __CPC_GA_SET, no firmware call at all
        while a state is shown: the table. Interrupts are off from the last
        Gate Array write until the next state's first one (the q is read
        straight from the PPI, WaitQDi), because the firmware's interrupt
        handler rewrites all 17 inks from its own tables every flash period
        (10 frames, whether or not any ink flashes), which would wipe
-       writes that bypass the firmware (__CB_GA_SET returns with interrupts
+       writes that bypass the firmware (__CPC_GA_SET returns with interrupts
        on, and so does ScanKeys, so a window is left between the last
        write and the DI: microseconds, tolerated).
   lib  the library's own SetBorder + SetPalette, again with no firmware
@@ -102,14 +102,14 @@ SUB HwInk(pen AS UBYTE, colour AS UBYTE)
   ASM
   ld a, (ix+5)
   ld c, (ix+7)
-  call .core.__CB_GA_SET
+  call .core.__CPC_GA_SET
   END ASM
 END SUB
 SUB HwBorder(colour AS UBYTE)
   ASM
   ld c, (ix+5)
   ld a, 16
-  call .core.__CB_GA_SET
+  call .core.__CPC_GA_SET
   END ASM
 END SUB
 
