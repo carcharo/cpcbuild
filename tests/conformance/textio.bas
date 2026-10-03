@@ -46,7 +46,7 @@ END FUNCTION
 
 DIM t0, t1 AS ULONG
 
-REM --- INKEY$: the key buffer starts empty ---
+REM --- INKEY$: no key is held ---
 CHK("inkey_empty", STR$(LEN(INKEY$)), "0")
 
 REM --- PAUSE ---

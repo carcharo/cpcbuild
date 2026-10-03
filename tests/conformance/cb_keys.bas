@@ -5,8 +5,10 @@ REM lines below). The emulator holds each key down for only a frame or
 REM two, so the program scans in a tight loop to catch it, for up to about
 REM 10 seconds. Interrupts are on in compiled code (Phase 4d), so the
 REM firmware's own scan runs alongside and its key buffer gets every key
-REM too: INKEY$ at the end must return Q, RETURN, Z, RETURN, which shows
-REM the firmware's keyboard still works after thousands of direct scans.
+REM too: the firmware's key buffer, read at the end with KM_READ_CHAR, must
+REM hold Q, RETURN, Z, RETURN, which shows the firmware's keyboard still works
+REM after thousands of direct scans. (INKEY$ itself is a direct matrix scan
+REM now, see inkey.bas, so it is not what reads the buffer here.)
 REM TYPE: Q
 REM TYPE: Z
 
@@ -22,9 +24,25 @@ SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
   END IF
 END SUB
 
+REM The next character of the firmware's key buffer (KM_READ_CHAR, &BB09),
+REM or 0 if none.
+FUNCTION FASTCALL FwKey() AS UBYTE
+  ASM
+  PROC
+  LOCAL got
+  call .core.__FW_CALL
+  defw $BB09
+  jr c, got
+  xor a
+got:
+  ENDP
+  END ASM
+END FUNCTION
+
 DIM frames AS UINTEGER
 DIM seenQ, wWithQ, anyWithQ, shiftWithQ, seenRet, held AS UBYTE
-DIM got$, k$ AS STRING
+DIM got$ AS STRING
+DIM k AS UBYTE
 
 REM --- nothing typed yet: the first scan sees an idle keyboard ---
 ScanKeys()
@@ -77,22 +95,23 @@ CHK("released_any", STR$(AnyKeyDown()), "0")
 CHK("released_q", STR$(KeyDown(KEY_Q)), "0")
 
 REM --- the firmware still works after thousands of direct scans: its
-REM interrupt-time scan saw every key, and INKEY$ returns them in order ---
+REM interrupt-time scan saw every key, and its buffer holds them in order ---
 got$ = ""
 frames = 0
 DO
   WaitRetrace(1)
-  got$ = got$ + INKEY$
+  k = FwKey()
+  IF k THEN got$ = got$ + CHR$(k)
   frames = frames + 1
 LOOP UNTIL LEN(got$) >= 4 OR frames >= 500
-CHK("firmware_inkey", got$, "Q" + CHR$ 13 + "Z" + CHR$ 13)
-CHK("inkey_empty_now", STR$(LEN(INKEY$)), "0")
+CHK("firmware_buffer", got$, "Q" + CHR$ 13 + "Z" + CHR$ 13)
+CHK("buffer_empty_now", STR$(FwKey()), "0")
 
 REM --- direct scans between firmware calls don't upset it either ---
 ScanKeys(): ScanKeys(): ScanKeys()
 WaitRetrace(2)
 PRINT "print_ok"
-CHK("inkey_after_scans", STR$(LEN(INKEY$)), "0")
+CHK("buffer_empty_after_scans", STR$(FwKey()), "0")
 
 PAUSE 100
 PRINT

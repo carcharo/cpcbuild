@@ -10,7 +10,8 @@ convention) and ends with "DONE" if every check ran.
 
 A program may restrict where it runs with header lines (anywhere in the source):
 `REM MODELS: 6128` (only on those models, space separated: 464 664 6128),
-`REM EMUS: cap32` (only on that emulator: e.g. a test that needs a disc), and
+`REM EMUS: cap32` (only on that emulator: e.g. a test that needs a disc),
+`REM ZXBC: -D NAME` (extra compiler arguments, space separated), and
 ask for data files on the disc (Caprice32): `REM DISKFILE: NAME.BIN=path`, the
 path relative to this directory. Other combinations are reported as SKIP and
 not counted.
@@ -38,6 +39,7 @@ CPCRUN = CONFORMANCE_DIR.parent.parent / "tools" / "cpcrun.py"
 XFAIL_RE = re.compile(r"^\s*REM\s+XFAIL:\s*(.*)$", re.IGNORECASE)
 MODELS_RE = re.compile(r"^\s*REM\s+MODELS:\s*(.*?)\s*$", re.IGNORECASE)
 EMUS_RE = re.compile(r"^\s*REM\s+EMUS:\s*(.*?)\s*$", re.IGNORECASE)
+ZXBC_RE = re.compile(r"^\s*REM\s+ZXBC:\s*(.*?)\s*$", re.IGNORECASE)
 DISKFILE_RE = re.compile(r"^\s*REM\s+DISKFILE:\s*(\S+)\s*$", re.IGNORECASE)
 TYPE_RE = re.compile(r"^\s*REM\s+TYPE:\s*(\S*)\s*$", re.IGNORECASE)
 FAIL_LINE_RE = re.compile(r"^FAIL\b.*$", re.MULTILINE)
@@ -115,6 +117,9 @@ def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap
     cmd = [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout), "--model", model, "--emu", emu]
     if org:
         cmd += ["--org", org]
+    for line in find_directive(bas_path, ZXBC_RE):
+        for arg in line.split():
+            cmd.append(f"--zxbc-arg={arg}")
     for text in find_typed(bas_path):
         cmd += ["--type", text]
     for spec in find_directive(bas_path, DISKFILE_RE):
