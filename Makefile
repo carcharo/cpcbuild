@@ -9,11 +9,11 @@ help: ## Show this help message
 
 run: ## Run a program. PROG=path/to/file.bas required, optional MODEL=464|664|6128 (default 6128) and DEFS="-D ..." passed to zxbc
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
-	CPC_MODEL=$(MODEL) $(ZXBASIC)/tools/cpc/run.sh $(abspath $(PROG)) $(DEFS)
+	CPC_MODEL=$(MODEL) $(ZXBASIC)/tools/cpc/run.sh $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
 
 shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required, optional MODEL and DEFS
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
-	CPC_MODEL=$(MODEL) $(ZXBASIC)/tools/cpc/run.sh --shot $(abspath $(PROG)) $(DEFS)
+	CPC_MODEL=$(MODEL) $(ZXBASIC)/tools/cpc/run.sh --shot $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
 
 unit: ## Run the tool unit tests (img2cpc, tmx2bas)
 	$(PYTHON) -m unittest discover -s tests/tools

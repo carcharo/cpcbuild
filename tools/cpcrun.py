@@ -13,7 +13,8 @@ printer.
 Pipeline:
   1. Compile prog.bas with the zxbasic fork's zxbc (`poetry run zxbc` in
      the zxbasic checkout, or $ZXBASIC/... if that env var is set),
-     always with `--arch cpc -D __CPC_PRINTER_ECHO__` plus any extra
+     always with `--arch cpc -D __CPC_PRINTER_ECHO__ -I <repo>/lib` (so
+     `#include <music/music.bas>` works) plus any extra
      `--zxbc-arg` values.
   2. Pack the resulting .bin into an AMSDOS .dsk with the fork's
      tools/cpc/mkdsk.py.
@@ -144,6 +145,8 @@ def compile_program(bas_path: Path, out_bin: Path, extra_zxbc_args: list[str], e
         "cpc",
         "-D",
         "__CPC_PRINTER_ECHO__",
+        "-I",
+        str(REPO_ROOT / "lib"),
         "-o",
         str(out_bin),
         str(bas_path),
