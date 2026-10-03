@@ -4,6 +4,10 @@
 printer.
 
     cpcrun.py prog.bas [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
+                       [--emu cap32|chips] [--model 464|6128]
+
+--emu chips runs the same program in the floooh/chips-based tools/chipsrun
+(built on demand; AMSDOS-headered .bin quickloaded, no DSK).
 
 Pipeline:
   1. Compile prog.bas with the zxbasic fork's zxbc (`poetry run zxbc` in
@@ -177,6 +181,33 @@ class BuildError(Exception):
     pass
 
 
+CHIPSRUN_DIR = REPO_ROOT / "tools" / "chipsrun"
+CHIPSRUN_BIN = CHIPSRUN_DIR / "chipsrun"
+
+
+def chipsrun_bin() -> Path:
+    """Path to the chipsrun binary, built on demand."""
+    if not CHIPSRUN_BIN.exists():
+        build = CHIPSRUN_DIR / "build.sh"
+        proc = subprocess.run([str(build)], capture_output=True, text=True)
+        if proc.returncode != 0 or not CHIPSRUN_BIN.exists():
+            sys.stderr.write(proc.stdout + proc.stderr)
+            raise BuildError(f"chipsrun not built; run {build} (needs a C compiler and network for fetch_chips.sh)")
+    return CHIPSRUN_BIN
+
+
+def amsdos_bin(bin_path: Path, stem: str) -> bytes:
+    """The compiled .bin with its 128-byte AMSDOS header (load/exec 0x1000),
+    built with the fork's mkdsk.py."""
+    sys.path.insert(0, str(zxbasic_dir() / "tools" / "cpc"))
+    try:
+        import mkdsk  # type: ignore
+    finally:
+        sys.path.pop(0)
+    data = bin_path.read_bytes()
+    return mkdsk.build_amsdos_header(f"{stem}.BIN", data, load_addr=0x1000, exec_addr=0x1000) + data
+
+
 class TimeoutHit(Exception):
     pass
 
@@ -247,6 +278,25 @@ def run_emulator(
         raise TimeoutHit() from None
 
 
+def run_chips(
+    amsdos_path: Path,
+    timeout: float,
+    model: str,
+    typed: list[str] | None,
+) -> tuple[int, str]:
+    """Run chipsrun; returns (exit code, transcript with END marker stripped)."""
+    if model not in ("464", "6128"):
+        raise BuildError(f"chips has no {model}")
+    cmd = [str(chipsrun_bin()), "--model", model, "--rom-dir", str(REPO_ROOT.parent / "caprice32" / "rom"),
+           "--timeout", str(timeout)]
+    for text in typed or []:
+        cmd += ["--type", text]
+    cmd.append(str(amsdos_path))
+    proc = subprocess.run(cmd, capture_output=True, timeout=timeout * 4 + 60)
+    sys.stderr.write(proc.stderr.decode("latin-1"))
+    return proc.returncode, proc.stdout.decode("latin-1")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("program", type=Path, help="prog.bas to compile and run")
@@ -262,6 +312,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expect", type=Path, default=None, help="diff captured printer text against this file")
     parser.add_argument("--quiet", action="store_true", help="don't print the captured printer text to stdout")
     parser.add_argument("--model", choices=sorted(MODELS), default="6128", help="CPC model to emulate (default 6128)")
+    parser.add_argument(
+        "--emu",
+        choices=("cap32", "chips"),
+        default="cap32",
+        help="emulator: Caprice32 (default) or the floooh/chips-based tools/chipsrun",
+    )
     parser.add_argument(
         "--type",
         dest="typed",
@@ -290,9 +346,58 @@ def main(argv: list[str] | None = None) -> int:
             print(f"cpcrun.py: build error: {exc}", file=sys.stderr)
             return 1
 
+        exit_code = 0
+        if args.emu == "chips":
+            if args.model == "664":
+                print("cpcrun.py: chips has no 664", file=sys.stderr)
+                return 1
+            amsdos_path = tmpdir / "prog.amsdos"
+            amsdos_path.write_bytes(amsdos_bin(bin_path, stem))
+            try:
+                code, text = run_chips(amsdos_path, args.timeout, args.model, args.typed)
+            except BuildError as exc:
+                print(f"cpcrun.py: {exc}", file=sys.stderr)
+                return 1
+            except subprocess.TimeoutExpired:
+                code, text = 2, ""
+            if code == 1:
+                return 1
+            if code == 2:
+                print(f"cpcrun.py: timeout after {args.timeout}s (hang -- unimplemented stub?)", file=sys.stderr)
+                exit_code = 2
+            elif code == 4:
+                error_match = ERROR_LINE_RE.search(text)
+                if error_match:
+                    print(
+                        f"cpcrun.py: reached address 0 without the END marker "
+                        f"(runtime error captured: {error_match.group(0)!r})",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        "cpcrun.py: reached address 0 without the END marker "
+                        "(crash/reset, or an error before any output -- no "
+                        "'Error N' line captured)",
+                        file=sys.stderr,
+                    )
+                exit_code = 4
+            if not args.quiet:
+                sys.stdout.write(text)
+            if exit_code == 0 and args.expect is not None:
+                expected = args.expect.read_text()
+                if text != expected:
+                    diff = difflib.unified_diff(
+                        expected.splitlines(keepends=True),
+                        text.splitlines(keepends=True),
+                        fromfile=str(args.expect),
+                        tofile="<captured>",
+                    )
+                    sys.stderr.writelines(diff)
+                    return 3
+            return exit_code
+
         pack_dsk(bin_path, dsk_path, stem, env)
 
-        exit_code = 0
         try:
             run_emulator(dsk_path, stem, printer_out, args.timeout, env, args.model, args.typed)
         except TimeoutHit:

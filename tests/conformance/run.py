@@ -13,7 +13,7 @@ line anywhere in the source (e.g. the float test, until the float
 calculator port lands) -- such a program is reported separately and
 does not count against the pass total.
 
-Usage: run.py [--timeout SECONDS] [-k PATTERN] [file.bas ...]
+Usage: run.py [--timeout SECONDS] [-k PATTERN] [--model M] [--emu cap32|chips] [file.bas ...]
 """
 
 from __future__ import annotations
@@ -86,10 +86,10 @@ def find_typed(bas_path: Path) -> list[str]:
     return typed
 
 
-def run_one(bas_path: Path, timeout: float, model: str = "6128") -> Result:
+def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap32") -> Result:
     result = Result(bas_path)
     result.xfail_reason = find_xfail(bas_path)
-    cmd = [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout), "--model", model]
+    cmd = [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout), "--model", model, "--emu", emu]
     for text in find_typed(bas_path):
         cmd += ["--type", text]
     try:
@@ -117,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-k", dest="pattern", default=None, help="only run files whose name contains PATTERN")
     parser.add_argument("-j", dest="jobs", type=int, default=8, help="parallel jobs (default 8)")
     parser.add_argument("--model", choices=("464", "664", "6128"), default="6128", help="CPC model (default 6128)")
+    parser.add_argument("--emu", choices=("cap32", "chips"), default="cap32", help="emulator (default cap32)")
     args = parser.parse_args(argv)
 
     files = args.files or sorted(CONFORMANCE_DIR.glob("*.bas"))
@@ -128,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
 
     results: list[Result] = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = {pool.submit(run_one, f, args.timeout, args.model): f for f in files}
+        futures = {pool.submit(run_one, f, args.timeout, args.model, args.emu): f for f in files}
         for fut in as_completed(futures):
             results.append(fut.result())
 
