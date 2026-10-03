@@ -619,6 +619,13 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     cpcbuild's banks library; GRA_FILL later in cpcbuild with a model check
     if needed.
 
+- 2026-10-03: **Phase 6 decisions** (user): bare-metal mode with full API
+  parity except disc (LOAD/SAVE/BankLoad/firmware sound are compile errors);
+  chosen by a compile-time switch; proven by bare builds of Starfall CPC
+  (6128 and 464) against the firmware builds; designed for no-firmware
+  cartridge boot (Phase 7). The plan's 6128 bank helpers are already done
+  (banks library, 5c). Design and who-does-what: docs/phase6-design.md.
+
 ## Pick up here (updated 2026-10-03, after Phase 5c)
 
 State: Phases pre-5a, 5a, 5b and 5c (the shooter) complete and merged into
