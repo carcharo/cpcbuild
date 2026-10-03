@@ -3,17 +3,19 @@
 PYTHON := python3
 ZXBASIC := ../zxbasic
 MODEL := 6128
+# ORG= (e.g. ORG=0x40) sets the program origin for run/shot; empty = compiler default
+ORG :=
 
 help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-11s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-run: ## Run a program. PROG=path/to/file.bas required, optional MODEL=464|664|6128 (default 6128) and DEFS="-D ..." passed to zxbc
+run: ## Run a program. PROG=path/to/file.bas required, optional MODEL=464|664|6128 (default 6128), ORG=0x.... and DEFS="-D ..." passed to zxbc
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
-	CPC_MODEL=$(MODEL) $(ZXBASIC)/tools/cpc/run.sh $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
+	CPC_MODEL=$(MODEL) $(if $(ORG),ORG=$(ORG)) $(ZXBASIC)/tools/cpc/run.sh $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
 
-shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required, optional MODEL and DEFS
+shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required, optional MODEL, ORG and DEFS
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
-	CPC_MODEL=$(MODEL) $(ZXBASIC)/tools/cpc/run.sh --shot $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
+	CPC_MODEL=$(MODEL) $(if $(ORG),ORG=$(ORG)) $(ZXBASIC)/tools/cpc/run.sh --shot $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
 
 unit: ## Run the tool unit tests (img2cpc, tmx2bas)
 	$(PYTHON) -m unittest discover -s tests/tools
