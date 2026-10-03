@@ -5,6 +5,7 @@ printer.
 
     cpcrun.py prog.bas [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
                        [--emu cap32|chips] [--model 464|6128]
+                      [--shot F.png [--shot-at N]] [--shot-dir D]   (chips only)
 
 --emu chips runs the same program in the floooh/chips-based tools/chipsrun
 (built on demand; AMSDOS-headered .bin quickloaded, no DSK).
@@ -283,14 +284,23 @@ def run_chips(
     timeout: float,
     model: str,
     typed: list[str] | None,
+    shot: Path | None = None,
+    shot_dir: Path | None = None,
+    shot_at: int | None = None,
 ) -> tuple[int, str]:
     """Run chipsrun; returns (exit code, transcript with END marker stripped)."""
     if model not in ("464", "6128"):
         raise BuildError(f"chips has no {model}")
-    cmd = [str(chipsrun_bin()), "--model", model, "--rom-dir", str(REPO_ROOT.parent / "caprice32" / "rom"),
+    cmd = [str(chipsrun_bin()), "--model", model, "--rom-dir", os.environ.get("CPC_ROM_DIR") or str(REPO_ROOT.parent / "caprice32" / "rom"),
            "--timeout", str(timeout)]
     for text in typed or []:
         cmd += ["--type", text]
+    if shot:
+        cmd += ["--shot", str(shot)]
+    if shot_at is not None:
+        cmd += ["--shot-at", str(shot_at)]
+    if shot_dir:
+        cmd += ["--shot-dir", str(shot_dir)]
     cmd.append(str(amsdos_path))
     proc = subprocess.run(cmd, capture_output=True, timeout=timeout * 4 + 60)
     sys.stderr.write(proc.stderr.decode("latin-1"))
@@ -326,7 +336,15 @@ def main(argv: list[str] | None = None) -> int:
         metavar="TEXT",
         help="keys to type while the program runs, then RETURN (repeatable; each after a delay)",
     )
+    parser.add_argument("--shot", type=Path, default=None, metavar="FILE.png",
+                        help="--emu chips: save the screen (768x272 RGB PNG) when the run ends")
+    parser.add_argument("--shot-at", type=int, default=None, metavar="FRAMES",
+                        help="--emu chips: with --shot, save it FRAMES frames after program start instead")
+    parser.add_argument("--shot-dir", type=Path, default=None, metavar="DIR",
+                        help="--emu chips: directory for shots the program triggers itself (see tests/screens/lib/shot.bas)")
     args = parser.parse_args(argv)
+    if (args.shot or args.shot_dir or args.shot_at is not None) and args.emu != "chips":
+        parser.error("--shot/--shot-at/--shot-dir need --emu chips")
 
     bas_path = args.program.resolve()
     if not bas_path.exists():
@@ -354,7 +372,8 @@ def main(argv: list[str] | None = None) -> int:
             amsdos_path = tmpdir / "prog.amsdos"
             amsdos_path.write_bytes(amsdos_bin(bin_path, stem))
             try:
-                code, text = run_chips(amsdos_path, args.timeout, args.model, args.typed)
+                code, text = run_chips(amsdos_path, args.timeout, args.model, args.typed,
+                                       args.shot, args.shot_dir, args.shot_at)
             except BuildError as exc:
                 print(f"cpcrun.py: {exc}", file=sys.stderr)
                 return 1

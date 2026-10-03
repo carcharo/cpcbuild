@@ -19,6 +19,9 @@
 ' Benchmark: built with -D BENCH it runs 250 updates, then prints the
 ' rate (headless: tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D
 ' --zxbc-arg=BENCH).
+'
+' Screenshot test: -D SHOT=n runs n updates, takes a program-triggered
+' screenshot (tests/screens/lib/shot.bas; tests/screens/run.py) and ENDs.
 ' ----------------------------------------------------------------
 
 #include <cpc.bas>
@@ -40,6 +43,11 @@ CONST NBALLS AS UBYTE = 8
 #include "assets/bgtiles.bas"
 #include "assets/level.bas"
 #include "assets/balls.bas"
+
+#ifdef SHOT
+#include "../tests/screens/lib/shot.bas"
+DIM shotN AS UINTEGER
+#endif
 
 #ifdef BENCH
 ' KL TIME PLEASE (&BD0D): the firmware's 300 Hz clock.
@@ -229,7 +237,13 @@ SoundStop
 #endif
 PRINT "INFO updates="; benchN; " ticks="; benchT; " per second="; CAST(ULONG, benchN) * 3000 / benchT / 10; "."; (CAST(ULONG, benchN) * 3000 / benchT) MOD 10
 #else
+#ifdef SHOT
+  shotN = shotN + 1
+LOOP UNTIL shotN = SHOT
+Shot("bounce")
+#else
 LOOP UNTIL KeyDown(KEY_ESC)
+#endif
 
 DisableDoubleBuffer()
 #ifndef NOSOUND

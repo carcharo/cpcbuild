@@ -304,25 +304,10 @@ reported here precisely instead.
 
 ## Caveats
 
-- **Interrupts.** Compiled Boriel programs run with interrupts disabled
-  except transiently inside firmware calls (`fwcall.asm`'s gate: `ei`
-  immediately before the firmware `call`, `di` immediately after). That
-  means compiled code never pays for the CPC firmware's 300Hz (IM1)
-  housekeeping interrupt the way Locomotive BASIC -- which runs with
-  interrupts enabled throughout -- does. This gives Boriel a further,
-  timing-invisible advantage beyond "compiled vs interpreted" that isn't
-  broken out separately in the results table. A rough estimate of that
-  interrupt tax: the 300Hz handler's own minimum overhead (register
-  save/restore, the frame/sound-queue checks) is on the order of a few
-  hundred T-states per tick, i.e. roughly 300 x a few hundred / 4,000,000
-  ~ a few percent of wall-clock time for something that does no firmware
-  calls at all -- small next to the compiled-vs-interpreted speed-ups
-  measured here (10x-1000x range) but not zero, and larger than a few
-  percent for any Locomotive program that spends a lot of time in
-  firmware-serviced I/O. Not measured directly (would need a Locomotive
-  loop run once with the 300Hz interrupt masked off, which risks wedging
-  the emulator's own timer/keyboard handling), so this is a documented
-  estimate, not a benchmarked number.
+- **Interrupts** (superseded by cpc-port-notes.md §15: interrupts always on since Phase 4d; about 12 % of the CPU goes to the firmware's interrupt handler). Compiled Boriel programs now run with interrupts enabled, like Locomotive BASIC.
+  The timing advantage Boriel had from running with interrupts disabled (saving the 300Hz handler's overhead when not calling
+  firmware) is gone. What remains: compiled code executes straight-line code faster than the interpreter, and plays music
+  or real-time graphics without the firmware's I/O pacing. Both languages now pay the same interrupt tax.
 - **Float formats differ.** Boriel's CPC `FLOAT` uses the same 5-byte
   Sinclair-style format as the Spectrum backend; Locomotive uses the
   Amstrad firmware's own 5-byte real format. In practice benchmark 4's

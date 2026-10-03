@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main, 'phase-*', 'pre-*']
+  pull_request:
+    branches: [main, 'phase-*', 'pre-*']
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: 3.14.3
+  # Pinned: ROMs come from this caprice32 commit (rom/ only).
+  CAPRICE32_SHA: 6c12c4c92360065cdc229ac9ada7551f941436b8
+  # Keep in sync with SHA in tools/chipsrun/fetch_chips.sh (cache key only).
+  CHIPS_SHA: 9e88298ce56319953ac7a43213a1120359f7a3a6
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v4
+        with:
+          path: cpcbuild
+
+      - name: Checkout zxbasic (cpc-arch)
+        uses: actions/checkout@v4
+        with:
+          repository: carcharo/zxbasic
+          ref: cpc-arch
+          path: zxbasic
+
+      - name: Fetch CPC ROMs (caprice32 rom/ at pinned commit)
+        uses: actions/checkout@v4
+        with:
+          repository: ColinPitrat/caprice32
+          ref: ${{ env.CAPRICE32_SHA }}
+          path: caprice32
+          sparse-checkout: rom
+          sparse-checkout-cone-mode: true
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: zxbasic/poetry.lock
+
+      - name: Install poetry
+        run: |
+          pip install -U pip~=26.0
+          pip install poetry~=2.3.2
+          poetry config virtualenvs.in-project true
+
+      - name: Cache zxbasic venv
+        uses: actions/cache@v4
+        with:
+          path: zxbasic/.venv
+          key: venv-${{ runner.os }}-py-${{ env.PYTHON_VERSION }}-${{ hashFiles('zxbasic/poetry.lock') }}
+
+      - name: Install zxbasic dependencies
+        working-directory: zxbasic
+        run: poetry install
+
+      - name: Install cpcbuild tool dependencies
+        run: pip install Pillow
+
+      - name: zxbasic tests
+        working-directory: zxbasic
+        run: poetry run pytest -q --no-cov
+
+      - name: Cache chips checkout
+        uses: actions/cache@v4
+        with:
+          path: cpcbuild/tools/chipsrun/chips
+          key: chips-${{ env.CHIPS_SHA }}
+
+      - name: cpcbuild tests (make ci)
+        working-directory: cpcbuild
+        env:
+          ZXBASIC: ${{ github.workspace }}/zxbasic
+          CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
+        run: make ci
+
+      - name: Upload screen-test diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screen-diffs
+          path: |
+            cpcbuild/tests/screens/**/*.actual.png
+            cpcbuild/tests/screens/**/*.diff.png
+          if-no-files-found: ignore
