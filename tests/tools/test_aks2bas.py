@@ -7,6 +7,7 @@ Disark region labels, and an Arkos Tracker 2 style export with a label
 followed by an instruction on one line)."""
 from __future__ import annotations
 
+import os
 import re
 import sys
 import tempfile
@@ -104,6 +105,86 @@ class TestAks2Bas(unittest.TestCase):
             self.assertIn("\ntune:\n", text)
             self.assertIn("tune_Newsong_Start:", text)
             self.assertIn("MusicInit(@tune, subsong)", text)
+
+
+AKS_XML = (b'<song><psgs><psg><type>ay</type><frequencyHz>2000000</frequencyHz>'
+           b'<referenceFrequencyHz>440</referenceFrequencyHz></psg></psgs></song>')
+
+
+class TestPsgClock(unittest.TestCase):
+    def test_set_clock_in_plain_xml(self):
+        out = aks2bas.set_psg_clock(AKS_XML, 1773400)
+        self.assertIn(b"<frequencyHz>1773400</frequencyHz>", out)
+        self.assertIn(b"<referenceFrequencyHz>440</referenceFrequencyHz>", out)  # untouched
+        self.assertNotIn(b"2000000", out)
+
+    def test_set_clock_in_zip(self):
+        import io
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("song.aks", AKS_XML)
+        out = aks2bas.set_psg_clock(buf.getvalue(), 1000000)
+        self.assertTrue(out.startswith(b"<song>"))
+        self.assertIn(b"<frequencyHz>1000000</frequencyHz>", out)
+
+    def test_every_psg_is_set(self):
+        two = AKS_XML.replace(b"</psg>", b"</psg><psg><frequencyHz>1000000</frequencyHz></psg>", 1)
+        out = aks2bas.set_psg_clock(two, 1773400)
+        self.assertEqual(out.count(b"<frequencyHz>1773400</frequencyHz>"), 2)
+
+    def test_no_frequency_is_an_error(self):
+        with self.assertRaises(ValueError):
+            aks2bas.set_psg_clock(b"<song/>", 1000000)
+
+    def test_clock_values(self):
+        self.assertEqual(aks2bas.PSG_HZ, {"cpc": 1000000, "spectrum": 1773400})
+
+    def run_cli(self, *opts, sfx=False):
+        with tempfile.TemporaryDirectory() as td:
+            td = Path(td)
+            tool = td / "bin"
+            tool.mkdir()
+            seen = td / "seen.txt"
+            for name in ("SongToAkg", "SongToSoundEffects"):
+                f = tool / name
+                f.write_text(
+                    "#!/usr/bin/env python3\nimport re, sys\n"
+                    "a = sys.argv[1:]\n"
+                    "m = re.search(rb'<frequencyHz>(\\d+)<', open(a[-2], 'rb').read())\n"
+                    f"open({str(seen)!r}, 'a').write(m.group(1).decode())\n"
+                    "open(a[-1], 'w').write('Lab\\n    db 1\\n')\n")
+                f.chmod(0o755)
+            aks = td / "in.aks"
+            aks.write_bytes(AKS_XML)
+            argv = (["--sfx"] if sfx else []) + [str(aks), str(td / "o.bas"), *opts]
+            old = os.environ.get("AT3_TOOLS")
+            os.environ["AT3_TOOLS"] = str(tool)
+            try:
+                rc = aks2bas.main(argv)
+            finally:
+                if old is None:
+                    del os.environ["AT3_TOOLS"]
+                else:
+                    os.environ["AT3_TOOLS"] = old
+            return rc, seen.read_text(), aks.read_bytes()
+
+    def test_cli_psg_spectrum_sfx(self):
+        rc, clock, orig = self.run_cli("--psg", "spectrum", sfx=True)
+        self.assertEqual((rc, clock), (0, "1773400"))
+        self.assertEqual(orig, AKS_XML)       # the user's file is not modified
+
+    def test_cli_psg_cpc_song(self):
+        rc, clock, _ = self.run_cli("--psg", "cpc")
+        self.assertEqual((rc, clock), (0, "1000000"))
+
+    def test_cli_without_psg_keeps_the_songs_clock(self):
+        rc, clock, _ = self.run_cli()
+        self.assertEqual((rc, clock), (0, "2000000"))
+
+    def test_cli_psg_with_from_asm_is_refused(self):
+        with self.assertRaises(SystemExit):
+            aks2bas.main(["--from-asm", str(FIX / "akg_at2_head.asm"), "/dev/null", "--psg", "cpc"])
 
 
 class TestPostprocess(unittest.TestCase):

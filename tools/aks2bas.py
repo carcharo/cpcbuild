@@ -3,6 +3,7 @@
 
     aks2bas.py song.aks   out.bas [--name NAME] [--subsongs 1,3]  # SongToAkg
     aks2bas.py --sfx bank.aks out.bas [--name NAME]               # SongToSoundEffects
+    aks2bas.py [--sfx] in.aks out.bas --psg spectrum|cpc          # set the sound chip's clock
     aks2bas.py --from-asm src.asm out.bas [--name NAME] [--prefix P]
                                           # no Arkos tool: convert an
                                           # already-exported AKG/AKX source
@@ -13,6 +14,18 @@ assembler, done here by post-processing (no custom source profile needed):
 labels get a ':' (and go on their own line), '#hex' becomes '0x', and the
 whole thing is wrapped in an `asm` block. The tools are run with
 --labelPrefix NAME_ so several songs in one program can't clash.
+
+Sound chip clock (--psg). The Arkos exporters take the PSG clock from the
+song itself (the .aks's <frequencyHz>, 1 MHz for a CPC song, 1.7734 MHz for
+a Spectrum one ...) and have no option for it. It matters for sound effects
+only: an AKX bank stores software periods, computed from that clock, so a
+bank exported for the CPC plays about 10 semitones flat on a Spectrum. AKG
+song data stores notes and the player converts them with its own period
+table, so a song exports byte-identically whatever the clock (checked with
+SongToAkg). `--psg cpc|spectrum` makes this tool rewrite the clock in a
+temporary copy of the .aks before the export (1000000 or 1773400 Hz); without
+it the song's own clock is kept. Not available with --from-asm (the periods
+are already baked in).
 
 The output is a .bas include. Use it like this (see lib/music/music.bas):
 
@@ -143,6 +156,27 @@ def to_boriel(text: str, name: str, prefix: str = "", kind: str = "song") -> str
     return "\n".join(head + out + tail)
 
 
+PSG_HZ = {"cpc": 1_000_000, "spectrum": 1_773_400}
+FREQ_RE = re.compile(rb"(<frequencyHz>)\s*[0-9.]+\s*(</frequencyHz>)")
+
+
+def set_psg_clock(data: bytes, hz: int) -> bytes:
+    """Return the .aks XML (`data` may be the zip a tracker saves, or plain
+    XML) with every PSG <frequencyHz> set to `hz`."""
+    if data[:2] == b"PK":
+        import io
+        import zipfile
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            names = [n for n in z.namelist() if not n.endswith("/")]
+            if not names:
+                raise ValueError("empty .aks archive")
+            data = z.read(names[0])
+    out, n = FREQ_RE.subn(lambda m: m.group(1) + str(hz).encode() + m.group(2), data)
+    if n == 0:
+        raise ValueError("no <frequencyHz> in the song: not an Arkos .aks?")
+    return out
+
+
 def find_tool(tool: str) -> str:
     cands = []
     if os.environ.get("AT3_TOOLS"):
@@ -168,9 +202,14 @@ def main(argv=None) -> int:
     ap.add_argument("--sfx", action="store_true", help="input is a song to export as a sound-effects bank")
     ap.add_argument("--from-asm", action="store_true", help="input is already an Arkos source export")
     ap.add_argument("--subsongs", help="SongToAkg: 1-based subsong numbers, comma separated (default all)")
+    ap.add_argument("--psg", choices=sorted(PSG_HZ),
+                    help="set the sound chip clock before exporting: cpc (1000000 Hz) or "
+                         "spectrum (1773400 Hz, 128K AY); matters for --sfx (see above)")
     ap.add_argument("--prefix", default="", help="--from-asm: prefix added to every label")
     a = ap.parse_args(argv)
 
+    if a.psg and a.from_asm:
+        ap.error("--psg can't be used with --from-asm (the periods are already in the source)")
     name = sanitize_name(a.name or Path(a.output).stem)
     kind = "sfx" if a.sfx else "song"
     if a.from_asm:
@@ -180,6 +219,13 @@ def main(argv=None) -> int:
         prefix = name + "_"
         with tempfile.TemporaryDirectory() as td:
             tmp = str(Path(td) / "out.asm")
+            if a.psg:
+                patched = Path(td) / "in.aks"
+                try:
+                    patched.write_bytes(set_psg_clock(Path(a.input).read_bytes(), PSG_HZ[a.psg]))
+                except ValueError as e:
+                    sys.exit(f"aks2bas: {a.input}: {e}")
+                a.input = str(patched)
             if a.sfx:
                 run_tool("SongToSoundEffects", ["--labelPrefix", prefix, a.input, tmp])
             else:

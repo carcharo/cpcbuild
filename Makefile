@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-zx chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -31,7 +31,10 @@ test-chips: chips ## Build chipsrun and run conformance tests with chips emulato
 	$(PYTHON) tests/conformance/run.py --emu chips --model 464
 	$(if $(wildcard tests/screens/run.py),$(PYTHON) tests/screens/run.py)
 
-chips: ## Build chipsrun headless runner
+test-zx: chips ## Spectrum 48K/128K conformance and screenshot tests on chips (tests/zx)
+	$(PYTHON) tests/zx/run.py
+
+chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
 	sh tools/chipsrun/build.sh
 
 assets: ## Build assets
@@ -40,7 +43,7 @@ assets: ## Build assets
 bench: ## Run benchmark
 	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
 
-ci: unit test-chips ## What CI runs - unit tests, then everything on chips (no Caprice32)
+ci: unit test-chips test-zx ## What CI runs - unit tests, then everything on chips (no Caprice32)
 
 clean: ## Clean build artifacts
 	rm -f tools/chipsrun/chipsrun
