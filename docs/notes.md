@@ -533,7 +533,8 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   and volume sampled every update) showed the music advancing at every one
   of 250 updates in normal and game mode, on chips and Caprice32 headless:
   our player doesn't stall. Cause: the host throttling the windowless
-  emulator (macOS App Nap). Listen with the Caprice32 window visible.
+  emulator (macOS App Nap). Confirmed by the user: the stutter starts
+  only when the Caprice32 window isn't visible. README notes it.
 - 2026-10-03: **bounce.bas is within ~12 bytes of its code ceiling** (code
   and data must stay below &4000 when double buffering; with music it
   ends just under). The 5c demo game will need room: options include a

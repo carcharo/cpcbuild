@@ -40,7 +40,8 @@ Build the demo yourself: `make run PROG=examples/bounce.bas`
 ### Commands
 
 ```bash
-# Interactive: build and run a program in Caprice32
+# Interactive: build and run a program in Caprice32 (keep its window visible:
+# macOS throttles a hidden Caprice32, and its sound then stutters)
 make run PROG=examples/bounce.bas
 
 # Headless screenshot (PNG output)
