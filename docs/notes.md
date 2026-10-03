@@ -542,6 +542,15 @@ Decisions and versions. The detailed Phase -1/0 findings are in
   songs/sprites above &8000 (heap area) or into the 6128's extra banks,
   or single buffering.
 
+- 2026-10-03: **Phase 5c decisions** (user): a single-screen shooter
+  first, a platformer later as an extra once the cross-platform wrinkles
+  are out; builds for Spectrum 128K and 48K plus CPC 6128 (double-buffered,
+  data in the extra 64 KB) and 464 (single-buffered); the game lives in
+  cpcbuild/games/ for now; the cpcbuild graphics library moves out of the
+  zxbasic fork into cpcbuild/lib as the first step, with the zxbasic cpc
+  page restructured; all CPC builds start at &0040. Plan:
+  docs/phase5c-design.md.
+
 ## Pick up here (updated 2026-10-03, after Phase 5b)
 
 State: Phases pre-5a, 5a and 5b complete and merged into cpcbuild `main`;
