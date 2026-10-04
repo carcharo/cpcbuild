@@ -186,4 +186,3 @@ jobs:
             cpcbuild/games/**/*.actual.png
             cpcbuild/games/**/*.diff.png
           if-no-files-found: ignore
-#
