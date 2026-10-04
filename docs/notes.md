@@ -1299,3 +1299,37 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   plus_none/none_hi/none_state (464/664/6128, chips incl. cold); screens
   plus_sprites, plus_palette12 (Plus golden; 464/6128 goldens show "NO
   PLUS"); make test-plus green (51/51, 46/46, screens 10/10 x2).
+
+## Phase 7 P3: paged access, scroll/split, raster interrupts, DMA (2026-10-04)
+
+- **16 KB limit lifted:** the code that runs while the ASIC page is in is a
+  58-byte trampoline copied at start-up (CPC_INIT_PLUS) into the private
+  block (PL_TRAMP +&300, PL_BUF +&340: a 64-byte bounce buffer for data that
+  itself lies in &4000-&7FFF), so the library and its data may sit anywhere.
+  Interrupts off for one byte (~0.1 ms) or one 256-byte picture (~1.4 ms).
+  Only PlusPageIn/PlusPageOut (they hand the page to the program) still
+  reserve &4000-&7FFF. New PlusPeek/PlusPoke. ~+370 bytes.
+- ScrollFine(dx 0-15 mode-2 pixels, dy 0-7 lines; clamped), ScrollBorder,
+  SplitScreen(line, addr) / SplitScreenCrtc / SplitOff (both modes).
+- **Raster interrupts (bare only):** RasterIntAt/Off/Clear; plusraster.asm
+  patches the bare ISR's JP at &0039; sorted table of up to 15 user lines +
+  a frame entry at line 243 that runs __CPC_FH_RUN (Frames, PAUSE, BEEP and
+  the frame hook stay at 50 Hz); PRI 0 and the ordinary ISR when the table
+  is empty. IM 1 needs no DCSR acknowledge in either emulator. END clears it
+  through the new CPC_EXIT_VEC hook in bare __CPC_RESET (zxbasic
+  bareboot.asm/sysvars.asm). Firmware builds using them fail with an
+  undefined label `RasterIntAt_needs_bare_mode__build_with_D_CPC_BAREMETAL`.
+  Handlers must not change the table. The frame line (243) assumes the
+  standard CRTC R4/R7.
+- **DMA sound (both modes):** DmaStart/Stop/Active/Prescaler/Align and list
+  macros (LOAD, PAUSE, REPEAT, NOP, LOOP, INT, STOP). Lists anywhere in the
+  first 64 KB at an even address (DMA reads RAM, not the ASIC page). AY
+  ownership rules as for the music player.
+- **Caprice32 quirks (not fixed, emulator side):** with the ASIC page out it
+  writes the DMA address/prescaler/DCSR registers into RAM at &6C00-&6C0F,
+  and a PRI interrupt ORs &80 into RAM at &6C0F; DmaActive() there reflects
+  only DmaStart/DmaStop (CPCEC clears the bit at STOP). Caprice32 also
+  reports the Plus CRTC as type 0 (CPCEC: 3, like real Plus machines).
+- **Bare programs loaded by RUN" must end below &A67B** (AMSDOS HIMEM),
+  although the bare map allows code up to &B7FF; plus_big_hi (library above
+  &8000) is firmware-only for that reason. Cartridges have no such limit.
