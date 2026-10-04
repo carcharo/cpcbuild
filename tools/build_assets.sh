@@ -49,3 +49,9 @@ $I --mode 1 --name a_pic --tiles --dedupe $C/pic1.png -o $C/pic1.bas
 $T --name a_map $C/level.tmx -o $C/level.bas
 $I --mode 0 --name a_spr0 --write-palette $C/pens16.pal $C/spr0.png -o $C/spr0.bas
 $I --mode 0 --name a_msk0 --masked --palette-file $C/pens16.pal $C/msk0.png -o $C/msk0.bas
+
+# tests/conformance/plus_asset.bas, screens/plus_palette12.bas (Plus sprites/palette)
+python3 $C/make_plus_sources.py
+python3 tools/img2cpc.py --plus-sprite --name plusball $C/plus_ball.png -o $C/plus_ball.bas
+python3 tools/img2cpc.py --plus-sprite --packed --name plusballpk $C/plus_ball.png -o $C/plus_ballpk.bas
+python3 tools/img2cpc.py --plus-palette --name plusbars $C/plus_bars.png -o $C/plus_bars.bas
