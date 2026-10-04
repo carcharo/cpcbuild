@@ -57,7 +57,7 @@ assets: ## Build assets
 bench: ## Run benchmark
 	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
 
-ci: unit test-chips test-zx test-games ## What CI runs - unit tests, then everything on chips (no Caprice32)
+ci: unit test-chips test-bare test-zx test-games ## What CI runs - unit tests, then everything on chips incl. bare-metal (no Caprice32)
 
 clean: ## Clean build artifacts
 	rm -f tools/chipsrun/chipsrun
