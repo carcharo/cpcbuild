@@ -58,6 +58,7 @@ test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conform
 	$(PYTHON) tests/conformance/run.py --model plus --bare
 	$(PYTHON) tests/screens/run.py --model plus
 	$(PYTHON) tests/screens/run.py --model plus --bare
+	$(PYTHON) games/shooter/tests/run.py --plus
 
 chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
 	sh tools/chipsrun/build.sh

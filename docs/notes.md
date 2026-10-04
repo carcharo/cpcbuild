@@ -1366,3 +1366,37 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
 - **Stage gate passed:** Plus library tests green locally and in CI (both
   modes), Arnold cartridge fine on both emulators, our cartridges checked on
   CPCEC, cartridges up to 35 KB boot and copy correctly.
+
+## Phase 7 P5: Plus demo and Starfall Plus stage 1 (2026-10-04)
+
+- **Demo** (examples/plusdemo.bas, bare): 8 hardware sprites bouncing at
+  x1/x2/x4, 12-bit colour cycling, 14 raster bars (steady: the main loop
+  waits in WaitVsync), split screen (panel at &4000 over a landscape at
+  &C000 scrolled pixel by pixel with SplitScreen + ScrollFine), a DMA tune
+  (no CPU). Disc: `cpcrun.py examples/plusdemo.bas --model plus --bare`;
+  cartridge: `sh examples/plusdemo/build.sh` -> build/plusdemo.cpr. 15.5 KB,
+  must stay below &4000 (double buffering): ~0.8 KB left.
+- **Library costs found by the demo:** SetPalette12 ~0.4 ms per colour,
+  SpriteMove ~0.25 ms per call (one ENSURE + DI window + trampoline each),
+  too slow for raster handlers and many sprites per frame; the demo writes
+  the ASIC through the internal __PL_USER_IN/__PL_USER_OUT instead. To fix:
+  cheap palette writes for handlers, a block SpriteMove, documented costs.
+  Raster lines closer than a handler's run time misbehave (document).
+- **Starfall Plus stage 1** (games/shooter/platform_plus.bas, -D PLUS,
+  wrapping platform_cpc.bas; game.bas untouched): hardware sprites for the
+  ship (slot 0), diver (1), bullets (2-3), bombs (4-6), explosions (7-10),
+  formation still software; 12-bit pens and sprites; single-buffered with
+  the songs linked in (no extra RAM needed, GX4000-safe). Register table
+  written in one PlusPokeBlock (new library call) after the frame tick.
+  Builds (build_plus.sh / make plus): build/starplus.dsk (`RUN"PLUS`,
+  firmware; on a non-Plus it says so) and build/starplus.cpr (bare).
+  19.5 KB (ends &4C73; fine beyond &4000 thanks to P3). 25.0 steps/s paced;
+  unpaced 36.3 vs 36.7 for the plain 464 build: no CPU gain, the software
+  formation dominates. Tests: games/shooter/tests/run.py --plus (disc +
+  cartridge, logic 102 checks, plus_layer 47 checks, Plus goldens).
+- **Stage 2 (multiplexed formation) not built:** Caprice32 draws all sprites
+  once per frame from the final register values (asic_draw_sprites), so it
+  cannot show raster multiplexing; CPCEC draws per scanline but its
+  screenshots couldn't be automated. Design is ready (agent report): six
+  slots re-positioned per row from three raster handlers, ~760 T-states of
+  a ~1280 budget per handler.

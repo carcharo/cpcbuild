@@ -17,6 +17,11 @@ $I --mode 0 --name sprites --sprite --frame 8x8 --palette-file $A/starfall.pal $
 $I --mode 0 --name shots --sprite --frame 2x4 --palette-file $A/starfall.pal --no-palette $A/shots.png -o $A/shots.bas
 $I --mode 0 --name tiles --tiles --palette-file $A/starfall.pal $A/tiles.png -o $A/tiles.bas
 
+# CPC Plus: hardware sprites (12-bit colours, 16x16, packed) and the playfield's
+# 12-bit pens; make_plus_art.py draws plus_sprites.png from the same pictures
+python3 $A/make_plus_art.py
+$I --plus-sprite --packed --name plsprites $A/plus_sprites.png -o $A/plsprites.bas
+
 # Spectrum: 1-bit sprite art (see make_art.py for the layout); --zx-sprite
 # keeps every sprite pixel as ink (the picture rule would invert dense cells)
 $I --spectrum --zx-sprite --name zx_sprites $Z/zx_sprites.png -o $Z/zx_sprites.bas
