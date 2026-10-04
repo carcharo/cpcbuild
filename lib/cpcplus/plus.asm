@@ -86,7 +86,9 @@
 ;   PLUS_PRES 0 unknown, 1 Plus, 2 none     PLUS_UNLK 1 = the library has
 ;   unlocked the ASIC    PLUS_USER 1 = the program called PlusPageIn
 ;   PLUS_RMR2 the RMR2 value PlusPageIn puts back (&A0; the trampoline has
-;   it built in)   PLUS_IFF  the interrupt state to restore
+;   it built in)   PLUS_IFF  the interrupt state to restore   PLUS_FAST 1
+;   = PLUS_UNLK = 1 and PLUS_USER = 0 (one byte to test for the fast paths
+;   of the common calls; see "Cost" below)
 ;
 ; Both runtime modes: nothing here calls the firmware. The only mode
 ; difference is __PL_RMR (what the Gate Array's RMR holds right now).
@@ -266,6 +268,12 @@ __PE_KNOWN:
     ld   (PLUS_UNLK), a
     call __PL_EI
 __PE_YES:
+    ld   a, (PLUS_USER)     ; PLUS_FAST: unlocked and the program not holding the page
+    or   a
+    jr   nz, __PE_HELD
+    inc  a
+    ld   (PLUS_FAST), a
+__PE_HELD:
     scf
     ret
 __PE_NO:
@@ -273,8 +281,15 @@ __PE_NO:
     ret
     ENDP
 
-; __PL_ENSURE2 -- __PL_ENSURE that keeps BC, DE and HL (A is lost).
+; __PL_ENSURE2 -- __PL_ENSURE that keeps BC, DE and HL (A is lost). Unlocked
+; already: 38 T-states with the call.
 __PL_ENSURE2:
+    ld   a, (PLUS_UNLK)
+    or   a
+    jr   z, __PE2_SLOW
+    scf
+    ret
+__PE2_SLOW:
     push hl
     push de
     push bc
@@ -368,9 +383,119 @@ PLX1W       EQU PL_TRAMP + (__PLX1W_L - __PL_TRAMP_SRC)
 PLX1R       EQU PL_TRAMP + (__PLX1R_L - __PL_TRAMP_SRC)
 PLXP        EQU PL_TRAMP + (__PLXP_L - __PL_TRAMP_SRC)
 
+; ---- the second trampoline block: whole windows and the handler entries ----
+
+; PL_TRAMP2 = PL_TRAMP + &80 (the private block's &380-&3FF, free in both
+; layouts; 128 bytes, 102 used). Entries, the "W" ones with the whole window
+; inside (the interrupt state saved on the stack, interrupts off, page in,
+; the stores, page out, state restored: no PLUS_IFF, no calls, so a window
+; costs the stores plus about 90 T-states):
+;   PLW2  E, D = the two bytes for HL and HL+1 (a palette entry, a word).
+;   PLW4  HL = source (outside &4000-&7FFF), DE = destination: 4 bytes.
+;   PLWM  HL = source (outside &4000-&7FFF, a table of 4-byte records),
+;         E = destination low byte (the destination is &60xx), D = count
+;         (1-16): 4 bytes each to destinations 8 bytes apart (the first
+;         four registers of consecutive sprites); the table has 4 bytes a
+;         record. On return E is advanced, D = &60.
+; and the same without the interrupt handling, for raster handlers and
+; frame hooks (interrupts already off; see "Handler context" below):
+;   PLHI  page in (BC clobbered)           PLHO  page out (BC clobbered)
+;   PLX2  HL = ASIC address, E, D = two bytes: in, stores, out. HL advanced.
+; Clobbered: AF, BC, and the advanced HL, DE of PLW4/PLWM/PLX2.
+__PL_TRAMP2_SRC:
+__PLW2_L:
+    ld   a, i
+    jp   pe, PL_TRAMP2 + (__PLW2_D - __PL_TRAMP2_SRC)
+    ld   a, i
+__PLW2_D:
+    di
+    push af
+    ld   bc, $7FB8
+    out  (c), c
+    ld   (hl), e
+    inc  hl
+    ld   (hl), d
+    ld   c, $A0
+    out  (c), c
+    pop  af
+    ret  po
+    ei
+    ret
+__PLW4_L:
+    ld   a, i
+    jp   pe, PL_TRAMP2 + (__PLW4_D - __PL_TRAMP2_SRC)
+    ld   a, i
+__PLW4_D:
+    di
+    push af
+    ld   bc, $7FB8
+    out  (c), c
+    ldi                     ; (BC counts down from &7FB8: B stays &7F)
+    ldi
+    ldi
+    ldi
+    ld   c, $A0
+    out  (c), c
+    pop  af
+    ret  po
+    ei
+    ret
+__PLWM_L:
+    ld   a, i
+    jp   pe, PL_TRAMP2 + (__PLWM_D - __PL_TRAMP2_SRC)
+    ld   a, i
+__PLWM_D:
+    di
+    push af
+    ld   bc, $7FB8
+    out  (c), c
+    ld   b, d               ; B = count (C only counts down by 4 a record)
+    ld   d, $60
+__PLWM_LOOP:
+    ldi
+    ldi
+    ldi
+    ldi
+    ld   a, e
+    add  a, 4               ; the register block is 8 bytes a sprite
+    ld   e, a
+    djnz __PLWM_LOOP
+    ld   bc, $7FA0
+    out  (c), c
+    pop  af
+    ret  po
+    ei
+    ret
+__PLHI_L:
+    ld   bc, $7FB8
+    out  (c), c
+    ret
+__PLHO_L:
+    ld   bc, $7FA0
+    out  (c), c
+    ret
+__PLX2_L:
+    ld   bc, $7FB8
+    out  (c), c
+    ld   (hl), e
+    inc  hl
+    ld   (hl), d
+    ld   c, $A0
+    out  (c), c
+    ret
+__PL_TRAMP2_END:
+
+; PL_TRAMP2 (= PL_TRAMP + $80) is defined in the runtime's sysvars.asm.
+PLW2        EQU PL_TRAMP2 + (__PLW2_L - __PL_TRAMP2_SRC)
+PLW4        EQU PL_TRAMP2 + (__PLW4_L - __PL_TRAMP2_SRC)
+PLWM        EQU PL_TRAMP2 + (__PLWM_L - __PL_TRAMP2_SRC)
+PLHI        EQU PL_TRAMP2 + (__PLHI_L - __PL_TRAMP2_SRC)
+PLHO        EQU PL_TRAMP2 + (__PLHO_L - __PL_TRAMP2_SRC)
+PLX2        EQU PL_TRAMP2 + (__PLX2_L - __PL_TRAMP2_SRC)
+
 #init .core.CPC_INIT_PLUS
 
-; CPC_INIT_PLUS -- copies the trampoline to the private block. #init
+; CPC_INIT_PLUS -- copies the trampolines to the private block. #init
 ; routines run in sorted order after CPC_INIT_00_BOOTSTRAP, which zeroes
 ; the private block first. Interrupts are not touched.
 ; Registers clobbered: AF, BC, DE, HL.
@@ -378,6 +503,10 @@ CPC_INIT_PLUS:
     ld   hl, __PL_TRAMP_SRC
     ld   de, PL_TRAMP
     ld   bc, __PL_TRAMP_END - __PL_TRAMP_SRC
+    ldir
+    ld   hl, __PL_TRAMP2_SRC
+    ld   de, PL_TRAMP2
+    ld   bc, __PL_TRAMP2_END - __PL_TRAMP2_SRC
     ldir
     ret
 
@@ -601,6 +730,8 @@ __PL_USER_IN:
     call __PL_PIN
     ld   a, 1
     ld   (PLUS_USER), a
+    xor  a
+    ld   (PLUS_FAST), a
     ret
 
 __PL_USER_OUT:
@@ -609,6 +740,8 @@ __PL_USER_OUT:
     ret  z
     xor  a
     ld   (PLUS_USER), a
+    ld   a, (PLUS_UNLK)
+    ld   (PLUS_FAST), a
     jr   __PL_POUT
 
 ; __PL_UNLOCK -- PlusUnlock = __PL_ENSURE.
@@ -627,7 +760,47 @@ __PL_LOCK:
     call __PL_LOCK_RAW
     xor  a
     ld   (PLUS_UNLK), a
+    ld   (PLUS_FAST), a
     jp   __PL_EI
+
+; ---- handler context: raster handlers and frame hooks ------------------------
+;
+; Public entry points for machine-code routines that run with interrupts
+; already off (a raster handler, RasterIntAt; a frame hook) and want to
+; touch the ASIC in some tens of T-states instead of through the BASIC calls'
+; window (interrupt state save and restore, probe check, trampoline). They
+; never touch the interrupt flag and never call the firmware. Call them as
+; `call .core.PlusHandlerIn` etc. from an ASM block.
+;
+; Rules (breaking them writes into the program's RAM or switches the
+; screen mode of a CPC without ASIC):
+;   - only on a Plus/GX4000 (test PlusAvailable() before installing the
+;     handler) and only after PlusUnlock() (or any library call that
+;     unlocks) and while not PlusLock'ed. PlusHandlerIn/Out cannot check;
+;     the others below test the unlock flag and do nothing when it is 0.
+;   - interrupts off throughout (they are, in a raster handler or frame
+;     hook; nothing may EI between PlusHandlerIn and PlusHandlerOut).
+;   - PlusHandlerIn/Out run from the private block, so the instruction
+;     after the call, wherever the handler is, is fetched from RAM. But
+;     between them the ASIC page replaces &4000-&7FFF: the handler's code
+;     it runs there, the data it reads or writes there and the stack must
+;     all lie OUTSIDE &4000-&7FFF (the stack is the program's, &A200 up in
+;     firmware mode and &B800 down in bare mode: fine), so code for a
+;     handler that uses In/Out directly is placed below &4000 or from
+;     &8000 up. The PlusHandler* routines below that do their own paging
+;     have no such restriction.
+;   - the RMR2 value the page-out writes is &A0 (lower ROM page 0 at
+;     &0000), the library's usual.
+;
+; PlusHandlerIn  -- the ASIC register page at &4000-&7FFF (RMR2 &B8).
+;     Hardware: Gate Array. Clobbers BC. 49 T-states with the call.
+; PlusHandlerOut -- RAM at &4000-&7FFF again (RMR2 &A0). Clobbers BC.
+;     49 T-states with the call. Between the two, stores straight to the
+;     ASIC addresses: `ld ($6400), de` is a pen 0 colour (E = red << 4 |
+;     blue, D = green), `ld ($6420), de` the border, `ld a, n : ld ($6804),
+;     a` the scroll register, 20 T-states for the word and 13 for the byte.
+PlusHandlerIn   EQU PLHI
+PlusHandlerOut  EQU PLHO
 
 ; ---- state ----------------------------------------------------------------
 
@@ -636,5 +809,7 @@ PLUS_UNLK:  defb 0          ; 1 = unlocked by the library
 PLUS_USER:  defb 0          ; 1 = PlusPageIn is in force
 PLUS_RMR2:  defb $A0        ; RMR2 value that means "page out" (lower ROM page 0 at &0000)
 PLUS_IFF:   defb 0          ; interrupts were on (1) or off (0) before __PL_DI
+PLUS_FAST:  defb 0          ; 1 = unlocked and PLUS_USER = 0: the fast paths (set by __PL_ENSURE,
+                            ; cleared by PlusPageIn and PlusLock, set again by PlusPageOut)
 
     pop namespace
