@@ -1359,3 +1359,10 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
 - The sprites cartridge on CPCEC matched the golden except the title font:
   cartridge builds use -D CPC_OWNFONT (no firmware ROM font to copy), the
   golden comes from a disc boot with the ROM font. Expected.
+- Split screen + fine scroll cartridge: identical on Caprice32 and CPCEC
+  (split line, 5-pixel/3-line shift, extended left border). The three
+  gate cartridges are the screen tests built as .cpr (bare, CPC_OWNFONT,
+  SHOT_HOLD), so they are static by design; moving demos come in P5.
+- **Stage gate passed:** Plus library tests green locally and in CI (both
+  modes), Arnold cartridge fine on both emulators, our cartridges checked on
+  CPCEC, cartridges up to 35 KB boot and copy correctly.
