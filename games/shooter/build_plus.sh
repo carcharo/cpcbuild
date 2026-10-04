@@ -7,7 +7,9 @@
 #
 # OUTDIR defaults to games/shooter/build (git-ignored). Writes
 #   starplus.bin   firmware build (disc): -D PLUS
-#   starplus.cpr   cartridge: -D PLUS -D CPC_BAREMETAL -D CPC_OWNFONT, made
+#   starplus.cpr   cartridge: -D PLUS -D CPC_BAREMETAL -D CPC_OWNFONT -D PLUS_MUX
+#                  (the alien formation on hardware sprites 10-15, re-positioned
+#                  per row by raster handlers: platform_plus_mux.inc), made
 #                  into a .cpr by tools/mkcpr.py (boot stub copies the
 #                  program to RAM at &0040)
 #   starplus.dsk   disc: PLUS.BIN (the loader: RUN"PLUS) and STARPLUS.BIN
@@ -35,7 +37,16 @@ build() {   # name, -D flags
 
 rm -f "$OUT/starplus.bin" "$OUT/starpluc.bin"
 build starplus ""
-build starpluc "-D CPC_BAREMETAL -D CPC_OWNFONT"
+build starpluc "-D CPC_BAREMETAL -D CPC_OWNFONT -D PLUS_MUX"
+# the raster handlers (and the block copies of the sprite tables) run with the ASIC's
+# register page over &4000-&7FFF: their code and every table they read must lie below it
+sym() { awk -v n=".$1" '$2 == n { sub(":", "", $1); print $1; exit }' "$OUT/starpluc.map"; }
+chk() { v=$(sym "$1"); [ -n "$v" ] && [ $((0x$v + ${2:-0})) -le $((0x4000)) ] || { echo "build_plus: $1 (+${2:-0}) is not below &4000" >&2; exit 1; }; }
+chk MX_SPRITE
+chk HW_END
+chk _hwReg.__DATA__ 128
+chk _plpix.__DATA__ 2560
+printf "handlers and tables end at &%s (limit &4000)\n" "$(sym HW_END)"
 python3 "$REPO/tools/mkcpr.py" "$OUT/starpluc.bin" --load 0x40 -o "$OUT/starplus.cpr"
 (cd "$ZX" && poetry run zxbasm -o "$OUT/loader_plus.bin" "$HERE/loader_plus.asm")
 python3 "$HERE/pack_dsk.py" "$OUT/starplus.dsk" \

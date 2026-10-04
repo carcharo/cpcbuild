@@ -1081,7 +1081,25 @@ SUB PlatFrameEnd()
   pbuf = 1 - pbuf
 #endif
 #ifndef NOPACE
+#ifdef SF_PLUS_MUX
+  ' the multiplexed formation's tables change at a frame tick: a step that
+  ' was late (no wait left) waits for the next tick instead
+  DIM f0 AS UINTEGER
+  f0 = CAST(UINTEGER, Frames())
+  IF f0 - fT >= 2 THEN
+    DO WHILE CAST(UINTEGER, Frames()) = f0
+      ASM
+      halt
+      END ASM
+    LOOP
+  END IF
+#endif
   DO WHILE CAST(UINTEGER, Frames()) - fT < 2
+#ifdef SF_PLUS_MUX
+    ASM
+    halt
+    END ASM
+#endif
   LOOP
 #endif
   fT = CAST(UINTEGER, Frames())

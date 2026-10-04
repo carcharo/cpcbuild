@@ -26,9 +26,10 @@
 '   slots 4-6     the bombs              (kind 6; the game allows 3)
 '   slots 7-10    explosions             (kind 7; the game allows 4, and
 '                                         the ship's own blast is one more)
-'   slots 11-15   not used in this build (the formation is software); the
-'                 raster-multiplexed formation takes 10-15 in the bare build
-'                 (stage 2, platform_plus_raster.bas)
+'   slots 11-15   not used in the disc build (the formation is software); the
+'                 cartridge build (-D PLUS_MUX) uses 10-15 for the formation and
+'                 gives the explosions 7-9 only (a 4th is dropped), see "The
+'                 multiplexed formation" below
 '
 ' A kind has a fixed number of slots, so a picture's pixels are loaded into a
 ' slot when its frame changes (a diver's wing beat, an explosion's growth),
@@ -50,6 +51,41 @@
 ' just after the frame tick, so a sprite never moves part-way down the
 ' screen (what the double buffers' flip does for the software sprites).
 '
+' The multiplexed formation (-D PLUS_MUX, the bare cartridge; platform_plus_mux.inc)
+' ----------------------------------------------------------------------------
+' The ASIC has 16 sprites and the formation 18 aliens in three rows, 12 lines apart
+' (the alien is 8 lines tall in a 16-line sprite). Six sprites (10-15) show them: the
+' k-th living alien of a row is sprite 10 + k, and raster interrupts move the six on to
+' the next row once a row has been drawn:
+'
+'   - PlatSprite only logs a formation call (kind, frame, x, y); PlatFrameEnd's flush
+'     turns the log into three row tables (X, Y of six sprites + the row's two colours;
+'     a hidden sprite has Y = -128), in a shadow buffer. The commit, right after the
+'     frame tick (the wait is in HALT, and a late step waits for the next tick), swaps
+'     the buffers and writes the top row to the ASIC at once.
+'   - Four handlers (RasterIntAt; PlusHandlerIn/Out and block copies, code and tables
+'     below &4000, checked by build_plus.sh): H1 at line (top row's line + 6) writes
+'     row 1's table, H2 at (row 1's line + 6) row 2's, H3 at (row 2's line + 6) the top
+'     row again for the next frame, H4 14 lines later loads the aliens' second animation
+'     frame when the frame changed (it differs in picture lines 5-7 only: 48 bytes in
+'     each of the six sprites, after the last row has been drawn). A handler's writes
+'     land about 3 to 5 lines after its line, in the 4 lines between a row's last
+'     picture line and the next row's first (measured on CPCEC). A row table is 6
+'     sprites x (X, Y) + two palette entries (the aliens' body and light colours), so
+'     the rows differ in colour (magenta, red, green) while sharing one shape.
+'   - When the formation steps down, the four lines move in the raster table in place
+'     (MX_RELINE; RasterIntAt/Off take 1.2 ms a pair).
+'   - Everything long that the main thread does (sprite registers, pictures) is in the
+'     vertical blank, the pictures at most two a frame (the rest wait), and the keys
+'     are read there too (PlatInput returns the value read at the tick): an
+'     interrupts-off window that a handler line falls into would shift its writes.
+'   - Fallback: when a frame cannot be multiplexed (more than 6 in a row, a row whose
+'     sprites differ in y, rows closer than 12 lines or out of order, x above 175, a
+'     row too low for H4 to finish before the frame entry, more than 24 formation
+'     calls) the logged sprites are drawn in software by the CPC engine (SF_SPRITE) and
+'     the six sprites hide; the next normal frame multiplexes again. The game's own
+'     numbers (6 per row, rows 12 apart, x 0-120, y up to 143) never trigger it.
+'
 ' Without a Plus the library does nothing; the firmware build says so and
 ' stops (the bare build is a cartridge: it only runs on a Plus).
 ' ----------------------------------------------------------------
@@ -65,13 +101,26 @@
 ' bank (a GX4000 has none) and, without a back screen, no &4000-&7FFF
 #define CPC464
 
+#ifdef PLUS_MUX
+#ifndef CPC_BAREMETAL
+#error "PLUS_MUX (raster-multiplexed formation) is for the bare-metal cartridge build"
+#endif
+#define SF_PLUS_MUX
+#endif
+
 #define PlatInit PlatInitCpc
 #define PlatFrameBegin PlatFrameBeginCpc
 #define PlatFrameEnd PlatFrameEndCpc
 #define PlatSprite PlatSpriteCpc
 #define PlatClear PlatClearCpc
 #define PlatEnd PlatEndCpc
+#ifdef PLUS_MUX
+#define PlatInput PlatInputCpc
+#endif
 #include "platform_cpc.bas"
+#ifdef PLUS_MUX
+#undef PlatInput
+#endif
 #undef PlatInit
 #undef PlatFrameBegin
 #undef PlatFrameEnd
@@ -83,7 +132,11 @@
 #include "assets/plsprites.bas"
 #include "assets/pl_pens.bas"
 
+#ifdef PLUS_MUX
+CONST HW_SLOTS AS UBYTE = 10          ' slots 0-9 as below; 10-15 are the formation's
+#else
 CONST HW_SLOTS AS UBYTE = 11          ' slots 0-10 are used by this build
+#endif
 
 ' The sprite registers of slots 0-10 as the ASIC wants them (8 bytes each:
 ' X low, X high, Y low, Y high, magnification, 3 unused), written to &6000
@@ -96,6 +149,11 @@ DIM hwReg(127) AS UBYTE
 ASM
     jp HW_END
 
+#ifdef PLUS_MUX
+HW_NSL      EQU 10              ; slots the table covers (hidden at each frame start)
+#else
+HW_NSL      EQU 11
+#endif
 HW_REGP:    defw 0              ; the register table (hwReg)
 HW_NP:      defb 0              ; pictures to load at the next frame
 HW_CNT:     defs 8              ; objects of each kind queued this frame
@@ -105,7 +163,11 @@ HW_PI:      defs 16             ;   picture
 ; by kind (0 ship, 4 diver, 5 bullet, 6 bomb, 7 explosion): first slot,
 ; slots, first picture
 HW_BASE:    defb 0, 0, 0, 0, 1, 2, 4, 7
+#ifdef PLUS_MUX
+HW_MAX:     defb 1, 0, 0, 0, 1, 2, 3, 3
+#else
 HW_MAX:     defb 1, 0, 0, 0, 1, 2, 3, 4
+#endif
 HW_PIC:     defb 0, 0, 0, 0, 1, 3, 4, 5
 
 ; HW_SPRITE: PlatSprite(kind, frame, x, y), IX = the SUB's frame. The
@@ -116,7 +178,11 @@ HW_SPRITE:
     ld d, 0
     dec a
     cp 3
+#ifdef PLUS_MUX
+    jp c, MX_SPRITE             ; kinds 1-3: the multiplexed formation
+#else
     jp c, SF_SPRITE             ; kinds 1-3
+#endif
     ld hl, HW_CNT
     add hl, de
     ld c, (hl)                  ; C = n, the object's number within its kind
@@ -199,7 +265,13 @@ HW_Y3:
     inc hl
     ld (hl), d
     inc hl
-    ld (hl), 9                  ; magnified 2 x 1: shown
+    ld (hl), 9                  ; magnified 2 x 1: shown (bytes 4-7 of a sprite's
+    inc hl                      ; registers are one: the ASIC decodes only A2, CPCEC
+    ld (hl), 9                  ; models it so, so the unused bytes carry the value
+    inc hl
+    ld (hl), 9
+    inc hl
+    ld (hl), 9
     ret
 
 ; HW_FRAME: end of a frame's bookkeeping: all magnifications to 0 (hidden
@@ -208,9 +280,15 @@ HW_FRAME:
     ld hl, (HW_REGP)
     ld de, 4
     add hl, de
-    ld de, 8
-    ld b, 11
+    ld de, 5
+    ld b, HW_NSL
 HW_FL:
+    ld (hl), 0                  ; bytes 4-7: the magnification (see HW_SPRITE)
+    inc hl
+    ld (hl), 0
+    inc hl
+    ld (hl), 0
+    inc hl
     ld (hl), 0
     add hl, de
     djnz HW_FL
@@ -221,19 +299,223 @@ HW_FC:
     inc hl
     djnz HW_FC
     ret
+#ifdef PLUS_MUX
+#include "platform_plus_mux.inc"
+#endif
 HW_END:
 END ASM
+
+#ifdef PLUS_MUX
+' ---- the multiplexed formation (platform_plus_mux.inc has the assembly) ----
+
+DIM plpix(2559) AS UBYTE              ' the ten pictures unpacked, 256 bytes each (the ASIC's format)
+DIM mxKeys AS UBYTE                   ' PlatInput's value, read at the frame tick
+
+SUB MxFlush()
+  ASM
+  call MX_FLUSH
+  END ASM
+END SUB
+
+FUNCTION MxReline() AS UBYTE
+  ASM
+  call MX_RELINE
+  END ASM
+END FUNCTION
+
+SUB MxCommit()
+  ASM
+  call MX_COMMIT
+  END ASM
+END SUB
+
+SUB MxHideAll()
+  ASM
+  call MX_HIDEALL
+  END ASM
+END SUB
+
+' the aliens' frame queued this frame (0-1), 255 = none
+FUNCTION MxFrame() AS UBYTE
+  ASM
+  ld a, (MX_FR)
+  END ASM
+END FUNCTION
+
+' 1 if this frame's rows gave the handler lines (MxNewLine)
+FUNCTION MxLinesValid() AS UBYTE
+  ASM
+  ld a, (MX_LV)
+  END ASM
+END FUNCTION
+
+FUNCTION MxNewLine(i AS UBYTE) AS UBYTE
+  ASM
+  ld a, (ix+5)
+  ld e, a
+  ld d, 0
+  ld hl, MX_NEWL
+  add hl, de
+  ld a, (hl)
+  END ASM
+END FUNCTION
+
+FUNCTION MxActLine(i AS UBYTE) AS UBYTE
+  ASM
+  ld a, (ix+5)
+  ld e, a
+  ld d, 0
+  ld hl, MX_ACTL
+  add hl, de
+  ld a, (hl)
+  END ASM
+END FUNCTION
+
+SUB MxSetActLine(i AS UBYTE, v AS UBYTE)
+  ASM
+  ld a, (ix+5)
+  ld e, a
+  ld d, 0
+  ld hl, MX_ACTL
+  add hl, de
+  ld a, (ix+7)
+  ld (hl), a
+  END ASM
+END SUB
+
+' The handler of line i (0 = the one for row 1, 1 = row 2, 2 = the top row
+' again, 3 = the aliens' legs)
+FUNCTION MxHandler(i AS UBYTE) AS UINTEGER
+  ASM
+  ld a, (ix+5)
+  ld e, a
+  ld d, 0
+  ld hl, MX_HTAB
+  add hl, de
+  add hl, de
+  ld a, (hl)
+  inc hl
+  ld h, (hl)
+  ld l, a
+  END ASM
+END FUNCTION
+
+' Puts the raster table right for this frame's rows: the lines that are new
+' are added first, then the old ones that are no longer wanted go, so the
+' table is never empty (that would switch raster mode off and on). It changes
+' only when the formation steps down (every 6 lines of y) or a row empties.
+SUB MxLines()
+  DIM i, j, l, keep AS UBYTE
+  IF MxLinesValid() = 0 THEN RETURN
+  keep = 1
+  FOR i = 0 TO 3
+    IF MxNewLine(i) <> MxActLine(i) THEN keep = 0
+  NEXT i
+  IF keep = 1 THEN RETURN
+  IF MxReline() <> 0 THEN RETURN
+  FOR i = 0 TO 3
+    RasterIntAt(MxNewLine(i), MxHandler(i))
+  NEXT i
+  FOR i = 0 TO 3
+    l = MxActLine(i)
+    IF l <> 0 THEN
+      keep = 0
+      FOR j = 0 TO 3
+        IF MxNewLine(j) = l THEN keep = 1
+      NEXT j
+      IF keep = 0 THEN RasterIntOff(l)
+    END IF
+  NEXT i
+  FOR i = 0 TO 3
+    MxSetActLine(i, MxNewLine(i))
+  NEXT i
+END SUB
+
+' Nothing in the formation sprites: hidden, magnified 2 x 1 (hidden by Y, so
+' that the handlers' register writes need no magnification byte).
+SUB MxClear()
+  DIM s AS UBYTE
+  MxHideAll()
+  FOR s = 10 TO 15
+    PlusPoke($6004 + (CAST(UINTEGER, s) << 3), 9)
+  NEXT s
+END SUB
+
+SUB MxUnpack(src AS UINTEGER, dst AS UINTEGER, n AS UINTEGER)
+  ASM
+  ld l, (ix+4)
+  ld h, (ix+5)
+  ld e, (ix+6)
+  ld d, (ix+7)
+  ld c, (ix+8)
+  ld b, (ix+9)
+  call MX_UNPACK
+  END ASM
+END SUB
+
+FUNCTION MxLegsAddr() AS UINTEGER
+  ASM
+  ld hl, MX_LEGS
+  END ASM
+END FUNCTION
+
+SUB HwLoad(pic AS UBYTE, slot AS UBYTE)
+  ASM
+  ld a, (ix+5)
+  ld c, (ix+7)
+  call HW_LOAD
+  END ASM
+END SUB
+
+SUB MxPreload()
+  ASM
+  call MX_PRELOAD
+  END ASM
+END SUB
+
+SUB HwPics()
+  ASM
+  call HW_PICS
+  END ASM
+END SUB
+
+SUB HwPush()
+  ASM
+  call HW_PUSH
+  END ASM
+END SUB
+
+SUB MxInit()
+  DIM s, f AS UBYTE
+  MxUnpack(@plsprites(0), @plpix(0), 1280)
+  FOR f = 0 TO 1
+    MxUnpack(@plsprites(0) + (CAST(UINTEGER, 8 + f) << 7) + 40, MxLegsAddr() + CAST(UINTEGER, f) * 48, 24)
+  NEXT f
+  MxPreload()
+  FOR s = 10 TO 15
+    HwLoad(8, s)
+  NEXT s
+  MxClear()
+END SUB
+#endif
 
 SUB HwInit()
   ASM
   ld hl, _hwReg.__DATA__
   ld (HW_REGP), hl
+#ifdef PLUS_MUX
+  ld hl, _plpix.__DATA__
+  ld (HW_PIXP), hl
+#endif
   END ASM
 END SUB
 
 SUB HwFrame()
   ASM
   call HW_FRAME
+#ifdef PLUS_MUX
+  call MX_FRAME
+#endif
   END ASM
 END SUB
 
@@ -242,6 +524,14 @@ SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
   call HW_SPRITE
   END ASM
 END SUB
+
+#ifdef PLUS_MUX
+' The keys are read in the vertical blank (PlatFrameEnd): a key scan switches
+' interrupts off for a while, and a raster handler must not wait behind that.
+FUNCTION PlatInput() AS UBYTE
+  RETURN mxKeys
+END FUNCTION
+#endif
 
 ' Start of a frame: every slot hidden until queued (the register table
 ' still holds what the last frame sent, until here).
@@ -299,6 +589,18 @@ END SUB
 ' changed, then all 11 slots' registers in one block.
 SUB PlatFrameEnd()
   DIM i, n AS UBYTE
+#ifdef PLUS_MUX
+  MxFlush()
+  PlatFrameEndCpc()
+  ' the vertical blank: the formation's tables, the other sprites' registers
+  ' and pictures, the keys; kept short (a raster handler waits behind any
+  ' interrupts-off window), see platform_plus_mux.inc
+  MxCommit()
+  MxLines()
+  HwPush()
+  HwPics()
+  mxKeys = PlatInputCpc()
+#else
   PlatFrameEndCpc()
   n = HwPending()
   IF n <> 0 THEN
@@ -308,11 +610,21 @@ SUB PlatFrameEnd()
     HwPendingDone()
   END IF
   PlusPokeBlock($6000, @hwReg(0), CAST(UINTEGER, HW_SLOTS) << 3)
+#endif
+#ifdef MX_TEST
+  ASM
+  ld a, 1
+  ld (MX_DONE), a
+  END ASM
+#endif
 END SUB
 
 SUB PlatClear()
   PlatClearCpc()
   HwHideAll()
+#ifdef PLUS_MUX
+  MxClear()
+#endif
   PlusPokeBlock($6000, @hwReg(0), CAST(UINTEGER, HW_SLOTS) << 3)
 END SUB
 
@@ -328,15 +640,24 @@ SUB PlatInit()
   END IF
 #endif
   PlatInitCpc()
+#ifdef PLUS_MUX
+  mxKeys = PlatInputCpc()
+#endif
   SetPalette12Block(@pl_pens(0), 0, 16)
   SetBorder12(PL_BORDER)
   SpritePalette(@plsprites_pal(0))
   HwInit()
   HwHideAll()
+#ifdef PLUS_MUX
+  MxInit()
+#endif
 END SUB
 
 ' Back to the machine's own world: sprites are ASIC state that survives END.
 SUB PlatEnd()
+#ifdef PLUS_MUX
+  RasterIntClear()
+#endif
   HwHideAll()
   PlatEndCpc()
 END SUB
