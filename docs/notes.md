@@ -1400,3 +1400,12 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   screenshots couldn't be automated. Design is ready (agent report): six
   slots re-positioned per row from three raster handlers, ~760 T-states of
   a ~1280 budget per handler.
+- User watched the demo cartridge on CPCEC: all good (bars and split
+  steady, scroll smooth, sprites clean, DMA tune fine).
+- Decisions (user): stage 2 via option (a): patch CPCEC for automated runs
+  (printer to file, SHOT-triggered screenshots, exit at END, headless;
+  GPLv3 patch file + pinned fetch, no vendored source), then build the
+  multiplexed formation with CPCEC goldens; library speed fixes (cached
+  probe, one DI window per call, SpriteMoveBlock, a public fast path for
+  raster handlers, measured costs in the header; the demo off internals).
+  The patch and the fixes run in parallel; stage 2 follows both.
