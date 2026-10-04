@@ -1,4 +1,4 @@
-"""Build-time checks for the cpcplus library (Phase 7 P3): RasterIntAt/Off/Clear are
+"""Build-time checks for the cpcplus library (Phase 7 P3): RasterIntAt/Off/Move/Clear are
 bare-mode only. A firmware-mode build that uses them must fail with an undefined label
 whose name says it needs bare mode (not a file-level #error, which would fire for every
 program that includes cpcplus.bas); a bare build must succeed, and a firmware build that
@@ -20,7 +20,10 @@ ZXB = Path(os.environ.get("ZXBASIC", ROOT.parent / "zxbasic"))
 USES = """#include <cpc.bas>
 #include <cpcplus/cpcplus.bas>
 RasterIntAt(100, 0)
-RasterIntOff(100)
+RasterIntMove(100, 110)
+DIM ok AS UBYTE
+ok = RasterIntMove(110, 120)
+RasterIntOff(120)
 RasterIntClear()
 """
 PLAIN = """#include <cpc.bas>
@@ -50,6 +53,7 @@ class RasterBuild(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIn("RasterIntAt_needs_bare_mode__build_with_D_CPC_BAREMETAL", out)
         self.assertIn("RasterIntOff_needs_bare_mode__build_with_D_CPC_BAREMETAL", out)
+        self.assertIn("RasterIntMove_needs_bare_mode__build_with_D_CPC_BAREMETAL", out)
         self.assertIn("RasterIntClear_needs_bare_mode__build_with_D_CPC_BAREMETAL", out)
 
     def test_bare_builds_raster(self):

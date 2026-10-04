@@ -68,8 +68,8 @@
 ;       first copied, 64 bytes at a time with interrupts off, into the
 ;       bounce buffer PL_BUF (private block, +&340), and from there into
 ;       the ASIC page. A source outside &4000-&7FFF goes straight in, one
-;       window. The unpacking of packed pictures (two pixels per byte) is
-;       also done into PL_BUF, 32 source bytes per window;
+;       window. Packed pictures (two pixels per byte) are unpacked on the
+;       stack (interrupts on) and go in one window of 1.5 ms;
 ;   (4) nothing here uses the program's memory in &4000-&7FFF while the
 ;       page is in, so the library no longer reserves that range (the
 ;       compiler's CbReserve4000): programs may be as large as the memory
@@ -640,59 +640,6 @@ __PT_DIRECT:
     call __PL_DI
     call PLX
     jp   __PL_EI
-    ENDP
-
-; __PL_PUTP -- HL = source (anywhere) of B * 32 packed bytes (two pixels
-; per byte, the left one in the high nibble), DE = destination in the ASIC
-; page, which gets B * 64 bytes, one pixel per byte (low nibble): each 32
-; source bytes are unpacked into PL_BUF and copied in one window (while the
-; program holds the page: a plain LDIR instead of the trampoline).
-; Hardware: RMR2. Registers clobbered: AF, BC, DE, HL.
-__PL_PUTP:
-    PROC
-    LOCAL __PU_CHUNK, __PU_LOOP, __PU_TRAMP, __PU_NEXT
-__PU_CHUNK:
-    call __PL_DI
-    push bc                 ; chunks left in B
-    push de                 ; destination
-    ld   de, PL_BUF
-    ld   b, 32
-__PU_LOOP:
-    ld   a, (hl)
-    inc  hl
-    ld   c, a
-    rrca
-    rrca
-    rrca
-    rrca
-    and  $0F
-    ld   (de), a
-    inc  de
-    ld   a, c
-    and  $0F
-    ld   (de), a
-    inc  de
-    djnz __PU_LOOP
-    pop  de                 ; destination
-    push hl                 ; next source
-    ld   hl, PL_BUF
-    ld   bc, 64
-    ld   a, (PLUS_USER)
-    or   a
-    jr   z, __PU_TRAMP
-    ldir                    ; the program holds the page
-    jr   __PU_NEXT
-__PU_TRAMP:
-    call PLX                ; DE = destination + 64
-__PU_NEXT:
-    pop  hl                 ; next source
-    pop  bc                 ; B = chunks left
-    dec  b
-    call __PL_EI            ; (AF only)
-    ld   a, b
-    or   a
-    jr   nz, __PU_CHUNK
-    ret
     ENDP
 
 ; ---- paging ---------------------------------------------------------------

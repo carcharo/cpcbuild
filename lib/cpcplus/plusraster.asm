@@ -31,7 +31,7 @@
 ; instead of losing it. User handlers run with interrupts off and with every
 ; register (AF, BC, DE, HL, IX, IY and the alternate set) saved around them,
 ; exactly like the frame hook; they must end with RET, must not call the
-; firmware, and must not change the table (RasterIntAt/Off/Clear) or use
+; firmware, and must not change the table (RasterIntAt/Off/Move/Clear) or use
 ; the paging calls with DI/EI of the library (the library's calls that
 ; need interrupts-on state are safe from the frame hook, which has them
 ; off; from a raster handler too). The frame entry is at line RI_FRAME_LINE
@@ -480,6 +480,8 @@ RI_IDX:     defb 0          ; the entry that fires next
 RI_TL:      defb 0          ; scratch for RasterIntAt/Off (interrupts off)
 RI_TP:      defb 0
 RI_NEW:     defb 0
+RI_TQ:      defb 0          ; scratch for RasterIntMove (interrupts off)
+RI_MV:      defw 0          ; new line, old line
 RI_TH:      defw 0
 RI_LINE:    defs RI_MAX, 0
 RI_HAND:    defs RI_MAX * 2, 0

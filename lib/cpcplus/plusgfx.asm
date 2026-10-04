@@ -5,7 +5,7 @@
 ; page layout, the unlock, the paging rules and the trampoline. Every
 ; routine here starts with __PL_ENSURE (probe, unlock) and does nothing,
 ; changing nothing, on a CPC without ASIC. The ASIC page is touched only
-; through plus.asm's __PL_POKE / __PL_PEEK / __PL_PUT / __PL_PUTP, which
+; through plus.asm's __PL_POKE / __PL_PEEK / __PL_PUT, which
 ; run the paging code from the private block, so the program (and this
 ; library) may be anywhere in memory, &4000-&7FFF included; data that lies
 ; in &4000-&7FFF is bounced through a buffer. Registers and interrupts as
@@ -341,10 +341,15 @@ __PL_IMG:
     jp   __PL_PUT
 
 ; __PL_IMGP -- A = sprite, HL = source of 128 bytes, two pixels each, the
-; left pixel in the high nibble (img2cpc.py --packed). Same rules; four
-; windows (32 source bytes each).
-; Registers clobbered: AF, BC, DE, HL.
+; left pixel in the high nibble (img2cpc.py --packed). The source may be
+; anywhere: the 256 unpacked pixels are built on the stack (interrupts as the
+; caller had them, about 11k T-states) and go into the ASIC in ONE window of
+; 1.5 ms (the stack needs about 270 bytes free). While the program holds the
+; page (PlusPageIn) the same, with a plain LDIR instead of the window.
+; Hardware: sprite pixel RAM, RMR2. Registers clobbered: AF, BC, DE, HL.
 __PL_IMGP:
+    PROC
+    LOCAL __IP_UN, __IP_WIN, __IP_DONE
     ld   d, a
     call __PL_ENSURE2
     ret  nc
@@ -353,8 +358,61 @@ __PL_IMGP:
     or   $40
     ld   d, a
     ld   e, 0
-    ld   b, 4
-    jp   __PL_PUTP
+    push de                 ; the destination: the buffer grows below it
+    ld   de, 127
+    add  hl, de             ; HL = the last source byte
+    ld   b, 64              ; two bytes (four pixels) a turn, from the end: each
+__IP_UN:                    ; PUSH writes a pixel pair, the left pixel (the byte's
+    ld   a, (hl)            ; high nibble) at the lower address. An interrupt
+    dec  hl                 ; pushes below SP, where the pairs are still to come.
+    ld   e, a
+    and  $0F
+    ld   d, a
+    ld   a, e
+    rrca
+    rrca
+    rrca
+    rrca
+    and  $0F
+    ld   e, a
+    push de
+    ld   a, (hl)
+    dec  hl
+    ld   e, a
+    and  $0F
+    ld   d, a
+    ld   a, e
+    rrca
+    rrca
+    rrca
+    rrca
+    and  $0F
+    ld   e, a
+    push de
+    djnz __IP_UN
+    ld   hl, 256
+    add  hl, sp
+    ld   e, (hl)
+    inc  hl
+    ld   d, (hl)            ; DE = the destination
+    ld   hl, 0
+    add  hl, sp             ; HL = the buffer
+    ld   bc, 256
+    ld   a, (PLUS_USER)
+    or   a
+    jr   z, __IP_WIN
+    ldir                    ; the program holds the page: interrupts are off already
+    jr   __IP_DONE
+__IP_WIN:
+    call __PL_DI
+    call PLX
+    call __PL_EI
+__IP_DONE:
+    ld   hl, 258
+    add  hl, sp
+    ld   sp, hl
+    ret
+    ENDP
 
 ; __PL_CLAMP -- HL = value, DE = limit + 256 (X 1023, Y 511): HL clamped
 ; to -256 .. limit. Registers clobbered: AF, BC, HL.

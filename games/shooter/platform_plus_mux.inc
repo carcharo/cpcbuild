@@ -630,41 +630,6 @@ HW_PUSH:
     ei
     ret
 
-; MX_RELINE: the formation stepped down: the four handler lines move in the raster
-; table in place (library state: RI_N, RI_IDX, RI_LINE, see plusraster.asm), which
-; RasterIntAt/Off do in about 1.2 ms a pair. Only valid while the table is ours
-; (4 lines + the frame entry) and the next line to fire is its first, that is in
-; the vertical blank after the frame entry, where the commit step is. Returns A = 1
-; when done, 0 when the caller must use RasterIntAt/Off.
-MX_RELINE:
-    ld a, (MX_ACTL)
-    or a
-    jr z, MXR_NO
-    di
-    ld a, (.core.RI_N)
-    cp 5
-    jr nz, MXR_EI
-    ld a, (.core.RI_IDX)
-    or a
-    jr nz, MXR_EI
-    ld hl, MX_NEWL
-    ld de, .core.RI_LINE
-    ld bc, 4
-    ldir
-    ld hl, MX_NEWL
-    ld de, MX_ACTL
-    ld bc, 4
-    ldir
-    call .core.__RI_PRIIDX      ; PRI = the first line
-    ei
-    ld a, 1
-    ret
-MXR_EI:
-    ei
-MXR_NO:
-    xor a
-    ret
-
 ; MX_COMMIT: right after a frame tick: the shadow tables become the active ones
 ; and the top row goes to the ASIC at once (the handlers do it for the frames
 ; in between).

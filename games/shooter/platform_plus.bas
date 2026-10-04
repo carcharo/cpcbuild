@@ -74,7 +74,7 @@
 '     sprites x (X, Y) + two palette entries (the aliens' body and light colours), so
 '     the rows differ in colour (magenta, red, green) while sharing one shape.
 '   - When the formation steps down, the four lines move in the raster table in place
-'     (MX_RELINE; RasterIntAt/Off take 1.2 ms a pair).
+'     (RasterIntMove; RasterIntAt/Off would take 1.2 ms a pair).
 '   - Everything long that the main thread does (sprite registers, pictures) is in the
 '     vertical blank, the pictures at most two a frame (the rest wait), and the keys
 '     are read there too (PlatInput returns the value read at the tick): an
@@ -317,12 +317,6 @@ SUB MxFlush()
   END ASM
 END SUB
 
-FUNCTION MxReline() AS UBYTE
-  ASM
-  call MX_RELINE
-  END ASM
-END FUNCTION
-
 SUB MxCommit()
   ASM
   call MX_COMMIT
@@ -349,39 +343,22 @@ FUNCTION MxLinesValid() AS UBYTE
   END ASM
 END FUNCTION
 
-FUNCTION MxNewLine(i AS UBYTE) AS UBYTE
+' The tables of the four handler lines: the ones this frame's rows want (MX_NEWL,
+' written by the flush) and the ones the raster table has now (MX_ACTL); MxLines reads
+' them with PEEK/POKE (a call costs about 70 us, and the vertical blank is short)
+DIM mxNewP, mxActP AS UINTEGER
+
+FUNCTION MxNewAddr() AS UINTEGER
   ASM
-  ld a, (ix+5)
-  ld e, a
-  ld d, 0
   ld hl, MX_NEWL
-  add hl, de
-  ld a, (hl)
   END ASM
 END FUNCTION
 
-FUNCTION MxActLine(i AS UBYTE) AS UBYTE
+FUNCTION MxActAddr() AS UINTEGER
   ASM
-  ld a, (ix+5)
-  ld e, a
-  ld d, 0
   ld hl, MX_ACTL
-  add hl, de
-  ld a, (hl)
   END ASM
 END FUNCTION
-
-SUB MxSetActLine(i AS UBYTE, v AS UBYTE)
-  ASM
-  ld a, (ix+5)
-  ld e, a
-  ld d, 0
-  ld hl, MX_ACTL
-  add hl, de
-  ld a, (ix+7)
-  ld (hl), a
-  END ASM
-END SUB
 
 ' The handler of line i (0 = the one for row 1, 1 = row 2, 2 = the top row
 ' again, 3 = the aliens' legs)
@@ -400,34 +377,48 @@ FUNCTION MxHandler(i AS UBYTE) AS UINTEGER
   END ASM
 END FUNCTION
 
-' Puts the raster table right for this frame's rows: the lines that are new
-' are added first, then the old ones that are no longer wanted go, so the
-' table is never empty (that would switch raster mode off and on). It changes
-' only when the formation steps down (every 6 lines of y) or a row empties.
+' Puts the raster table right for this frame's rows. It changes only when the
+' formation steps down (every 6 lines of y) or a row empties. Called in the vertical
+' blank right after the frame tick, which is where RasterIntMove is safe. If the moves
+' do not get there (the first time, when no line is set yet, or a row table out of the
+' ordinary), the lines that are new are added first, then the old ones that are no
+' longer wanted go, so the table is never empty (that would switch raster mode off and on).
 SUB MxLines()
-  DIM i, j, l, keep AS UBYTE
+  DIM i, j, a, n, keep AS UBYTE
   IF MxLinesValid() = 0 THEN RETURN
-  keep = 1
+  ' the usual case, and one pass over the four lines when nothing changed: every
+  ' line moves in the table (RasterIntMove); a line whose target is still held by
+  ' another of ours waits for the next pass (the formation moves its rows together,
+  ' so one or two passes do)
+  FOR j = 0 TO 3
+    keep = 1
+    FOR i = 0 TO 3
+      a = PEEK(mxActP + i)
+      n = PEEK(mxNewP + i)
+      IF a <> n THEN
+        keep = 0
+        IF a <> 0 THEN
+          IF RasterIntMove(a, n) <> 0 THEN POKE mxActP + i, n
+        END IF
+      END IF
+    NEXT i
+    IF keep = 1 THEN RETURN
+  NEXT j
   FOR i = 0 TO 3
-    IF MxNewLine(i) <> MxActLine(i) THEN keep = 0
+    RasterIntAt(PEEK(mxNewP + i), MxHandler(i))
   NEXT i
-  IF keep = 1 THEN RETURN
-  IF MxReline() <> 0 THEN RETURN
   FOR i = 0 TO 3
-    RasterIntAt(MxNewLine(i), MxHandler(i))
-  NEXT i
-  FOR i = 0 TO 3
-    l = MxActLine(i)
-    IF l <> 0 THEN
+    a = PEEK(mxActP + i)
+    IF a <> 0 THEN
       keep = 0
       FOR j = 0 TO 3
-        IF MxNewLine(j) = l THEN keep = 1
+        IF PEEK(mxNewP + j) = a THEN keep = 1
       NEXT j
-      IF keep = 0 THEN RasterIntOff(l)
+      IF keep = 0 THEN RasterIntOff(a)
     END IF
   NEXT i
   FOR i = 0 TO 3
-    MxSetActLine(i, MxNewLine(i))
+    POKE mxActP + i, PEEK(mxNewP + i)
   NEXT i
 END SUB
 
@@ -487,6 +478,8 @@ END SUB
 
 SUB MxInit()
   DIM s, f AS UBYTE
+  mxNewP = MxNewAddr()
+  mxActP = MxActAddr()
   MxUnpack(@plsprites(0), @plpix(0), 1280)
   FOR f = 0 TO 1
     MxUnpack(@plsprites(0) + (CAST(UINTEGER, 8 + f) << 7) + 40, MxLegsAddr() + CAST(UINTEGER, f) * 48, 24)
