@@ -6,3 +6,5 @@ bench/micro/
 bench/*.log
 build/
 tools/arkos/work/
+tools/cpcec/work/
+tools/arnold/

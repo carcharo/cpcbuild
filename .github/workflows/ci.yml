@@ -6,6 +6,8 @@ name: CI
 #   bare-disc      make test-bare-disc    (bare-metal disc start + screens)
 #   bare-cold      make test-bare-cold    (cold start, no firmware + screens)
 #   zx-games       make test-zx test-games
+#   plus           build Caprice32 headless at the pinned commit, make test-plus
+#                  (6128 Plus: smoke tests, conformance firmware + bare, screens)
 # `make ci` runs the same targets serially (local all-in-one). Shared setup lives in
 # .github/actions/setup. Each failing job uploads its own screen-diff artifact.
 #
@@ -185,4 +187,55 @@ jobs:
             cpcbuild/tests/**/*.diff.png
             cpcbuild/games/**/*.actual.png
             cpcbuild/games/**/*.diff.png
+          if-no-files-found: ignore
+
+  plus:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # same pin as the ROMs (.github/actions/setup caprice32-sha)
+      CAPRICE32_SHA: 6c12c4c92360065cdc229ac9ada7551f941436b8
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v7
+        with:
+          path: cpcbuild
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'false'
+          caprice32-full: 'true'
+      - name: Cache the Caprice32 build
+        id: cap32cache
+        uses: actions/cache@v6
+        with:
+          path: caprice32/cap32
+          key: cap32-${{ runner.os }}-${{ env.CAPRICE32_SHA }}
+      - name: Build Caprice32 (headless: SDL dummy video, no audio)
+        if: steps.cap32cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libsdl2-dev libfreetype6-dev zlib1g-dev libpng-dev
+          make -C caprice32 -j4 cap32
+          # cpcrun.py fills in cap32.cfg.tmpl itself (same config with or without the cache)
+          rm -f caprice32/cap32.cfg
+      - name: Runtime libraries for a cached cap32
+        if: steps.cap32cache.outputs.cache-hit == 'true'
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0 libfreetype6 libpng16-16
+      - name: make test-plus
+        working-directory: cpcbuild
+        env:
+          ZXBASIC: ${{ github.workspace }}/zxbasic
+          CAP32: ${{ github.workspace }}/caprice32/cap32
+          SDL_AUDIODRIVER: dummy
+        run: make test-plus
+      - name: Upload screen-test diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screen-diffs-plus
+          path: |
+            cpcbuild/tests/**/*.actual.png
+            cpcbuild/tests/**/*.diff.png
           if-no-files-found: ignore

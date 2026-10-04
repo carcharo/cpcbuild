@@ -1,5 +1,5 @@
 REM BARE: skip BankLoad reads the disc through the firmware
-REM MODELS: 6128
+REM MODELS: 6128 plus
 REM EMUS: cap32
 REM DISKFILE: BANKDAT.BIN=assets/bankdat.bin
 REM DISKFILE: TUNE.BIN=assets/music/bank_tune.bin

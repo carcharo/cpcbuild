@@ -1,4 +1,4 @@
-REM MODELS: 6128
+REM MODELS: 6128 plus
 REM Conformance: bank paging and the interrupt side (6128 only). A frame
 REM hook pages extra bank 3 in and out (the bank the main program selected
 REM must survive it, in normal and game mode and through firmware waits),

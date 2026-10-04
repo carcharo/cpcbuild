@@ -5,6 +5,9 @@ REM then waits 6 frames: chipsrun grabs the screen 2 frames after it sees
 REM the line, and the picture must not change meanwhile. Uses no firmware
 REM call (see ShotChar, ShotWait), so a program under test that sets the
 REM Gate Array directly is left alone.
+REM With -D SHOT_HOLD (Caprice32 on the Plus, cpcrun.py --model plus --shot) Shot()
+REM then stops the program on the spot for the harness to take the picture, so
+REM such a program takes one shot.
 #ifndef __SCREENS_SHOT__
 #define __SCREENS_SHOT__
 
@@ -51,6 +54,14 @@ SUB Shot(name AS STRING)
   NEXT i
   ShotChar(10)
   ShotWait(6)
+#ifdef SHOT_HOLD
+  REM cpcrun.py --model plus --shot (Caprice32 has no way to be told "now" by
+  REM the program): hold the picture here until the harness has taken it
+  ASM
+shot_hold:
+  jr shot_hold
+  END ASM
+#endif
 END SUB
 
 #endif

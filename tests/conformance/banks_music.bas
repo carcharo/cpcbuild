@@ -1,4 +1,4 @@
-REM MODELS: 6128
+REM MODELS: 6128 plus
 REM Conformance: music played from a 6128 extra bank (MusicInitBank,
 REM lib/music/music_cpc.bas), copied into the bank with BankCopyIn.
 REM

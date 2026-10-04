@@ -9,6 +9,14 @@ each pixel for pixel with golden/<model>/<name>.png.
 
 A shot is the visible display, 768x272 RGB (see tools/chipsrun/chipsrun.c).
 
+--model plus (Phase 7) runs on Caprice32 instead (chips has no Plus): cpcrun.py
+--model plus --shot holds the program at its Shot() and takes a Caprice32
+screenshot (768x540 RGB, the CPC picture doubled, with border; Shot() in
+lib/shot.bas stops the program there under -D SHOT_HOLD, so one shot per
+program). Goldens are golden/plus/, separate from chips' (different renderer).
+Plus is not in the default model set: ask for it with --model plus (the
+Makefile's test-plus does).
+
 A test file may say, in REM lines:
   REM SOURCE: path     compile that file (relative to the test) instead
   REM ZXBC: args       extra zxbc arguments (one REM ZXBC: line per
@@ -25,7 +33,7 @@ over a dimmed copy of the actual shot) are written next to the golden as
 <name>.actual.png and <name>.diff.png, and the number of differing pixels
 is reported. Exit status 0 if every shot matched.
 
-Usage: run.py [--update] [--model 464|6128] [-k PATTERN] [-j N] [--timeout S] [file.bas ...]
+Usage: run.py [--update] [--model 464|6128|plus] [-k PATTERN] [-j N] [--timeout S] [file.bas ...]
 """
 from __future__ import annotations
 
@@ -44,6 +52,7 @@ HERE = Path(__file__).resolve().parent
 CPCRUN = HERE.parent.parent / "tools" / "cpcrun.py"
 GOLDEN = HERE / "golden"
 MODELS = ("464", "6128")
+ALL_MODELS = (*MODELS, "plus")
 
 SOURCE_RE = re.compile(r"^\s*REM\s+SOURCE:\s*(\S.*?)\s*$", re.IGNORECASE)
 ZXBC_RE = re.compile(r"^\s*REM\s+ZXBC:\s*(\S.*?)\s*$", re.IGNORECASE)
@@ -75,8 +84,14 @@ def run_test(bas: Path, model: str, timeout: float, update: bool, org: str | Non
         return [("SKIP", label, "REM BARE: skip")]
     source, zargs = spec(bas)
     with tempfile.TemporaryDirectory(prefix="screens-") as tmp:
-        cmd = [sys.executable, str(CPCRUN), str(source), "--emu", "chips", "--model", model,
-               "--timeout", str(timeout), "--quiet", "--shot-dir", tmp]
+        if model == "plus":
+            # Caprice32: one shot per program, file named by us; the shot's own
+            # name comes back on stderr ("shot: NAME")
+            cmd = [sys.executable, str(CPCRUN), str(source), "--model", "plus",
+                   "--timeout", str(timeout), "--quiet", "--shot", str(Path(tmp) / "plus-shot.png")]
+        else:
+            cmd = [sys.executable, str(CPCRUN), str(source), "--emu", "chips", "--model", model,
+                   "--timeout", str(timeout), "--quiet", "--shot-dir", tmp]
         if org:
             cmd += ["--org", org]
         if bare:
@@ -88,6 +103,10 @@ def run_test(bas: Path, model: str, timeout: float, update: bool, org: str | Non
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout * 4 + 120)
         if proc.returncode != 0:
             return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]
+        if model == "plus":
+            m = re.search(r"^shot: (\S+)$", proc.stderr, re.MULTILINE)
+            if m and (Path(tmp) / "plus-shot.png").exists():
+                (Path(tmp) / "plus-shot.png").rename(Path(tmp) / f"{m.group(1)}.png")
         shots = sorted(Path(tmp).glob("*.png"))
         if not shots:
             return [("ERROR", label, "program took no screenshot")]
@@ -138,7 +157,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("files", nargs="*", type=Path)
     ap.add_argument("--update", action="store_true", help="regenerate the golden screenshots")
-    ap.add_argument("--model", choices=MODELS, action="append", help="only this model (repeatable; default both)")
+    ap.add_argument("--model", choices=ALL_MODELS, action="append", help="only this model (repeatable; default 464 and 6128 on chips; plus = Caprice32)")
     ap.add_argument("-k", dest="pattern", default=None, help="only tests whose name contains PATTERN")
     ap.add_argument("-j", dest="jobs", type=int, default=8)
     ap.add_argument("--timeout", type=float, default=60.0)
@@ -148,6 +167,8 @@ def main() -> int:
     args = ap.parse_args()
     if args.cold:
         args.bare = True
+    if args.cold and "plus" in (args.model or ()):
+        ap.error("--cold is chips only")
     if args.bare and args.update:
         ap.error("goldens come from firmware-mode runs: --update can't be combined with --bare")
 
