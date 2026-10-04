@@ -418,6 +418,19 @@ Phase 8 tools, sprites and tiles through the editors/importer, cpcbuild
 calls, music, building for CPC and Spectrum. Revisit once Phase 8 is done,
 so the tutorial shows the finished tools.
 
+Library additions for the platformer (Plus hardware sprites, user ideas
+2026-10-04), in `lib/cpcplus`:
+- **Sprite manager:** allocate/free the 16 slots as objects enter and leave
+  (level scrolling, screen changes), with an image cache so an image already
+  in a slot isn't uploaded again (an upload is ~1.4 ms per sprite); spread
+  uploads over frames while scrolling; optional multiplexing helpers (re-use
+  slots further down the screen from raster interrupts, bare mode).
+- **Palette cycling:** rotate a range of sprite colours (entries 17-31) or
+  screen pens each frame (a few palette writes, ~0.1 ms each) for cheap
+  animation (flames, flashing, water, conveyor belts); the sprite palette is
+  shared by all 16 sprites, so reserve the cycled indices; per-band cycles
+  via raster interrupts in bare mode.
+
 ---
 
 ## Open questions to resolve during Phase 0
