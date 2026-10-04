@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-zx test-games chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -33,12 +33,16 @@ test-chips: chips ## Build chipsrun and run conformance tests with chips emulato
 	$(PYTHON) tests/conformance/run.py --emu chips --model 464
 	$(if $(wildcard tests/screens/run.py),$(PYTHON) tests/screens/run.py)
 
-test-bare: chips ## Bare-metal (-D CPC_BAREMETAL) conformance and screenshots on chips: 464/6128 disc start and cold start (no firmware)
+test-bare: test-bare-disc test-bare-cold ## Bare-metal (-D CPC_BAREMETAL) conformance and screenshots on chips: 464/6128 disc start and cold start (no firmware)
+
+test-bare-disc: chips ## Bare-metal disc-start conformance (6128, 464) and screenshots on chips
 	$(PYTHON) tests/conformance/run.py --emu chips --model 6128 --bare
 	$(PYTHON) tests/conformance/run.py --emu chips --model 464 --bare
+	$(PYTHON) tests/screens/run.py --bare
+
+test-bare-cold: chips ## Bare-metal cold-start (no firmware) conformance (6128, 464) and screenshots on chips
 	$(PYTHON) tests/conformance/run.py --emu chips --model 6128 --cold
 	$(PYTHON) tests/conformance/run.py --emu chips --model 464 --cold
-	$(PYTHON) tests/screens/run.py --bare
 	$(PYTHON) tests/screens/run.py --cold
 
 test-zx: chips ## Spectrum 48K/128K conformance and screenshot tests on chips (tests/zx)
@@ -57,7 +61,7 @@ assets: ## Build assets
 bench: ## Run benchmark
 	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
 
-ci: unit test-chips test-bare test-zx test-games ## What CI runs - unit tests, then everything on chips incl. bare-metal (no Caprice32)
+ci: unit test-chips test-bare test-zx test-games ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, zx, games (no Caprice32)
 
 clean: ## Clean build artifacts
 	rm -f tools/chipsrun/chipsrun

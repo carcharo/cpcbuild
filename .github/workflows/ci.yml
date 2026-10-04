@@ -1,94 +1,188 @@
 name: CI
 
+# Job layout (all run in parallel after the tiny `gate` job; wall time ~ slowest job):
+#   zxbasic-tests  zxbasic pytest (compiler suite)
+#   chips          make unit test-chips   (firmware conformance 6128/464 + screens)
+#   bare-disc      make test-bare-disc    (bare-metal disc start + screens)
+#   bare-cold      make test-bare-cold    (cold start, no firmware + screens)
+#   zx-games       make test-zx test-games
+# `make ci` runs the same targets serially (local all-in-one). Shared setup lives in
+# .github/actions/setup. Each failing job uploads its own screen-diff artifact.
+#
+# Nightly: cpcbuild CI uses zxbasic's cpc-arch HEAD, but a zxbasic-only push does not
+# trigger it. A daily `schedule` run (default branch) goes through `gate`
+# (.github/scripts/gate.sh), which lets the test jobs run only if cpc-arch has a
+# commit from the last 25 hours. push / pull_request / workflow_dispatch always run.
+# Docs-only changes (**.md, docs/**) skip push/PR runs; superseded runs are cancelled.
+
 on:
   push:
     branches: [main, 'phase-*', 'pre-*']
+    paths-ignore: ['**.md', 'docs/**']
   pull_request:
     branches: [main, 'phase-*', 'pre-*']
+    paths-ignore: ['**.md', 'docs/**']
+  schedule:
+    - cron: '23 3 * * *'
   workflow_dispatch:
 
-env:
-  PYTHON_VERSION: 3.14.3
-  # Pinned: ROMs come from this caprice32 commit (rom/ only).
-  CAPRICE32_SHA: 6c12c4c92360065cdc229ac9ada7551f941436b8
-  # Keep in sync with SHA in tools/chipsrun/fetch_chips.sh (cache key only).
-  CHIPS_SHA: 9e88298ce56319953ac7a43213a1120359f7a3a6
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  test:
+  gate:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github
+      - id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/gate.sh
+
+  zxbasic-tests:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout cpcbuild
         uses: actions/checkout@v7
         with:
           path: cpcbuild
-
-      - name: Checkout zxbasic (cpc-arch)
-        uses: actions/checkout@v7
+      - uses: ./cpcbuild/.github/actions/setup
         with:
-          repository: carcharo/zxbasic
-          ref: cpc-arch
-          path: zxbasic
-
-      - name: Fetch CPC ROMs (caprice32 rom/ at pinned commit)
-        uses: actions/checkout@v7
-        with:
-          repository: ColinPitrat/caprice32
-          ref: ${{ env.CAPRICE32_SHA }}
-          path: caprice32
-          sparse-checkout: rom
-          sparse-checkout-cone-mode: true
-
-      - name: Set up Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: pip
-          cache-dependency-path: zxbasic/poetry.lock
-
-      - name: Install poetry
-        run: |
-          pip install -U pip~=26.0
-          pip install poetry~=2.3.2
-          poetry config virtualenvs.in-project true
-
-      - name: Cache zxbasic venv
-        uses: actions/cache@v6
-        with:
-          path: zxbasic/.venv
-          key: venv-${{ runner.os }}-py-${{ env.PYTHON_VERSION }}-${{ hashFiles('zxbasic/poetry.lock') }}
-
-      - name: Install zxbasic dependencies
-        working-directory: zxbasic
-        run: poetry install
-
-      - name: Install cpcbuild tool dependencies
-        run: pip install Pillow
-
+          chips: 'false'
       - name: zxbasic tests
         working-directory: zxbasic
         run: poetry run pytest -q --no-cov
 
-      - name: Cache chips checkout
-        uses: actions/cache@v6
+  chips:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v7
         with:
-          path: cpcbuild/tools/chipsrun/chips
-          key: chips-${{ env.CHIPS_SHA }}
-
-      - name: cpcbuild tests (make ci)
+          path: cpcbuild
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'true'
+      - name: make unit test-chips
         working-directory: cpcbuild
         env:
           ZXBASIC: ${{ github.workspace }}/zxbasic
           CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
-        run: make ci
-
+        run: make unit test-chips
       - name: Upload screen-test diffs
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: screen-diffs
+          name: screen-diffs-chips
           path: |
-            cpcbuild/tests/screens/**/*.actual.png
-            cpcbuild/tests/screens/**/*.diff.png
+            cpcbuild/tests/**/*.actual.png
+            cpcbuild/tests/**/*.diff.png
+            cpcbuild/games/**/*.actual.png
+            cpcbuild/games/**/*.diff.png
+          if-no-files-found: ignore
+
+  bare-disc:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v7
+        with:
+          path: cpcbuild
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'true'
+      - name: make test-bare-disc
+        working-directory: cpcbuild
+        env:
+          ZXBASIC: ${{ github.workspace }}/zxbasic
+          CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
+        run: make test-bare-disc
+      - name: Upload screen-test diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screen-diffs-bare-disc
+          path: |
+            cpcbuild/tests/**/*.actual.png
+            cpcbuild/tests/**/*.diff.png
+            cpcbuild/games/**/*.actual.png
+            cpcbuild/games/**/*.diff.png
+          if-no-files-found: ignore
+
+  bare-cold:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v7
+        with:
+          path: cpcbuild
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'true'
+      - name: make test-bare-cold
+        working-directory: cpcbuild
+        env:
+          ZXBASIC: ${{ github.workspace }}/zxbasic
+          CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
+        run: make test-bare-cold
+      - name: Upload screen-test diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screen-diffs-bare-cold
+          path: |
+            cpcbuild/tests/**/*.actual.png
+            cpcbuild/tests/**/*.diff.png
+            cpcbuild/games/**/*.actual.png
+            cpcbuild/games/**/*.diff.png
+          if-no-files-found: ignore
+
+  zx-games:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v7
+        with:
+          path: cpcbuild
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'true'
+      - name: make test-zx test-games
+        working-directory: cpcbuild
+        env:
+          ZXBASIC: ${{ github.workspace }}/zxbasic
+          CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
+        run: make test-zx test-games
+      - name: Upload screen-test diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: screen-diffs-zx-games
+          path: |
+            cpcbuild/tests/**/*.actual.png
+            cpcbuild/tests/**/*.diff.png
+            cpcbuild/games/**/*.actual.png
+            cpcbuild/games/**/*.diff.png
           if-no-files-found: ignore
