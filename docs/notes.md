@@ -1333,3 +1333,17 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
 - **Bare programs loaded by RUN" must end below &A67B** (AMSDOS HIMEM),
   although the bare map allows code up to &B7FF; plus_big_hi (library above
   &8000) is firmware-only for that reason. Cartridges have no such limit.
+
+## 2026-10-04: Phase 7 stage gate, hands-on (user)
+
+- Amstrad's Arnold 5 diagnostic cartridge, run by hand on Caprice32 (6128
+  Plus) and CPCEC (-m3): DMA driven sound, sprites movement/palette, raster
+  interrupt, split screen, soft scroll and the 4096-colour palette all
+  behave correctly on both. (Caprice32's DMA support, unverified before, is
+  fine.) Leaving a test: ESC, or reset the emulator (Caprice32 F5; CPCEC
+  Ctrl+F5) to restart the cartridge at its menu.
+- Differences, emulator-side only: CPCEC's 12-bit-to-RGB conversion is
+  brighter (our Plus screen goldens are Caprice32's, so pixels differ in
+  CPCEC by design) and its keyboard feels more responsive. CPCEC shows
+  on-screen drive/tape indicators and an audio oscilloscope by default
+  (Shift+F9 toggles; -O hides).
