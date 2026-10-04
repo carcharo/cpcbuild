@@ -8,6 +8,9 @@ DIM ... => {...} arrays and CONSTs) for the cpcbuild library.
                [--palette 0,1,2,... | --palette-file F] [--pen0 N]
                [--no-palette] [--write-palette F]
     img2cpc.py --spectrum [--name NAME] [-o out.bas] image.png
+    img2cpc.py --plus-sprite [--packed] [--palette RGB,RGB,...] [--plus-format bas|asm|bin]
+               [--transparent RRGGBB] [--name NAME] [-o out] image.png
+    img2cpc.py --plus-palette [--palette RGB,...] [--plus-format bas|asm|bin] [-o out] image.png
 
 One PNG pixel is one CPC pixel (mode 0 art is 160 pixels wide, mode 1 is
 320, mode 2 is 640; no aspect correction); the width must be a multiple of
@@ -49,6 +52,31 @@ one), a set bit is ink, bit 7 is the leftmost pixel. NAME is the bitmap,
 one attribute byte (FLASH<<7 | BRIGHT<<6 | PAPER<<3 | INK) per cell, and
 NAME_COLS, NAME_ROWS the size in cells. Width and height must be
 multiples of 8.
+
+CPC Plus (ASIC) data, no --mode needed. Colours are 12-bit: 4 bits per
+channel, each 8-bit channel c quantised to round(c * 15 / 255) (so 0x11 * n
+maps to n exactly). Palette entries are two bytes, as the ASIC wants them in
+its palette RAM (&6400-&643F): byte 0 = red << 4 | blue, byte 1 = green
+(low nibble).
+--plus-sprite  hardware sprite data from a 16x16 image or a sheet of 16x16
+            cells (cut row-major). One byte per pixel, 0 = transparent (alpha
+            below 128 or --transparent), 1-15 = sprite palette entry, 256 bytes
+            per sprite, rows top first: the ASIC's own layout (the low nibble
+            of each byte is used). --packed gives two pixels per byte, the left
+            one in the high nibble (128 bytes per sprite), for programs that
+            unpack into the ASIC. The sprite palette (NAME_pal, 30 bytes = 15
+            entries, for &6422-&643F) is the image's distinct colours in order
+            of first appearance (cells in order, rows top to bottom); more
+            than 15 is an error unless --palette gives the entries (hex RGB
+            triples such as F00,0F0, or a file via --palette-file; each pixel
+            takes the nearest). Emits NAME, NAME_pal, NAME_FRAMES, NAME_SIZE,
+            NAME_PALN.
+--plus-palette the 16 pen colours of a full-screen image: its distinct colours
+            in order of first appearance (error beyond 16 unless --palette),
+            as NAME_pal, 32 bytes for &6400-&641F.
+--plus-format bas (default, DIM arrays), asm (defb lines and EQUs) or bin
+            (the data to -o, the palette to -o with the suffix .pal; for
+            --plus-palette just the palette to -o).
 """
 from __future__ import annotations
 
@@ -310,6 +338,123 @@ def spectrum_convert(img: Image) -> tuple[list[int], list[int]]:
     return bitmap, attrs
 
 
+# ---------------------------------------------------------------- CPC Plus
+
+
+def q4(c: int) -> int:
+    """8-bit channel to 4 bits (exact for multiples of 0x11)."""
+    return (c * 15 + 127) // 255
+
+
+def rgb12(p: tuple[int, int, int]) -> tuple[int, int, int]:
+    return q4(p[0]), q4(p[1]), q4(p[2])
+
+
+def asic_entry(c: tuple[int, int, int]) -> list[int]:
+    """The two palette-RAM bytes of a 4-bit (r, g, b) colour."""
+    return [c[0] << 4 | c[2], c[1]]
+
+
+def parse_rgb12_list(text: str) -> list[tuple[int, int, int]]:
+    out = []
+    for line in text.splitlines():
+        line = line.split("#", 1)[0]
+        for tok in line.replace(",", " ").split():
+            if len(tok) != 3 or any(ch not in "0123456789abcdefABCDEF" for ch in tok):
+                raise SystemExit(f"img2cpc: bad 12-bit colour {tok!r} (expected three hex digits RGB)")
+            out.append((int(tok[0], 16), int(tok[1], 16), int(tok[2], 16)))
+    return out
+
+
+def plus_colours(pixels, limit: int, what: str, fixed) -> list[tuple[int, int, int]]:
+    """The palette: `fixed` if given, else the distinct 12-bit colours of
+    `pixels` (None = transparent) in order of first appearance (at most `limit`)."""
+    if fixed is not None:
+        if len(fixed) > limit:
+            raise SystemExit(f"img2cpc: palette has {len(fixed)} entries, {what} has {limit}")
+        return list(fixed)
+    pal: list[tuple[int, int, int]] = []
+    for p in pixels:
+        if p is not None:
+            c = rgb12(p)
+            if c not in pal:
+                pal.append(c)
+    if len(pal) > limit:
+        raise SystemExit(
+            f"img2cpc: the image has {len(pal)} distinct 12-bit colours, {what} has only {limit}; pass --palette"
+        )
+    return pal
+
+
+def plus_sprite_data(img: Image, packed: bool, fixed) -> tuple[list[int], list[int], int]:
+    """(sprite bytes, palette bytes (30), frames)."""
+    if img.w % 16 or img.h % 16:
+        raise SystemExit(f"img2cpc: sprite image {img.w}x{img.h} must be a whole number of 16x16 cells")
+    cells = [(x, y) for y in range(0, img.h, 16) for x in range(0, img.w, 16)]
+    order = [img.pix[y + r][x + c] for x, y in cells for r in range(16) for c in range(16)]
+    pal = plus_colours(order, 15, "the sprite palette", fixed)
+    if not pal:
+        pal = [(0, 0, 0)]
+    idx: dict = {}
+
+    def pen(p):
+        if p is None:
+            return 0
+        c = rgb12(p)
+        if c not in idx:
+            idx[c] = 1 + (nearest(c, pal) if fixed is not None else pal.index(c))
+        return idx[c]
+
+    data: list[int] = []
+    for x, y in cells:
+        px = [pen(img.pix[y + r][x + c]) for r in range(16) for c in range(16)]
+        if packed:
+            data += [px[i] << 4 | px[i + 1] for i in range(0, 256, 2)]
+        else:
+            data += px
+    pal_bytes: list[int] = []
+    for c in pal:
+        pal_bytes += asic_entry(c)
+    pal_bytes += [0, 0] * (15 - len(pal))
+    return data, pal_bytes, len(cells)
+
+
+def plus_palette_data(img: Image, fixed) -> list[int]:
+    pal = plus_colours([p for row in img.pix for p in row], 16, "the ASIC", fixed)
+    if not pal:
+        pal = [(0, 0, 0)]
+    out: list[int] = []
+    for c in pal:
+        out += asic_entry(c)
+    out += [0, 0] * (16 - len(pal))
+    return out
+
+
+def fmt_asm(name: str, data: list[int]) -> str:
+    lines = [f"{name}:"]
+    for i in range(0, len(data), 16):
+        lines.append("    defb " + ", ".join(f"${b:02X}" for b in data[i : i + 16]))
+    return "\n".join(lines) + "\n"
+
+
+def plus_convert(args, img: Image):
+    """(arrays [(name, bytes)], consts [(name, value)], description)."""
+    name = args.name
+    fixed = None
+    if args.palette is not None:
+        fixed = parse_rgb12_list(args.palette)
+    elif args.palette_file is not None:
+        fixed = parse_rgb12_list(Path(args.palette_file).read_text())
+    if args.plus_sprite:
+        data, pal, frames = plus_sprite_data(img, args.packed, fixed)
+        size = len(data) // frames
+        consts = [(name + "_FRAMES", frames), (name + "_SIZE", size), (name + "_PALN", 15)]
+        desc = (f"{frames} sprite(s) of {size} bytes "
+                f"({'packed 4-bit' if args.packed else 'one byte per pixel'}), palette 15 entries")
+        return [(name, data), (name + "_pal", pal)], consts, desc
+    return [(name + "_pal", plus_palette_data(img, fixed))], [], "16 pen colours, 32 bytes"
+
+
 # ---------------------------------------------------------------- output
 
 
@@ -443,13 +588,28 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pen0", type=int, metavar="N", help="auto palette: firmware colour for pen 0")
     ap.add_argument("--no-palette", action="store_true", help="don't emit NAME_pal / NAME_PENS")
     ap.add_argument("--write-palette", metavar="F", help="save the palette used")
+    ap.add_argument("--plus-sprite", action="store_true", help="CPC Plus hardware sprite data + palette")
+    ap.add_argument("--plus-palette", action="store_true", help="CPC Plus 16 pen colours (12-bit) of the image")
+    ap.add_argument("--packed", action="store_true", help="--plus-sprite: two pixels per byte")
+    ap.add_argument("--plus-format", choices=("bas", "asm", "bin"), default="bas", help="--plus-*: output format")
     ap.add_argument("--spectrum", action="store_true", help="emit ZX Spectrum bitmap + attributes")
     ap.add_argument("--zx-sprite", action="store_true",
                     help="with --spectrum: sprite data, bit = 1 for every opaque non-black pixel (no per-cell ink/paper choice)")
     args = ap.parse_args(argv)
 
-    if not args.spectrum and args.mode is None:
-        ap.error("--mode is required (or --spectrum)")
+    plus = args.plus_sprite or args.plus_palette
+    if args.plus_sprite and args.plus_palette:
+        ap.error("use --plus-sprite or --plus-palette, not both")
+    if plus and args.spectrum:
+        ap.error("--plus-* and --spectrum are exclusive")
+    if args.packed and not args.plus_sprite:
+        ap.error("--packed needs --plus-sprite")
+    if args.plus_format != "bas" and not plus:
+        ap.error("--plus-format needs --plus-sprite or --plus-palette")
+    if args.plus_format == "bin" and not args.output:
+        ap.error("--plus-format bin needs -o")
+    if not plus and not args.spectrum and args.mode is None:
+        ap.error("--mode is required (or --spectrum, --plus-sprite, --plus-palette)")
     if args.zx_sprite and not args.spectrum:
         ap.error("--zx-sprite needs --spectrum")
     if args.pen0 is not None and not 0 <= args.pen0 <= 26:
@@ -476,14 +636,28 @@ def main(argv: list[str] | None = None) -> int:
             ap.error("--transparent expects RRGGBB")
 
     img = load_image(args.image, transparent)
-    body, desc = convert(args, img)
     cmd = "img2cpc.py " + " ".join(shlex.quote(a) for a in (sys.argv[1:] if argv is None else argv))
+    cmt = ";" if args.plus_format == "asm" else "'"
+    if plus:
+        arrays, consts, desc = plus_convert(args, img)
+        if args.plus_format == "bin":
+            args.output.write_bytes(bytes(arrays[0][1]))
+            if len(arrays) == 2:
+                args.output.with_suffix(".pal").write_bytes(bytes(arrays[1][1]))
+            return 0
+        if args.plus_format == "asm":
+            body = "\n".join([fmt_asm(n, d) for n, d in arrays] + [f"{n} EQU {v}\n" for n, v in consts])
+        else:
+            body = "\n".join([fmt_array(n, d) for n, d in arrays] + [fmt_const(n, v) for n, v in consts])
+        mode_txt = "CPC Plus"
+    else:
+        body, desc = convert(args, img)
+        mode_txt = "Spectrum" if args.spectrum else "mode " + str(args.mode)
     head = (
-        f"' Generated by {cmd}\n"
-        f"' Source: {args.image}, {img.w}x{img.h} pixels, "
-        f"{'Spectrum' if args.spectrum else 'mode ' + str(args.mode)}\n"
-        f"' {desc}\n"
-        "' Do not edit; regenerate with tools/build_assets.sh.\n\n"
+        f"{cmt} Generated by {cmd}\n"
+        f"{cmt} Source: {args.image}, {img.w}x{img.h} pixels, {mode_txt}\n"
+        f"{cmt} {desc}\n"
+        f"{cmt} Do not edit; regenerate with tools/build_assets.sh.\n\n"
     )
     text = head + body
     if args.output:
