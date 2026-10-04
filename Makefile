@@ -69,12 +69,13 @@ CPCEC_TESTS := $(filter-out $(addprefix tests/conformance/,$(addsuffix .bas,$(CP
 cpcec: ## Fetch, patch (tools/cpcec/cpcbuild.patch) and build CPCEC into tools/cpcec/work/ (needs git, cc, SDL2)
 	sh tools/cpcec/fetch_build.sh
 
-test-cpcec: ## 6128 Plus on CPCEC (headless, needs `make cpcec`): smoke tests, conformance (firmware and --bare, minus CPCEC_SKIP), screens (firmware and --bare)
+test-cpcec: ## 6128 Plus on CPCEC (headless, needs `make cpcec`): smoke tests, conformance (firmware and --bare, minus CPCEC_SKIP), screens (firmware and --bare), Starfall Plus multiplexed cartridge (tests and goldens)
 	$(PYTHON) tests/plus/run.py -k cpcec
 	$(PYTHON) tests/conformance/run.py --emu cpcec --model plus $(CPCEC_TESTS)
 	$(PYTHON) tests/conformance/run.py --emu cpcec --model plus --bare $(CPCEC_TESTS)
 	$(PYTHON) tests/screens/run.py --emu cpcec
 	$(PYTHON) tests/screens/run.py --emu cpcec --bare
+	$(PYTHON) games/shooter/tests/run.py --plus --emu cpcec
 
 chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
 	sh tools/chipsrun/build.sh

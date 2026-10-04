@@ -1443,3 +1443,38 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   (15,639 bytes; xTab as UBYTE saved 384 bytes); plusdemo and rasterbars
   goldens regenerated (handlers finish earlier, so bar edges moved; nothing
   else changed).
+
+## Phase 7 P5b stage 2: multiplexed formation (2026-10-04)
+
+- Cartridge build (-D PLUS_MUX, bare): the 18 aliens on sprites 10-15
+  (the k-th living alien of a row takes sprite 10+k), repositioned per row by
+  four raster handlers (games/shooter/platform_plus_mux.inc): H1/H2 at each
+  row's line + 6 write the next row's X/Y and its two palette entries, H3
+  restores the top row for the next frame, H4 loads the second animation
+  frame's changed picture lines. Explosions use slots 7-9 in this build.
+  One alien shape recoloured per row (magenta, red, green). Commit step in
+  the vertical blank after the frame tick (double-buffered row tables);
+  pacing in HALT. Raster lines moved in place in the library's table
+  (RasterIntAt/Off cost 1.2 ms a pair; uses library internals: a public
+  RasterIntMove is a follow-up).
+- Measured on CPCEC: a handler's writes land ~3-5 lines after its line
+  (~700 T per handler); offsets 4-7 lines are clean, 6 used; handler lines
+  12 apart. 1500-step soak: no out-of-order handlers, 2 frames per step.
+- Fallback to software drawing for a frame if a row has >6 sprites, rows
+  are <12 lines apart or out of order, x > 175, the last handler would run
+  into the frame entry (line 243), or >24 formation calls; never triggered
+  by the game's own numbers (plus_mux tests each case).
+- **Speed:** unpaced 36.7 -> ~50 steps/s (CPCEC; Caprice32 50.8); paced
+  25.0 as before. Cartridge 24,281 bytes (2.5 KB unpacked picture table).
+- **Stage-1 bug fixed:** the sprite register table wrote zeros to bytes 5-7
+  of each sprite; CPCEC (and very likely the real ASIC) treats bytes 4-7 as
+  one magnification register, so stage-1 sprites were invisible on CPCEC.
+  Magnification now goes into all four bytes (stage-1 binaries change;
+  Caprice32 doesn't model the mirroring, so its goldens are unchanged).
+- Tests: plus_mux.bas (68 checks, both emulators); CPCEC goldens
+  games/shooter/tests/golden/cpcec-plus/ (title, play, late); no Caprice32
+  goldens for the mux build (it draws sprites once per frame). run.py
+  --plus --emu cpcec; part of make test-cpcec. CPC firmware/bare binaries
+  byte-identical.
+- Library follow-ups: RasterIntMove; SpriteSetImagePacked measured 5.4 ms a
+  picture on CPCEC and PlusPokeBlock ~3x slower than the header's figures.
