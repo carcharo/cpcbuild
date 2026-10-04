@@ -666,7 +666,23 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     is held ~2 frames, so slow work (STR$, CHK) between a poll and the next
     poll can miss it.
 
-## Pick up here (updated 2026-10-03, end of day: Phase 6 stage gate passed)
+## Pick up here (updated 2026-10-04: Phase 6 complete, CI split)
+
+State: Phase 6 done and merged into cpcbuild `main` (zxbasic `cpc-arch`
+ff7acf4e); CI restructured into five parallel jobs (~5 min, docs-only
+pushes skipped, superseded runs cancelled, nightly run gated on recent
+zxbasic commits); main green (4:44).
+
+Next:
+1. Check the first nightly run (cron 03:23 UTC, `gate` job): it should
+   run the suite only if zxbasic cpc-arch had a commit in the last 25 h.
+2. Then Phase 7 (CPC Plus / ASIC library; Caprice32 + CPCEC, see the plan),
+   or the earlier follow-ups first (Spectrum 128K Starfall to 25 Hz; fold
+   the game routines into the libraries, then revisit Starfall; the
+   platformer; W150/W190/W170 warnings). R8 (CPCEC as WASM in VS Code,
+   GPLv3) comes after Phase 7; the platformer tutorial after Phase 8.
+
+## Pick up here (2026-10-03, end of day: Phase 6 stage gate passed; superseded)
 
 State: Phase 6 B0-B4 done on cpcbuild `phase-6` (5f376eb) and zxbasic
 `cpc-arch` (3335b40c), both pushed; CI green on phase-6 (14 min now). The
