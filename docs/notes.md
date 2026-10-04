@@ -1478,3 +1478,4 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   byte-identical.
 - Library follow-ups: RasterIntMove; SpriteSetImagePacked measured 5.4 ms a
   picture on CPCEC and PlusPokeBlock ~3x slower than the header's figures.
+- User played the Starfall Plus cartridge (multiplexed formation) on CPCEC: all good.
