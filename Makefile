@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-plus chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -52,6 +52,13 @@ test-games: chips ## Starfall: logic tests and screenshot goldens for all four b
 	$(PYTHON) games/shooter/tests/run.py
 	$(PYTHON) games/shooter/tests/zx/run.py
 
+test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conformance (firmware and --bare), screenshots (firmware and --bare)
+	$(PYTHON) tests/plus/run.py
+	$(PYTHON) tests/conformance/run.py --model plus
+	$(PYTHON) tests/conformance/run.py --model plus --bare
+	$(PYTHON) tests/screens/run.py --model plus
+	$(PYTHON) tests/screens/run.py --model plus --bare
+
 chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
 	sh tools/chipsrun/build.sh
 
@@ -61,7 +68,7 @@ assets: ## Build assets
 bench: ## Run benchmark
 	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
 
-ci: unit test-chips test-bare test-zx test-games ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, zx, games (no Caprice32)
+ci: unit test-chips test-bare test-zx test-games ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, zx, games (no Caprice32: the Plus tests, test-plus, have their own CI job)
 
 clean: ## Clean build artifacts
 	rm -f tools/chipsrun/chipsrun

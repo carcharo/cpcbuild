@@ -9,12 +9,16 @@ Each conformance program prints one line per check ("PASS name" or
 convention) and ends with "DONE" if every check ran.
 
 A program may restrict where it runs with header lines (anywhere in the source):
-`REM MODELS: 6128` (only on those models, space separated: 464 664 6128),
+`REM MODELS: 6128` (only on those models, space separated: 464 664 6128 plus),
 `REM EMUS: cap32` (only on that emulator: e.g. a test that needs a disc),
 `REM ZXBC: -D NAME` (extra compiler arguments, space separated), and
 ask for data files on the disc (Caprice32): `REM DISKFILE: NAME.BIN=path`, the
 path relative to this directory. Other combinations are reported as SKIP and
-not counted.
+not counted. A test without MODELS runs on every model including plus; one that
+lists models but not plus does not run on plus.
+
+--model plus (Phase 7): a 6128 Plus on Caprice32 (cpcrun.py --model plus: system
+cartridge, F1 menu, firmware or --bare); chips has no Plus.
 
 Bare-metal mode (Phase 6): --bare compiles every program with -D CPC_BAREMETAL
 (tools/cpcrun.py --bare); --cold (chips only, implies --bare) also starts it
@@ -206,13 +210,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("-k", dest="pattern", default=None, help="only run files whose name contains PATTERN")
     parser.add_argument("-j", dest="jobs", type=int, default=8, help="parallel jobs (default 8)")
-    parser.add_argument("--model", choices=("464", "664", "6128"), default="6128", help="CPC model (default 6128)")
+    parser.add_argument("--model", choices=("464", "664", "6128", "plus"), default="6128", help="CPC model (default 6128; plus = 6128 Plus, Caprice32 only)")
     parser.add_argument("--emu", choices=("cap32", "chips"), default="cap32", help="emulator (default cap32)")
     parser.add_argument("--org", default=None, metavar="ADDR", help="build every program at this origin (e.g. 0x40); default: the compiler's")
     parser.add_argument("--bare", action="store_true", help="build with -D CPC_BAREMETAL; skip `REM BARE: skip` tests")
     parser.add_argument("--cold", action="store_true", help="chips only: cold start with no firmware (implies --bare)")
     parser.add_argument("--end-on-marker", action="store_true", help="end each run at the END marker line, not the reset (cpcrun.py --end-on-marker)")
     args = parser.parse_args(argv)
+    if args.model == "plus" and args.emu != "cap32":
+        parser.error("chips has no Plus: --model plus needs --emu cap32")
     if args.cold:
         args.bare = True
         if args.emu != "chips":

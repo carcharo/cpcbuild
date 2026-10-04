@@ -4,15 +4,41 @@
 printer.
 
     cpcrun.py prog.bas [--org ADDR] [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
-                       [--emu cap32|chips] [--model 464|6128]
+                       [--emu cap32|chips] [--model 464|664|6128|plus]
                       [--shot F.png [--shot-at N]] [--shot-dir D]   (chips only)
                       [--bare] [--cold]
                       [--disk-file NAME=PATH ...]                   (Caprice32 only)
+    cpcrun.py --cpr FILE.cpr [--model plus] [--timeout S] [--type TEXT ...]   (Caprice32 only)
 
 --disk-file NAME=PATH puts PATH on the DSK as the AMSDOS file NAME (8.3, upper
 case; an AMSDOS header is added: binary, load address &4000, no entry), next
 to the program, so the program can read it (e.g. with BankLoad). Repeatable.
 chips has no disc, so --emu chips refuses it.
+
+--model plus (Caprice32 only, Phase 7): a 6128 Plus (Caprice32 model 3) with the
+system cartridge (rom/system.cpr). After reset it shows the cartridge's
+"f1 Amstrad BASIC / f2 Burnin' Rubber" menu; the run presses F1 (autocmd
+CPC_F1, after Caprice32's boot_time, which is pinned to 42 frames for this
+model), waits a CAP32_DELAY and types run"<prog> as on the other models. The
+Plus's printer port is the same &EFxx and is captured the same way, the END
+marker and exit codes are unchanged. --emu chips --model plus is an error.
+
+--cpr FILE.cpr runs a prebuilt cartridge instead of a program (no compile, no
+DSK): Caprice32 loads it in place of the system cartridge, so there is no
+firmware and the cartridge starts at reset (a GX4000-style boot); implies
+--model plus. Printer capture and END detection are as for a program (the
+cartridge's END marker, then `rst 0` back into the cartridge: the run stops at
+the first address-0 hit after the autocmd queue reaches CAP32_WAITBREAK, and
+everything from the first END marker on is dropped, so a restarting cartridge
+doesn't matter).
+
+--shot FILE.png with --model plus (Caprice32 screenshot, 768x540 RGB PNG: the
+CPC picture, 2x, with the border): compiles with `-D SHOT_HOLD` so that
+tests/screens/lib/shot.bas Shot("name") holds the screen after the
+`\x04SHOT name` printer line instead of going on; the run waits --shot-wait
+CAP32_DELAYs (42 frames each, default 8), presses CAP32_SCRNSHOT and exits, and the
+PNG Caprice32 wrote is moved to FILE.png. Without a SHOT line the run fails
+(exit 5). The shot name is printed to stderr as `shot: NAME`.
 
 --bare adds `-D CPC_BAREMETAL` to the compile (bare-metal runtime, Phase 6).
 --cold (chips only) rehearses a no-firmware boot, e.g. a GX4000-style
@@ -79,6 +105,7 @@ Exit status:
   1  zxbc failed to compile prog.bas (its stderr is forwarded).
   2  timeout: cap32 was killed without ever hitting the breakpoint --
      a hang, e.g. an unimplemented stub (stub.asm's __CPC_NOT_IMPLEMENTED).
+  5  only with --model plus --shot: no screenshot was produced.
   4  cap32 hit the address-0 breakpoint before the timeout, but the END
      marker was *not* seen -- a crash/reset, or an uncaught runtime
      error (error.asm's __ERROR also resets after printing "Error n");
@@ -279,11 +306,28 @@ class TimeoutHit(Exception):
 # Caprice32's system.model numbers. The 464 has no disc interface built in;
 # rom.slot07 gives it the DDI-1's AMSDOS ROM (cap32's DEFAULT slot07 means
 # "AMSDOS unless the model is a 464"), which is how real 464 disc users run.
-MODELS = {"464": 0, "664": 1, "6128": 2}
+MODELS = {"464": 0, "664": 1, "6128": 2, "plus": 3}
+
+# Caprice32 video settings that would otherwise vary from one user's cap32.cfg
+# to the next (or from run to run: the fps counter) and so change the pixels of
+# a screenshot. Only used for screenshot runs.
+SHOT_OVERRIDES = {
+    "video.scr_scale": "2",
+    "video.scr_style": "1",
+    "video.scr_fps": "0",
+    "video.scr_led": "0",
+    "video.scr_tube": "0",
+    "video.scr_intensity": "10",
+    "video.scr_remanency": "0",
+}
+
+# Frames CAP32_DELAY waits for (cap32's boot_time). Fixed so Plus timing doesn't
+# depend on the local cap32.cfg.
+PLUS_BOOT_TIME = 42
 
 
 def run_emulator(
-    dsk_path: Path,
+    dsk_path: Path | None,
     stem: str,
     printer_out: Path,
     timeout: float,
@@ -291,12 +335,26 @@ def run_emulator(
     model: str = "6128",
     typed: list[str] | None = None,
     end_on_marker: bool = False,
+    cpr_path: Path | None = None,
+    shot_dir: Path | None = None,
+    shot_wait: int = 0,
 ) -> None:
+    """Run Caprice32 headlessly. dsk_path (a program on a disc) or cpr_path (a
+    cartridge, Plus only) is what runs. With shot_dir the run is a screenshot
+    run: it takes one screenshot into shot_dir after shot_wait CAP32_DELAYs
+    and exits (no WAITBREAK: the program holds its screen)."""
     cap32 = cap32_bin()
     if not cap32.exists():
         raise BuildError(f"cap32 not found at {cap32} (set CAP32=/path/to/cap32)")
 
+    # the user's cap32.cfg if there is one (git-ignored in caprice32). A fresh
+    # build (CI) has only cap32.cfg.tmpl, whose __SHARE_PATH__ placeholders we
+    # fill in with the cap32 directory (ROMs are in its rom/), in a private copy
     cfg = cap32.parent / "cap32.cfg"
+    tmpl = cap32.parent / "cap32.cfg.tmpl"
+    if not cfg.exists() and tmpl.exists():
+        cfg = printer_out.parent / "cap32.cfg"
+        cfg.write_text(tmpl.read_text().replace("__SHARE_PATH__", str(cap32.parent)))
     cmd = [str(cap32)]
     if cfg.exists():
         cmd += ["-c", str(cfg)]
@@ -313,11 +371,21 @@ def run_emulator(
         # them a RAM expansion, which the bank library would then (rightly) use
         "-O",
         f"system.ram_size={64 if model in ('464', '664') else 128}",
-        "-O",
-        "rom.slot07=amsdos.rom",
-        "-a",
-        f'run"{stem}',
     ]
+    if model != "plus":
+        cmd += ["-O", "rom.slot07=amsdos.rom"]
+    else:
+        cmd += ["-O", f"system.boot_time={PLUS_BOOT_TIME}"]
+    if shot_dir is not None:
+        cmd += ["-O", f"file.sdump_dir={shot_dir}"]
+        for key, val in SHOT_OVERRIDES.items():
+            cmd += ["-O", f"{key}={val}"]
+    if model == "plus" and cpr_path is None:
+        # the system cartridge's menu: f1 Amstrad BASIC, f2 Burnin' Rubber
+        # (needs the cartridge's own delay: CAP32_DELAY note in cap32.cpp)
+        cmd += ["-a", "CPC_F1", "-a", "CAP32_DELAY"]
+    if cpr_path is None:
+        cmd += ["-a", f'run"{stem}']
     # Keystrokes for the running program (--type). Each waits for
     # CAP32_DELAY (cap32's boot_time, about a second) so the program is
     # already waiting for it -- four times for the first, which also waits
@@ -328,16 +396,19 @@ def run_emulator(
     # little before its END.
     for i, text in enumerate(typed or []):
         cmd += ["-a", "CAP32_DELAY" * (4 if i == 0 else 1) + text]
-    cmd += [
-        "-a",
-        "CAP32_WAITBREAK",
-        "-a",
-        "CAP32_EXIT",
-        str(dsk_path),
-    ]
+    if shot_dir is not None:
+        # hold-and-shoot: wait, one screenshot, wait a frame or two, exit
+        cmd += ["-a", "CAP32_DELAY" * shot_wait + "CAP32_SCRNSHOT", "-a", "CAP32_DELAY"]
+    else:
+        cmd += ["-a", "CAP32_WAITBREAK"]
+    cmd += ["-a", "CAP32_EXIT", str(cpr_path or dsk_path)]
 
     run_env = dict(env)
     run_env["SDL_VIDEODRIVER"] = "dummy"
+    # Caprice32 runs at 50 fps (limit_speed) unless told otherwise; the
+    # emulation is frame-driven, so the Plus runs go flat out
+    if model == "plus":
+        cmd[1:1] = ["-O", "system.limit_speed=0"]
 
     if end_on_marker:
         # --end-on-marker: stop as soon as the END marker is in the printer
@@ -402,7 +473,11 @@ def run_chips(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("program", type=Path, help="prog.bas to compile and run")
+    parser.add_argument("program", type=Path, nargs="?", help="prog.bas to compile and run (not with --cpr)")
+    parser.add_argument("--cpr", type=Path, default=None, metavar="FILE.cpr",
+                        help="run this prebuilt cartridge instead of a program (Caprice32, Plus; no firmware)")
+    parser.add_argument("--shot-wait", type=int, default=8, metavar="N",
+                        help="--model plus --shot: CAP32_DELAYs (42 frames each) to wait before the screenshot (default 8)")
     parser.add_argument("--timeout", type=float, default=15.0, help="seconds before giving up (default 15)")
     parser.add_argument(
         "--zxbc-arg",
@@ -416,7 +491,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="program origin passed to zxbc (e.g. 0x40); the AMSDOS header and DSK follow what zxbc used")
     parser.add_argument("--expect", type=Path, default=None, help="diff captured printer text against this file")
     parser.add_argument("--quiet", action="store_true", help="don't print the captured printer text to stdout")
-    parser.add_argument("--model", choices=sorted(MODELS), default="6128", help="CPC model to emulate (default 6128)")
+    parser.add_argument("--model", choices=sorted(MODELS), default=None,
+                        help="CPC model to emulate (default 6128; plus with --cpr). plus = 6128 Plus, Caprice32 only")
     parser.add_argument(
         "--emu",
         choices=("cap32", "chips"),
@@ -439,14 +515,35 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--end-on-marker", action="store_true",
                         help="end the run when the END marker line is captured, without waiting for the reset to address 0")
     parser.add_argument("--shot", type=Path, default=None, metavar="FILE.png",
-                        help="--emu chips: save the screen (768x272 RGB PNG) when the run ends")
+                        help="--emu chips: save the screen (768x272 RGB PNG) when the run ends; "
+                             "--model plus: hold at the program's Shot() and save the Caprice32 screenshot (768x540)")
     parser.add_argument("--shot-at", type=int, default=None, metavar="FRAMES",
                         help="--emu chips: with --shot, save it FRAMES frames after program start instead")
     parser.add_argument("--shot-dir", type=Path, default=None, metavar="DIR",
                         help="--emu chips: directory for shots the program triggers itself (see tests/screens/lib/shot.bas)")
     args = parser.parse_args(argv)
-    if (args.shot or args.shot_dir or args.shot_at is not None) and args.emu != "chips":
-        parser.error("--shot/--shot-at/--shot-dir need --emu chips")
+    if args.model is None:
+        args.model = "plus" if args.cpr else "6128"
+    if args.model == "plus" and args.emu == "chips":
+        parser.error("chips has no Plus: --model plus needs --emu cap32")
+    if args.cpr:
+        if args.program:
+            parser.error("--cpr runs a cartridge: no program to compile")
+        if args.model != "plus" or args.emu != "cap32":
+            parser.error("--cpr needs --model plus and --emu cap32")
+        if not args.cpr.is_file():
+            parser.error(f"{args.cpr}: not found")
+        if args.bare or args.zxbc_args or args.org or args.disk_files:
+            parser.error("--cpr takes no compile options or disk files")
+    elif not args.program:
+        parser.error("a program (or --cpr FILE.cpr) is required")
+    plus_shot = args.model == "plus" and args.shot is not None
+    if (args.shot_dir or args.shot_at is not None) and args.emu != "chips":
+        parser.error("--shot-at/--shot-dir need --emu chips")
+    if args.shot and args.emu != "chips" and not plus_shot:
+        parser.error("--shot needs --emu chips or --model plus")
+    if plus_shot and args.cpr:
+        parser.error("--shot with --cpr is not supported")
     if args.cold and args.emu != "chips":
         parser.error("--cold needs --emu chips")
     if args.cold and not args.bare:
@@ -467,9 +564,11 @@ def main(argv: list[str] | None = None) -> int:
     if extra_files and args.emu == "chips":
         parser.error("--disk-file needs --emu cap32 (chips has no disc)")
 
-    bas_path = args.program.resolve()
-    if not bas_path.exists():
+    bas_path = args.program.resolve() if args.program else None
+    if bas_path is not None and not bas_path.exists():
         parser.error(f"{bas_path}: not found")
+    if plus_shot:
+        args.zxbc_args = ["-D", "SHOT_HOLD", *args.zxbc_args]
 
     if args.org is not None:
         args.zxbc_args = ["--org", args.org, *args.zxbc_args]
@@ -480,13 +579,16 @@ def main(argv: list[str] | None = None) -> int:
         bin_path = tmpdir / "prog.bin"
         dsk_path = tmpdir / "prog.dsk"
         printer_out = tmpdir / "printer.dat"
-        stem = amsdos_stem(bas_path)
+        shot_tmp = tmpdir / "shots"
+        stem = amsdos_stem(bas_path) if bas_path else ""
 
-        try:
-            org = compile_program(bas_path, bin_path, args.zxbc_args, env)
-        except BuildError as exc:
-            print(f"cpcrun.py: build error: {exc}", file=sys.stderr)
-            return 1
+        org = 0
+        if bas_path is not None:
+            try:
+                org = compile_program(bas_path, bin_path, args.zxbc_args, env)
+            except BuildError as exc:
+                print(f"cpcrun.py: build error: {exc}", file=sys.stderr)
+                return 1
 
         exit_code = 0
         if args.emu == "chips":
@@ -540,11 +642,15 @@ def main(argv: list[str] | None = None) -> int:
                     return 3
             return exit_code
 
-        pack_dsk(bin_path, dsk_path, stem, env, org, extra_files)
+        if bas_path is not None:
+            pack_dsk(bin_path, dsk_path, stem, env, org, extra_files)
+        if plus_shot:
+            shot_tmp.mkdir()
 
         try:
-            run_emulator(dsk_path, stem, printer_out, args.timeout, env, args.model, args.typed,
-                         args.end_on_marker)
+            run_emulator(dsk_path if bas_path else None, stem, printer_out, args.timeout, env, args.model,
+                         args.typed, args.end_on_marker, args.cpr.resolve() if args.cpr else None,
+                         shot_tmp if plus_shot else None, args.shot_wait)
         except TimeoutHit:
             print(f"cpcrun.py: timeout after {args.timeout}s (hang -- unimplemented stub?)", file=sys.stderr)
             exit_code = 2
@@ -562,6 +668,21 @@ def main(argv: list[str] | None = None) -> int:
         # implementation detail of this harness, not part of the program's
         # output.
         text = text.replace("\x04STATE\n", "")
+        if plus_shot and exit_code == 0:
+            # a screenshot run never reaches address 0 (the program holds its
+            # screen at Shot()): success is the SHOT line plus the PNG
+            m = re.search(r"\x04SHOT (\S+)\n", text)
+            pngs = sorted(shot_tmp.glob("*.png"))
+            if not m or len(pngs) != 1:
+                print(f"cpcrun.py: no screenshot (SHOT line {'seen' if m else 'missing'}, "
+                      f"{len(pngs)} PNG files)", file=sys.stderr)
+                return 5
+            args.shot.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(pngs[0]), str(args.shot))
+            print(f"shot: {m.group(1)}", file=sys.stderr)
+            if not args.quiet:
+                sys.stdout.write(re.sub(r"\x04SHOT \S+\n", "", text))
+            return 0
         if exit_code == 0:
             if END_MARKER in text:
                 # The marker is the program's last output. Caprice32 runs a few

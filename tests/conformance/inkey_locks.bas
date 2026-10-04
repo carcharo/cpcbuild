@@ -3,7 +3,7 @@ REM Conformance: the caps lock and the shift lock in INKEY$'s key translation.
 REM KM_SET_LOCKS (&BD3A) exists on the 664 and 6128 only, hence this separate
 REM test. Nothing is typed: the lock states are set through the firmware and
 REM the runtime's translation routine (__CPC_KEYCHAR) is asked directly.
-REM MODELS: 664 6128
+REM MODELS: 664 6128 plus
 
 #require "io/keyboard/kscan.asm"
 

@@ -1,4 +1,4 @@
-REM MODELS: 6128
+REM MODELS: 6128 plus
 REM Conformance: the 6128's extra 64 KB (lib/cpcbuild/banks.bas) and music
 REM played from a bank (MusicInitBank, lib/music/music_cpc.bas).
 REM
