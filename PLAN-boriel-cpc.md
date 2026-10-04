@@ -393,6 +393,31 @@ integration than the NextBuild Studio approach.
 Contact em00k once the Phase 5c demo exists: the README asks for contributors and a shared
 Next/CPC codebase for the extensions benefits both platforms.
 
+**Research task R8 (before Phase 8 starts; after Phase 7, when CPCEC is
+known from the Plus work). Owner: main model, with a sonnet agent for the
+build spike.** Can CPCEC be the in-VS Code emulator?
+- Technical: compile CPCEC to WASM (Emscripten has an SDL2 port; or replace
+  its SDL2 front end with a small host interface: frame buffer, audio
+  buffer, key events) and run it in a VS Code webview; frame rate, audio,
+  how much of cpcec-ox.h (the SDL2 layer) needs changing; debugger hooks.
+  Compare with vscode-kcide (chips in WASM, MIT, but no Plus).
+- Licence (GPLv3): what shipping a GPLv3 WASM module inside a `.vsix`
+  means for the extension. Questions: is a separate WASM module that the
+  extension talks to by messages "aggregation" (extension keeps its MIT
+  licence) or one combined work (whole extension GPLv3)? Source-offer
+  duties for the WASM binary; compatibility with NextBuild Studio's MIT
+  extensions and em00k's wishes; whether to ask César Nicolás-González
+  (CPCEC's author) about the use or a licence exception. Outcome: a short
+  recommendation (CPCEC WASM, chips WASM with Plus left to an external
+  emulator, or launching the desktop emulator) for the user to decide.
+
+**After Phase 8: platformer tutorial (user idea, 2026-10-04).** Build the
+platformer (the deferred Phase 5c extra) and turn it into a step-by-step
+tutorial that teaches the toolchain by following it: project setup in the
+Phase 8 tools, sprites and tiles through the editors/importer, cpcbuild
+calls, music, building for CPC and Spectrum. Revisit once Phase 8 is done,
+so the tutorial shows the finished tools.
+
 ---
 
 ## Open questions to resolve during Phase 0

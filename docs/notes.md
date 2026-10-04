@@ -1136,3 +1136,12 @@ firmware-clock timing in the tests: bare variants due in B5).
   distributed: keep it a GPLv3 patch file plus a fetch script pinned to an
   upstream commit (tools/cpcec/, with the licence noted), not a vendored
   copy mixed into our tools.
+
+## 2026-10-04: two additions to the plan (user)
+
+- Research task R8 before Phase 8: CPCEC compiled to WASM as the in-VS Code
+  emulator, and what GPLv3 means for shipping it in a `.vsix` (aggregation
+  vs combined work, source duties, asking CPCEC's author). See the plan,
+  end of Phase 8.
+- After Phase 8: the platformer becomes a tutorial that teaches the tools by
+  following it. See the plan.
