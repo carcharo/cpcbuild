@@ -15,6 +15,15 @@
 '                                 paging done for you: the way to reach
 '                                 registers this library has no call for
 '
+'   PlusPokeBlock(dest, src, count)
+'                                 count bytes from RAM at src to the ASIC
+'                                 page at dest (&4000-&7FFF), in one window
+'                                 (interrupts off for about 21 T-states a
+'                                 byte; a source in &4000-&7FFF is bounced,
+'                                 64 bytes a window): a program that keeps
+'                                 its sprite registers in a table writes
+'                                 the whole block once a frame
+'
 '   SetPalette12(pen, rgb)        pen 0-15 gets the 12-bit colour rgb =
 '                                 &H0RGB (red, green, blue 0-15 each)
 '   SetBorder12(rgb)              the border
@@ -464,6 +473,36 @@ sub PlusPoke(addr as uinteger, value as ubyte)
     ld a, (ix+7)
     call __PL_POKE
 __PLB_PO_END:
+    ENDP
+    pop namespace
+    end asm
+end sub
+
+sub PlusPokeBlock(dest as uinteger, src as uinteger, count as uinteger)
+    asm
+    push namespace core
+    PROC
+    LOCAL __PLB_PB_END
+    ld c, (ix+8)
+    ld b, (ix+9)
+    ld a, b
+    or c
+    jr z, __PLB_PB_END
+    ld a, (ix+5)
+    cp $40
+    jr c, __PLB_PB_END
+    cp $80
+    jr nc, __PLB_PB_END
+    call __PL_ENSURE
+    jr nc, __PLB_PB_END
+    ld c, (ix+8)
+    ld b, (ix+9)
+    ld l, (ix+6)
+    ld h, (ix+7)
+    ld e, (ix+4)
+    ld d, (ix+5)
+    call __PL_PUT
+__PLB_PB_END:
     ENDP
     pop namespace
     end asm

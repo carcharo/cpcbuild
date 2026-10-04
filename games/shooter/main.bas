@@ -16,7 +16,11 @@
 ' ----------------------------------------------------------------
 
 #ifdef __CPC__
+#ifdef PLUS
+#include "platform_plus.bas"
+#else
 #include "platform_cpc.bas"
+#endif
 ' Text cells (20 x 25), the legend's sprite x and text column
 CONST TX_TITLE_C AS UBYTE = 6
 CONST TX_TITLE_R AS UBYTE = 3
@@ -108,6 +112,9 @@ FUNCTION TitleScreen() AS UBYTE
   PlatClear()
   PlatMusic(1)
   PlatText(TX_TITLE_C, TX_TITLE_R, "STARFALL")
+#ifdef PLUS
+  PlatText(TX_TITLE_C + 3, TX_TITLE_R + 2, "PLUS")
+#endif
   PlatText(TX_LEG_C, 7, "= 30")
   PlatText(TX_LEG_C, 9, "= 20")
   PlatText(TX_LEG_C, 11, "= 10")

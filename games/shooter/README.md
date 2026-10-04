@@ -38,6 +38,15 @@ See [DESIGN.md](DESIGN.md) for the full rules, coordinate system, asset pipeline
 
 Bare and firmware builds are both on the one disc because they cost nothing to carry; `RUN"DISC` is the default.
 
+## Starfall Plus (CPC Plus / GX4000)
+
+The same game with the Plus's hardware: the ship, the diver, the bullets, the bombs and the explosions are ASIC hardware sprites (slots 0-10, see `platform_plus.bas`), and the playfield and sprites use 12-bit colours. The formation is still drawn in software. Build with `sh build_plus.sh` (or `make plus`):
+
+- `build/starplus.cpr`: a cartridge (bare metal, `-D PLUS -D CPC_BAREMETAL -D CPC_OWNFONT`, `tools/mkcpr.py`). The music is linked into the program, so no disc or extra RAM is needed (it runs on a GX4000).
+- `build/starplus.dsk`: `RUN"PLUS` for a 6128 Plus (firmware mode). `RUN"DISC` is unchanged. On a non-Plus the game says it needs a Plus and to use `RUN"DISC`.
+
+Speed: 25.0 steps/s (500 frames for 250 steps) on both; unpaced the disc build does 36.3 steps/s, the same as the 464 build, because the software formation dominates. `make test-plus` runs the Plus tests (Caprice32).
+
 ## Build and run
 
 ### CPC (Caprice32 or real hardware)

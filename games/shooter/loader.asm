@@ -14,6 +14,12 @@
 ;              binary and jumps to it: the bare boot takes the machine over
 ;              from there (the firmware is never entered again).
 ;
+;   RUN"PLUS   (PLUS.BIN, loader_plus.asm = "#define PLUSLOAD" + this file)
+;              loads and runs STARPLUS.BIN, Starfall Plus (hardware sprites,
+;              12-bit palette), on the 6128 Plus. No extra-RAM probe: that
+;              build keeps everything in main RAM, and it checks for the
+;              Plus itself.
+;
 ; Plain Z80 for the Boriel assembler (zxbasm), run by the firmware like
 ; any binary: no runtime, so it has the firmware's own state and the game
 ; starts exactly as with RUN"STARFALL". It is at &8000 (the game builds end
@@ -40,6 +46,11 @@ BUFFER          equ $8800
 DATBUF          equ $9000
 
 start:
+#ifdef PLUSLOAD
+        ld hl, nameplus
+        ld b, nameplus_end - nameplus
+        jr load
+#else
         di
         ld hl, $4000
         ld d, (hl)              ; D = main RAM's byte
@@ -75,6 +86,7 @@ no64:
         ei
         ld hl, name464
         ld b, name464_end - name464
+#endif
 
 ; HL = file name, B = its length. The firmware hands a program that RUN"
 ; started the tape's vectors (MC START PROGRAM), not the disc's: if the
@@ -193,6 +205,10 @@ nextc:
         jr nextc
 hang:   jr hang
 
+#ifdef PLUSLOAD
+nameplus:       defm "STARPLUS.BIN"
+nameplus_end:
+#else
 #ifdef BARE
 name6128:       defm "STARBARE.BIN"
 name6128_end:
@@ -205,6 +221,7 @@ name6128:       defm "STARFALL.BIN"
 name6128_end:
 name464:        defm "STARFA64.BIN"
 name464_end:
+#endif
 #endif
 failmsg:        defm "Starfall: cannot load the game", 13, 10, 0
 
