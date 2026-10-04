@@ -8,10 +8,16 @@ Plus identity check (plusdetect.bas), .cpr runs (a handmade cartridge made
 here: a RIFF "AMS!" file with one 16 KB "cb00" chunk whose Z80 code writes
 text to the printer port &EFxx like runtime/bareboot.asm's __CPC_PRN_CHAR and
 then `rst 0`), and the refusals (chips has no Plus).
+
+CPCEC (--emu cpcec, tools/cpcec; skipped with a notice if it isn't built): the
+same cartridges and hello programs on a headless CPCEC (disc autorun on the
+Plus, firmware and --bare), the no-END timeout (exit 2), and a program-triggered
+screenshot (a "\x04SHOT name" printer line -> <shot-dir>/name.png).
 """
 from __future__ import annotations
 
 import argparse
+import os
 import struct
 import subprocess
 import sys
@@ -53,6 +59,14 @@ def make_cpr(text: bytes) -> bytes:
     return b"RIFF" + struct.pack("<I", len(body)) + body
 
 
+def png_size(path: Path):
+    """(width, height) of a PNG file, or None if it isn't one."""
+    head = path.read_bytes()[:24] if path.exists() else b""
+    if head[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    return struct.unpack(">II", head[16:24])
+
+
 def cpcrun(*args: str, timeout: float = 60):
     proc = subprocess.run([sys.executable, str(CPCRUN), *args], capture_output=True, text=True, timeout=timeout)
     return proc.returncode, proc.stdout, proc.stderr
@@ -69,6 +83,15 @@ def main() -> int:
     noend_cpr = tmp / "noend.cpr"
     noend_cpr.write_bytes(make_cpr(b"HI\n"))
 
+    shot_cpr = tmp / "shot.cpr"
+    shot_cpr.write_bytes(make_cpr(b"HI\n\x04SHOT one\n\x04SHOT two\n\x04END\n"))
+    shots = tmp / "shots"
+
+    def check_shots(out: str, err: str) -> list[str]:
+        sizes = {n: png_size(shots / f"{n}.png") for n in ("one", "two")}
+        return [f"shot {n}.png missing or not a PNG" for n, sz in sizes.items() if not sz or sz[0] < 640]
+
+    cpcec = Path(os.environ["CPCEC"]) if os.environ.get("CPCEC") else HERE.parent.parent / "tools" / "cpcec" / "work" / "cpcec"
     cases = [
         # name, args, want exit, want stdout (None = don't care), want stderr substring
         ("hello_firmware", ["--model", "plus", str(HERE / "hello.bas")], 0, "HELLO PLUS\nDONE\n", ""),
@@ -81,10 +104,25 @@ def main() -> int:
         ("cpr_no_end_marker", ["--cpr", str(noend_cpr)], 4, None, "without the END marker"),
         ("chips_has_no_plus", ["--emu", "chips", "--model", "plus", str(HERE / "hello.bas")], 2, None, "no Plus"),
         ("cpr_needs_plus", ["--cpr", str(ok_cpr), "--model", "6128"], 2, None, "--model plus"),
+        # CPCEC: .cpr and disc, END contract, timeout, program-triggered shots
+        ("cpcec_cpr_hello", ["--emu", "cpcec", "--cpr", str(ok_cpr)], 0, "HI\n", ""),
+        ("cpcec_cpr_no_end_marker", ["--emu", "cpcec", "--cpr", str(noend_cpr), "--timeout", "3"], 2, None, "timeout"),
+        ("cpcec_cpr_shot", ["--emu", "cpcec", "--cpr", str(shot_cpr), "--shot-dir", str(shots)], 0, "HI\n", "", check_shots),
+        ("cpcec_hello_disc", ["--emu", "cpcec", "--model", "plus", str(HERE / "hello.bas")], 0, "HELLO PLUS\nDONE\n", ""),
+        ("cpcec_hello_bare", ["--emu", "cpcec", "--model", "plus", "--bare", str(HERE / "hello.bas")], 0, "HELLO PLUS\nDONE\n", ""),
+        ("cpcec_hello_6128", ["--emu", "cpcec", "--model", "6128", str(HERE / "hello.bas")], 0, "HELLO PLUS\nDONE\n", ""),
+        ("cpcec_plusdetect_bare", ["--emu", "cpcec", "--model", "plus", "--bare", str(HERE / "plusdetect.bas")], 0,
+         "PASS ram_poke\nPASS asic_paged_in\nDONE\n", ""),
+        ("cpcec_no_type", ["--emu", "cpcec", "--cpr", str(ok_cpr), "--type", "x"], 2, None, "--type"),
     ]
     failed = 0
-    for name, cargs, want_code, want_out, want_err in cases:
+    for case in cases:
+        name, cargs, want_code, want_out, want_err = case[:5]
+        extra = case[5] if len(case) > 5 else None
         if args.pattern and args.pattern not in name:
+            continue
+        if name.startswith("cpcec_") and not cpcec.exists():
+            print(f"SKIP     {name}: {cpcec} not built (sh tools/cpcec/fetch_build.sh)")
             continue
         code, out, err = cpcrun(*cargs)
         problems = []
@@ -94,7 +132,9 @@ def main() -> int:
             problems.append(f"stdout {out!r}, want {want_out!r}")
         if want_err and want_err not in err:
             problems.append(f"stderr lacks {want_err!r}")
-        if name == "plusdetect_bare" and "FAIL" in out:
+        if extra and code == want_code:
+            problems += extra(out, err)
+        if name in ("plusdetect_bare", "cpcec_plusdetect_bare") and "FAIL" in out:
             problems.append("FAIL line in output")
         if problems:
             failed += 1

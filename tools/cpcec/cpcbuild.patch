@@ -1,0 +1,242 @@
+diff --git a/cpcec-cb.h b/cpcec-cb.h
+new file mode 100644
+index 0000000..c29265c
+--- /dev/null
++++ b/cpcec-cb.h
+@@ -0,0 +1,110 @@
++// CPCBuild additions to CPCEC (GPLv3, like the rest of this file set): command-line
++// options for unattended test runs. See tools/cpcec/README.md in the cpcbuild repo.
++// Everything here is inert unless one of the long options below is given.
++//
++//   --headless       SDL dummy video+audio, no sound, no real-time delays (every frame
++//                    is still rendered), no configuration file read or written
++//   --printer FILE   record the CPC printer port into FILE from the start
++//   --shot-dir DIR   a line "\004SHOT name\n" on the printer port saves the screen
++//                    as DIR/name.png two frames later
++//   --shot FILE      save the screen as PNG when the run ends (or at --shot-at)
++//   --shot-at N      take the --shot picture at frame N (the run goes on)
++//   --max-frames N   quit after N frames (exit status 3)
++//   --end-on-marker  quit three frames after the printer receives "\004END\n"
++//
++// Included twice by cpcec.c: CB_PART 1 before cpcec-rt.h (variables, option parser),
++// CB_PART 2 before main() (the per-frame hook, which needs the printer and the PNG code).
++
++#if CB_PART == 1
++
++#include <stdlib.h>
++#include <string.h>
++
++char cb_headless=0,cb_noconfig=0,cb_endmarker=0,cb_quit=0,cb_status=0;
++const char *cb_printer_path=NULL,*cb_shot_dir=NULL,*cb_shot_file=NULL;
++const char *cb_shotpath=NULL; // consulted by session_savebitmap()
++long cb_max_frames=0,cb_shot_at=0; // 0 = off
++long cb_frame_no=0,cb_end_at=-1;
++
++#define CB_SHOTS 16
++struct { long due; char name[64]; } cb_shots[CB_SHOTS]; int cb_shot_n=0;
++char cb_line[96]; int cb_line_n=0;
++
++void cb_args(int *argc,char **argv) // strip and act on the "--long" options; everything else is left alone
++{
++	int i=1,o=1; for (;i<*argc;++i)
++	{
++		const char *a=argv[i]; int v=i+1<*argc;
++		if (!strcmp(a,"--headless")) cb_headless=cb_noconfig=1;
++		else if (!strcmp(a,"--no-config")) cb_noconfig=1;
++		else if (!strcmp(a,"--end-on-marker")) cb_endmarker=1;
++		else if (v&&!strcmp(a,"--printer")) cb_printer_path=argv[++i];
++		else if (v&&!strcmp(a,"--shot-dir")) cb_shot_dir=argv[++i];
++		else if (v&&!strcmp(a,"--shot")) cb_shot_file=argv[++i];
++		else if (v&&!strcmp(a,"--shot-at")) cb_shot_at=atol(argv[++i]);
++		else if (v&&!strcmp(a,"--max-frames")) cb_max_frames=atol(argv[++i]);
++		else argv[o++]=argv[i];
++	}
++	*argc=o;
++	if (cb_headless) // SDL reads these in SDL_Init(); keep the caller's choice if there is one
++	{
++		#ifndef _WIN32
++		setenv("SDL_VIDEODRIVER","dummy",0); setenv("SDL_AUDIODRIVER","dummy",0);
++		#endif
++	}
++}
++
++#else // CB_PART 2
++
++void cb_shot_save(const char *path)
++{
++	char f=session_scrn_flag; session_scrn_flag=1; // PNG (PNG_OUTPUT_MODE 0 is set above)
++	cb_shotpath=path; if (session_savebitmap()) fprintf(stderr,"cpcec: cannot save %s\n",path);
++	cb_shotpath=NULL; session_scrn_flag=f;
++}
++
++void cb_printer(int c) // called with every byte the program sends to the printer port
++{
++	if (c=='\n')
++	{
++		cb_line[cb_line_n]=0;
++		if (cb_shot_dir&&!strncmp(cb_line,"\004SHOT ",6)&&cb_line[6]&&cb_shot_n<CB_SHOTS)
++		{
++			cb_shots[cb_shot_n].due=cb_frame_no+2; // a couple of frames later
++			int k=0; for (const char *s=cb_line+6;*s&&k<60;++s) // names stay plain file names
++				cb_shots[cb_shot_n].name[k++]=(*s>='0'&&*s<='9')||(*s>='A'&&*s<='Z')||(*s>='a'&&*s<='z')||*s=='_'||*s=='-'||*s=='.'?*s:'_';
++			cb_shots[cb_shot_n++].name[k]=0;
++		}
++		else if (cb_endmarker&&!strcmp(cb_line,"\004END")&&cb_end_at<0)
++			cb_end_at=cb_frame_no+3;
++		cb_line_n=0;
++	}
++	else
++	{
++		if (c==4) cb_line_n=0; // EOT starts a marker: whatever was printed before it (PRINT AT has no newline) is not part of it
++		if (cb_line_n<(int)sizeof(cb_line)-1) cb_line[cb_line_n++]=c;
++	}
++}
++
++void cb_frame(void) // end of every emulated frame, before the picture is shown
++{
++	++cb_frame_no;
++	if (printer) printer_flush(); // so a watcher of the file sees the program's output at once
++	for (int i=0;i<cb_shot_n;)
++		if (cb_shots[i].due<=cb_frame_no)
++		{
++			char p[512]; snprintf(p,sizeof(p),"%s/%s.png",cb_shot_dir,cb_shots[i].name);
++			cb_shot_save(p); memmove(&cb_shots[i],&cb_shots[i+1],sizeof(cb_shots[0])*(--cb_shot_n-i));
++		}
++		else ++i;
++	if (cb_shot_file&&cb_shot_at&&cb_frame_no==cb_shot_at) cb_shot_save(cb_shot_file),cb_shot_file=NULL;
++	if (cb_end_at>=0&&cb_frame_no>=cb_end_at&&!cb_shot_n) cb_quit=1;
++	else if (cb_max_frames&&cb_frame_no>=cb_max_frames) cb_quit=1,cb_status=3;
++}
++
++void cb_exit(void) // after the main loop: the --shot picture of the final frame
++{
++	if (cb_shot_file) cb_shot_save(cb_shot_file),cb_shot_file=NULL;
++}
++
++#endif
+diff --git a/cpcec-rt.h b/cpcec-rt.h
+index 916d584..4d29982 100644
+--- a/cpcec-rt.h
++++ b/cpcec-rt.h
+@@ -1080,7 +1080,7 @@ INLINE void session_update(void) // render video+audio and handle self-adjusting
+ 			else --video_framecount;
+ 		else --r;
+ 	}
+-	if (session_wait|session_fast)
++	if (session_wait|session_fast|cb_headless)
+ 	{
+ 		session_timer=i; // ensure that the next frame can be valid!
+ 		audio_mustsync(); if (audio_fastmute) audio_disabled|=+8;
+@@ -2869,7 +2869,8 @@ int session_scrn_exit(void)
+ char session_scrn_flag=0; // compressed image format flag
+ INLINE int session_savebitmap(void) // save a RGB888 BMP/QOI/PNG file; 0 OK, !0 ERROR
+ {
+-	if (!(session_nextbitmap=session_savenext(session_scrn_flag?"%s%08u." session_scrn_ext:"%s%08u.bmp",session_nextbitmap)))
++	if (cb_shotpath) strcpy(session_parmtr,cb_shotpath); // CPCBuild: save to this exact path
++	else if (!(session_nextbitmap=session_savenext(session_scrn_flag?"%s%08u." session_scrn_ext:"%s%08u.bmp",session_nextbitmap)))
+ 		return 1; // too many files!
+ 	FILE *f; if (!(f=fopen(session_parmtr,"wb")))
+ 		return 1; // cannot create file!
+@@ -2976,7 +2977,7 @@ int session_prae(char *s) // load configuration and set stuff up; `s` is argv[0]
+ 	else
+ 		*session_path=0; // no path (?)
+ 	strcpy(debug_source,strcpy(debug_binary,session_path));
+-	FILE *f; if ((f=session_configfile(1)))
++	FILE *f; if (!cb_noconfig&&(f=session_configfile(1)))
+ 	{
+ 		while (fgets(session_parmtr,STRMAX-1,f)) session_configreadmore(session_configread());
+ 		fclose(f);
+@@ -2993,7 +2994,7 @@ int session_post(void) // save configuration and shut stuff down; always 0 OK
+ 	puff_byebye();
+ 	session_closefilm();
+ 	session_closewave();
+-	FILE *f; if ((f=session_configfile(0)))
++	FILE *f; if (!cb_noconfig&&(f=session_configfile(0)))
+ 	{
+ 		session_configwritemore(f),session_configwrite(f);
+ 		fclose(f);
+diff --git a/cpcec.c b/cpcec.c
+index 4a79d13..5f79c9b 100644
+--- a/cpcec.c
++++ b/cpcec.c
+@@ -100,6 +100,8 @@ unsigned char video_hi_x_res=0; // variable: +1 PLUS ASIC odd x-scroll, +2 hi-re
+ #define POWER_BOOST0 0
+ #define AUDIO_ALWAYS_MONO (AUDIO_CHANNELS==1) // false, the PSG is stereo (ABC by default on the CPC)
+ unsigned char audio_surround=0; // ditto
++#define CB_PART 1
++#include "cpcec-cb.h" // CPCBuild: unattended-run options
+ #include "cpcec-rt.h" // emulation framework!
+ 
+ int litegun=0; // 0 = standard joystick, 1 = Trojan Light Phaser, 2 = Gunstick (MHT), 3 = Westphaser (Loriciel)
+@@ -596,6 +598,7 @@ void pio_reset(void)
+ FILE *printer=NULL; int printer_p=0; BYTE printer_z,printer_t[256];
+ void printer_flush(void) { fwrite1(printer_t,printer_p,printer),printer_p=0; }
+ void printer_close(void) { printer_flush(),fclose(printer),printer=NULL; }
++void cb_printer(int); // CPCBuild: watches the bytes sent to the printer
+ 
+ // behind the PIO: PSG AY-3-8910 ------------------------------------ //
+ 
+@@ -1386,8 +1389,8 @@ void z80_send(WORD p,BYTE b) // the Z80 sends a byte to a hardware port
+ 		else
+ 		#endif
+ 		if (printer&&(b&128)&&!(printer_z&128))
+-			if (printer_t[printer_p]=b&127,++printer_p>=sizeof(printer_t))
+-				printer_flush();
++			{ cb_printer(b&127); if (printer_t[printer_p]=b&127,++printer_p>=sizeof(printer_t))
++				printer_flush(); }
+ 		printer_z=b; // avoid duplicate writes (i.e. respect STROBE bit)
+ 	}
+ 	if (!(p&0x0800)) // 0xF400-0xF700, PIO 8255
+@@ -3965,9 +3968,13 @@ void session_configwritemore(FILE *f) // update the configuration file `f` with
+ 
+ // START OF USER INTERFACE ========================================== //
+ 
++#undef CB_PART
++#define CB_PART 2
++#include "cpcec-cb.h"
++
+ int main(int argc,char *argv[])
+ {
+-	session_prae(ARGVZERO); all_setup(); all_reset();
++	cb_args(&argc,argv); session_prae(ARGVZERO); all_setup(); all_reset();
+ 	int i=0,j,k=0; while (++i<argc)
+ 		if (argv[i][0]=='-')
+ 		{
+@@ -4125,6 +4132,9 @@ int main(int argc,char *argv[])
+ 			"  -+\tdefault window size\n"
+ 			//"\t-$\talternative user interface\n"//
+ 			),1;
++	if (cb_printer_path&&!(printer=fopen(cb_printer_path,"wb")))
++		return printferror("Cannot record printer!"),1;
++	if (cb_headless) session_audio=0,onscreen_flag=0; // no sound, no status text in the picture
+ 	if (bios_reload())
+ 		return printferror(txt_error_bios),1;
+ 	amsdos_load("cpcados.rom"); //if (!*bdos_rom&&!disc_disabled) disc_disabled=1,mmu_update(); // can't enable the disc drive without its ROM!
+@@ -4136,7 +4146,7 @@ int main(int argc,char *argv[])
+ 	video_target=&video_frame[video_pos_y*VIDEO_LENGTH_X+video_pos_x]; audio_target=audio_frame;
+ 	video_main_xlat(),video_xlat_clut(); session_resize();
+ 	// it begins, "alea jacta est!"
+-	for (audio_disabled=!session_audio;!session_listen();)
++	for (audio_disabled=!session_audio;!session_listen()&&!cb_quit;)
+ 	{
+ 		while (!session_signal)
+ 			z80_main( // clump Z80 instructions together to gain speed...
+@@ -4200,6 +4210,7 @@ int main(int argc,char *argv[])
+ 				#endif
+ 				session_status();
+ 			}
++			cb_frame();
+ 			// update session and continue
+ 			if (!--autorun_t) autorun_next();
+ 			dac_frame(); if (ym3_file) ym3_write(),ym3_flush();
+@@ -4227,8 +4238,8 @@ int main(int argc,char *argv[])
+ 	// it's over, "acta est fabula"
+ 	z80_close(); if (ext_rom) free(ext_rom);
+ 	disc_closeall();
+-	tape_close(); ym3_close(); if (printer) printer_close();
+-	return session_byebye(),session_post();
++	cb_exit(); tape_close(); ym3_close(); if (printer) printer_close();
++	return session_byebye(),session_post()|cb_status;
+ }
+ 
+ BOOTSTRAP

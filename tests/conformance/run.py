@@ -18,7 +18,8 @@ not counted. A test without MODELS runs on every model including plus; one that
 lists models but not plus does not run on plus.
 
 --model plus (Phase 7): a 6128 Plus on Caprice32 (cpcrun.py --model plus: system
-cartridge, F1 menu, firmware or --bare); chips has no Plus.
+cartridge, F1 menu, firmware or --bare) or on CPCEC (--emu cpcec, headless;
+tests that type keys are skipped there); chips has no Plus.
 
 Bare-metal mode (Phase 6): --bare compiles every program with -D CPC_BAREMETAL
 (tools/cpcrun.py --bare); --cold (chips only, implies --bare) also starts it
@@ -38,7 +39,7 @@ line anywhere in the source (e.g. the float test, until the float
 calculator port lands) -- such a program is reported separately and
 does not count against the pass total.
 
-Usage: run.py [--timeout SECONDS] [-k PATTERN] [--model M] [--emu cap32|chips] [--org ADDR] [--bare] [--cold] [file.bas ...]
+Usage: run.py [--timeout SECONDS] [-k PATTERN] [--model M] [--emu cap32|chips|cpcec] [--org ADDR] [--bare] [--cold] [file.bas ...]
 """
 
 from __future__ import annotations
@@ -167,6 +168,9 @@ def run_one(bas_path: Path, timeout: float, model: str = "6128", emu: str = "cap
     if (models and model not in models) or (emus and emu not in emus):
         result.skipped = True
         return result
+    if emu == "cpcec" and find_typed(bas_path):
+        result.skipped = True  # cpcrun --emu cpcec cannot type keys
+        return result
     cmd = [sys.executable, str(CPCRUN), str(bas_path), "--timeout", str(timeout), "--model", model, "--emu", emu]
     if org:
         cmd += ["--org", org]
@@ -211,14 +215,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-k", dest="pattern", default=None, help="only run files whose name contains PATTERN")
     parser.add_argument("-j", dest="jobs", type=int, default=8, help="parallel jobs (default 8)")
     parser.add_argument("--model", choices=("464", "664", "6128", "plus"), default="6128", help="CPC model (default 6128; plus = 6128 Plus, Caprice32 only)")
-    parser.add_argument("--emu", choices=("cap32", "chips"), default="cap32", help="emulator (default cap32)")
+    parser.add_argument("--emu", choices=("cap32", "chips", "cpcec"), default="cap32",
+                        help="emulator (default cap32; cpcec = tools/cpcec, headless CPCEC: tests that type keys are skipped)")
     parser.add_argument("--org", default=None, metavar="ADDR", help="build every program at this origin (e.g. 0x40); default: the compiler's")
     parser.add_argument("--bare", action="store_true", help="build with -D CPC_BAREMETAL; skip `REM BARE: skip` tests")
     parser.add_argument("--cold", action="store_true", help="chips only: cold start with no firmware (implies --bare)")
     parser.add_argument("--end-on-marker", action="store_true", help="end each run at the END marker line, not the reset (cpcrun.py --end-on-marker)")
     args = parser.parse_args(argv)
-    if args.model == "plus" and args.emu != "cap32":
-        parser.error("chips has no Plus: --model plus needs --emu cap32")
+    if args.model == "plus" and args.emu == "chips":
+        parser.error("chips has no Plus: --model plus needs --emu cap32 or cpcec")
     if args.cold:
         args.bare = True
         if args.emu != "chips":

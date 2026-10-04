@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-plus chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-plus test-cpcec cpcec chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -59,6 +59,22 @@ test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conform
 	$(PYTHON) tests/screens/run.py --model plus
 	$(PYTHON) tests/screens/run.py --model plus --bare
 	$(PYTHON) games/shooter/tests/run.py --plus
+
+# plus_core and plus_dma expect Caprice32's DMA status behaviour (DCSR in RAM, active bits only
+# from DmaStart/DmaStop); CPCEC, like the ASIC, clears a channel's bit when its list reaches STOP
+# and shows DCSR bit 7 (see docs/notes.md, Phase 7 P3), so they are left out of the CPCEC runs
+CPCEC_SKIP :=
+CPCEC_TESTS := $(filter-out $(addprefix tests/conformance/,$(addsuffix .bas,$(CPCEC_SKIP))),$(wildcard tests/conformance/*.bas))
+
+cpcec: ## Fetch, patch (tools/cpcec/cpcbuild.patch) and build CPCEC into tools/cpcec/work/ (needs git, cc, SDL2)
+	sh tools/cpcec/fetch_build.sh
+
+test-cpcec: ## 6128 Plus on CPCEC (headless, needs `make cpcec`): smoke tests, conformance (firmware and --bare, minus CPCEC_SKIP), screens (firmware and --bare)
+	$(PYTHON) tests/plus/run.py -k cpcec
+	$(PYTHON) tests/conformance/run.py --emu cpcec --model plus $(CPCEC_TESTS)
+	$(PYTHON) tests/conformance/run.py --emu cpcec --model plus --bare $(CPCEC_TESTS)
+	$(PYTHON) tests/screens/run.py --emu cpcec
+	$(PYTHON) tests/screens/run.py --emu cpcec --bare
 
 chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
 	sh tools/chipsrun/build.sh

@@ -7,7 +7,8 @@ name: CI
 #   bare-cold      make test-bare-cold    (cold start, no firmware + screens)
 #   zx-games       make test-zx test-games
 #   plus           build Caprice32 headless at the pinned commit, make test-plus
-#                  (6128 Plus: smoke tests, conformance firmware + bare, screens)
+#                  (6128 Plus: smoke tests, conformance firmware + bare, screens), then
+#                  build CPCEC (tools/cpcec: pinned commit + our patch) and make test-cpcec
 # `make ci` runs the same targets serially (local all-in-one). Shared setup lives in
 # .github/actions/setup. Each failing job uploads its own screen-diff artifact.
 #
@@ -233,6 +234,29 @@ jobs:
           CAP32: ${{ github.workspace }}/caprice32/cap32
           SDL_AUDIODRIVER: dummy
         run: make test-plus
+      - name: Cache the CPCEC build
+        id: cpceccache
+        uses: actions/cache@v6
+        with:
+          path: |
+            cpcbuild/tools/cpcec/work/cpcec
+            cpcbuild/tools/cpcec/work/*.rom
+          key: cpcec-${{ runner.os }}-${{ hashFiles('cpcbuild/tools/cpcec/fetch_build.sh', 'cpcbuild/tools/cpcec/cpcbuild.patch') }}
+      - name: Build CPCEC (pinned commit + cpcbuild.patch, SDL2)
+        if: steps.cpceccache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev
+          sh cpcbuild/tools/cpcec/fetch_build.sh
+      - name: Runtime SDL2 for a cached CPCEC
+        if: steps.cpceccache.outputs.cache-hit == 'true'
+        run: sudo apt-get install -y libsdl2-2.0-0
+      - name: make test-cpcec
+        # CPCEC runs with its own --headless (SDL dummy video and audio, no window)
+        working-directory: cpcbuild
+        env:
+          ZXBASIC: ${{ github.workspace }}/zxbasic
+        run: make test-cpcec
       - name: Upload screen-test diffs
         if: failure()
         uses: actions/upload-artifact@v7

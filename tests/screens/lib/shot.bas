@@ -13,15 +13,22 @@ REM such a program takes one shot.
 
 #include <cpc.bas>
 
-REM One printer byte, straight to the printer port (&EFxx, A12 low): the
-REM byte with bit 7 set as the strobe, which is how chipsrun takes it.
+REM One printer byte, straight to the printer port (&EFxx, A12 low), with the
+REM strobe cycle the runtime's own printer routine uses (data, data with bit 7
+REM set, data again): chipsrun and Caprice32 take the write with bit 7 set,
+REM CPCEC the rising edge of bit 7, so a run of characters needs the release.
 REM No firmware call, so a palette set directly on the Gate Array stays.
 SUB ShotChar(c AS UBYTE)
   ASM
+  push de
   ld bc, $EF00
-  ld a, (ix+5)
+  ld e, (ix+5)
+  out (c), e
+  ld a, e
   or $80
   out (c), a
+  out (c), e
+  pop de
   END ASM
 END SUB
 
