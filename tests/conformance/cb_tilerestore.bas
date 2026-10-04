@@ -1,4 +1,3 @@
-REM BARE: skip calls the firmware directly (KL_TIME_PLEASE timing, firmware scroll)
 REM Conformance: cpcbuild TileRestore and TileMapPart (Phase 4d) in modes 0, 1
 REM and 2, at several forced hardware-scroll offsets.
 REM
@@ -47,22 +46,12 @@ SUB ForceOffset(v AS UINTEGER)
   END ASM
 END SUB
 
-FUNCTION FASTCALL Ticks AS ULONG
-  ASM
-  call .core.__FW_CALL
-  defw $BD0D
-  END ASM
-END FUNCTION
+#include "lib/ticks.bas"
 
 DIM tm$ AS STRING
 DIM tk0 AS ULONG
 
-FUNCTION FASTCALL ScrollOffset AS UINTEGER
-  ASM
-  call .core.__FW_CALL
-  defw $BC0B
-  END ASM
-END FUNCTION
+#include "lib/scrolloff.bas"
 
 REM Fills the whole 16 KB at $C000 with 0 (stack fill: fast).
 SUB ClearBg
@@ -780,10 +769,13 @@ SUB OneMode(m AS UBYTE, w AS UBYTE, lbl AS STRING, lv0 AS UBYTE, real AS UBYTE)
     gw = w
     gcxs = 80 / w
     SetTileSet(@ts(0))
+REM bare text scrolls in software: the offset is always 0 there
+#ifndef CPC_BAREMETAL
     IF ScrollOffset() = 0 THEN
       results$ = results$ + "FAIL " + lbl + " real scroll offset is 0" + CHR$ 13
       nfail = nfail + 1
     END IF
+#endif
     TSuite(lbl + " real", 1)
   END IF
 END SUB

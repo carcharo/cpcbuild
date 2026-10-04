@@ -1,4 +1,3 @@
-REM BARE: skip calls the firmware directly (KL_TIME_PLEASE timing, SCR_GET_LOCATION scroll offset)
 REM Conformance: cpcbuild sprites (Phase 4c) -- PutSprite, PutSpriteMasked,
 REM GetBlock: clipping on every edge, off-screen, round trips, rows that
 REM wrap with a hardware-scroll offset, in mode 1 and mode 0; then speed.
@@ -9,6 +8,7 @@ REM the screen byte in any mode); POINT (mode pixels, bottom-left) gives
 REM an independent check of what the pixels look like.
 
 #include <point.bas>
+#include "lib/ticks.bas"
 #include <cpc.bas>
 #include <cpcbuild/display.bas>
 #include <cpcbuild/fill.bas>
@@ -27,13 +27,7 @@ SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
   END IF
 END SUB
 
-REM The firmware's scroll offset (SCR_GET_LOCATION -> HL).
-FUNCTION FASTCALL ScrollOffset AS UINTEGER
-  ASM
-  call .core.__FW_CALL
-  defw $BC0B
-  END ASM
-END FUNCTION
+#include "lib/scrolloff.bas"
 
 REM How many screen bytes equal v, over the whole screen (in asm: a BASIC
 REM loop over 16000 PeekScreen calls takes seconds).
@@ -98,8 +92,12 @@ FUNCTION Bench(which AS UBYTE, addr AS UINTEGER, w AS UBYTE, h AS UBYTE) AS UINT
   ld (BN_FRAME + 5), a
   ld a, (ix+11)
   ld (BN_FRAME + 7), a
+#ifdef CPC_BAREMETAL
+  call BN_BODY
+#else
   call .core.__FW_CALL
   defw BN_BODY
+#endif
   ld hl, (BN_T1)
   ld de, (BN_T0)
   or a
@@ -140,7 +138,16 @@ BN_NOT2:
   ld hl, .core.__CB_GET_BLOCK
 BN_NOT3:
   ld (BN_TARGET + 1), hl
+#ifdef CPC_BAREMETAL
+  ld hl, (.core.FH_FRAMES)
+  ld d, h
+  ld e, l
+  add hl, hl
+  add hl, de
+  add hl, hl
+#else
   call $BD0D
+#endif
   ld (BN_T0), hl
   ld bc, 500
 BN_LOOP:
@@ -153,12 +160,30 @@ BN_TARGET:
   ld a, b
   or c
   jr nz, BN_LOOP
+#ifdef CPC_BAREMETAL
+  ld hl, (.core.FH_FRAMES)
+  ld d, h
+  ld e, l
+  add hl, hl
+  add hl, de
+  add hl, hl
+#else
   call $BD0D
+#endif
   ld (BN_T1), hl
   pop ix
   ret
 BN_CAL:
+#ifdef CPC_BAREMETAL
+  ld hl, (.core.FH_FRAMES)
+  ld d, h
+  ld e, l
+  add hl, hl
+  add hl, de
+  add hl, hl
+#else
   call $BD0D
+#endif
   ld (BN_T0), hl
   ld bc, 50000
 BN_CLOOP:
@@ -166,7 +191,16 @@ BN_CLOOP:
   ld a, b
   or c
   jp nz, BN_CLOOP
+#ifdef CPC_BAREMETAL
+  ld hl, (.core.FH_FRAMES)
+  ld d, h
+  ld e, l
+  add hl, hl
+  add hl, de
+  add hl, hl
+#else
   call $BD0D
+#endif
   ld (BN_T1), hl
   pop ix
   ret
@@ -467,10 +501,14 @@ SUB WrapSuite(m AS STRING, ppb AS UBYTE, fullpen AS UBYTE)
   ScreenInit()
   CLS
   off = ScrollOffset()
+#ifndef CPC_BAREMETAL
   CHK(m + "_scroll_offset_set", STR$(off > 0), "1")
+#endif
   wr = (2048 - off) / 80
   k = (2048 - off) - wr * 80
+#ifndef CPC_BAREMETAL
   CHK(m + "_scroll_wraps_in_row", STR$(k > 0 AND wr <= 24), "1")
+#endif
   IF k > 0 AND wr <= 24 THEN
     y0 = wr * 8 + 2
     xa = k - 10

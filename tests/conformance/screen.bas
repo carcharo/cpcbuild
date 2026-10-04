@@ -1,4 +1,3 @@
-REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Conformance: SCREEN$(row, col) (firmware TXT_RD_CHAR).
 REM
 REM Cells are printed and read back. Behaviour of the firmware that the

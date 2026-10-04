@@ -1,4 +1,3 @@
-REM BARE: skip calls the firmware directly (GRA_TEST_ABSOLUTE reference, SCR_GET_LOCATION scroll offset)
 REM Conformance: cpcbuild fill (Phase 4c) -- PenByte against the firmware's
 REM SCR_INK_ENCODE in modes 0, 1 and 2, FillRect (clipping on every edge,
 REM rows that wrap with a hardware-scroll offset), ClearScreen.
@@ -22,7 +21,29 @@ SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
   END IF
 END SUB
 
-REM SCR_INK_ENCODE (&BC2C): A = pen -> A = the byte with every pixel in it.
+REM The reference for PenByte: A = pen -> A = the byte with every pixel in
+REM it. Firmware: SCR_INK_ENCODE (&BC2C). Bare metal has no firmware, so it
+REM is worked out from the hardware's pixel layout: mode 2 one plane, mode 1
+REM planes &F0 and &0F (pen bits 0 and 1), mode 0 planes &C0 &0C &30 &03
+REM (pen bits 0-3).
+#ifdef CPC_BAREMETAL
+FUNCTION EncodeFw(pen AS UBYTE) AS UBYTE
+  DIM m AS UBYTE = GetMode()
+  DIM b AS UBYTE = 0
+  IF m = 2 THEN
+    IF pen BAND 1 THEN b = $FF
+  ELSEIF m = 1 THEN
+    IF pen BAND 1 THEN b = $F0
+    IF pen BAND 2 THEN b = b BOR $0F
+  ELSE
+    IF pen BAND 1 THEN b = $C0
+    IF pen BAND 2 THEN b = b BOR $0C
+    IF pen BAND 4 THEN b = b BOR $30
+    IF pen BAND 8 THEN b = b BOR $03
+  END IF
+  RETURN b
+END FUNCTION
+#else
 FUNCTION EncodeFw(pen AS UBYTE) AS UBYTE
   ASM
   ld a, (ix+5)
@@ -30,14 +51,9 @@ FUNCTION EncodeFw(pen AS UBYTE) AS UBYTE
   defw $BC2C
   END ASM
 END FUNCTION
+#endif
 
-REM The firmware's scroll offset (SCR_GET_LOCATION -> HL).
-FUNCTION FASTCALL ScrollOffset AS UINTEGER
-  ASM
-  call .core.__FW_CALL
-  defw $BC0B
-  END ASM
-END FUNCTION
+#include "lib/scrolloff.bas"
 
 REM How many screen bytes equal v, over the whole screen (in asm: a BASIC
 REM loop over 16000 PeekScreen calls takes seconds).
@@ -243,10 +259,14 @@ NEXT i
 ScreenInit()
 CLS
 off = ScrollOffset()
+#ifndef CPC_BAREMETAL
 CHK("scroll_offset_set", STR$(off > 0), "1")
+#endif
 wr = (2048 - off) / 80
 k = (2048 - off) - wr * 80
+#ifndef CPC_BAREMETAL
 CHK("scroll_wraps_in_row", STR$(k > 0 AND wr <= 24), "1")
+#endif
 IF k > 0 AND wr <= 24 THEN
   DIM y0 AS INTEGER
   DIM xa AS INTEGER

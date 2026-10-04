@@ -1,4 +1,3 @@
-REM BARE: skip calls the firmware directly (KL_TIME_PLEASE timing, firmware scroll)
 REM Conformance: cpcbuild tiles (Phase 4c) -- SetTileSet, DoTile8, DoTile16,
 REM TileMap in modes 0, 1 and 2, at the screen edges, off screen, and with a
 REM hardware-scroll offset (rows wrapping in their 2 KB block).
@@ -27,19 +26,9 @@ SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
   END IF
 END SUB
 
-FUNCTION FASTCALL Ticks AS ULONG
-  ASM
-  call .core.__FW_CALL
-  defw $BD0D
-  END ASM
-END FUNCTION
+#include "lib/ticks.bas"
 
-FUNCTION FASTCALL ScrollOffset AS UINTEGER
-  ASM
-  call .core.__FW_CALL
-  defw $BC0B
-  END ASM
-END FUNCTION
+#include "lib/scrolloff.bas"
 
 REM Forces the library's idea of the scroll offset (to reach rows that
 REM straddle the end of a block, which a real hardware scroll never does).
@@ -344,8 +333,12 @@ SUB TimedTiles(n AS UINTEGER)
   ld l, (ix+4)
   ld h, (ix+5)
   ld (tt_n), hl
+#ifdef CPC_BAREMETAL
+  call tt_run
+#else
   call .core.__FW_CALL
   defw tt_run
+#endif
   jr tt_end
 tt_n:
   defw 0
@@ -381,8 +374,12 @@ SUB TimedMaps(n AS UINTEGER, mapaddr AS UINTEGER, cxs AS UBYTE)
   ld (tm_map), hl
   ld a, (ix+9)
   ld (tm_w), a
+#ifdef CPC_BAREMETAL
+  call tm_run
+#else
   call .core.__FW_CALL
   defw tm_run
+#endif
   jr tm_end
 tm_n:
   defw 0
@@ -436,7 +433,9 @@ AllRows("m1_off48", 2, 48, 0)
 ScreenInit()
 CLS
 RealScroll(1)
+#ifndef CPC_BAREMETAL
 CHK("m1_real_offset_nonzero", STR$(ScrollOffset() > 0), "1")
+#endif
 Suite("m1_scrolled", 2, 0, 1)
 ScreenInit()
 Suite("m1_off2047", 2, 2047, 1)
@@ -452,7 +451,9 @@ AllRows("m0_off2", 4, 2, 0)
 ScreenInit()
 CLS
 RealScroll(0)
+#ifndef CPC_BAREMETAL
 CHK("m0_real_offset_nonzero", STR$(ScrollOffset() > 0), "1")
+#endif
 Suite("m0_scrolled", 4, 0, 1)
 ScreenInit()
 Suite("m0_off2046", 4, 2046, 1)
@@ -464,7 +465,9 @@ ScreenInit()
 CLS
 Suite("m2", 1, 0, 0)
 RealScroll(2)
+#ifndef CPC_BAREMETAL
 CHK("m2_real_offset_nonzero", STR$(ScrollOffset() > 0), "1")
+#endif
 Suite("m2_scrolled", 1, 0, 1)
 
 REM --- speed, mode 1, no offset ---

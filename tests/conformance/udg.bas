@@ -1,4 +1,3 @@
-REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Conformance: Phase 4b UDGs (POKE USR "a"), Spectrum block graphics
 REM CHR$ 128-143, and the CPC's own characters above 164.
 REM

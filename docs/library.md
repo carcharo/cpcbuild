@@ -35,6 +35,14 @@ Only the routines a program calls are compiled in. Other files: `<font.bas>`,
 All of it is for `--arch cpc` only (the files stop with `#error` otherwise).
 The routines are written from scratch and licensed MIT.
 
+**Bare-metal mode.** The library also works in programs built with
+`-D CPC_BAREMETAL` (no firmware; see the compiler's
+[Bare-metal mode](https://github.com/carcharo/zxbasic/blob/cpc-arch/docs/architectures/amstrad_cpc.md#bare-metal-mode)
+section). Drawing, sprites, tiles and the keyboard calls are unchanged. The
+calls that asked the firmware do the work themselves: `ScreenInit`,
+`WaitRetrace`, `WaitVsync`, the double-buffer flips and the palette calls
+(notes at each call below). `BankLoad` is refused, since there is no disc.
+
 Typical start of a program:
 
 ## 2. Program origin
@@ -334,6 +342,7 @@ END IF
 * **The music player:** `MusicInitBank(song, subsong, bank)` plays a song from a bank. It pages the bank in around each tick (about 110 T-states per frame) and restores the RAM configuration from the library's shadow, so a bank the main program selected survives the music hook.
 * **Copies:** `BankCopyIn` and `BankCopyOut` copy in chunks of at most 256 bytes with interrupts off (about 1.3 ms per chunk), so no interrupt is lost.
 * **BankLoad:** Loads an AMSDOS file (with its header) straight into a bank. The file needs the disc ROM (AMSDOS); BankLoad runs `|DISC` first. With no disc ROM it returns 0 at once. The call needs about 2 KB of heap; the default 4.7 KB is enough.
+  **Bare-metal mode:** BankLoad is refused (compile error); a firmware-mode loader must load the data before the bare program runs.
 * **464/664:** BankSelect/Off/Peek/Poke do nothing (Peek reads 0) and the copies return 0 on machines without extra RAM.
 
 ### Songs in banks
@@ -408,17 +417,22 @@ The AY sound chip has one owner at a time.
 * The **firmware sound manager** (BEEP, `SoundQueue`, `SoundEnvelope`) plays
   from the interrupt handler and writes the chip by itself whenever a note is
   queued. For programs without a music player, running outside game mode.
+  (Bare-metal mode: there is no sound manager; `SoundQueue` and the other
+  sound-manager calls are refused, and BEEP drives the AY directly.)
 * The **music player** (Arkos Tracker 3: `MusicInit`, `SfxPlay`) plays from the
   frame hook. It owns the AY while a song plays; sound effects work in game mode
-  and normal mode.
+  and normal mode. (Bare-metal mode: same.)
 * **Direct access** (`AyWrite`, the Play library) programs the chip itself.
+  (Bare-metal mode: same; `SoundStop` silences the chip with direct AY writes.)
 
 A program uses one of them at a time. Before direct access, call `SoundStop`
 once (Play does this for you), and queue no firmware sounds while it lasts. `MusicInit`
 calls `SoundStop` so the manager is idle. After using direct access, call `SoundStop`
 before BEEP or `SoundQueue` again. Play and the music player run with interrupts
 off, so the keyboard and the firmware clock stop meanwhile (the music player only
-outside firmware calls; in game mode the firmware stops anyway).
+outside firmware calls; in game mode the firmware stops anyway). In bare mode the
+same one-owner rule applies: BEEP writes the AY itself, so no BEEP while a song
+plays.
 
 ## 9. API reference
 
@@ -458,6 +472,9 @@ colours 0-7 and map them to pens; `SetInk` changes what a pen looks like.
 returns at once if the flyback has already started, so call it once per frame.
 Unlike `WaitRetrace` it does not re-read the scroll offset.
 
+**Bare-metal mode:** waits for the next frame on the runtime's frame counter
+(no firmware call).
+
 Cost: each of these is one or two gate calls.
 
 ```basic
@@ -483,16 +500,26 @@ PRINT INK 1; "Hello"
 **ScreenInit** reads the firmware's screen base and hardware-scroll offset. Call
 it at start-up, after `Mode`, and after anything else that changes the screen.
 
+**Bare-metal mode:** the screen base is always &C000 and the scroll offset
+is always 0 (text scrolls in software).
+
 **WaitRetrace** waits for the start of `frames` frame flybacks. 0 counts as 1.
 Each wait first lets any flyback in progress finish, so every count is a new
 frame. Interrupts run during the wait. It then re-reads the scroll offset. (Name
 as NextBuild's `WaitRetrace`.)
+
+**Bare-metal mode:** waits for `frames` frame changes from the frame counter
+(no scroll re-read).
 
 **EnableDoubleBuffer, DisableDoubleBuffer, FlipBuffer** are described in
 [Double buffering](#5-double-buffering). `FlipBuffer` shows what was drawn at the
 next flyback and then draws on the other screen; with double buffering off it only
 waits for the flyback. `EnableDoubleBuffer` copies the shown screen to the hidden
 one first.
+
+**Bare-metal mode:** the flips write CRTC registers R12 and R13 directly (no
+firmware call), and PRINT follows the shown screen as it does in firmware
+mode.
 
 **PokeScreen** writes one screen byte of the drawing screen. A position off the
 screen (x of 80 or more, y of 200 or more) is ignored. **PeekScreen** reads one
@@ -676,6 +703,9 @@ the time, rewrites all 16 inks and the border from its own tables every 10
 frames or so (its flashing-ink cycle, even when nothing flashes). So a colour
 written only to the Gate Array is gone within about 0.2 s. The library calls
 put the same colour in the firmware's tables, so they survive.
+
+**Bare-metal mode:** writes the Gate Array directly (no firmware call; colour
+changes show at once).
 
 ```basic
 DIM pal(3) AS UBYTE => {0, 26, 6, 18}     ' black, bright white, bright red, bright green
