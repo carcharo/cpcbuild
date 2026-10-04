@@ -1347,3 +1347,15 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   CPCEC by design) and its keyboard feels more responsive. CPCEC shows
   on-screen drive/tape indicators and an audio oscilloscope by default
   (Shift+F9 toggles; -O hides).
+- Raster bars hands-on (user, Caprice32 and CPCEC side by side): each band
+  changes colour part-way along its first line (the handler's fixed delay)
+  and that switch point flickered by about two characters, at a different
+  column in each emulator. Cause: the Z80 finishes its current instruction
+  before taking the interrupt, and the test held its picture in `jr $`.
+  A copy holding in HALT was stable on both. So: shot.bas's SHOT_HOLD loop
+  now waits in HALT (plus_rasterbars golden updated, 224 pixels; stable over
+  repeated runs), and cpcplus.bas documents it: for a steady split keep the
+  main program in HALT while the lines go by (PAUSE/WaitVsync do).
+- The sprites cartridge on CPCEC matched the golden except the title font:
+  cartridge builds use -D CPC_OWNFONT (no firmware ROM font to copy), the
+  golden comes from a disc boot with the ROM font. Expected.

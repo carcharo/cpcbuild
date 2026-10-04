@@ -57,8 +57,12 @@ SUB Shot(name AS STRING)
 #ifdef SHOT_HOLD
   REM cpcrun.py --model plus --shot (Caprice32 has no way to be told "now" by
   REM the program): hold the picture here until the harness has taken it
+  REM (in HALT, so raster interrupts are taken with a fixed delay: a busy loop
+  REM makes raster colour changes jitter by the length of its instruction)
   ASM
+  ei
 shot_hold:
+  halt
   jr shot_hold
   END ASM
 #endif

@@ -152,7 +152,14 @@
 ' DE, HL, IX, IY and the alternate set saved, must not call the firmware, and
 ' must not call RasterIntAt/Off/Clear. The next line is
 ' programmed first, so a handler that is still running when the next line is
-' reached only delays it. Lines are counted from the first line of the picture
+' reached only delays it. Timing: the Z80 finishes its current instruction
+' before it takes the interrupt, so a colour change from a handler lands
+' part-way along the line and, if the main program is busy, jitters
+' sideways by up to that instruction's length (a few characters) from frame
+' to frame. For a steady split, have the main program wait in HALT while
+' the lines go by (PAUSE and WaitVsync do; a game draws, then waits for the
+' next frame): the interrupt is then taken with a fixed delay (checked on
+' Caprice32 and CPCEC). Lines are counted from the first line of the picture
 ' (the standard 200-line screen's sync starts at line 240); a handler of the
 ' same line as the frame entry (243) runs before the frame hook; two handlers
 ' on one line are not possible (the second replaces the first). RasterIntAt
