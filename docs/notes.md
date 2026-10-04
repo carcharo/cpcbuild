@@ -1238,3 +1238,14 @@ firmware-clock timing in the tests: bare variants due in B5).
 - Merged phase-6 into main (fast-forward), zxbasic cpc-arch at ff7acf4e.
 
 CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip CI.
+
+## 2026-10-04: Phase 7 decisions (user)
+
+- Plus/ASIC library in cpcbuild `lib/cpcplus/`.
+- Raster interrupts (PRI) in bare mode only: a non-zero PRI suppresses the
+  CPC's normal six interrupts per frame (Caprice32 crtc.cpp), which the
+  firmware depends on. Everything else in both modes.
+- Proof: Starfall Plus (hardware sprites, 12-bit palette) as a `.cpr`
+  cartridge and on disc for the 6128 Plus, plus a Plus feature demo.
+- CI: build Caprice32 headless for the Plus tests.
+- Design and steps: docs/phase7-design.md (stage gate before the proof).
