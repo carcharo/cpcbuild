@@ -1220,3 +1220,5 @@ firmware-clock timing in the tests: bare variants due in B5).
   keep the compile-time switch `-D CPC_BAREMETAL` for now (the run-time
   FirmwareOff() alternative stays noted in docs/phase6-design.md).
 - Merged phase-6 into main (fast-forward), zxbasic cpc-arch at ff7acf4e.
+
+CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip CI.
