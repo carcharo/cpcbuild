@@ -212,7 +212,7 @@ jobs:
         with:
           path: caprice32/cap32
           key: cap32-${{ runner.os }}-${{ env.CAPRICE32_SHA }}
-      - name: Build Caprice32 (headless: SDL dummy video, no audio)
+      - name: Build Caprice32 (headless, SDL dummy video, no audio)
         if: steps.cap32cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update

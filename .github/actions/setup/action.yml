@@ -29,13 +29,22 @@ runs:
         path: zxbasic
 
     - name: Fetch CPC ROMs (caprice32 rom/ at pinned commit)
+      if: inputs.caprice32-full != 'true'
       uses: actions/checkout@v7
       with:
         repository: ColinPitrat/caprice32
         ref: ${{ inputs.caprice32-sha }}
         path: caprice32
-        sparse-checkout: ${{ inputs.caprice32-full == 'true' && '' || 'rom' }}
+        sparse-checkout: rom
         sparse-checkout-cone-mode: true
+
+    - name: Fetch Caprice32 (whole tree at pinned commit, to build cap32)
+      if: inputs.caprice32-full == 'true'
+      uses: actions/checkout@v7
+      with:
+        repository: ColinPitrat/caprice32
+        ref: ${{ inputs.caprice32-sha }}
+        path: caprice32
 
     - name: Set up Python ${{ inputs.python-version }}
       uses: actions/setup-python@v7
