@@ -218,8 +218,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y pkg-config libsdl2-dev libfreetype6-dev zlib1g-dev libpng-dev
           make -C caprice32 -j4 cap32
-          # cpcrun.py fills in cap32.cfg.tmpl itself (same config with or without the cache)
-          rm -f caprice32/cap32.cfg
+      - name: Use cpcrun's generated Caprice32 config
+        # cap32.cfg is tracked in the caprice32 repo; cpcrun.py fills in
+        # cap32.cfg.tmpl itself when it is absent. Remove it on every run (a
+        # cache hit skips the build step), or the tracked file's paths are used.
+        run: rm -f caprice32/cap32.cfg
       - name: Runtime libraries for a cached cap32
         if: steps.cap32cache.outputs.cache-hit == 'true'
         run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0 libfreetype6 libpng16-16
