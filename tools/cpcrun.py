@@ -453,6 +453,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--cold needs --bare (a firmware-mode program cannot start without the firmware)")
     if args.bare:
         args.zxbc_args = ["-D", "CPC_BAREMETAL", *args.zxbc_args]
+        if args.cold and args.model == "464":
+            # a cold start can't see the 464 firmware's jumpblock; the 464 draws
+            # its lines a little differently from the 6128 (gfxbare.asm)
+            args.zxbc_args = ["-D", "CPC_LINE_464", *args.zxbc_args]
 
     extra_files: list[tuple[str, Path]] = []
     for spec in args.disk_files:

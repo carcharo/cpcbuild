@@ -1145,3 +1145,67 @@ firmware-clock timing in the tests: bare variants due in B5).
   end of Phase 8.
 - After Phase 8: the platformer becomes a tutorial that teaches the tools by
   following it. See the plan.
+
+## Phase 6 B5: bare graphics (2026-10-04)
+
+- runtime/gfxbare.asm (new, included by gfx.asm in bare mode): PLOT, DRAW
+  (incl. the arc form via draw3.asm), CIRCLE, POINT, OVER straight into
+  screen memory, every pixel clipped to the screen; pixel write
+  `byte ^ (((byte & KEEP) ^ I) & Pm)` (KEEP $FF = replace, 0 = OVER 1/XOR);
+  screen base from SCREEN_ADDR (follows the cpcbuild double buffer); the
+  graphics cursor is in the program image. Uses only the txtbare.asm core,
+  so a graphics-only bare program is 2684 bytes (no glyph table).
+- **The 464 and the 664/6128 firmwares draw different lines** (GRA_LINE
+  disassembled from both ROMs; the screens goldens for 464 and 6128 differ):
+  464 = run lengths from a division (Q or Q+1), 664/6128 = an error-term
+  loop (rounded Bresenham runs). Bare mode has both: CPC_INIT_12_GFX looks
+  for the 464's GRA_MOVE_ABSOLUTE target (&15F4) in the RAM jumpblock at
+  &BBC0 (intact on a disc start), anything else (664/6128, cold start's
+  junk) gets the 664/6128 algorithm; `-D CPC_LINE_464` / `-D CPC_LINE_6128`
+  force one (cpcrun adds CPC_LINE_464 for `--cold --model 464`). Checked
+  with 120 + 250 random lines per mode (clipped, OVER, INVERSE, circles,
+  arcs): 0 pixels differ from firmware on 464 and 6128, disc and cold.
+- break.asm bare: ESC from the matrix (row 8 bit 2), same calling
+  convention (ESC-down path untested: chipsrun can't type ESC).
+- Tests: the five "until B5" skips removed; cb_display, cb_fill,
+  cb_sprites, cb_tiles, cb_tilerestore run bare (lib/ticks.bas,
+  lib/scrolloff.bas: ScrollOffset() = SCR_GET_LOCATION, 0 bare); checks
+  that only mean something with the firmware's hardware scroll are
+  firmware-only (#ifndef CPC_BAREMETAL), firmware names and counts kept.
+- Results: chips bare and cold 41/41 (6128), 38/38 (464); Caprice32 bare
+  41/41 and 38/38; screens --bare/--cold 16/16, pixel-identical.
+
+## Phase 6 B6: Starfall bare builds (2026-10-04)
+
+- build_cpc.sh also builds starbare.bin (6128) and starba64.bin (464) from
+  the same source with `-D CPC_BAREMETAL`. On the disc: `RUN"DISC` starts
+  the firmware builds as before; `RUN"BARE` (BARE.BIN = loader_bare.asm,
+  which is loader.asm with BARE defined) stages STARFALL.DAT at &9000,
+  copies it into extra bank 0, then loads and starts the bare build. The
+  bare PlatInit checks BankAvailable() and the song data's "AT" signature
+  (BankLoad is refused bare); no songs = silent game. build_cpc.sh fails
+  if STARFALL.DAT would run past &A5FF (firmware/AMSDOS workspace).
+- **txtbare.asm split** (bare text): txtbare.asm is now the ~0.8 KB core
+  (mode variables, pen tables, clear, cell address, CR, __BT_DRAW), the new
+  txtglyph.asm holds the 1.8 KB glyph table, LF/scroll, __BT_PUTC and
+  SCREEN$. print.asm/udg.asm/font.bas/screen.bas use txtglyph; Mode, CLS,
+  AT, colours and graphics only the core. error.asm draws "Error n" with a
+  14-glyph mini font (~200 bytes) unless the program has the glyph table
+  (then `__BT_PUTC_VEC`, set by txtglyph's init, gives PRINT's output). The
+  mini-font path has no wrap or scroll (overwrites row 24). Before the
+  split the bare 6128 Starfall ended at &434E (over &4000).
+- Sizes: 6128 firmware 14760 bytes (ends &39E8, 1560 free below &4000),
+  6128 bare 15214 (&3BAE, 1106 free); 464 firmware 14513, 464 bare 15177.
+  A bare program that PRINTs carries the font again (Starfall + PRINT would
+  end near &4700).
+- Speed: 25.0 steps/s for every build (chips 6128/464 bare; Caprice32 bare
+  6128 from RUN"BARE with music from the bank: 501 frames for 250 steps).
+  Bare benchmarks report through `-D BENCH_ERR` ("Error n", n = frames -
+  400) because a PRINT would not fit (`BARE=1 tests/bench.sh chips`).
+- Full cpcbuild library in the 6128 bare build: does not fit (ends &4A45,
+  2629 bytes over; firmware equivalent &47AC, 1964 over); the library costs
+  ~3.7 KB. In the 464 bare build it fits with ~28 KB to spare below &B800.
+- Tests: games/shooter/tests/run.py `--variant fw|bare|cold` (default all):
+  logic 102 checks and title/play shots pass bare and cold, pixel-identical
+  to the firmware goldens; tests/disc.py covers RUN"BARE (12/12 on
+  Caprice32).

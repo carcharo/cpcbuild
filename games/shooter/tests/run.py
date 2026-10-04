@@ -3,17 +3,24 @@
 
   logic.bas     the game logic tests (null layer), both models: every
                 "PASS name" line, no "FAIL", and DONE.
+  variants      each runs as the firmware build (no label), as the bare-metal
+                build (-D CPC_BAREMETAL: label 6128/bare/...) and as the bare
+                build cold-started with no firmware (--cold: 6128/cold/...,
+                the Phase 7 cartridge rehearsal).
   screenshots   the title screen (-D SHOT=60) and a gameplay frame
                 (-D DEMO -D SHOT=170: the attract-mode player, fixed seed)
                 of the real builds (6128: -D CPC6128, 464: -D CPC464), each
-                compared pixel for pixel with golden/<model>/<name>.png.
+                compared pixel for pixel with golden/<model>/<name>.png (the
+                bare builds against the same goldens: the same game state
+                must give the same screen).
                 A shot is the visible display, 768x272 RGB (chipsrun).
 
-  --update   write the shots as the new goldens
+  --update   write the shots as the new goldens (firmware builds only; the
+             bare builds must match them)
 On a mismatch the actual image and a diff image (differing pixels in red over
 a dimmed copy) are written next to the golden. Exit status 0 if all passed.
 
-Usage: run.py [--update] [--model 464|6128] [-k PATTERN] [--timeout S]
+Usage: run.py [--update] [--model 464|6128] [--variant fw|bare|cold] [-k PATTERN] [--timeout S]
 """
 from __future__ import annotations
 
@@ -32,6 +39,8 @@ GAME = HERE.parent
 CPCRUN = GAME.parent.parent / "tools" / "cpcrun.py"
 GOLDEN = HERE / "golden"
 MODELS = ("6128", "464")
+VARIANTS = ("fw", "bare", "cold")   # firmware, bare-metal, bare-metal cold start
+VFLAGS = {"fw": [], "bare": ["--bare"], "cold": ["--bare", "--cold"]}
 ORG = "0x40"
 
 # name -> extra zxbc defines
@@ -41,9 +50,14 @@ SHOTS = {
 }
 
 
-def cpcrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir: Path | None = None):
+def vlabel(model: str, variant: str) -> str:
+    return model if variant == "fw" else f"{model}/{variant}"
+
+
+def cpcrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir: Path | None = None,
+           variant: str = "fw"):
     cmd = [sys.executable, str(CPCRUN), str(prog), "--emu", "chips", "--model", model,
-           "--org", ORG, "--timeout", str(timeout)]
+           "--org", ORG, "--timeout", str(timeout), *VFLAGS[variant]]
     if shot_dir:
         cmd += ["--shot-dir", str(shot_dir), "--quiet"]
     if prog.name == "main.bas":
@@ -53,9 +67,9 @@ def cpcrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir:
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout * 4 + 120)
 
 
-def logic_test(model: str, timeout: float):
-    label = f"{model}/logic"
-    proc = cpcrun(HERE / "logic.bas", model, [], timeout)
+def logic_test(model: str, timeout: float, variant: str = "fw"):
+    label = f"{vlabel(model, variant)}/logic"
+    proc = cpcrun(HERE / "logic.bas", model, [], timeout, variant=variant)
     out = proc.stdout
     if proc.returncode != 0:
         return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]
@@ -68,11 +82,11 @@ def logic_test(model: str, timeout: float):
     return [("PASS", label, f"{passes} checks")]
 
 
-def shot_test(model: str, name: str, timeout: float, update: bool):
-    label = f"{model}/{name}"
+def shot_test(model: str, name: str, timeout: float, update: bool, variant: str = "fw"):
+    label = f"{vlabel(model, variant)}/{name}"
     flag = "CPC464" if model == "464" else "CPC6128"
     with tempfile.TemporaryDirectory(prefix="starfall-") as tmp:
-        proc = cpcrun(GAME / "main.bas", model, [flag, *SHOTS[name]], timeout, Path(tmp))
+        proc = cpcrun(GAME / "main.bas", model, [flag, *SHOTS[name]], timeout, Path(tmp), variant)
         if proc.returncode != 0:
             return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]
         shots = sorted(Path(tmp).glob("*.png"))
@@ -117,6 +131,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--update", action="store_true")
     ap.add_argument("--model", choices=MODELS, action="append")
+    ap.add_argument("--variant", choices=VARIANTS, action="append")
     ap.add_argument("-k", dest="pattern", default=None)
     ap.add_argument("-j", dest="jobs", type=int, default=4)
     ap.add_argument("--timeout", type=float, default=60.0)
@@ -124,10 +139,11 @@ def main() -> int:
 
     jobs = []
     for m in args.model or MODELS:
-        if not args.update:
-            jobs.append(lambda m=m: logic_test(m, args.timeout))
-        for name in SHOTS:
-            jobs.append(lambda m=m, name=name: shot_test(m, name, args.timeout, args.update))
+        for v in (["fw"] if args.update else (args.variant or VARIANTS)):
+            if not args.update:
+                jobs.append(lambda m=m, v=v: logic_test(m, args.timeout, v))
+            for name in SHOTS:
+                jobs.append(lambda m=m, name=name, v=v: shot_test(m, name, args.timeout, args.update, v))
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         futures = [pool.submit(j) for j in jobs]
         results = [r for f in futures for r in f.result()]

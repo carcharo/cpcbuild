@@ -1,4 +1,3 @@
-REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Conformance: SetFont (font.bas) -- a custom font for characters 32-127,
 REM and how it coexists with UDGs and the CPC glyphs above 127.
 REM

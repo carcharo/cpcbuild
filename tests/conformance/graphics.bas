@@ -1,4 +1,3 @@
-REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Conformance: Phase 4a graphics and colour (PLOT, DRAW, CIRCLE,
 REM INK/PAPER/INVERSE/OVER, Mode, POINT).
 REM

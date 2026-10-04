@@ -26,10 +26,17 @@ See [DESIGN.md](DESIGN.md) for the full rules, coordinate system, asset pipeline
 |----------|-------|---------|--------|-------|-----------------|-----------|
 | **CPC 6128** | 6128 (`-D CPC6128`) | `build_cpc.sh` | `starfall.bin` + `starfall.dat` on `starfall.dsk` | Yes, in extra bank 0 | Yes | &0040 |
 | **CPC 464** | 464 (`-D CPC464`) | `build_cpc.sh` | `starfa64.bin` on the same disc | Yes, in main RAM | No | &0040 |
+| **CPC 6128 bare** | 6128 + `-D CPC_BAREMETAL` | `build_cpc.sh` | `starbare.bin` (+ `starfall.dat`) on the same disc | Yes, in extra bank 0 (put there by the loader) | Yes | &0040 |
+| **CPC 464 bare** | 464 + `-D CPC_BAREMETAL` | `build_cpc.sh` | `starba64.bin` on the same disc | Yes, in main RAM | No | &0040 |
 | **Spectrum 128K** | 128 (`-D ZX128`) | `build_zx.sh 128` | `starfall128.tap` | Yes (IM2 hook) | Yes (bank 7) | &7C00 |
 | **Spectrum 48K** | 48 (`-D ZX48`) | `build_zx.sh 48` | `starfall48.tap` | No music; short beeper effects | No | &8000 |
 
-**Disc loader:** One AMSDOS disc (build/starfall.dsk) with all three CPC builds. Run `RUN"DISC` — the Z80 loader detects the 6128's extra RAM and boots the appropriate build.
+**Disc loader:** One AMSDOS disc (build/starfall.dsk) with all four CPC builds and two loaders, one source (`loader.asm`):
+
+- `RUN"DISC` (DISC.BIN) detects the 6128's extra RAM and starts the firmware build, `STARFALL.BIN` (6128) or `STARFA64.BIN` (464).
+- `RUN"BARE` (BARE.BIN, `loader_bare.asm`) starts the bare-metal build: no firmware, the program's own boot, interrupt handler and text code. A bare program cannot read the disc, so on a 6128 this loader first loads `STARFALL.DAT` (the songs) and copies it into extra RAM bank 0 itself; then it loads `STARBARE.BIN` (6128) or `STARBA64.BIN` (464) and jumps to it. The game checks the songs' signature in the bank and plays silent if they are not there (for example started without the loader). The bare builds look and play like the firmware ones (same screenshots, same speed).
+
+Bare and firmware builds are both on the one disc because they cost nothing to carry; `RUN"DISC` is the default.
 
 ## Build and run
 
@@ -42,7 +49,7 @@ cd ../..
 make run PROG=games/shooter/build/starfall.dsk
 ```
 
-Or run the disc in Caprice32 or a real CPC: load build/starfall.dsk, then `RUN"DISC`.
+Or run the disc in Caprice32 or a real CPC: load build/starfall.dsk, then `RUN"DISC` (firmware builds) or `RUN"BARE` (bare-metal builds).
 
 ### Spectrum (FUSE or real hardware)
 
@@ -93,15 +100,15 @@ waves); at most one effect per step, interrupts off while it plays.
 
 ## Tests
 
-- **102 logic checks:** collision, scoring, formation steps, wave speed-up, lives and game over, on all four builds.
-- **Screenshot goldens:** CPC 6128 and 464: title and a gameplay frame each; Spectrum 48K and 128K: title, an attract-mode gameplay frame and a started game each, plus the layer test scene.
-- **Disc test:** loads and runs the CPC disc loader on Caprice32 (not in CI; runs manually with `make run`).
+- **102 logic checks:** collision, scoring, formation steps, wave speed-up, lives and game over, on all four builds, and on the CPC bare builds (also cold-started with no firmware).
+- **Screenshot goldens:** CPC 6128 and 464: title and a gameplay frame each (the bare builds, warm and cold, are compared with the same goldens); Spectrum 48K and 128K: title, an attract-mode gameplay frame and a started game each, plus the layer test scene.
+- **Disc test:** `make disc` (tests/disc.py) runs RUN"DISC and RUN"BARE on Caprice32, 6128 and 464, and checks each picks the right build (not in CI).
 - **All tests:** `make test-games` and `make test-zx` (CI: `make ci` runs everything on chips and Spectrum emulators).
 
 ## Building from source
 
 `build_cpc.sh` and `build_zx.sh` compile the shared game logic (`game.bas`, `main.bas`) with per-platform `platform_cpc.bas` and `platform_zx.bas`, then pack assets and binaries into disc images or .tap files.
 
-**Build switches:** `-D DEMO` (attract mode, fixed seed), `-D SHOT=n` (screenshot after n logic steps, then end), `-D BENCH` (n steps, then print frame rate), `-D NODISC` (skip the disc load on Caprice32 — for chips, which has no disc).
+**Build switches:** `-D DEMO` (attract mode, fixed seed), `-D SHOT=n` (screenshot after n logic steps, then end), `-D BENCH` (n steps, then print frame rate), `-D NODISC` (skip the disc load on Caprice32 — for chips, which has no disc), `-D BENCH_ERR` (with BENCH: report the frame count as "Error n", n = frames - 400, instead of PRINT; for bare 6128 benchmarks, where the text code would not fit below &4000). `BARE=1 tests/bench.sh chips` benches the bare builds. A bare program carries a little more than a firmware one (the boot and interrupt handler; Starfall never PRINTs, so it carries no font): see `build_cpc.sh`'s size report.
 
 See [DESIGN.md](DESIGN.md) for the portable layer, asset pipeline and Arkos Tracker integration.

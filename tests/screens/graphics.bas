@@ -1,4 +1,3 @@
-REM BARE: skip until Phase 6 B5 (bare graphics: PLOT/DRAW/POINT still call the firmware)
 REM Screen test: PLOT / DRAW / CIRCLE in mode 1, three colours, plus one
 REM mode 2 pixel-pair pattern line (OVER 1) to show XOR drawing.
 #include <cpc.bas>

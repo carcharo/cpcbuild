@@ -58,6 +58,15 @@ DIM benchT AS UINTEGER
 DIM benchN AS UINTEGER
 #endif
 
+#ifdef BENCH_ERR
+SUB BenchErr(n AS UBYTE)
+  ASM
+  ld a, (ix+5)
+  call .core.__ERROR
+  END ASM
+END SUB
+#endif
+
 ' Per-step bookkeeping for the test switches. w: 0 title, 1 play.
 SUB Tick(w AS UBYTE)
 #ifdef SHOT
@@ -75,8 +84,14 @@ SUB Tick(w AS UBYTE)
   IF benchN = 251 THEN
     t = PlatFrames() - benchT
     PlatEnd()
+#ifdef BENCH_ERR
+    ' no PRINT (a bare 6128 build with the text code would not fit below
+    ' &4000): the frames as "Error n", n = frames - 400, on the printer echo
+    BenchErr(CAST(UBYTE, t - 400))
+#else
     r = 62500 / (t >> 1)
     PRINT "INFO steps="; benchN - 1; " frames="; t; " per second="; r / 10; "."; r - (r / 10) * 10
+#endif
     END
   END IF
 #endif

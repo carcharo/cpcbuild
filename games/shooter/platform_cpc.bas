@@ -1043,10 +1043,24 @@ SUB PlatInit()
   SfxInit(@sf_sfx)
 #ifdef SF_BANKMUSIC
   bankOK = BankAvailable()
+#ifdef CPC_BAREMETAL
+#ifndef NODISC
+  ' Bare: no disc, so no BankLoad. The disc loader (loader.asm, RUN"BARE)
+  ' put STARFALL.DAT into bank 0 before starting this program; check its
+  ' "AT" signature (the songs' header) so a start without the loader runs
+  ' silent instead of playing garbage.
+  IF bankOK <> 0 THEN
+    IF BankPeek(0, 16384) <> 65 OR BankPeek(0, 16385) <> 84 THEN bankOK = 0
+  END IF
+#else
+  bankOK = 0
+#endif
+#else
 #ifndef NODISC
   IF bankOK <> 0 THEN bankOK = BankLoad("STARFALL.DAT", 0, 16384)
 #else
   bankOK = 0
+#endif
 #endif
 #endif
 #endif

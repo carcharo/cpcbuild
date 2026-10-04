@@ -1,4 +1,3 @@
-REM BARE: skip calls the firmware directly (KL_TIME_PLEASE clock, SCR_GET_LOCATION scroll offset)
 REM Conformance: cpcbuild core (Phase 4c) -- screen addressing with and
 REM without a hardware-scroll offset, double buffering, WaitRetrace.
 REM
@@ -19,20 +18,9 @@ SUB CHK(name AS STRING, gotv AS STRING, wantv AS STRING)
   END IF
 END SUB
 
-FUNCTION FASTCALL Ticks AS ULONG
-  ASM
-  call .core.__FW_CALL
-  defw $BD0D
-  END ASM
-END FUNCTION
+#include "lib/ticks.bas"
 
-REM The firmware's scroll offset (SCR_GET_LOCATION -> HL).
-FUNCTION FASTCALL ScrollOffset AS UINTEGER
-  ASM
-  call .core.__FW_CALL
-  defw $BC0B
-  END ASM
-END FUNCTION
+#include "lib/scrolloff.bas"
 
 REM Writes &FF at the first byte of every character row and every byte of
 REM pixel line y; returns how many of those don't read back right, through
@@ -73,7 +61,9 @@ FOR i = 1 TO 30
   PRINT i
 NEXT i
 off = ScrollOffset()
+#ifndef CPC_BAREMETAL
 CHK("offset_moved", STR$(off > 0), "1")
+#endif
 ScreenInit()
 CLS
 REM after CLS the offset may be reset; scroll again so it isn't 0
@@ -82,7 +72,9 @@ FOR i = 1 TO 30
 NEXT i
 ScreenInit()
 CLS
+#ifndef CPC_BAREMETAL
 CHK("offset_after_scroll", STR$(ScrollOffset() > 0), "1")
+#endif
 REM The character row whose bytes wrap around the 2 KB block is
 REM (2048 - offset) / 80; check a line in it and the whole grid.
 off = ScrollOffset()
