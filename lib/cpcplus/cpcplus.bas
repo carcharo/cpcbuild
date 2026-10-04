@@ -321,8 +321,7 @@
 ' or no line is set. Cost: 0.19 ms net when the line stays between its neighbours (the common
 ' case: a raster bar or a sprite row sliding down), about 0.5 ms when it crosses other lines,
 ' against 1.0 ms for a RasterIntAt + RasterIntOff pair; interrupts off for that time (state
-' kept). Use the returned value (a call whose result is never read may be dropped by the
-' compiler).
+' kept). Check the returned value.
 ' WHEN IT IS SAFE. The table is shared with the interrupt handler, so the call itself changes
 ' it with interrupts off and is atomic, but it cannot know where the scan is. The entry that
 ' fires next has its line programmed into PRI; a line already passed fires next frame, and

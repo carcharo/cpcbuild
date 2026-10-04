@@ -17,7 +17,8 @@ Contents
 7. [Double buffering](#7-double-buffering)
 8. [Sound ownership](#8-sound-ownership)
 9. [API reference](#9-api-reference)
-10. [Performance tips](#10-performance-tips)
+10. [CPC Plus (cpcplus)](#10-cpc-plus-cpcplus)
+11. [Performance tips](#11-performance-tips)
 
 ## 1. Using the library
 
@@ -968,7 +969,183 @@ SetFont(@myfont(0))
 | `SCREEN$(row, col)` (`screen.bas`) | The character at a text cell, as a one-character string, or `""`. |
 | `INPUT(maxchars)` (`input.bas`) | Reads a line with the firmware cursor: `a$ = INPUT(20)`. |
 
-## 10. Performance tips
+## 10. CPC Plus (cpcplus)
+
+`lib/cpcplus` drives the CPC Plus / GX4000 ASIC: 16 hardware sprites, the
+12-bit palette (4,096 colours), soft scroll and split screen, raster
+interrupts (bare mode only) and DMA sound. It works in firmware mode and in
+bare-metal mode (`-D CPC_BAREMETAL`). On a 464/664/6128 every call does
+nothing and changes nothing; `PlusAvailable()` tells a program which machine
+it is on. The first call probes the ASIC and unlocks it (`PlusLock()` locks
+it again). The full reference, with every rule, is the header of
+`lib/cpcplus/cpcplus.bas`.
+
+```basic
+#include <cpcplus/cpcplus.bas>
+```
+
+### Calls
+
+| Call | What it does |
+|---|---|
+| `PlusAvailable()` | 1 on a Plus or GX4000, 0 on a 464/664/6128 |
+| `PlusUnlock()`, `PlusLock()` | unlock (the calls do it the first time) / lock again (bare mode: ends raster interrupts first) |
+| `PlusPeek(addr)`, `PlusPoke(addr, value)` | one byte of the ASIC page (&4000-&7FFF), paging done for you |
+| `PlusPokeBlock(dest, src, count)` | a block from RAM into the ASIC page in one window; cut at &7FFF |
+| `PlusPageIn()`, `PlusPageOut()` | hand the ASIC page to the program (the only calls that still reserve &4000-&7FFF) |
+| `SetPalette12(pen, rgb)` | pen 0-15 gets `rgb` = `&H0RGB` (red, green, blue 0-15 each) |
+| `SetBorder12(rgb)` | the border |
+| `GetPalette12(entry)` | colour of entry 0-31 (16 = border, 17-31 = sprite colours 1-15) |
+| `SetPalette12Block(addr, first, count)` | count colours (two bytes each, as `img2cpc.py --plus-palette` writes) into entries first.. |
+| `SpritePalette(addr)` | sprite colours 1-15 from 30 bytes (`img2cpc.py --plus-sprite`'s `NAME_pal`) |
+| `SpriteColour(n, rgb)` | one sprite colour, n = 1-15 |
+| `SpriteSetImage(n, addr)` | sprite n (0-15): 256 bytes, one pixel per byte, 0 = transparent, 1-15 = sprite colour |
+| `SpriteSetImagePacked(n, addr)` | the same from 128 bytes, two pixels per byte, left pixel in the high nibble (needs about 270 bytes of stack) |
+| `SpriteMove(n, x, y)` | position (see Coordinates); values outside the ASIC's range are clamped |
+| `SpriteMoveBlock(first, count, addr)` | positions of several sprites from a table of INTEGER pairs (x0, y0, x1, y1, ...), one window, **not clamped** (x -256..767, y -256..255) |
+| `SpriteMag(n, magx, magy)` | magnification 1, 2 or 4; 0 hides the sprite |
+| `SpriteHide(n)`, `SpritesHideAll()` | hide one / all 16 |
+| `ScrollFine(dx, dy)` | soft scroll: dx 0-15 mode-2 pixels right, dy 0-7 lines up |
+| `ScrollBorder(flag)` | 1 widens the left border by 16 mode-2 pixels (hides the scroll's left edge) |
+| `SplitScreen(line, addr)`, `SplitScreenCrtc(line, crtc)`, `SplitOff()` | from scan line `line` (1-255) show the screen at byte address `addr` (or CRTC word R12 * 256 + R13); off |
+| `RasterIntAt(line, handler)`, `RasterIntOff(line)`, `RasterIntMove(old, new)`, `RasterIntClear()` | bare mode only: see Raster interrupts |
+| `DmaStart(channel, addr)`, `DmaStop(channel)`, `DmaActive()`, `DmaPrescaler(channel, value)`, `DmaAlign(addr)` | DMA sound: see DMA sound |
+
+**Coordinates.** x is in mode-2 pixels from the left edge of the 640-pixel
+picture, y in lines from the top of the 200-line picture, for the sprite's
+top-left corner. A sprite is 16x16 pixels; one sprite pixel is 1, 2 or 4
+mode-2 pixels wide and 1, 2 or 4 lines high at magnification 1, 2, 4. Where
+sprites overlap, the lower-numbered one is in front (sprite 0 over sprite
+15). All 16 sprites share the 15 sprite colours (palette entries 17-31).
+
+### Cost
+
+Measured on Caprice32 and CPCEC, bare / firmware mode (firmware-mode figures
+include the firmware's own interrupts). Net microseconds on top of BASIC's
+own call overhead (about 93 us):
+
+| Call | Cost |
+|---|---|
+| `SetPalette12`, `SetBorder12` | 93 / 131 us |
+| `SpriteColour` | 106 / 131 us |
+| `SpriteMove` (in range) | 106 / 133 us |
+| `SpriteMoveBlock` | 130 us + 28 us a sprite (8 sprites 360 us; 8 `SpriteMove` calls cost 850) |
+| `SetPalette12Block`, 16 colours | about 410 us |
+| `ScrollFine` / `SpriteMag` | about 150 / 190 us |
+
+Pictures and blocks, milliseconds a call including the call overhead:
+`SpriteSetImage` 1.8 / 2.0 (3.9 / 4.3 from a source in &4000-&7FFF),
+`SpriteSetImagePacked` 4.7 / 5.2, `PlusPokeBlock` 0.85 / 0.93 for 88 bytes
+and 1.85 / 2.05 for 256. A block costs 6 us a byte (an LDIR byte is 24
+T-states on the CPC) plus about 0.3 ms.
+
+### Rules to know
+
+- **Set the 12-bit palette again after `Mode()`.** In firmware mode the
+  firmware rewrites all 17 inks every 10 frames, which would undo 12-bit
+  pen and border colours; the library stops that refresh on the first pen
+  or border call, and `Mode()` restarts it and resets the inks. Bare mode
+  has no refresh. Sprite colours are never touched by the firmware.
+- **Call `SpritesHideAll()` before END** (and `ScrollFine(0, 0)`,
+  `SplitOff()`): sprites, scroll and split are ASIC state and survive the
+  reset.
+- **No 16 KB limit.** The few instructions that run while the ASIC page
+  replaces &4000-&7FFF are kept in the runtime's private block (firmware
+  layout &9E00, bare &BC00), so a program's code and data may lie anywhere.
+  Only a program that uses `PlusPageIn`/`PlusPageOut` must end below &4000.
+- **Soft scroll and split screen:** whole bytes still move with the CRTC
+  start address (R12/R13, or cpcbuild's FlipBuffer); the soft scroll adds to
+  it. A vertical soft scroll shows the next character row's first lines at
+  the bottom of each row, so keep a spare row of data below the picture.
+  Split on a multiple of 8 lines for a clean split. The split address is
+  independent of the double buffer's R12/R13.
+
+### Raster interrupts (bare mode only)
+
+The ASIC's programmable raster interrupt stops the CPC's normal six
+interrupts per frame, which the firmware needs, so `RasterIntAt` and friends
+work only with `-D CPC_BAREMETAL`; a firmware build that uses them fails with
+an undefined label naming bare mode.
+
+`RasterIntAt(line, handler)` runs a machine-code routine (ending in RET) once a
+frame at scan line `line` (1-255), with interrupts off and all registers
+saved. Up to 15 lines; the library adds a frame entry at line 243 that keeps
+`Frames()`, PAUSE, BEEP and the frame hook at 50 Hz. A handler must not call
+the firmware or change the table. `RasterIntMove(old, new)` moves a line
+keeping its handler (0.19 ms in place, about 0.5 ms across other lines,
+against 1.0 ms for `RasterIntOff` + `RasterIntAt`) and returns 1 if moved;
+call it in the vertical blank after the frame tick or from a frame hook,
+never from a handler.
+
+**Timing.** A handler's first instruction runs about 620 T-states (2.4 lines)
+after the interrupt, plus up to 23 for the instruction the Z80 finishes
+first: ask for the line three lines before the one you want. The interrupt
+handler needs about 300 T-states after the handler returns, so lines closer
+together than (920 + handler T-states) / 256 lines are delayed.
+
+**Steady splits: wait in HALT.** The Z80 finishes its current instruction
+before taking the interrupt, so if the main program is busy, a colour change
+jitters sideways by up to that instruction's length. Keep the main program
+waiting in HALT while the lines go by (PAUSE and WaitVsync do; a game draws,
+then waits for the next frame).
+
+**Fast path for handlers.** The calls above are too slow inside a handler.
+From an ASM block, `call .core.PlusHandlerIn`, store straight to the ASIC
+(`ld (&6400), de` sets pen 0 with E = red << 4 | blue, D = green; `ld
+(&6420), de` the border; the scroll register is &6804), then `call
+.core.PlusHandlerOut`: 49 T-states each, about 150 T-states with two stores.
+Between them &4000-&7FFF is the ASIC, so the handler's code, data and stack
+must lie outside it. With `#require "cpcplus/plushandler.asm"` the entries
+`PlusHandlerSetColourRaw` (155 T-states), `PlusHandlerSetColour`,
+`PlusHandlerPoke` and `PlusHandlerScroll` do their own paging and have no
+placement rule. Use them only on a Plus (`PlusAvailable()` = 1), after the
+ASIC is unlocked.
+
+### DMA sound
+
+Each of the three channels fetches one 16-bit instruction a scan line from a
+list in RAM and plays the AY by itself, with no CPU time. `DmaStart(channel,
+addr)` returns 1, or 0 if refused (channel not 0-2, an odd address, or no
+ASIC). List words: `DMA_LOAD(reg, value)` (write an AY register),
+`DMA_PAUSE(n)` (wait n * (prescaler + 1) lines), `DMA_REPEAT(n)` (the next
+instruction starts a loop run n more times), `DMA_LOOP`, `DMA_NOP`,
+`DMA_STOP`; don't use `DMA_INT`. A list may lie anywhere in the first 64 KB
+at an even address (`DIM list(n) AS UINTEGER` one word longer than needed,
+started at `DmaAlign(@list(0))`). While DMA runs, nothing else may write the
+same AY registers (music player, BEEP, Play, AyWrite; in firmware mode no
+firmware sounds).
+
+### Tools
+
+- `img2cpc.py --plus-sprite [--packed]` turns 16x16 cells of a PNG into
+  sprite data and a 15-colour sprite palette (error if more than 15 colours,
+  unless `--palette` gives them); `--plus-palette` gives 16 pen colours.
+- `mkcpr.py prog.bin -o game.cpr` builds a cartridge from a bare program
+  (`-D CPC_BAREMETAL -D CPC_OWNFONT`; a cartridge has no firmware font). The
+  origin is read from the `.map` next to the binary, or given with
+  `--load`. A boot stub copies the program into RAM; it must lie below &C000.
+- `cpcrun.py prog.bas --model plus [--bare]` runs on a 6128 Plus in
+  Caprice32; `cpcrun.py --cpr game.cpr` runs a cartridge; `--emu cpcec` uses
+  CPCEC instead (`tools/cpcec/fetch_build.sh`, or `make cpcec`).
+
+**Emulators.** Caprice32 draws all sprites once per frame from their final
+registers, so it cannot show sprites repositioned mid-frame (multiplexing);
+CPCEC draws them line by line and is the reference for that. CPCEC shows
+12-bit colours brighter than Caprice32. Plus screenshot goldens are kept per
+emulator.
+
+### Examples
+
+- **examples/plusdemo.bas**: the Plus feature demo (bare mode): 8 bouncing
+  hardware sprites at several sizes, 12-bit colour cycling, 14 steady raster
+  bars, a split screen with a smooth-scrolling landscape, and a DMA tune.
+  Build the cartridge with `sh examples/plusdemo/build.sh`.
+- **Starfall Plus** (games/shooter, `build_plus.sh`): the ship, bullets,
+  bombs, diver and explosions are hardware sprites on disc (`RUN"PLUS`) and
+  cartridge; the cartridge also multiplexes the 18-alien formation onto six
+  sprites with raster handlers. See games/shooter/README.md.
+
+## 11. Performance tips
 
 All figures are measured in Caprice32 unless marked otherwise. The CPC's Z80 runs at 4 MHz but every instruction takes a whole
 number of microseconds, so counts here are "effective" T-states; a frame (20 ms)

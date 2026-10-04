@@ -1506,3 +1506,12 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
 - The agent reported that Boriel drops a function call whose result is
   never read; not reproduced in a simple test (both calls kept at -O0..-O3).
   Unconfirmed; revisit if seen again.
+
+## 2026-10-04: Phase 7 docs
+
+- docs/library.md section 10 "CPC Plus (cpcplus)" and README status. The
+  haiku draft had many errors (private block addresses swapped, invented
+  sprite priority and Mode() behaviour, SpriteMoveBlock cost inverted,
+  wrong mkcpr/cpcrun command lines, DmaStart refusal, Starfall's disc build
+  described as software sprites); the main model rewrote the section from
+  the cpcplus.bas header and these notes.

@@ -12,11 +12,11 @@ CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` co
 - Interrupts always on through our own &0038 handler, firmware sound without blocking, AY register access, the Play library (4d).
 - A headless reference emulator on floooh/chips that runs the whole test suite (pre-5a).
 
-**Done:** Phase 5a — tests, CI, documentation. Phase 5b — music player (Arkos Tracker 3.7), sound effects, opt-in game mode. Phase 5c — single-screen shooter (Starfall) for CPC 6128/464 and Spectrum 128K/48K, cross-platform build machinery. Phase 6 — bare-metal mode (no firmware), Starfall bare builds.
+**Done:** Phase 5a — tests, CI, documentation. Phase 5b — music player (Arkos Tracker 3.7), sound effects, opt-in game mode. Phase 5c — single-screen shooter (Starfall) for CPC 6128/464 and Spectrum 128K/48K, cross-platform build machinery. Phase 6 — bare-metal mode (no firmware), Starfall bare builds. Phase 7 — CPC Plus/ASIC library: 16 hardware sprites, 12-bit palette, soft scroll and split screen, raster interrupts (bare only), DMA sound; Plus feature demo and Starfall Plus cartridge with multiplexed sprite formation; CI on Caprice32 and CPCEC.
 
 **Phase 6 (bare-metal mode):** `-D CPC_BAREMETAL` builds a program that never calls the firmware: the runtime boots the machine itself and does its own text, keyboard, sound and graphics, pixel-identical to firmware mode, with 6656 bytes more room for code and data (up to &B7FF). It also starts from a cold machine (no firmware), rehearsed by chipsrun's `--cold` mode as a step towards cartridges. The conformance and screenshot suites pass bare on chips (464, 6128; disc and cold start) and Caprice32 (464, 664, 6128), and run in CI (`make test-bare`). Starfall builds both ways from the same source: `RUN"DISC` starts the firmware builds, `RUN"BARE` the bare ones, at the same 25.0 steps/s. See the compiler's [Bare-metal mode](https://github.com/carcharo/zxbasic/blob/cpc-arch/docs/architectures/amstrad_cpc.md#bare-metal-mode) section.
 
-**Supported models:** Amstrad CPC 464, 664, 6128. The runtime is firmware-first (text, graphics, sound and files go through the jumpblock at &BB00-&BDxx); the `cpcbuild` library drives the screen, keyboard and palette directly for speed. Phase 6 adds firmware-free bare-metal mode. CPC Plus features are planned for Phase 7.
+**Supported models:** Amstrad CPC 464, 664, 6128, and the CPC Plus range (6128 Plus; GX4000 cartridges). The runtime is firmware-first (text, graphics, sound and files go through the jumpblock at &BB00-&BDxx); the `cpcbuild` library drives the screen, keyboard and palette directly for speed. Phase 6 adds firmware-free bare-metal mode. Phase 7 adds CPC Plus ASIC support: hardware sprites, 12-bit palette, split screen and soft scroll, raster interrupts (bare only), and DMA sound.
 
 ## Screenshots
 
@@ -100,7 +100,7 @@ PLAN-boriel-cpc.md        # Implementation plan and architecture
 
 ## Documentation
 
-- **[Library reference](docs/library.md)** — API for sprites, tiles, keyboard, palette, sound
+- **[Library reference](docs/library.md)** — API for sprites, tiles, keyboard, palette, sound, and [CPC Plus hardware](docs/library.md#10-cpc-plus-cpcplus)
 - **[CPC target (zxbasic fork)](https://github.com/carcharo/zxbasic/blob/cpc-arch/docs/architectures/amstrad_cpc.md)** — memory map, screen modes, firmware gate, PRINT, floats
 - **[PLAN-boriel-cpc.md](PLAN-boriel-cpc.md)** — design overview, standing decisions, CPC hardware facts
 - **[docs/notes.md](docs/notes.md)** — phase milestones and decisions log
