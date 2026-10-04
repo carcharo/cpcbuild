@@ -1,0 +1,77 @@
+name: Setup CPCBuild CI
+description: >
+  Shared job setup. Expects cpcbuild already checked out at ./cpcbuild (needed to
+  reach this action). Checks out zxbasic (cpc-arch) and the pinned ROMs, sets up
+  Python + poetry (cached venv), and optionally the chips cache + build.
+inputs:
+  python-version:
+    default: '3.14.3'
+  # Pinned: ROMs come from this caprice32 commit (rom/ only).
+  caprice32-sha:
+    default: 6c12c4c92360065cdc229ac9ada7551f941436b8
+  # Keep in sync with SHA in tools/chipsrun/fetch_chips.sh (cache key only).
+  chips-sha:
+    default: 9e88298ce56319953ac7a43213a1120359f7a3a6
+  chips:
+    description: 'true to restore the chips cache and build chipsrun/zxrun'
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Checkout zxbasic (cpc-arch)
+      uses: actions/checkout@v7
+      with:
+        repository: carcharo/zxbasic
+        ref: cpc-arch
+        path: zxbasic
+
+    - name: Fetch CPC ROMs (caprice32 rom/ at pinned commit)
+      uses: actions/checkout@v7
+      with:
+        repository: ColinPitrat/caprice32
+        ref: ${{ inputs.caprice32-sha }}
+        path: caprice32
+        sparse-checkout: rom
+        sparse-checkout-cone-mode: true
+
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: zxbasic/poetry.lock
+
+    - name: Install poetry
+      shell: bash
+      run: |
+        pip install -U pip~=26.0
+        pip install poetry~=2.3.2
+        poetry config virtualenvs.in-project true
+
+    - name: Cache zxbasic venv
+      uses: actions/cache@v6
+      with:
+        path: zxbasic/.venv
+        key: venv-${{ runner.os }}-py-${{ inputs.python-version }}-${{ hashFiles('zxbasic/poetry.lock') }}
+
+    - name: Install zxbasic dependencies
+      shell: bash
+      working-directory: zxbasic
+      run: poetry install
+
+    - name: Install cpcbuild tool dependencies
+      shell: bash
+      run: pip install Pillow
+
+    - name: Cache chips checkout
+      if: inputs.chips == 'true'
+      uses: actions/cache@v6
+      with:
+        path: cpcbuild/tools/chipsrun/chips
+        key: chips-${{ inputs.chips-sha }}
+
+    - name: Build chips runners
+      if: inputs.chips == 'true'
+      shell: bash
+      working-directory: cpcbuild
+      run: make chips
