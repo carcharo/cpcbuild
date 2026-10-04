@@ -18,11 +18,13 @@
 '   PlusPokeBlock(dest, src, count)
 '                                 count bytes from RAM at src to the ASIC
 '                                 page at dest (&4000-&7FFF), in one window
-'                                 (interrupts off for about 21 T-states a
-'                                 byte; a source in &4000-&7FFF is bounced,
+'                                 (interrupts off for 6 us a byte, 1.5 ms for
+'                                 256; a source in &4000-&7FFF is bounced,
 '                                 64 bytes a window): a program that keeps
 '                                 its sprite registers in a table writes
-'                                 the whole block once a frame
+'                                 the whole block once a frame. A block that
+'                                 would run past &7FFF is cut there; a dest
+'                                 outside the page does nothing
 '
 '   SetPalette12(pen, rgb)        pen 0-15 gets the 12-bit colour rgb =
 '                                 &H0RGB (red, green, blue 0-15 each)
@@ -43,6 +45,8 @@
 '                                 transparent, 1-15 = sprite colour
 '   SpriteSetImagePacked(n, addr) the same from 128 bytes, two pixels per
 '                                 byte, the left one in the high nibble
+'                                 (unpacked on the stack, which needs about
+'                                 270 bytes free, then ONE window of 1.5 ms)
 '   SpriteMove(n, x, y)           position, see below
 '   SpriteMoveBlock(first, count, addr)
 '                                 positions of sprites first.. first+count-1
@@ -76,6 +80,12 @@
 '                                 `line` (1-255), with interrupts off and
 '                                 all registers saved
 '   RasterIntOff(line)            removes that line
+'   RasterIntMove(oldLine, newLine)
+'                                 BARE MODE ONLY: moves a set line to another
+'                                 line, keeping its handler, 2-5 times cheaper
+'                                 than Off + At (see "Moving a line" below);
+'                                 returns 1 if moved, 0 if refused (oldLine not
+'                                 a set line, newLine already set, a 0)
 '   RasterIntClear()              removes them all
 '
 '   DmaStart(channel, addr)       channel 0-2 plays the list of 16-bit
@@ -91,10 +101,10 @@
 '   DMA_INT, DMA_STOP            the words of a list (see below)
 
 ' Cost of the calls (Caprice32 and CPCEC agree; tests/conformance/plus_speed.bas
-' measures them with Frames()/Ticks() over 1500 calls and asserts bounds). Net
-' microseconds a call adds to BASIC's own call overhead (an empty SUB of the same
-' signature in a loop: about 93 us), before this speed work -> now. Bare mode / firmware
-' mode (firmware mode's figures include the firmware's own interrupts, which take
+' measures them with Frames()/Ticks() over 1500 calls (200 for the pictures) and asserts
+' bounds). Net microseconds a call adds to BASIC's own call overhead (an empty SUB of the
+' same signature in a loop: about 93 us), before the speed work -> now. Bare mode /
+' firmware mode (firmware mode's figures include the firmware's own interrupts, which take
 ' about a quarter of the time, so everything there looks slower):
 '   SetPalette12, SetBorder12   279 -> 93 / 424 -> 131   (two palette bytes in one window)
 '   SpriteColour                279 -> 106 / 319 -> 131
@@ -104,13 +114,39 @@
 '                               sprite plus a fixed 130): 8 SpriteMove calls cost 850
 '   SetPalette12Block(16)       about 410 (all 32 bytes in one window, 24 T-states a byte)
 '   ScrollFine, SpriteMag       about 150 / 190 (one byte a window, unchanged)
+' Pictures and blocks, in MILLISECONDS a call including BASIC's call overhead (an LDIR
+' byte is 24 T-states on the CPC, 6 us, not the 21 T-states of the Z80 manual: its refresh
+' and wait-state rounding; so a block is 6 us a byte plus about 0.3 ms of fixed cost, and an
+' earlier version of this table that said 1.4 ms a picture was the LDIR alone, 1.5 ms
+' for 256 bytes):
+'                                      before         now         (bare / firmware)
+'   SpriteSetImage(n, addr)            1.8 / 2.0      1.8 / 2.0   source outside &4000-&7FFF
+'     source inside &4000-&7FFF        3.9 / 4.3      same        (copied twice: bounce buffer)
+'   SpriteSetImagePacked(n, addr)      5.5 / 6.1      4.7 / 5.2   either source (unpacking is
+'                                                                  2.9 ms of it, interrupts on)
+'   PlusPokeBlock 88 bytes             0.9 / 0.97     0.85 / 0.93  (wrapper trimmed; measured
+'   PlusPokeBlock 256 bytes            1.9 / 2.1      1.85 / 2.05   to within the 0.1 ms noise)
+'     256 bytes from inside &4000-&7FFF 3.9 / 4.3     same
+'   RasterIntMove (bare), in place     -              0.19 net (0.26 with the call)
+'   RasterIntMove, across other lines  -              about 0.5 net
+'   RasterIntAt + RasterIntOff pair    1.0 total      (unchanged; what Move replaces)
+' The picture and block calls are the cost of copying through the Z80 and cannot get much
+' lower from BASIC. Unpacking a picture straight into the ASIC page would save the second
+' copy (about 1.5 ms) but needs code that runs while the page is in, and that code can only
+' be the library's own private 58+118 bytes (full) or program code that happens to lie
+' outside &4000-&7FFF; it would also keep interrupts off for 2.9 ms. A program that wants the
+' speed keeps its pictures unpacked (img2cpc.py's default) and, from a raster handler or at
+' the frame tick, copies them itself with PlusHandlerIn/Out and an LDIR (as Starfall's
+' cartridge does: about 0.8 ms for 128 bytes, no BASIC call, no probe test).
 ' The first call of a program probes the ASIC and unlocks it (once, slower). Pens
 ' and the border in firmware mode also stop the firmware's ink refresh the first time
 ' after each Mode() (a few hundred T-states once), and cost 48 T-states more every call.
 ' PlusPageIn() in force, a locked ASIC and "no ASIC" take the slower general paths
 ' (the old costs, or a no-op). The interrupt-off window of each call: SetPalette12,
 ' SpriteMove: about 130 T-states (35 us); SpriteMoveBlock: 35 us plus 23 us a sprite;
-' SetPalette12Block: 0.2 ms for 16 colours; a sprite picture: 1.4 ms.
+' SetPalette12Block: 0.2 ms for 16 colours; a sprite picture from outside &4000-&7FFF
+' or packed: 1.5 ms (one window; from inside: 64 bytes, 0.4 ms, a window); PlusPokeBlock:
+' 6 us a byte (outside source) or 0.4 ms (inside source, a window per 64 bytes).
 '
 ' Handler context: the cheap way for a raster handler or frame hook to touch the ASIC.
 ' A raster handler (RasterIntAt) or a frame hook runs with interrupts already off and
@@ -202,7 +238,7 @@
 ' which sysvars.asm still lists as free), and
 ' data in &4000-&7FFF is copied through the bounce buffer. Interrupts are off
 ' for each window only (a byte or a colour: 0.1 ms; a sprite picture from outside
-' &4000-&7FFF: 1.4 ms; from inside it, or packed: 64 bytes a window), and the
+' &4000-&7FFF or packed: 1.5 ms; from inside it: 64 bytes a window), and the
 ' state is put back, so the calls work from main code and from a frame hook
 ' (interrupts off there) alike. Only PlusPageIn/PlusPageOut hand the page to
 ' the program, so a program that uses them must end below &4000 (they reserve
@@ -253,7 +289,7 @@
 ' A handler is an asm routine ending in RET (address from a function
 ' with an ASM block, as FrameHook's); it runs with interrupts off and AF, BC,
 ' DE, HL, IX, IY and the alternate set saved, must not call the firmware, and
-' must not call RasterIntAt/Off/Clear. The next line is
+' must not call RasterIntAt/Off/Move/Clear. The next line is
 ' programmed first, so a handler that is still running when the next line is
 ' reached only delays it. Timing: the Z80 finishes its current instruction
 ' before it takes the interrupt, so a colour change from a handler lands
@@ -274,6 +310,32 @@
 ' reset (an exit routine in CPC_EXIT_VEC, runtime/sysvars.asm) clear the
 ' raster interrupts. An INT instruction in a DMA list raises an interrupt that
 ' neither handler acknowledges: do not use it.
+'
+' Moving a line (RasterIntMove, bare mode only). RasterIntMove(oldLine, newLine) takes the
+' user line oldLine to newLine and keeps its handler: the table stays sorted (the entries
+' between the two places are shifted, nothing else), RI_IDX and PRI are put right, and no
+' entry fires twice. It returns 1 when the line moved (also when oldLine =
+' newLine and it is set) and 0, changing nothing, when oldLine is not a user line (the frame
+' entry, line 243, cannot be moved), newLine is already a user line (move that one first;
+' a newLine equal to 243 goes in before the frame entry, as RasterIntAt does), a line is 0,
+' or no line is set. Cost: 0.19 ms net when the line stays between its neighbours (the common
+' case: a raster bar or a sprite row sliding down), about 0.5 ms when it crosses other lines,
+' against 1.0 ms for a RasterIntAt + RasterIntOff pair; interrupts off for that time (state
+' kept). Use the returned value (a call whose result is never read may be dropped by the
+' compiler).
+' WHEN IT IS SAFE. The table is shared with the interrupt handler, so the call itself changes
+' it with interrupts off and is atomic, but it cannot know where the scan is. The entry that
+' fires next has its line programmed into PRI; a line already passed fires next frame, and
+' everything after it in the table (the other lines, the frame entry: Frames(), PAUSE, the
+' frame hook) waits behind it. So call it where no line is imminent: in the vertical blank
+' right after the frame tick (WaitVsync, PAUSE or a Frames() change returns there, and the
+' first line of the frame is still lines away), in a frame hook, or at any time for a line
+' that stays where it is relative to the scan. Never from a raster handler (they must not
+' change the table). A line moved to a place before the entry that fires next fires next
+' frame, not this one, EXCEPT when no line of the frame has fired yet (the vertical blank
+' after the tick): then it is the first to fire this frame. So moving the lines of a
+' multiplexed display (Starfall's formation rows) once a frame from the code that follows the
+' frame tick is exact.
 '
 ' DMA sound (both modes). Each channel fetches one 16-bit instruction a scan
 ' line from its list in RAM (when it is not pausing) and executes it; the
@@ -588,25 +650,33 @@ sub PlusPokeBlock(dest as uinteger, src as uinteger, count as uinteger)
     asm
     push namespace core
     PROC
-    LOCAL __PLB_PB_END
+    LOCAL __PLB_PB_END, __PLB_PB_OK
+    ld e, (ix+4)
+    ld d, (ix+5)
+    ld a, d
+    cp $40
+    jr c, __PLB_PB_END
+    cp $80
+    jr nc, __PLB_PB_END
+    ld hl, $8000
+    or a
+    sbc hl, de              ; HL = room up to the end of the ASIC page
     ld c, (ix+8)
     ld b, (ix+9)
     ld a, b
     or c
     jr z, __PLB_PB_END
-    ld a, (ix+5)
-    cp $40
-    jr c, __PLB_PB_END
-    cp $80
+    or a
+    sbc hl, bc              ; count cut to the room
+    jr nc, __PLB_PB_OK
+    add hl, bc
+    ld b, h
+    ld c, l
+__PLB_PB_OK:
+    call __PL_ENSURE2       ; (BC, DE, HL kept)
     jr nc, __PLB_PB_END
-    call __PL_ENSURE
-    jr nc, __PLB_PB_END
-    ld c, (ix+8)
-    ld b, (ix+9)
     ld l, (ix+6)
     ld h, (ix+7)
-    ld e, (ix+4)
-    ld d, (ix+5)
     call __PL_PUT
 __PLB_PB_END:
     ENDP
@@ -686,6 +756,335 @@ sub RasterIntOff(line as ubyte)
     end asm
 end sub
 
+' __RI_MOVE -- RasterIntMove: A = the line of a set user entry, E = the line
+' it moves to (1-255). Returns A = 1 if it moved (or old = new and set), 0 if
+' refused (old not a user line, new a user line already, either 0, raster mode
+' off). The entry keeps its handler; the table stays sorted (a line equal to
+' the frame entry's goes in before it, as RasterIntAt does). Only the entries
+' between the old and the new position are shifted; RI_IDX, the entry that
+' fires next, stays the same entry (identity; the rules are below) and PRI is
+' reprogrammed from it.
+' Hardware: PRI &6800 (one byte through the trampoline). Interrupts off for
+' about 0.2 ms in place, 0.5 ms across lines (state restored). Registers
+' clobbered: AF, BC, DE, HL. Not for raster handlers. Safe where no line is
+' imminent: the vertical blank after the frame tick, a frame hook (see
+' "Moving a line" in cpcplus.bas for the hazard: the entry that fires next
+' moved to a line the scan has passed delays the rest of the frame).
+'
+' RI_IDX rules (p = old position, q = new position, I = RI_IDX):
+'   I = p, q > p: I = p (the entry that followed the moved one);
+'   I = p, q < p: I = p + 1 (the moved entry has passed for this frame; if that
+'                 is past the end, I = 0, the next frame's first);
+'   I < p, q < p, q <= I: I + 1   (the entry stays the next one; the moved entry
+'                 has passed for this frame: it fires next frame), EXCEPT I = 0
+'                 (no line of the frame has fired yet: all are still to come):
+'                 I stays 0, the moved entry is the first to fire
+'   I > p, q > p, I <= q: I - 1
+'   otherwise unchanged.
+' (The routine is the body of this function, so that a program that never calls
+' RasterIntMove does not carry its 0.4 KB: an unused function is dropped whole. The
+' state it uses, RI_N, RI_IDX, RI_LINE, RI_HAND, RI_TP, RI_TH, RI_TQ, RI_MV, is in
+' plusraster.asm.)
+function RasterIntMove(oldLine as ubyte, newLine as ubyte) as ubyte
+    asm
+    push namespace core
+    PROC
+    LOCAL __RM_HAND0, __RM_END, __RM_GEN, __RM_FWD, __RM_F2, __RM_FNEXT, __RM_FDONE
+    LOCAL __RM_B, __RM_BNEXT, __RM_HAVEQ, __RM_UP, __RM_DOWN, __RM_WR, __RM_NONEXT, __RM_FAST
+    LOCAL __RM_FIX2, __RM_IBEF, __RM_SETI, __RM_PRI, __RM_OK, __RM_NOEI, __RM_NO, __RM_NOPOP
+    ld a, (ix+5)
+    ld e, (ix+7)
+    or   a
+    jp   z, __RM_NO
+    ld   d, a
+    ld   a, e
+    or   a
+    jp   z, __RM_NO
+    ld   a, (RI_N)
+    or   a
+    jp   z, __RM_NO
+    ld   (RI_MV), de        ; RI_MV = new, RI_MV+1 = old
+    call __PL_DI
+    ld   a, (RI_N)
+    ld   c, a
+    ld   b, 0
+    ld   hl, RI_LINE
+    ld   a, d
+    cpir                    ; the first entry on the old line
+    jp   nz, __RM_NOEI
+    ld   a, (RI_N)          ; C = N - (p + 1), HL = &LINE[p + 1]
+    dec  a
+    sub  c
+    ld   b, a               ; B = p
+    ld   (RI_TP), a
+    add  a, a
+    ld   e, a
+    ld   d, 0
+    push hl
+    ld   hl, RI_HAND
+    add  hl, de
+    ld   a, (hl)
+    inc  hl
+    ld   h, (hl)
+    ld   l, a               ; HL = its handler
+    or   h
+    jr   z, __RM_NOPOP      ; 0: the frame entry, not movable
+    ld   (RI_TH), hl
+    pop  hl                 ; HL = &LINE[p + 1]
+    ld   a, (RI_MV)
+    ld   e, a               ; E = new
+    ld   a, (RI_MV+1)
+    cp   e
+    jp   z, __RM_OK
+    ld   a, c               ; the quick way: the line stays between its
+    or   a                  ; neighbours, so the table keeps its order
+    jr   z, __RM_NONEXT
+    ld   a, (hl)
+    cp   e
+    jr   c, __RM_GEN        ; the next line is below the new one
+    jr   z, __RM_GEN        ; or equal to it
+__RM_NONEXT:
+    ld   a, b
+    or   a
+    jr   z, __RM_FAST
+    dec  hl
+    dec  hl
+    ld   a, (hl)            ; the line before
+    cp   e
+    jr   nc, __RM_GEN       ; at or above the new one
+__RM_FAST:
+    ld   c, b
+    ld   b, 0
+    ld   hl, RI_LINE
+    add  hl, bc
+    ld   (hl), e
+    ld   a, (RI_IDX)
+    cp   c
+    jp   nz, __RM_OK        ; (RI_IDX = p: PRI follows the entry's line)
+    ld   a, e
+    ld   hl, $6800
+    call PLX1W
+    jp   __RM_OK
+__RM_NOPOP:
+    pop  hl
+    jp   __RM_NOEI
+__RM_GEN:                   ; the general way: the entry changes place
+    ld   a, (RI_MV)         ; new
+    ld   b, a
+    ld   a, (RI_MV+1)       ; old
+    cp   b
+    jr   c, __RM_FWD        ; old < new
+    ld   a, (RI_TP)         ; new < old: j = p, walk down while the line
+    ld   c, a               ; before j is above new
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_LINE
+    add  hl, de
+__RM_B:
+    ld   a, c
+    or   a
+    jr   z, __RM_HAVEQ
+    dec  hl
+    ld   a, (hl)
+    cp   b
+    jr   c, __RM_HAVEQ      ; below new: stop, q = j
+    jr   nz, __RM_BNEXT     ; above new: past it
+    push hl                 ; on new: a user entry there refuses
+    ld   a, c
+    dec  a
+    call __RM_HAND0
+    pop  hl
+    jp   nz, __RM_NOEI
+__RM_BNEXT:
+    dec  c
+    jr   __RM_B
+__RM_FWD:                   ; old < new: j = p + 1, walk up while below new
+    ld   a, (RI_TP)
+    inc  a
+    ld   c, a
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_LINE
+    add  hl, de
+__RM_F2:
+    ld   a, (RI_N)
+    cp   c
+    jr   z, __RM_FDONE
+    ld   a, (hl)
+    cp   b
+    jr   c, __RM_FNEXT      ; below new
+    jr   nz, __RM_FDONE     ; above new: stop
+    push hl                 ; on new: a user entry there refuses, the
+    ld   a, c               ; frame entry means go in before it
+    call __RM_HAND0
+    pop  hl
+    jp   nz, __RM_NOEI
+    jr   __RM_FDONE
+__RM_FNEXT:
+    inc  hl
+    inc  c
+    jr   __RM_F2
+__RM_FDONE:
+    dec  c                  ; q = j - 1
+__RM_HAVEQ:                 ; C = q
+    ld   a, c
+    ld   (RI_TQ), a
+    ld   a, (RI_TP)
+    cp   c
+    jr   z, __RM_WR         ; same place: just the line
+    jr   c, __RM_DOWN       ; p < q: moved later
+__RM_UP:                    ; q < p: entries q..p-1 move up one
+    sub  c                  ; A = p - q
+    ld   c, a
+    ld   b, 0
+    push bc
+    ld   a, (RI_TP)
+    dec  a
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_LINE
+    add  hl, de             ; HL = &LINE[p-1]
+    ld   d, h
+    ld   e, l
+    inc  de
+    lddr
+    pop  bc
+    sla  c
+    ld   a, (RI_TP)
+    add  a, a
+    dec  a
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_HAND
+    add  hl, de             ; HL = &HAND[2p-1]
+    ld   d, h
+    ld   e, l
+    inc  de
+    inc  de
+    lddr
+    jr   __RM_WR
+__RM_DOWN:                  ; p < q: entries p+1..q move down one
+    ld   a, (RI_TQ)
+    ld   hl, RI_TP
+    sub  (hl)               ; A = q - p
+    ld   c, a
+    ld   b, 0
+    push bc
+    ld   a, (RI_TP)
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_LINE
+    add  hl, de
+    ld   d, h
+    ld   e, l               ; DE = &LINE[p]
+    inc  hl                 ; HL = &LINE[p+1]
+    ldir
+    pop  bc
+    sla  c
+    ld   a, (RI_TP)
+    add  a, a
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_HAND
+    add  hl, de
+    ld   d, h
+    ld   e, l               ; DE = &HAND[2p]
+    inc  hl
+    inc  hl
+    ldir
+__RM_WR:                    ; the entry goes in at q
+    ld   a, (RI_TQ)
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_LINE
+    add  hl, de
+    ld   a, (RI_MV)
+    ld   (hl), a
+    ld   hl, RI_HAND
+    add  hl, de
+    add  hl, de
+    ld   de, (RI_TH)
+    ld   (hl), e
+    inc  hl
+    ld   (hl), d
+    ld   a, (RI_TQ)         ; the entry that fires next (see the rules)
+    ld   c, a               ; C = q
+    ld   a, (RI_TP)
+    ld   b, a               ; B = p
+    cp   c
+    jr   z, __RM_PRI
+    ld   a, (RI_IDX)
+    ld   d, a               ; D = I
+    cp   b
+    jr   nz, __RM_FIX2
+    ld   a, c               ; I = p
+    cp   b
+    jr   nc, __RM_PRI       ; q > p: I stays (the entry that followed)
+    ld   a, d
+    inc  a                  ; q < p: the entry after the moved one
+    ld   hl, RI_N
+    cp   (hl)
+    jr   c, __RM_SETI
+    xor  a                  ; past the end: next frame's first
+__RM_SETI:
+    ld   (RI_IDX), a
+    jr   __RM_PRI
+__RM_FIX2:
+    ld   a, d
+    cp   b
+    jr   c, __RM_IBEF       ; I < p
+    ld   a, c               ; I > p: only a move later reaches it
+    cp   b
+    jr   c, __RM_PRI        ; q < p
+    ld   a, c
+    cp   d
+    jr   c, __RM_PRI        ; q < I
+    dec  d
+    ld   a, d
+    ld   (RI_IDX), a
+    jr   __RM_PRI
+__RM_IBEF:                  ; I < p: only a move earlier, to q <= I
+    ld   a, c
+    cp   b
+    jr   nc, __RM_PRI       ; q > p
+    ld   a, d
+    cp   c
+    jr   c, __RM_PRI        ; I < q
+    ld   a, d
+    or   a
+    jr   z, __RM_PRI        ; I = 0: no line of this frame has fired yet, so the
+                            ; moved entry (q = 0) is the first to fire
+    inc  d
+    ld   a, d
+    ld   (RI_IDX), a
+__RM_PRI:
+    call __RI_PRIIDX
+__RM_OK:
+    call __PL_EI
+    ld   a, 1
+    jp   __RM_END
+__RM_NOEI:
+    call __PL_EI
+__RM_NO:
+    xor  a
+    jp   __RM_END
+    
+__RM_HAND0:                 ; A = entry index: Z set if that entry is the frame entry
+    add  a, a
+    ld   e, a
+    ld   d, 0
+    ld   hl, RI_HAND
+    add  hl, de
+    ld   a, (hl)
+    inc  hl
+    or   (hl)
+    ret
+__RM_END:
+    ENDP
+    pop namespace
+    end asm
+end function
+
 sub RasterIntClear()
     asm
     push namespace core
@@ -707,6 +1106,12 @@ sub RasterIntOff(line as ubyte)
     call .core.RasterIntOff_needs_bare_mode__build_with_D_CPC_BAREMETAL
     end asm
 end sub
+
+function RasterIntMove(oldLine as ubyte, newLine as ubyte) as ubyte
+    asm
+    call .core.RasterIntMove_needs_bare_mode__build_with_D_CPC_BAREMETAL
+    end asm
+end function
 
 sub RasterIntClear()
     asm

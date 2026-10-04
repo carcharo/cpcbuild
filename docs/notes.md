@@ -1479,3 +1479,30 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
 - Library follow-ups: RasterIntMove; SpriteSetImagePacked measured 5.4 ms a
   picture on CPCEC and PlusPokeBlock ~3x slower than the header's figures.
 - User played the Starfall Plus cartridge (multiplexed formation) on CPCEC: all good.
+
+## Phase 7 tidy-up (2026-10-04)
+
+- RasterIntMove(oldLine, newLine) AS UBYTE (bare only; firmware builds fail
+  with an undefined label): moves a set line keeping its handler; ~190 us
+  net in place, ~500 us across other lines (Off+At pair ~1000 us). Safe in
+  the vertical blank after the frame tick or a frame hook, never from a
+  handler; moving the next-to-fire line to one the beam has passed delays
+  everything after it to next frame (documented, not guarded). Starfall's
+  multiplex uses it (no library internals left in games/); its step-down
+  frames have little timing margin, plus_mux would catch a regression.
+- Cost table corrected (measured; an LDIR byte is 24 T on the CPC, not 21):
+  SpriteSetImage 1.8 ms (3.9 from a source in &4000-&7FFF),
+  SpriteSetImagePacked 5.5 -> 4.7 ms (unpacks on the stack, needs ~270
+  bytes free, one 1.5 ms window), PlusPokeBlock ~0.85 ms / 88 bytes, ~1.85
+  ms / 256. PlusPokeBlock now stops at &7FFF (it used to write past it into
+  RAM). Starfall keeps its own 128-byte HW_LOAD copier (public handler
+  path, ~0.8 ms, cheaper than the library's 256-byte uploads).
+- New tests: plus_rastermove (270-case matrix + live order + 150-frame
+  random moves), plus_pokeblock; plus_speed bounds for the corrected calls.
+  CPCEC plusdemo golden regenerated (560 bar-edge pixels: faster start-up
+  shifts the main loop's phase at the frame-40 shot).
+- Demo headroom: plusdemo 15,679 bytes; its SHOT=40 test build has only
+  tens of bytes left below &4000.
+- The agent reported that Boriel drops a function call whose result is
+  never read; not reproduced in a simple test (both calls kept at -O0..-O3).
+  Unconfirmed; revisit if seen again.

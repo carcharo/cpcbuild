@@ -77,6 +77,16 @@ END ASM
 
 DIM i, bad AS UINTEGER
 DIM v AS UBYTE
+
+REM how many bytes of the block at dest (low nibbles, as the ASIC keeps them) differ from src
+FUNCTION PbBad(dest AS UINTEGER, src AS UINTEGER, count AS UINTEGER) AS UINTEGER
+  DIM k, b AS UINTEGER
+  b = 0
+  FOR k = 0 TO count - 1
+    IF PlusPeek(dest + k) <> (PEEK(src + k) BAND 15) THEN b = b + 1
+  NEXT k
+  RETURN b
+END FUNCTION
 DIM img AS UINTEGER
 DIM pk AS UINTEGER
 DIM n AS UINTEGER
@@ -129,6 +139,26 @@ FOR i = 0 TO 127
   IF PlusPeek(16384 + 7 * 256 + i * 2 + 1) <> (v BAND 15) THEN bad = bad + 1
 NEXT i
 CHK("packed_from_window", STR$(bad), "0")
+
+REM ---- PlusPokeBlock from the window: bounced through the library's private buffer, 64 bytes
+REM a window
+FOR i = 0 TO 499
+  POKE img - 100 + i, (i * 11 + 5) BAND 255
+NEXT i
+PlusPokeBlock($4800, img - 100, 64)
+CHK("pokeblock_win_64", STR$(PbBad($4800, img - 100, 64)), "0")
+PlusPokeBlock($4900, img - 100, 65)
+CHK("pokeblock_win_65", STR$(PbBad($4900, img - 100, 65)), "0")
+PlusPokeBlock($4A00, img - 100, 100)
+CHK("pokeblock_win_100", STR$(PbBad($4A00, img - 100, 100)), "0")
+PlusPokeBlock($4B00, img - 100, 256)
+CHK("pokeblock_win_256", STR$(PbBad($4B00, img - 100, 256)), "0")
+PlusPokeBlock($4C00, img - 100, 257)
+CHK("pokeblock_win_257", STR$(PbBad($4C00, img - 100, 257)), "0")
+PlusPokeBlock($4D00, img - 100, 500)
+CHK("pokeblock_win_500", STR$(PbBad($4D00, img - 100, 500)), "0")
+CHK("pokeblock_win_iff", STR$(Iff()), "1")
+CHK("pokeblock_win_ram_intact", STR$(PEEK(16384) = guard0 AND PEEK(16385) = guard1), "1")
 
 REM ---- positions
 SpriteMove(2, 300, 80)
