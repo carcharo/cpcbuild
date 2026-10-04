@@ -57,6 +57,7 @@
 #include <cpcbuild/keyboard.bas>
 #include <cpcbuild/sprites.bas>
 #include <cpcplus/cpcplus.bas>
+#require "cpcplus/plushandler.asm"   ' PlusHandler* entries for the raster handlers
 #include "plusdemo/sprites.bas"
 #include "plusdemo/landscape.bas"      ' landscape: one period, 16 bytes x 104 lines
 
@@ -90,9 +91,10 @@ DIM barNo AS UBYTE              ' the bar the handler is at (counted from 0)
 ' into a position that runs to the far edge and back (a bounce off each wall,
 ' at constant speed). The ranges leave room for the biggest sprite (64
 ' pixels across, 64 lines down).
-DIM xTab(255) AS UINTEGER       ' mode-2 pixels: 16 to 524
+DIM xTab(255) AS UBYTE          ' (x - 16) / 4, x in mode-2 pixels: 16 to 524
 DIM yTab(255) AS UBYTE          ' lines: 8 to 135
 DIM spr(NSPR * 4 - 1) AS UBYTE  ' per sprite: x phase, y phase, x speed, y speed
+DIM posTab(NSPR * 2 - 1) AS INTEGER     ' per sprite: x, y, for SpriteMoveBlock
 
 ' The jingle's tune: 32 eighth notes (AY tone periods, 62500 / Hz), A minor,
 ' F, C, G, and a bass note every second step.
@@ -129,7 +131,7 @@ pd_bar:
   ld a, (_scrDx)
   ld b, a
   ld c, 0
-  call .core.__PL_SCROLL
+  call .core.PlusHandlerScroll
 pd_colour:
   ld a, (_barIdx)
   ld c, a
@@ -146,19 +148,11 @@ pd_colour:
   ld e, (hl)                    ; E = red << 4 | blue
   inc hl
   ld d, (hl)                    ; D = green
-  push de
-  call .core.__PL_USER_IN       ; PlusPageIn's routine: the ASIC page at &4000
-  pop de
-  ld hl, $6400                  ; pen 0
-  ld (hl), e
-  inc hl
-  ld (hl), d
-  ld hl, $6420                  ; the border
-  ld (hl), e
-  inc hl
-  ld (hl), d
-  jp .core.__PL_USER_OUT        ; (SetPalette12 does the same a byte at a time,
-                                ; about 0.4 ms each: too slow for a bar a line)
+  call .core.PlusHandlerIn      ; the ASIC page in (interrupts are off already): this
+  ld ($6400), de                ; code and the table are below &4000 (the double
+  ld ($6420), de                ; buffer reserves &4000-&7FFF), so they can run and
+  jp .core.PlusHandlerOut       ; be read meanwhile. Pen 0 and the border: about 150
+                                ; T-states (SetPalette12 takes 90 us, 360 T-states, a colour)
 pd_bar_end:
   END ASM
 END FUNCTION
@@ -172,7 +166,7 @@ FUNCTION FASTCALL HookAddress() AS UINTEGER
   jp pd_hook_end
 pd_hook:
   ld bc, 0
-  call .core.__PL_SCROLL
+  call .core.PlusHandlerScroll
   ld a, (_barPhase)
   ld (_barIdx), a
   ld a, 255
@@ -184,10 +178,10 @@ pd_hook_end:
 END FUNCTION
 
 DIM BarHandlerAddr AS UINTEGER
-' The asm routines use barTab, barIdx, barPhase, barNo, scrDx, spr, xTab, yTab; the compiler
+' The asm routines use barTab, barIdx, barPhase, barNo, scrDx, spr, xTab, yTab, posTab; the compiler
 ' drops variables nothing in BASIC reads, so take their addresses once.
 DIM vars AS UINTEGER
-vars = @barTab(0) + @barIdx + @barPhase + @scrDx + @barNo + @spr(0) + @xTab(0) + @yTab(0)
+vars = @barTab(0) + @barIdx + @barPhase + @scrDx + @barNo + @spr(0) + @xTab(0) + @yTab(0) + @posTab(0)
 
 ' --- helpers -----------------------------------------------------------
 
@@ -235,17 +229,17 @@ SUB BuildJingle()
   AddWord(DMA_STOP)
 END SUB
 
-' Moves the sprites one frame on: the phases step, xTab and yTab give the
-' positions, which go straight into the ASIC's sprite registers (X low, X high,
-' Y low, Y high at &6000 + 8 * n). SpriteMove does this for one sprite, with
-' the paging done for you, but about 0.25 ms a call and BASIC's loop around it
-' is slower still (50 ms with this much else going on); this holds the ASIC
-' page once (PlusPageIn's routine, which leaves interrupts off) for all eight, in about 0.4 ms.
+' Moves the sprites one frame on: the phases step, and xTab and yTab give the
+' positions, which go into posTab (X, Y as two INTEGERs a sprite) for one
+' SpriteMoveBlock call, all eight sprites in one window of interrupts off.
+' (SpriteMove one sprite at a time costs about 0.1 ms a call plus BASIC's
+' loop around it, 50 ms with this much else going on; this and the block
+' call take about 0.4 ms for all eight.)
 SUB FASTCALL MoveSprites()
   ASM
   push ix
-  call .core.__PL_USER_IN       ; the ASIC page in, interrupts off
   ld ix, _spr.__DATA__          ; an array's data follows a short header
+  ld de, _posTab.__DATA__
   ld c, 0                       ; the sprite
 pd_ms:
   ld a, (ix+0)                  ; x phase
@@ -253,22 +247,22 @@ pd_ms:
   ld (ix+0), a
   ld l, a
   ld h, 0
-  add hl, hl
+  push de
   ld de, _xTab.__DATA__
-  add hl, de                    ; HL = the position's two bytes
-  ld a, c
-  add a, a
-  add a, a
-  add a, a
-  ld e, a
-  ld d, $60                     ; DE = the sprite's registers
-  ld a, (hl)
-  ld (de), a                    ; X low
+  add hl, de
+  ld l, (hl)                    ; n = (x - 16) / 4
+  ld h, 0
+  add hl, hl
+  add hl, hl
+  ld de, 16
+  add hl, de                    ; HL = x
+  pop de
+  ex de, hl
+  ld (hl), e
   inc hl
-  inc de
-  ld a, (hl)
-  ld (de), a                    ; X high
-  inc de
+  ld (hl), d                    ; X low, X high (HL was the table pointer, DE = x)
+  inc hl
+  ex de, hl
   ld a, (ix+1)                  ; y phase
   add a, (ix+3)
   ld (ix+1), a
@@ -283,6 +277,7 @@ pd_ms:
   inc de
   xor a
   ld (de), a                    ; Y high
+  inc de
   inc ix
   inc ix
   inc ix
@@ -291,9 +286,9 @@ pd_ms:
   ld a, c
   cp 8                          ; NSPR (asm cannot see CONSTs)
   jr nz, pd_ms
-  call .core.__PL_USER_OUT
   pop ix
   END ASM
+  SpriteMoveBlock(0, NSPR, @posTab(0))
 END SUB
 
 ' Writes the landscape's word at world column c (a byte, even) into every
@@ -432,7 +427,7 @@ SpritePalette(@dsprite_pal(0))
 FOR j = 0 TO 255
   n = j                                 ' a triangle: 0 up to 127 and back down
   IF n > 127 THEN n = 255 - n
-  xTab(j) = 16 + CAST(UINTEGER, n) * 4
+  xTab(j) = n
   yTab(j) = 8 + n
 NEXT j
 FOR i = 0 TO NSPR - 1

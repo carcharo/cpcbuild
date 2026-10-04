@@ -45,15 +45,12 @@
 
     push namespace core
 
-; __PL_SCROLL -- B = dx (0-15, above is cut to 15), C = dy (0-7, above is
-; cut to 7): SSCR, keeping the border bit.
-; Hardware: SSCR &6804 (RMR2 window of about 100 T-states).
-; Registers clobbered: AF, BC, DE, HL.
-__PL_SCROLL:
+; __PL_SCRVAL -- B = dx (0-15, above is cut to 15), C = dy (0-7, above is
+; cut to 7) -> A = the new SSCR value, border bit kept (PLUS_SSCR updated).
+; Hardware: none. Registers clobbered: AF, B.
+__PL_SCRVAL:
     PROC
     LOCAL __SC_X, __SC_Y
-    call __PL_ENSURE2       ; keeps BC
-    ret  nc
     ld   a, b
     cp   16
     jr   c, __SC_X
@@ -75,9 +72,18 @@ __SC_Y:
     and  $80
     or   b
     ld   (PLUS_SSCR), a
+    ret
+    ENDP
+
+; __PL_SCROLL -- ScrollFine: B = dx, C = dy, as __PL_SCRVAL; SSCR &6804
+; written (one RMR2 window of about 100 T-states).
+; Registers clobbered: AF, BC, DE, HL.
+__PL_SCROLL:
+    call __PL_ENSURE2       ; keeps BC
+    ret  nc
+    call __PL_SCRVAL
     ld   hl, $6804
     jp   __PL_POKE
-    ENDP
 
 ; __PL_SCRBORDER -- A = 0 (border normal) or not (extended): SSCR bit 7,
 ; keeping the scroll.

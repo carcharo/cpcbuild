@@ -1409,3 +1409,37 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   probe, one DI window per call, SpriteMoveBlock, a public fast path for
   raster handlers, measured costs in the header; the demo off internals).
   The patch and the fixes run in parallel; stage 2 follows both.
+
+## Phase 7: CPCEC automation and library speed fixes (2026-10-04)
+
+- **CPCEC patch** (tools/cpcec/cpcbuild.patch, ~130 lines, applied by
+  fetch_build.sh to the pinned c025aab): --headless (SDL dummy drivers,
+  unthrottled, ~20x real time, no .cpcecrc), --printer FILE,
+  --shot-dir/--shot/--shot-at (a "\x04SHOT name" printer line saves the frame
+  2 frames later), --max-frames N, --end-on-marker. cpcrun.py --emu cpcec:
+  cartridges and disc runs on all models (it autoruns a .dsk; on the Plus it
+  presses F1), firmware and --bare; --type/--cold refused. make cpcec /
+  make test-cpcec; goldens in tests/screens/golden/cpcec-plus/ (768x536,
+  brighter colours than Caprice32 by design), deterministic. Runs in the CI
+  plus job. shot.bas now strobes printer bytes properly (CPCEC latches on
+  the strobe's rising edge).
+- CPCEC behaves like the real ASIC where Caprice32 doesn't: a DMA channel's
+  DCSR active bit clears at STOP, DCSR bit 7 shows the raster interrupt;
+  plus_core/plus_dma now accept both.
+- **Library speed fixes:** probe result cached (PLUS_FAST), one DI window
+  per call. Net cost per call (bare / firmware, us, on top of ~93 us BASIC
+  call overhead): SetPalette12 279->93 / 424->131, SpriteMove 359->106 /
+  395->133, SpriteColour 279->106. New SpriteMoveBlock(first, count, addr)
+  (x, y INTEGER per sprite; 130 us + 28 us per sprite; not clamped).
+  Raster-handler fast path: PlusHandlerIn/Out (49 T each; between them code,
+  data and stack outside &4000-&7FFF, direct stores to &6400+), opt-in
+  lib/cpcplus/plushandler.asm (#require) for PlusHandlerSetColour(Raw)/
+  Poke/Scroll. Raster timing (counted): a handler starts ~620 T (2.4 lines)
+  after the interrupt, the ISR needs ~300 T after it; lines closer than
+  (920 + handler T) / 256 lines are delayed. Second trampoline PL_TRAMP2 at
+  +&380 (118 bytes; zxbasic sysvars.asm). Firmware ink-refresh detach now
+  marks the ticker block's link &FFFF (a 40 T test; Mode() overwrites it).
+  Tests: plus_speed (cost bounds), plus_fast. The demo uses only public API
+  (15,639 bytes; xTab as UBYTE saved 384 bytes); plusdemo and rasterbars
+  goldens regenerated (handlers finish earlier, so bar edges moved; nothing
+  else changed).

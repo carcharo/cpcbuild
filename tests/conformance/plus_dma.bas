@@ -35,7 +35,8 @@ DT_SKIPA:
 END FUNCTION
 
 REM List B (channel 1): sets AY register 11 (envelope period low) to $5A, then waits forever
-REM in a loop (REPEAT/LOOP/NOP: the channel stays active until DmaStop).
+REM in a loop (REPEAT/PAUSE/LOOP, hours long: the channel stays active until DmaStop, on
+REM the real ASIC and CPCEC too, which clear the bit when a list reaches STOP).
 FUNCTION FASTCALL ListB() AS UINTEGER
   ASM
   ld hl, DT_LISTB
@@ -43,10 +44,9 @@ FUNCTION FASTCALL ListB() AS UINTEGER
   ALIGN 2
 DT_LISTB:
   defw $0B00 + $5A        ; LOAD 11, $5A
-  defw $2000 + 1          ; REPEAT 1 (loop start = next word)
-  defw $1000 + 4          ; PAUSE 4
+  defw $2000 + 4000       ; REPEAT 4000 (loop start = next word)
+  defw $1000 + 4000       ; PAUSE 4000: 4000 x 4000 lines (hours), then STOP
   defw $4001              ; LOOP
-  defw $4000              ; NOP
   defw $4020              ; STOP
 DT_SKIPB:
   END ASM
@@ -128,7 +128,6 @@ REM ---- list A on channel 0 with a prescaler of 9: PAUSE 40 = 400 lines
 FrameHook(HookAddr())
 DmaPrescaler(0, 9)
 CHK("start_a", STR$(DmaStart(0, a)), "1")
-CHK("active_0", STR$(DmaActive()), "1")
 CHK("address_register", STR$(PlusPeek($6C00) + 256 * PlusPeek($6C01) >= a), "1")
 CHK("prescaler_register", STR$(PlusPeek($6C02)), "9")
 WaitF(8)
@@ -139,6 +138,12 @@ CHK("hook_kept_running", STR$(HookN() >= 6), "1")
 DmaStop(0)
 CHK("stop_0", STR$(DmaActive()), "0")
 CHK("iff_on", STR$(Iff()), "1")
+REM the active bit, on a list that cannot reach its STOP (Caprice32 never clears the bit, CPCEC
+REM and the real ASIC do when a list ends, so list A's own bit is not checked)
+CHK("start_loop_0", STR$(DmaStart(0, ListB())), "1")
+CHK("active_0", STR$(DmaActive()), "1")
+DmaStop(0)
+CHK("stop_loop_0", STR$(DmaActive()), "0")
 
 REM ---- two channels: B loops forever, A again; independent enable bits
 DmaPrescaler(1, 0)
@@ -147,7 +152,7 @@ CHK("active_1", STR$(DmaActive()), "2")
 WaitF(2)
 CHK("ay_reg11_set", STR$(PEEK(AyBase() + 3)), "90")
 DmaPrescaler(0, 9)
-CHK("start_a_again", STR$(DmaStart(0, a)), "1")
+CHK("start_b_on_0", STR$(DmaStart(0, ListB())), "1")
 CHK("active_0_and_1", STR$(DmaActive()), "3")
 DmaStop(0)
 CHK("stop_0_keeps_1", STR$(DmaActive()), "2")

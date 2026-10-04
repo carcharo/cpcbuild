@@ -44,6 +44,16 @@
 '   SpriteSetImagePacked(n, addr) the same from 128 bytes, two pixels per
 '                                 byte, the left one in the high nibble
 '   SpriteMove(n, x, y)           position, see below
+'   SpriteMoveBlock(first, count, addr)
+'                                 positions of sprites first.. first+count-1
+'                                 (cut at 15) from a table at addr, 4 bytes a
+'                                 sprite: x then y, each an INTEGER, low byte
+'                                 first (what DIM t(2 * count - 1) AS INTEGER
+'                                 holds: x0, y0, x1, y1, ...), all in ONE
+'                                 window. NOT clamped, for speed: x must be
+'                                 -256..767 and y -256..255 (the ASIC keeps
+'                                 its own low 10 / 9 bits of anything else);
+'                                 use SpriteMove for values that may stray
 '   SpriteMag(n, magx, magy)      magnification 1, 2 or 4 (0 hides it)
 '   SpriteHide(n)                 = SpriteMag(n, 0, 0)
 '   SpritesHideAll()              hide all 16
@@ -79,6 +89,88 @@
 '                                 array one word longer than needed)
 '   DMA_LOAD(reg, value), DMA_PAUSE(n), DMA_REPEAT(n), DMA_NOP, DMA_LOOP,
 '   DMA_INT, DMA_STOP            the words of a list (see below)
+
+' Cost of the calls (Caprice32 and CPCEC agree; tests/conformance/plus_speed.bas
+' measures them with Frames()/Ticks() over 1500 calls and asserts bounds). Net
+' microseconds a call adds to BASIC's own call overhead (an empty SUB of the same
+' signature in a loop: about 93 us), before this speed work -> now. Bare mode / firmware
+' mode (firmware mode's figures include the firmware's own interrupts, which take
+' about a quarter of the time, so everything there looks slower):
+'   SetPalette12, SetBorder12   279 -> 93 / 424 -> 131   (two palette bytes in one window)
+'   SpriteColour                279 -> 106 / 319 -> 131
+'   SpriteMove (in range)       359 -> 106 / 395 -> 133  (four bytes in one window; out of
+'                                range it takes the general clamping path, slower)
+'   SpriteMoveBlock             first call-to-call: 8 sprites 360, 16 sprites 590 (28 us a
+'                               sprite plus a fixed 130): 8 SpriteMove calls cost 850
+'   SetPalette12Block(16)       about 410 (all 32 bytes in one window, 24 T-states a byte)
+'   ScrollFine, SpriteMag       about 150 / 190 (one byte a window, unchanged)
+' The first call of a program probes the ASIC and unlocks it (once, slower). Pens
+' and the border in firmware mode also stop the firmware's ink refresh the first time
+' after each Mode() (a few hundred T-states once), and cost 48 T-states more every call.
+' PlusPageIn() in force, a locked ASIC and "no ASIC" take the slower general paths
+' (the old costs, or a no-op). The interrupt-off window of each call: SetPalette12,
+' SpriteMove: about 130 T-states (35 us); SpriteMoveBlock: 35 us plus 23 us a sprite;
+' SetPalette12Block: 0.2 ms for 16 colours; a sprite picture: 1.4 ms.
+'
+' Handler context: the cheap way for a raster handler or frame hook to touch the ASIC.
+' A raster handler (RasterIntAt) or a frame hook runs with interrupts already off and
+' cannot afford the calls above. The ASM-callable entry points below skip the interrupt
+' state handling and the probe check; for them the program must have unlocked the ASIC
+' (PlusUnlock() or any call above) on a machine where PlusAvailable() is 1, and must not
+' have called PlusLock: they must never run on a CPC without ASIC (the page-in write
+' would change the Gate Array's screen mode and ROM state). Call from an ASM block as
+' `call .core.NAME`:
+'   PlusHandlerIn / PlusHandlerOut    page the ASIC register page in at &4000-&7FFF /
+'                                     out again (RMR2 &B8 / &A0): 49 T-states each, BC
+'                                     clobbered. Between them the handler stores
+'                                     straight to ASIC addresses (`ld (&6400), de` is
+'                                     pen 0 with E = red << 4 | blue, D = green: 20
+'                                     T-states; `ld (&6420), de` the border; `ld a, v:
+'                                     ld (&6804), a` the scroll). The paging code runs
+'                                     from the library's private block, so the call
+'                                     returns into the handler's own code wherever it
+'                                     is, BUT between In and Out &4000-&7FFF is the
+'                                     ASIC: the handler's code, the data it reads or
+'                                     writes and its stack must all be outside it
+'                                     (program below &4000, as every program that uses
+'                                     double buffering is, or the handler's code placed
+'                                     from &8000 up; the stack is always outside). No
+'                                     EI, no firmware call, no library call between.
+'                                     In + Out + two word stores: about 150 T-states.
+' The entry points below need the line  #require "cpcplus/plushandler.asm"  once in
+' the program; they do their own paging (so they have no placement rule), do nothing
+' while the ASIC is not unlocked, and keep the interrupt state:
+'   PlusHandlerSetColourRaw   A = entry (0-15 pens, 16 border, 17-31 sprite colours;
+'                             above 31 ignored), DE = E: red << 4 | blue, D: green.
+'                             155 T-states. DE kept; clobbers AF, BC, HL.
+'   PlusHandlerSetColour      A = entry, HL = &0RGB. About 285 T-states.
+'                             Clobbers AF, BC, DE, HL.
+'   PlusHandlerPoke           A = value, HL = ASIC address (&4000-&7FFF). 118 T-states.
+'                             Clobbers AF, BC, D.
+'   PlusHandlerScroll         B = dx (0-15), C = dy (0-7), as ScrollFine. About 250
+'                             T-states. Clobbers AF, BC, HL.
+' None of them stops the firmware's ink refresh (firmware mode, frame hooks only;
+' raster handlers are bare mode): set a pen or the border once from the main program.
+' (examples/plusdemo.bas does all of this: a pen 0 and border change per bar.)
+'
+' Raster handler timing (counted from the library's handler, __RI_ISR in
+' plusraster.asm, at 4 MHz with the CPC's 4-T-state rounding; a scan line is 256
+' T-states, 64 us; not measured on hardware):
+'   - A handler's first instruction runs about 620 T-states (2.4 lines) after the
+'     interrupt is taken, plus up to 23 for the instruction the Z80 finishes first:
+'     a colour change from a handler lands that late. Ask for the line three lines
+'     before the one you want the change on, and keep the handler's own time in mind.
+'   - Once the handler returns, the interrupt handler needs about 300 T-states more
+'     before it re-enables interrupts (it saves and restores everything, IX, IY and the
+'     alternate set among it). So a line's total cost is about 920 T-states (3.6 lines) +
+'     the handler's T-states, with nothing else running, and the NEXT line can only
+'     fire after that: lines closer together than (920 + handler) / 256 lines (with
+'     a 100 T-state handler, 4 lines; with a 300 T-state one, 5) are delayed and then
+'     the main program gets almost no time.
+'   - The next line is programmed into PRI early (about 300 T-states in), so a line
+'     that is reached while the handler is still running fires as soon as the handler
+'     returns (late, not lost); a line already passed fires next frame.
+'   - The HALT rule below still holds for steady positions.
 '
 ' Coordinates. x is in mode-2 pixels from the left edge of the 640-pixel
 ' picture, y in lines from the top of the 200-line picture, of the
@@ -105,9 +197,11 @@
 ' replaces that range while it is in, so the few instructions that page it in,
 ' copy or poke, and page it out run from the runtime's private block (copied
 ' there at start-up, 58 bytes at PL_TRAMP, offset &300, plus a 64-byte bounce
-' buffer at &340: runtime/sysvars.asm; firmware layout &9E00, bare &BC00), and
+' buffer at &340: runtime/sysvars.asm; firmware layout &9E00, bare &BC00; a second
+' block of 118 bytes (the whole-window routines and the handler entries) at &380-&3FF,
+' which sysvars.asm still lists as free), and
 ' data in &4000-&7FFF is copied through the bounce buffer. Interrupts are off
-' for each window only (a byte: 0.1 ms; a sprite picture from outside
+' for each window only (a byte or a colour: 0.1 ms; a sprite picture from outside
 ' &4000-&7FFF: 1.4 ms; from inside it, or packed: 64 bytes a window), and the
 ' state is put back, so the calls work from main code and from a frame hook
 ' (interrupts off there) alike. Only PlusPageIn/PlusPageOut hand the page to
@@ -379,6 +473,18 @@ sub SpriteMove(n as ubyte, x as integer, y as integer)
     asm
     push namespace core
     call __PL_MOVE
+    pop namespace
+    end asm
+end sub
+
+sub SpriteMoveBlock(first as ubyte, count as ubyte, addr as uinteger)
+    asm
+    push namespace core
+    ld a, (ix+5)
+    ld c, (ix+7)
+    ld l, (ix+8)
+    ld h, (ix+9)
+    call __PL_MOVEBLK
     pop namespace
     end asm
 end sub

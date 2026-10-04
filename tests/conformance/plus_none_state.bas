@@ -19,6 +19,9 @@ REM wait of 10 frames (polling the flyback bit, no firmware call: the firmware
 REM turns its lower ROM on while it runs) so the dump sees this state.
 SUB PState()
   ASM
+  di                    ; (the firmware's interrupt handler runs with the lower ROM on:
+                        ; with interrupts on, the dump could land inside one, which
+                        ; depends on exactly when the program got here)
   ld bc, $EF00
   ld a, $84
   out (c), a
@@ -47,6 +50,7 @@ plusstate_start:
   jr nc, plusstate_start
   dec d
   jr nz, plusstate_loop
+  ei
   END ASM
 END SUB
 

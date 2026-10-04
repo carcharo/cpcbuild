@@ -13,6 +13,7 @@ REM checked by plus_none_state.bas through chipsrun's state dump.
 
 DIM img(255) AS UBYTE
 DIM pal(29) AS UBYTE
+DIM blkbuf(63) AS UBYTE
 DIM i AS UINTEGER
 DIM bad AS UINTEGER
 DIM t0 AS ULONG
@@ -69,6 +70,8 @@ SpriteSetImage(0, @img(0))
 SpriteSetImagePacked(3, @img(0))
 SpriteMove(0, 100, 50)
 SpriteMove(15, -64, 300)
+SpriteMoveBlock(0, 4, @blkbuf(0))
+SpriteMoveBlock(14, 9, @blkbuf(0))
 SpriteMag(0, 2, 2)
 SpriteMag(0, 4, 1)
 SpriteHide(0)

@@ -76,9 +76,10 @@ RawRmr($BD)
 CHK("locked_after_lock", STR$(PEEK(16384)), "90")
 
 REM ---- nothing here may leave the ASIC raising interrupts: PRI (&6800) and the
-REM DMA control/status register (&6C0F) are untouched, and the CPC's ordinary
+REM DMA control/status register (&6C0F, bits 0-6: bit 7 is the raster interrupt flag, which
+REM CPCEC shows) are untouched, and the CPC's ordinary
 REM interrupts still run at their rate (no extra, none lost)
-CHK("pri_dcsr_zero", STR$(AsicPeek($6800)) + " " + STR$(AsicPeek($6C0F)), "0 0")
+CHK("pri_dcsr_zero", STR$(AsicPeek($6800)) + " " + STR$(AsicPeek($6C0F) BAND 127), "0 0")
 t0 = Ticks()
 WaitRetrace(10)
 t0 = Ticks() - t0

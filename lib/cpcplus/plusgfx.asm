@@ -43,7 +43,14 @@ __PL_FWDETACH:
     ret
 #else
     PROC
-    LOCAL __FD_LOOP, __FD_NEXT, __FD_FOUND, __FD_DONE
+    LOCAL __FD_LOOP, __FD_NEXT, __FD_FOUND, __FD_DONE, __FD_GO, __FD_EXIT
+    ld   a, ($B7F9)         ; the block's link is &FFFF while it is detached (set
+    inc  a                  ; below; KL ADD TICKER, which Mode() runs, overwrites
+    jr   nz, __FD_GO        ; it with the chain head): nothing to do, 9 bytes, no DI
+    ld   a, ($B7FA)
+    inc  a
+    ret  z
+__FD_GO:
     push af
     push bc
     push de
@@ -78,6 +85,11 @@ __FD_FOUND:
     inc  hl
     ld   a, (de)
     ld   (hl), a
+    ld   hl, $B7F9          ; and mark the block detached: link &FFFF
+    ld   a, $FF
+    ld   (hl), a
+    inc  hl
+    ld   (hl), a
 __FD_EXIT:
     call __PL_EI
 __FD_DONE:
@@ -94,47 +106,124 @@ __FD_DONE:
 ; __PL_SETCOL -- A = palette entry (0-15 pens, 16 border, 17-31 sprite
 ; colours 1-15; above 31 ignored), HL = &0RGB: red bits 11-8, green 7-4,
 ; blue 3-0 (the bits above 11 are ignored). Writes the two palette bytes
-; at &6400 + 2 * entry (even byte red << 4 | blue, odd byte green), one
-; window each.
+; at &6400 + 2 * entry (even byte red << 4 | blue, odd byte green) in ONE
+; window (PLW2: interrupts off for about 100 T-states). The fast path (the
+; library unlocked and the program not holding the page: PLUS_FAST) does no
+; ENSURE; everything else (first call, no ASIC, PlusPageIn in force) takes
+; __PL_SETCOL_SLOW, the general routine. Pens and border also detach the
+; firmware's ink refresh (firmware mode, 48 T-states once it has been).
 ; Hardware: ASIC palette RAM, RMR2. Registers clobbered: AF, BC, DE, HL.
 __PL_SETCOL:
+    PROC
+    LOCAL __SC_GO, __SC_SLOW, __SC_CONV
+#ifndef CPC_BAREMETAL
+    LOCAL __SC_DET
+#endif
     cp   32
     ret  nc
-    ld   d, a               ; D = entry
-    call __PL_ENSURE2
-    ret  nc
-    ld   a, d
+    ld   c, a               ; C = entry
+    ld   a, (PLUS_FAST)
+    or   a
+    jr   z, __SC_SLOW
+#ifndef CPC_BAREMETAL
+    ld   a, c
     cp   17
-    call c, __PL_FWDETACH   ; pens and border: no firmware refresh over it
-    ld   a, h
-    and  $0F
-    rlca
-    rlca
-    rlca
-    rlca
-    ld   b, a
+    jr   nc, __SC_GO
+    ld   a, ($B7F9)         ; __PL_FWDETACH's "already detached" test, inline
+    inc  a
+    jr   nz, __SC_DET
+    ld   a, ($B7FA)
+    inc  a
+    jr   nz, __SC_DET
+#endif
+__SC_GO:
+    ld   a, h               ; __PL_RGB2HW inline (27 T-states saved)
+    rrca
+    rrca
+    rrca
+    rrca
+    and  $F0
+    ld   d, a
     ld   a, l
     and  $0F
-    or   b
-    ld   b, a               ; B = red << 4 | blue
+    or   d
+    ld   e, a
     ld   a, l
     rrca
     rrca
     rrca
     rrca
     and  $0F
-    ld   c, a               ; C = green
-    ld   a, d
+    ld   d, a
+    ld   a, c
     add  a, a
     ld   l, a
-    ld   h, $64             ; HL = &6400 + 2 * entry
+    ld   h, $64
+    jp   PLW2
+#ifndef CPC_BAREMETAL
+__SC_DET:
+    push hl
     push bc
-    ld   a, b
-    call __PL_POKE
+    call __PL_FWDETACH
     pop  bc
-    inc  hl
+    pop  hl
+    jr   __SC_GO
+#endif
+__SC_SLOW:                  ; first call, no ASIC, or PlusPageIn in force
+    push hl
+    push bc
+    call __PL_ENSURE
+    pop  bc
+    pop  hl
+    ret  nc
+#ifndef CPC_BAREMETAL
     ld   a, c
-    jp   __PL_POKE
+    cp   17
+    jr   nc, __SC_CONV
+    push hl
+    push bc
+    call __PL_FWDETACH
+    pop  bc
+    pop  hl
+#endif
+__SC_CONV:
+    call __PL_RGB2HW
+    ld   a, (PLUS_USER)
+    or   a
+    jp   z, PLW2
+    ld   (hl), e            ; the program holds the page: plain stores
+    inc  hl
+    ld   (hl), d
+    ret
+    ENDP
+
+; __PL_RGB2HW -- C = palette entry (0-31), HL = &0RGB -> E = red << 4 |
+; blue, D = green, HL = &6400 + 2 * entry (the palette bytes as the ASIC
+; holds them, and where). Registers clobbered: AF, DE, HL.
+__PL_RGB2HW:
+    ld   a, h
+    rrca
+    rrca
+    rrca
+    rrca
+    and  $F0
+    ld   d, a
+    ld   a, l
+    and  $0F
+    or   d
+    ld   e, a
+    ld   a, l
+    rrca
+    rrca
+    rrca
+    rrca
+    and  $0F
+    ld   d, a
+    ld   a, c
+    add  a, a
+    ld   l, a
+    ld   h, $64
+    ret
 
 ; __PL_GETCOL -- A = entry (0-31, else 0 is returned) -> HL = &0RGB as the
 ; ASIC returns it (the palette RAM is readable on Caprice32 and CPCEC; a
@@ -300,7 +389,51 @@ __CL_HIGH:
 ; window (the block is built on the stack, above SP, and copied from there).
 ; Hardware: sprite registers &6000+8n, RMR2. Registers clobbered: AF, BC,
 ; DE, HL (and the clamp's).
+; __PL_MOVE -- sprite position. Parameters on the stack frame of the BASIC
+; wrapper: IX+5 sprite, IX+6/7 X, IX+8/9 Y (SpriteMove). X is clamped to
+; -256..767, Y to -256..255, and both written as 16-bit values (hi bytes
+; sign-extended: what Caprice32 and CPCEC both read), the four bytes in one
+; window. The common case, all four in range, the library unlocked and the
+; page not held by the program (PLUS_FAST), copies the frame's own four
+; bytes (X lo, X hi, Y lo, Y hi are consecutive in the frame, IX+6..9)
+; with PLW4: in range means X's high byte is &FF, 0, 1 or 2 and Y's is &FF
+; or 0 (a 16-bit value then already is its own sign extension). Anything
+; else takes __PL_MOVE_SLOW, which clamps.
+; Hardware: sprite registers &6000+8n, RMR2. Registers clobbered: AF, BC,
+; DE, HL.
 __PL_MOVE:
+    PROC
+    LOCAL __MV_SLOW
+    ld   a, (PLUS_FAST)
+    or   a
+    jr   z, __MV_SLOW
+    ld   a, (ix+7)
+    inc  a
+    cp   4
+    jr   nc, __MV_SLOW
+    ld   a, (ix+9)
+    inc  a
+    cp   2
+    jr   nc, __MV_SLOW
+    ld   a, (ix+5)
+    and  $0F
+    add  a, a
+    add  a, a
+    add  a, a
+    ld   e, a
+    ld   d, $60             ; DE = the sprite's registers
+    push ix
+    pop  hl
+    ld   bc, 6
+    add  hl, bc             ; HL = IX + 6: X lo, X hi, Y lo, Y hi
+    jp   PLW4               ; (the frame is the program's stack: outside the window)
+__MV_SLOW:
+    ENDP
+    ; falls into the general routine
+
+; __PL_MOVE_SLOW -- the general routine behind __PL_MOVE (same parameters):
+; ENSURE, clamping, the block built on the stack and copied from there.
+__PL_MOVE_SLOW:
     call __PL_ENSURE2
     ret  nc
     ld   l, (ix+8)
@@ -323,6 +456,75 @@ __PL_MOVE:
     pop  hl
     pop  hl
     ret
+
+
+; __PL_MOVEBLK -- SpriteMoveBlock. A = first sprite (masked to 0-15), C =
+; count (cut to 16 - first; 0 does nothing), HL = table: 4 bytes a sprite,
+; X lo, X hi, Y lo, Y hi (two INTEGERs, as DIM t(n) AS INTEGER holds them,
+; x then y), copied to the first four registers of sprites first..first +
+; count - 1 in ONE window (about 92 T-states a sprite, plus the window). The
+; values are NOT clamped (the ASIC keeps its own 10 and 9 low bits: x
+; -256..767, y -256..255 are what it takes, others wrap): use SpriteMove
+; for a value that might be out of range. A table that touches
+; &4000-&7FFF, or PlusPageIn in force, takes a slower way: one __PL_PUT (its
+; own window, bounced if need be) per sprite.
+; Hardware: sprite registers, RMR2. Registers clobbered: AF, BC, DE, HL.
+__PL_MOVEBLK:
+    PROC
+    LOCAL __MB_OK, __MB_SLOW, __MB_LOOP
+    and  $0F
+    ld   b, a               ; B = first
+    ld   a, 16
+    sub  b                  ; A = room
+    cp   c
+    jr   nc, __MB_OK
+    ld   c, a               ; count = room
+__MB_OK:
+    ld   a, c
+    or   a
+    ret  z
+    ld   a, b
+    add  a, a
+    add  a, a
+    add  a, a
+    ld   e, a               ; E = low byte of the registers' address: 8 * first
+    ld   d, c               ; D = count
+    call __PL_ENSURE2       ; (BC, DE, HL kept)
+    ret  nc
+    ld   a, (PLUS_USER)
+    or   a
+    jr   nz, __MB_SLOW
+    ld   a, h               ; the table must not touch &4000-&7FFF (readable while
+    cp   $80                ; the page is in): first >= &8000 is the quick yes
+    jp   nc, PLWM
+    push hl
+    ld   a, d
+    add  a, a
+    add  a, a               ; 4 * count (at most 64)
+    ld   c, a
+    ld   b, 0
+    add  hl, bc
+    dec  hl                 ; the last byte
+    ld   a, h
+    pop  hl
+    cp   $40
+    jp   c, PLWM            ; last < &4000
+__MB_SLOW:                  ; table in the window, or PlusPageIn in force:
+    ld   b, d               ; one record at a time through __PL_PUT
+    ld   d, $60
+__MB_LOOP:
+    push bc
+    push de
+    ld   bc, 4
+    call __PL_PUT           ; (HL advances by 4)
+    pop  de
+    ld   a, e
+    add  a, 8
+    ld   e, a
+    pop  bc
+    djnz __MB_LOOP
+    ret
+    ENDP
 
 ; __PL_MAGREG -- A = sprite, E = magnification register value: written to
 ; &6004 + 8n (0 hides the sprite). Registers clobbered: AF, BC, DE, HL.
