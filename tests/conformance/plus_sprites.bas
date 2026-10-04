@@ -41,11 +41,17 @@ FOR i = 0 TO 255
 NEXT i
 SpriteSetImage(16, @img(0))
 CHK("image_n_masked_16_is_0", STR$(AsicPeek(16384)) + " " + STR$(AsicPeek(16384 + 255)), "15 0")
-REM a source in the register window is refused
-SpriteSetImage(1, 16640)
-SpriteSetImage(1, 16000)
-SpriteSetImage(1, 32700)
-CHK("image_source_in_window_refused", STR$(AsicPeek(16384 + 256)) + " " + STR$(AsicPeek(16384 + 256 + 255)), "0 0")
+REM a source in &4000-&7FFF (RAM under the ASIC page while it is in) is bounced
+REM through a buffer, no longer refused (Phase 7 P3)
+FOR i = 0 TO 255
+  POKE 17000 + i, i + 3
+NEXT i
+SpriteSetImage(1, 17000)
+bad = 0
+FOR i = 0 TO 255
+  IF AsicPeek(16384 + 256 + i) <> ((i + 3) BAND 15) THEN bad = bad + 1
+NEXT i
+CHK("image_source_in_window", STR$(bad), "0")
 
 REM ---- packed pictures: two pixels per byte, the left one in the high nibble
 FOR i = 0 TO 127
@@ -59,8 +65,16 @@ FOR i = 0 TO 127
 NEXT i
 CHK("packed", STR$(bad), "0")
 CHK("packed_neighbours", STR$(AsicPeek(16384 + 3 * 256 + 255) + AsicPeek(16384 + 5 * 256)), "0")
-SpriteSetImagePacked(5, 16640)
-CHK("packed_source_in_window_refused", STR$(AsicPeek(16384 + 5 * 256 + 1)), "0")
+FOR i = 0 TO 127
+  POKE 17400 + i, pk(i)
+NEXT i
+SpriteSetImagePacked(5, 17400)
+bad = 0
+FOR i = 0 TO 127
+  IF AsicPeek(16384 + 5 * 256 + i * 2) <> (pk(i) >> 4) THEN bad = bad + 1
+  IF AsicPeek(16384 + 5 * 256 + i * 2 + 1) <> (pk(i) BAND 15) THEN bad = bad + 1
+NEXT i
+CHK("packed_source_in_window", STR$(bad), "0")
 
 REM ---- positions: X lo, X hi, Y lo, Y hi at &6000 + 8n; clamped to the ASIC's range
 SpriteMove(0, 100, 50)

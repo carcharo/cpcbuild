@@ -53,10 +53,13 @@ SetPalette12(20, $0777)
 SetPalette12Block(@blk(0), 40, 2)
 SetPalette12Block(@blk(0), 20, 0)
 CHK("block_bad_first_or_count", STR$(GetPalette12(20)), "1911")
-SetPalette12Block(16640, 20, 2)
-SetPalette12Block(16368, 20, 16)
-SetPalette12Block(32760, 20, 8)
-CHK("block_source_in_window_refused", STR$(GetPalette12(20)), "1911")
+REM a source in &4000-&7FFF (RAM under the ASIC page while it is in) is bounced
+REM through a buffer, no longer refused (Phase 7 P3)
+FOR i = 0 TO 7
+  POKE 16640 + i, blk(i)
+NEXT i
+SetPalette12Block(16640, 20, 4)
+CHK("block_source_in_window", STR$(GetPalette12(20)) + " " + STR$(GetPalette12(21)) + " " + STR$(GetPalette12(22)) + " " + STR$(GetPalette12(23)), "306 4080 90 1092")
 SetPalette12Block(@blk(0), 16, 1)
 CHK("block_border", STR$(GetPalette12(16)), "306")
 

@@ -4,9 +4,16 @@
 '   PlusAvailable()               1 on a Plus or GX4000, 0 on a 464/664/6128
 '   PlusUnlock()                  unlock the ASIC (the calls below do it
 '                                 for you the first time)
-'   PlusLock()                    lock it again
+'   PlusLock()                    lock it again (in bare mode this first
+'                                 ends any raster interrupts)
 '   PlusPageIn() / PlusPageOut()  the ASIC's registers at &4000-&7FFF, for
-'                                 programs that poke them themselves
+'                                 programs that poke them themselves (the
+'                                 only calls that still reserve &4000-&7FFF)
+'   PlusPeek(addr) / PlusPoke(addr, value)
+'                                 one byte of the ASIC page (addr in
+'                                 &4000-&7FFF, else ignored / 0), with the
+'                                 paging done for you: the way to reach
+'                                 registers this library has no call for
 '
 '   SetPalette12(pen, rgb)        pen 0-15 gets the 12-bit colour rgb =
 '                                 &H0RGB (red, green, blue 0-15 each)
@@ -32,6 +39,38 @@
 '   SpriteHide(n)                 = SpriteMag(n, 0, 0)
 '   SpritesHideAll()              hide all 16
 '
+'   ScrollFine(dx, dy)            soft scroll: the picture moves dx (0-15)
+'                                 mode-2 pixels right and dy (0-7) lines up
+'   ScrollBorder(flag)            1: widen the left border by 16 mode-2
+'                                 pixels (hides the scroll's left edge); 0
+'   SplitScreen(line, addr)       from scan line `line` (1-255; a multiple
+'                                 of 8 for a clean split) the CRTC shows
+'                                 the screen at byte address addr (&C000,
+'                                 &4000, ... + a word offset; bit 0 is
+'                                 dropped), like a second R12/R13
+'   SplitScreenCrtc(line, crtc)   the same with the address as the CRTC's
+'                                 own word: crtc = R12 * 256 + R13
+'   SplitOff()                    no split
+'
+'   RasterIntAt(line, handler)    BARE MODE ONLY: the machine-code routine at
+'                                 handler runs once a frame at scan line
+'                                 `line` (1-255), with interrupts off and
+'                                 all registers saved
+'   RasterIntOff(line)            removes that line
+'   RasterIntClear()              removes them all
+'
+'   DmaStart(channel, addr)       channel 0-2 plays the list of 16-bit
+'                                 instructions at addr (even address);
+'                                 returns 1, or 0 if refused
+'   DmaStop(channel)              stops it
+'   DmaActive()                   bit n set = channel n running
+'   DmaPrescaler(channel, value)  time unit of the channel's PAUSEs, used
+'                                 by its next DmaStart
+'   DmaAlign(addr)                the next even address (for a list in an
+'                                 array one word longer than needed)
+'   DMA_LOAD(reg, value), DMA_PAUSE(n), DMA_REPEAT(n), DMA_NOP, DMA_LOOP,
+'   DMA_INT, DMA_STOP            the words of a list (see below)
+'
 ' Coordinates. x is in mode-2 pixels from the left edge of the 640-pixel
 ' picture, y in lines from the top of the 200-line picture, of the
 ' sprite's top-left corner: x 0-639, y 0-199 is the picture, and the
@@ -50,29 +89,115 @@
 ' locked ASIC treats the registers' writes as ordinary RAM and a
 ' program that wants the Plus's normal behaviour back can call it.
 '
-' Rules. Any program that uses these routines reserves &4000-&7FFF (the
-' same marker double buffering and the RAM banks use: code and data must
-' end below &4000, and the heap and stack are elsewhere), because the
-' ASIC's register page replaces that range while it is in. The library
-' pages it in only inside a window with interrupts off (at most about
-' 1.5 ms: a sprite picture copy; the others about 0.1 ms) and puts the
-' interrupt state back, so it works from main code and from a frame
-' hook alike. A source address (palette, picture) must not lie in
-' &4000-&7FFF: such a call is refused (nothing happens). PlusPageIn leaves
-' interrupts off until PlusPageOut: keep what lies between them short
-' (the same 3.3 ms rule as the banks), call nothing from this library in
-' between that you don't need to (they work, and do nothing extra), and
-' put nothing of the program in &4000-&7FFF. The RAM bank window and the
-' back screen are hidden, not changed, while the page is in.
+' Memory: no 16 KB limit. The library no longer reserves &4000-&7FFF: a
+' program may be as big as the memory map allows (firmware mode: code and
+' data up to &9DFF minus the heap; bare: &B7FF), with code, data and the
+' pictures it copies lying anywhere, &4000-&7FFF included. The ASIC page
+' replaces that range while it is in, so the few instructions that page it in,
+' copy or poke, and page it out run from the runtime's private block (copied
+' there at start-up, 58 bytes at PL_TRAMP, offset &300, plus a 64-byte bounce
+' buffer at &340: runtime/sysvars.asm; firmware layout &9E00, bare &BC00), and
+' data in &4000-&7FFF is copied through the bounce buffer. Interrupts are off
+' for each window only (a byte: 0.1 ms; a sprite picture from outside
+' &4000-&7FFF: 1.4 ms; from inside it, or packed: 64 bytes a window), and the
+' state is put back, so the calls work from main code and from a frame hook
+' (interrupts off there) alike. Only PlusPageIn/PlusPageOut hand the page to
+' the program, so a program that uses them must end below &4000 (they reserve
+' it, as double buffering does) and its own code between them must not
+' touch &4000-&7FFF; they leave interrupts off until PlusPageOut (keep what
+' lies between short, the 3.3 ms rule of the banks). The RAM bank window and
+' the 6128 back screen are hidden, not changed, while the page is in.
 ' Don't change the Gate Array's RMR2 (&7Fxx, bits 7-5 = 101) yourself;
 ' the library puts it back to &A0 (lower ROM page 0 at &0000), its reset
 ' value, and keeps no other copy.
 '
 ' A program that ends with END and has sprites on should call
-' SpritesHideAll() first: the sprites are ASIC state, not screen memory.
+' SpritesHideAll() first: the sprites are ASIC state, not screen memory
+' (soft scroll and split screen likewise: ScrollFine(0, 0), SplitOff()).
+'
+' Soft scroll (SSCR) and split screen (SSSL/SSA), both modes. Units, from
+' Caprice32's and CPCEC's code: dx is in mode-2 pixels (1/640 of the picture
+' width; a mode-1 pixel is 2 units, a mode-0 pixel 4) and moves the picture
+' to the RIGHT; dy is in scan lines and moves it UP (the lines shown start dy
+' lines into each character row, the last dy lines of the row come from the
+' next row, so keep a spare row of data below the picture). Whole bytes are
+' still moved with the CRTC start address (R12/R13, or FlipBuffer): the two
+' add up. ScrollBorder(1) extends the left border to hide the garbage on the
+' left edge of the picture that a horizontal scroll uncovers. Values above the
+' range are cut to it. SplitScreen switches the CRTC's start address at the
+' start of scan line `line` (counted from the top of the picture, as the
+' raster interrupt's line); the address is a byte address like SCREEN_ADDR's
+' &C000: bits 15-14 pick the 16 KB page, bits 10-1 the word offset within
+' 2 KB (bits 13-11 are the line within a character row, not part of it); in
+' CRTC terms R12 = page bits 5-4 | offset bits 9-8, R13 = offset bits 7-0.
+' With cpcbuild's double buffer, the split address is independent of
+' FlipBuffer's R12/R13: give the address of whichever screen part should
+' appear (e.g. a status panel somewhere in the other 16 KB), and the lines
+' that follow the split line continue within that part. A clean split is on
+' a multiple of the character height (8): in between, the raster line within
+' the character row carries over. SplitOff() or ScrollFine(0, 0) before END.
+'
+' Raster interrupts (bare mode only, -D CPC_BAREMETAL; firmware mode refuses
+' them at build time with "Undefined GLOBAL label ...RasterIntAt_needs_bare_
+' mode__build_with_D_CPC_BAREMETAL"). The ASIC's programmable raster interrupt
+' (PRI) stops the CPC's ordinary six interrupts per frame while it is set
+' (both emulators; the firmware's keyboard scan, clock and sound queue need
+' them, hence bare only). The library's handler (replacing the bare runtime's at
+' &0038 while any line is set) keeps a table of up to 15 lines plus one
+' internal entry at line 243 that does the frame work, so Frames(), PAUSE,
+' BEEP and the frame hook keep their 50 Hz; each interrupt programs the
+' next line into PRI before it runs the handlers of the line that fired.
+' A handler is an asm routine ending in RET (address from a function
+' with an ASM block, as FrameHook's); it runs with interrupts off and AF, BC,
+' DE, HL, IX, IY and the alternate set saved, must not call the firmware, and
+' must not call RasterIntAt/Off/Clear. The next line is
+' programmed first, so a handler that is still running when the next line is
+' reached only delays it. Lines are counted from the first line of the picture
+' (the standard 200-line screen's sync starts at line 240); a handler of the
+' same line as the frame entry (243) runs before the frame hook; two handlers
+' on one line are not possible (the second replaces the first). RasterIntAt
+' with a line already set replaces its handler; RasterIntOff of a line not
+' set does nothing; the table full (15 lines) ignores the call. When the
+' last line is removed (or RasterIntClear), PRI goes back to 0 and the
+' ordinary handler returns. Switching on can run one ordinary interrupt
+' first and the frame count may skip or repeat one frame. PlusLock and END's
+' reset (an exit routine in CPC_EXIT_VEC, runtime/sysvars.asm) clear the
+' raster interrupts. An INT instruction in a DMA list raises an interrupt that
+' neither handler acknowledges: do not use it.
+'
+' DMA sound (both modes). Each channel fetches one 16-bit instruction a scan
+' line from its list in RAM (when it is not pausing) and executes it; the
+' address moves on by 2 (the words are stored low byte first, as a
+' DIM list(n) AS UINTEGER holds them):
+'   DMA_LOAD(reg, value)   write value to AY register reg (0-15) (&0RVV)
+'   DMA_PAUSE(n)           wait n * (prescaler + 1) lines, n 0-4095 (&1NNN)
+'   DMA_REPEAT(n)          mark the next instruction as a loop start and
+'                          run the loop n more times (&2NNN)
+'   DMA_LOOP               jump back to the loop start while passes remain
+'                          (&4001)
+'   DMA_NOP (&4000)  DMA_STOP (&4020: the channel stops)  DMA_INT (&4010)
+' PAUSE and REPEAT can be combined with +; so can the three &4xxx flags.
+' Where lists may be: anywhere in the first 64 KB of RAM at an even address, in
+' &4000-&7FFF too (the DMA reads RAM as it is, not through the ASIC page, ROMs
+' or the register page; not in the extra RAM banks). Declare a list as an
+' array of UINTEGER one word too long and use DmaAlign(@list(0)) as its
+' start (POKE UINTEGER there), or write it in an ASM block after ALIGN 2.
+' It must stay unchanged until it has run or DmaStop. The three channels
+' are independent; a channel is conventionally the AY channel of its number,
+' but LOAD can write any register. The prescaler (DmaPrescaler, 0-255) is
+' the time unit of the PAUSEs. The DMA writes the AY by itself: do not run the
+' music player, BEEP, Play or AyWrite on the same registers while it runs, and
+' in firmware mode do not queue sounds (SoundQueue, BEEP: the firmware's
+' sound manager writes the AY from its own interrupt) on the chip while DMA
+' lists run. DmaActive() reads the status register (DCSR): on a real ASIC and
+' in CPCEC a channel's bit goes off when its list reaches STOP; Caprice32
+' updates DCSR in RAM instead of the register when the ASIC page is out
+' (it also writes the channel address registers there, &6C00-&6C0F: keep
+' those 16 bytes free when testing on it), so there DmaActive() only reflects
+' DmaStart/DmaStop. Facts and sources: docs/notes.md, Phase 7 P3.
 '
 ' Both modes (firmware, -D CPC_BAREMETAL). Written from scratch for this
-' project (MIT). Facts and sources: docs/notes.md, Phase 7 P2.
+' project (MIT). Facts and sources: docs/notes.md, Phase 7 P2 and P3.
 ' ----------------------------------------------------------------
 
 #ifndef __LIBRARY_CPCPLUS__
@@ -84,11 +209,19 @@
 
 #include once <cpcbuild/reserve.bas>
 
+REM The words of a DMA list (see the header).
+#define DMA_LOAD(reg, value) ((((reg) BAND 15) * 256) + ((value) BAND 255))
+#define DMA_PAUSE(n) (4096 + ((n) BAND 4095))
+#define DMA_REPEAT(n) (8192 + ((n) BAND 4095))
+#define DMA_NOP 16384
+#define DMA_LOOP 16385
+#define DMA_INT 16400
+#define DMA_STOP 16416
+
 #pragma push(case_insensitive)
 #pragma case_insensitive = TRUE
 
 function PlusAvailable() as ubyte
-    CbReserve4000()
     asm
     push namespace core
     call __PL_AVAIL
@@ -97,7 +230,6 @@ function PlusAvailable() as ubyte
 end function
 
 sub PlusUnlock()
-    CbReserve4000()
     asm
     push namespace core
     call __PL_ENSURE
@@ -106,9 +238,11 @@ sub PlusUnlock()
 end sub
 
 sub PlusLock()
-    CbReserve4000()
     asm
     push namespace core
+#ifdef CPC_BAREMETAL
+    call __RI_CLEAR         ; the raster handler writes PRI through the ASIC page
+#endif
     call __PL_LOCK
     pop namespace
     end asm
@@ -133,7 +267,6 @@ sub PlusPageOut()
 end sub
 
 sub SetPalette12(pen as ubyte, rgb as uinteger)
-    CbReserve4000()
     asm
     push namespace core
     ld a, (ix+5)
@@ -145,7 +278,6 @@ sub SetPalette12(pen as ubyte, rgb as uinteger)
 end sub
 
 sub SetBorder12(rgb as uinteger)
-    CbReserve4000()
     asm
     push namespace core
     ld l, (ix+4)
@@ -157,7 +289,6 @@ sub SetBorder12(rgb as uinteger)
 end sub
 
 function GetPalette12(entry as ubyte) as uinteger
-    CbReserve4000()
     asm
     push namespace core
     ld a, (ix+5)
@@ -167,7 +298,6 @@ function GetPalette12(entry as ubyte) as uinteger
 end function
 
 sub SetPalette12Block(addr as uinteger, first as ubyte, count as ubyte)
-    CbReserve4000()
     asm
     push namespace core
     ld l, (ix+4)
@@ -180,7 +310,6 @@ sub SetPalette12Block(addr as uinteger, first as ubyte, count as ubyte)
 end sub
 
 sub SpritePalette(addr as uinteger)
-    CbReserve4000()
     asm
     push namespace core
     ld l, (ix+4)
@@ -192,7 +321,6 @@ sub SpritePalette(addr as uinteger)
 end sub
 
 sub SpriteColour(n as ubyte, rgb as uinteger)
-    CbReserve4000()
     asm
     push namespace core
     ld a, (ix+5)
@@ -210,7 +338,6 @@ __PLB_SC_END:
 end sub
 
 sub SpriteSetImage(n as ubyte, addr as uinteger)
-    CbReserve4000()
     asm
     push namespace core
     ld a, (ix+5)
@@ -222,7 +349,6 @@ sub SpriteSetImage(n as ubyte, addr as uinteger)
 end sub
 
 sub SpriteSetImagePacked(n as ubyte, addr as uinteger)
-    CbReserve4000()
     asm
     push namespace core
     ld a, (ix+5)
@@ -234,7 +360,6 @@ sub SpriteSetImagePacked(n as ubyte, addr as uinteger)
 end sub
 
 sub SpriteMove(n as ubyte, x as integer, y as integer)
-    CbReserve4000()
     asm
     push namespace core
     call __PL_MOVE
@@ -243,7 +368,6 @@ sub SpriteMove(n as ubyte, x as integer, y as integer)
 end sub
 
 sub SpriteMag(n as ubyte, magx as ubyte, magy as ubyte)
-    CbReserve4000()
     asm
     push namespace core
     ld a, (ix+7)
@@ -271,7 +395,6 @@ __PLB_SM_GO:
 end sub
 
 sub SpriteHide(n as ubyte)
-    CbReserve4000()
     asm
     push namespace core
     ld a, (ix+5)
@@ -282,7 +405,6 @@ sub SpriteHide(n as ubyte)
 end sub
 
 sub SpritesHideAll()
-    CbReserve4000()
     asm
     push namespace core
     call __PL_HIDEALL
@@ -290,9 +412,207 @@ sub SpritesHideAll()
     end asm
 end sub
 
+function PlusPeek(addr as uinteger) as ubyte
+    asm
+    push namespace core
+    PROC
+    LOCAL __PLB_PK_NO, __PLB_PK_END
+    ld l, (ix+4)
+    ld h, (ix+5)
+    ld a, h
+    cp $40
+    jr c, __PLB_PK_NO
+    cp $80
+    jr nc, __PLB_PK_NO
+    call __PL_ENSURE
+    jr nc, __PLB_PK_NO
+    ld l, (ix+4)
+    ld h, (ix+5)
+    call __PL_PEEK
+    jr __PLB_PK_END
+__PLB_PK_NO:
+    xor a
+__PLB_PK_END:
+    ENDP
+    pop namespace
+    end asm
+end function
+
+sub PlusPoke(addr as uinteger, value as ubyte)
+    asm
+    push namespace core
+    PROC
+    LOCAL __PLB_PO_END
+    ld l, (ix+4)
+    ld h, (ix+5)
+    ld a, h
+    cp $40
+    jr c, __PLB_PO_END
+    cp $80
+    jr nc, __PLB_PO_END
+    call __PL_ENSURE
+    jr nc, __PLB_PO_END
+    ld l, (ix+4)
+    ld h, (ix+5)
+    ld a, (ix+7)
+    call __PL_POKE
+__PLB_PO_END:
+    ENDP
+    pop namespace
+    end asm
+end sub
+
+sub ScrollFine(dx as ubyte, dy as ubyte)
+    asm
+    push namespace core
+    ld b, (ix+5)
+    ld c, (ix+7)
+    call __PL_SCROLL
+    pop namespace
+    end asm
+end sub
+
+sub ScrollBorder(flag as ubyte)
+    asm
+    push namespace core
+    ld a, (ix+5)
+    call __PL_SCRBORDER
+    pop namespace
+    end asm
+end sub
+
+sub SplitScreen(line as ubyte, addr as uinteger)
+    asm
+    push namespace core
+    ld l, (ix+6)
+    ld h, (ix+7)
+    call __PL_ADDR2CRTC
+    ld a, (ix+5)
+    call __PL_SPLIT
+    pop namespace
+    end asm
+end sub
+
+sub SplitScreenCrtc(line as ubyte, crtc as uinteger)
+    asm
+    push namespace core
+    ld l, (ix+6)
+    ld h, (ix+7)
+    ld a, (ix+5)
+    call __PL_SPLIT
+    pop namespace
+    end asm
+end sub
+
+sub SplitOff()
+    asm
+    push namespace core
+    xor a
+    call __PL_SPLIT
+    pop namespace
+    end asm
+end sub
+
+#ifdef CPC_BAREMETAL
+sub RasterIntAt(line as ubyte, handler as uinteger)
+    asm
+    push namespace core
+    ld a, (ix+5)
+    ld l, (ix+6)
+    ld h, (ix+7)
+    call __RI_AT
+    pop namespace
+    end asm
+end sub
+
+sub RasterIntOff(line as ubyte)
+    asm
+    push namespace core
+    ld a, (ix+5)
+    call __RI_OFF
+    pop namespace
+    end asm
+end sub
+
+sub RasterIntClear()
+    asm
+    push namespace core
+    call __RI_CLEAR
+    pop namespace
+    end asm
+end sub
+#else
+' Firmware mode: refused at compile time, with an "Undefined GLOBAL label" error
+' whose name says why (an unused call is ignored as usual).
+sub RasterIntAt(line as ubyte, handler as uinteger)
+    asm
+    call .core.RasterIntAt_needs_bare_mode__build_with_D_CPC_BAREMETAL
+    end asm
+end sub
+
+sub RasterIntOff(line as ubyte)
+    asm
+    call .core.RasterIntOff_needs_bare_mode__build_with_D_CPC_BAREMETAL
+    end asm
+end sub
+
+sub RasterIntClear()
+    asm
+    call .core.RasterIntClear_needs_bare_mode__build_with_D_CPC_BAREMETAL
+    end asm
+end sub
+#endif
+
+sub DmaPrescaler(channel as ubyte, value as ubyte)
+    asm
+    push namespace core
+    ld a, (ix+5)
+    ld e, (ix+7)
+    call __PL_DMAPRESC
+    pop namespace
+    end asm
+end sub
+
+function DmaStart(channel as ubyte, addr as uinteger) as ubyte
+    asm
+    push namespace core
+    ld a, (ix+5)
+    ld l, (ix+6)
+    ld h, (ix+7)
+    call __PL_DMASTART
+    pop namespace
+    end asm
+end function
+
+sub DmaStop(channel as ubyte)
+    asm
+    push namespace core
+    ld a, (ix+5)
+    call __PL_DMASTOP
+    pop namespace
+    end asm
+end sub
+
+function DmaAlign(addr as uinteger) as uinteger
+    return (addr + 1) band $FFFE
+end function
+
+function DmaActive() as ubyte
+    asm
+    push namespace core
+    call __PL_DMAACTIVE
+    pop namespace
+    end asm
+end function
+
 #pragma pop(case_insensitive)
 
 #require "cpcplus/plus.asm"
 #require "cpcplus/plusgfx.asm"
+#require "cpcplus/plusscr.asm"
+#require "cpcplus/plusdma.asm"
+#ifdef CPC_BAREMETAL
+#require "cpcplus/plusraster.asm"
+#endif
 
 #endif

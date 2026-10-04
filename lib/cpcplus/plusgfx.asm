@@ -2,44 +2,18 @@
 ; cpcplus library -- 12-bit palette and hardware sprites on the ASIC
 ;
 ; Written from scratch for this project (MIT); see plus.asm for the ASIC
-; page layout, the unlock and the paging rules. Every routine here starts
-; with __PL_ENSURE (probe, unlock) and does nothing, changing nothing, on
-; a CPC without ASIC; it pages the register page in only for the instant
-; it needs, with interrupts off, and puts the interrupt state back.
-; Sources and destinations must be outside &4000-&7FFF (the page hides
-; it): a source range that touches it is refused (nothing is copied).
+; page layout, the unlock, the paging rules and the trampoline. Every
+; routine here starts with __PL_ENSURE (probe, unlock) and does nothing,
+; changing nothing, on a CPC without ASIC. The ASIC page is touched only
+; through plus.asm's __PL_POKE / __PL_PEEK / __PL_PUT / __PL_PUTP, which
+; run the paging code from the private block, so the program (and this
+; library) may be anywhere in memory, &4000-&7FFF included; data that lies
+; in &4000-&7FFF is bounced through a buffer. Registers and interrupts as
+; documented there.
 
 #include once <cpcplus/plus.asm>
 
     push namespace core
-
-; __PL_SRCOK -- HL = first, BC = length: carry set if the range is not
-; empty, does not wrap past &FFFF and lies wholly below &4000 or from
-; &8000 up. Registers clobbered: AF, BC, DE, HL.
-__PL_SRCOK:
-    PROC
-    LOCAL __SO_OK, __SO_NO
-    ld   a, b
-    or   c
-    jr   z, __SO_NO
-    ld   d, h
-    ld   e, l               ; DE = first
-    dec  bc
-    add  hl, bc             ; HL = last
-    jr   c, __SO_NO
-    ld   a, h
-    cp   $40
-    jr   c, __SO_OK         ; last < &4000
-    ld   a, d
-    cp   $80
-    jr   nc, __SO_OK        ; first >= &8000
-__SO_NO:
-    or   a
-    ret
-__SO_OK:
-    scf
-    ret
-    ENDP
 
 ; ---- the firmware's ink refresh ---------------------------------------------
 
@@ -120,10 +94,10 @@ __FD_DONE:
 ; __PL_SETCOL -- A = palette entry (0-15 pens, 16 border, 17-31 sprite
 ; colours 1-15; above 31 ignored), HL = &0RGB: red bits 11-8, green 7-4,
 ; blue 3-0 (the bits above 11 are ignored). Writes the two palette bytes
-; at &6400 + 2 * entry (even byte red << 4 | blue, odd byte green).
+; at &6400 + 2 * entry (even byte red << 4 | blue, odd byte green), one
+; window each.
 ; Hardware: ASIC palette RAM, RMR2. Registers clobbered: AF, BC, DE, HL.
 __PL_SETCOL:
-    PROC
     cp   32
     ret  nc
     ld   d, a               ; D = entry
@@ -152,20 +126,15 @@ __PL_SETCOL:
     ld   c, a               ; C = green
     ld   a, d
     add  a, a
-    ld   e, a
-    ld   d, $64             ; DE = &6400 + 2 * entry
+    ld   l, a
+    ld   h, $64             ; HL = &6400 + 2 * entry
     push bc
-    push de
-    call __PL_IN
-    pop  de
-    pop  bc
     ld   a, b
-    ld   (de), a
-    inc  de
+    call __PL_POKE
+    pop  bc
+    inc  hl
     ld   a, c
-    ld   (de), a
-    jp   __PL_OUT
-    ENDP
+    jp   __PL_POKE
 
 ; __PL_GETCOL -- A = entry (0-31, else 0 is returned) -> HL = &0RGB as the
 ; ASIC returns it (the palette RAM is readable on Caprice32 and CPCEC; a
@@ -180,19 +149,17 @@ __PL_GETCOL:
     ld   d, a
     call __PL_ENSURE2
     jr   nc, __GC_NO
-    push de
-    call __PL_IN
-    pop  de
     ld   a, d
     add  a, a
     ld   l, a
     ld   h, $64
-    ld   b, (hl)            ; red << 4 | blue
+    call __PL_PEEK
+    push af                 ; red << 4 | blue
     inc  hl
-    ld   c, (hl)            ; green
-    push bc
-    call __PL_OUT
-    pop  bc
+    call __PL_PEEK
+    ld   c, a               ; green
+    pop  af
+    ld   b, a
     ld   a, b
     rrca
     rrca
@@ -219,8 +186,8 @@ __GC_NO:
 
 ; __PL_PALBLOCK -- HL = source (palette bytes as img2cpc.py makes them: 2
 ; per entry), D = first entry, E = count: copies to the palette RAM from
-; entry D; count is cut at entry 32; a source that touches &4000-&7FFF,
-; a first entry above 31 or a count of 0 does nothing.
+; entry D; count is cut at entry 32; a first entry above 31 or a count of
+; 0 does nothing. The source may be anywhere (see __PL_PUT).
 ; Hardware: ASIC palette RAM, RMR2. Window of interrupts off: at most 64
 ; bytes. Registers clobbered: AF, BC, DE, HL.
 __PL_PALBLOCK:
@@ -251,23 +218,7 @@ __PB_OK:
     add  a, a
     ld   e, a
     ld   d, $64             ; DE = &6400 + 2 * first
-    push bc
-    push de
-    push hl
-    call __PL_SRCOK
-    pop  hl
-    pop  de
-    pop  bc
-    ret  nc
-    push bc
-    push de
-    push hl
-    call __PL_IN
-    pop  hl
-    pop  de
-    pop  bc
-    ldir
-    jp   __PL_OUT
+    jp   __PL_PUT
     ENDP
 
 ; ---- sprites --------------------------------------------------------------
@@ -284,11 +235,11 @@ __PL_SPRBASE:
     ret
 
 ; __PL_IMG -- A = sprite, HL = source of 256 bytes (one pixel per byte,
-; 0 = transparent; the ASIC keeps the low nibble). Refused when the source
-; touches &4000-&7FFF. One window of 5.4k T-states with interrupts off.
+; 0 = transparent; the ASIC keeps the low nibble); the source may be
+; anywhere (in &4000-&7FFF it is bounced, 64 bytes per window; elsewhere one
+; window of 5.4k T-states with interrupts off).
 ; Hardware: sprite pixel RAM, RMR2. Registers clobbered: AF, BC, DE, HL.
 __PL_IMG:
-    PROC
     ld   d, a
     call __PL_ENSURE2
     ret  nc
@@ -297,30 +248,14 @@ __PL_IMG:
     or   $40
     ld   d, a
     ld   e, 0               ; DE = &4000 + 256 * sprite
-    push hl
-    push de
     ld   bc, 256
-    call __PL_SRCOK
-    pop  de
-    pop  hl
-    ret  nc
-    push hl
-    push de
-    call __PL_IN
-    pop  de
-    pop  hl
-    ld   bc, 256
-    ldir
-    jp   __PL_OUT
-    ENDP
+    jp   __PL_PUT
 
 ; __PL_IMGP -- A = sprite, HL = source of 128 bytes, two pixels each, the
-; left pixel in the high nibble (img2cpc.py --packed). Same rules; two
-; windows of 64 bytes (about 1.6 ms of interrupts off each).
+; left pixel in the high nibble (img2cpc.py --packed). Same rules; four
+; windows (32 source bytes each).
 ; Registers clobbered: AF, BC, DE, HL.
 __PL_IMGP:
-    PROC
-    LOCAL __IP_CHUNK, __IP_LOOP
     ld   d, a
     call __PL_ENSURE2
     ret  nc
@@ -329,48 +264,8 @@ __PL_IMGP:
     or   $40
     ld   d, a
     ld   e, 0
-    push hl
-    push de
-    ld   bc, 128
-    call __PL_SRCOK
-    pop  de
-    pop  hl
-    ret  nc
-    ld   a, 2
-__IP_CHUNK:
-    push af
-    push hl
-    push de
-    call __PL_IN
-    pop  de
-    pop  hl
-    ld   b, 64
-__IP_LOOP:
-    ld   a, (hl)
-    inc  hl
-    ld   c, a
-    rrca
-    rrca
-    rrca
-    rrca
-    and  $0F
-    ld   (de), a
-    inc  de
-    ld   a, c
-    and  $0F
-    ld   (de), a
-    inc  de
-    djnz __IP_LOOP
-    push hl
-    push de
-    call __PL_OUT
-    pop  de
-    pop  hl
-    pop  af
-    dec  a
-    jr   nz, __IP_CHUNK
-    ret
-    ENDP
+    ld   b, 4
+    jp   __PL_PUTP
 
 ; __PL_CLAMP -- HL = value, DE = limit + 256 (X 1023, Y 511): HL clamped
 ; to -256 .. limit. Registers clobbered: AF, BC, HL.
@@ -401,37 +296,33 @@ __CL_HIGH:
 ; __PL_MOVE -- sprite position. Parameters on the stack frame of the BASIC
 ; wrapper: IX+5 sprite, IX+6/7 X, IX+8/9 Y (SpriteMove). X is clamped to
 ; -256..767, Y to -256..255, and both written as 16-bit values (hi bytes
-; sign-extended: what Caprice32 and CPCEC both read).
+; sign-extended: what Caprice32 and CPCEC both read), the four bytes in one
+; window (the block is built on the stack, above SP, and copied from there).
 ; Hardware: sprite registers &6000+8n, RMR2. Registers clobbered: AF, BC,
 ; DE, HL (and the clamp's).
 __PL_MOVE:
     call __PL_ENSURE2
     ret  nc
-    ld   l, (ix+6)
-    ld   h, (ix+7)
-    ld   de, 1023
-    call __PL_CLAMP
-    push hl                 ; X
     ld   l, (ix+8)
     ld   h, (ix+9)
     ld   de, 511
     call __PL_CLAMP
     push hl                 ; Y
+    ld   l, (ix+6)
+    ld   h, (ix+7)
+    ld   de, 1023
+    call __PL_CLAMP
+    push hl                 ; X: the block X lo, X hi, Y lo, Y hi is at SP
     ld   a, (ix+5)
-    call __PL_SPRBASE       ; HL = register block
-    push hl
-    call __PL_IN
+    call __PL_SPRBASE
+    ex   de, hl             ; DE = register block
+    ld   hl, 0
+    add  hl, sp             ; HL = the block
+    ld   bc, 4
+    call __PL_PUT           ; (pushes below SP: the block is above it)
     pop  hl
-    pop  bc                 ; Y
-    pop  de                 ; X
-    ld   (hl), e
-    inc  hl
-    ld   (hl), d
-    inc  hl
-    ld   (hl), c
-    inc  hl
-    ld   (hl), b
-    jp   __PL_OUT
+    pop  hl
+    ret
 
 ; __PL_MAGREG -- A = sprite, E = magnification register value: written to
 ; &6004 + 8n (0 hides the sprite). Registers clobbered: AF, BC, DE, HL.
@@ -443,13 +334,8 @@ __PL_MAGREG:
     call __PL_SPRBASE
     ld   bc, 4
     add  hl, bc
-    push hl
-    push de
-    call __PL_IN
-    pop  de
-    pop  hl
-    ld   (hl), e
-    jp   __PL_OUT
+    ld   a, e
+    jp   __PL_POKE
 
 ; __PL_MAGCODE -- A = 0, 1, 2 or 4 (anything above 2 means 4) -> A = the
 ; hardware code 0-3. Registers clobbered: AF.
@@ -460,21 +346,23 @@ __PL_MAGCODE:
     ret
 
 ; __PL_HIDEALL -- magnification 0 for all 16 sprites, one window of about
-; 500 T-states. Registers clobbered: AF, BC, DE, HL.
+; 100 T-states each. Registers clobbered: AF, BC, DE, HL.
 __PL_HIDEALL:
     PROC
     LOCAL __HA_LOOP
     call __PL_ENSURE2
     ret  nc
-    call __PL_IN
     ld   hl, $6004
-    ld   de, 8
-    ld   b, 16
+    ld   e, 16
 __HA_LOOP:
-    ld   (hl), 0
-    add  hl, de
-    djnz __HA_LOOP
-    jp   __PL_OUT
+    xor  a
+    call __PL_POKE          ; AF, BC, D
+    ld   a, l
+    add  a, 8
+    ld   l, a
+    dec  e
+    jr   nz, __HA_LOOP
+    ret
     ENDP
 
     pop namespace
