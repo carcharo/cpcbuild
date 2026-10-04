@@ -33,7 +33,14 @@ over a dimmed copy of the actual shot) are written next to the golden as
 <name>.actual.png and <name>.diff.png, and the number of differing pixels
 is reported. Exit status 0 if every shot matched.
 
-Usage: run.py [--update] [--model 464|6128|plus] [-k PATTERN] [-j N] [--timeout S] [file.bas ...]
+--emu cpcec (Phase 7) runs on CPCEC (tools/cpcec, headless): like chips, the
+program's Shot() calls each save a PNG and the program goes on, so a program can
+take several shots, and CPCEC draws the Plus sprites per scanline, so raster
+multiplexed sprites show. The model defaults to plus; goldens are
+golden/cpcec-<model>/ (768x536 RGB; CPCEC's colour conversion is brighter than
+Caprice32's by design, so they can't share goldens). --bare works as above.
+
+Usage: run.py [--update] [--emu chips|cpcec] [--model 464|6128|plus] [-k PATTERN] [-j N] [--timeout S] [file.bas ...]
 """
 from __future__ import annotations
 
@@ -76,15 +83,19 @@ def bare_skip(bas: Path) -> bool:
 
 
 def run_test(bas: Path, model: str, timeout: float, update: bool, org: str | None = None,
-             bare: bool = False, cold: bool = False) -> list[tuple[str, str, str]]:
+             bare: bool = False, cold: bool = False, emu: str = "chips") -> list[tuple[str, str, str]]:
     """Returns [(status, "<model>/<test>:<shot>", detail)], status one of
     PASS, FAIL, NEW (golden written/updated), UPDATED, ERROR."""
-    label = f"{model}/{bas.stem}"
+    gdir = f"cpcec-{model}" if emu == "cpcec" else model  # golden directory (and label prefix)
+    label = f"{gdir}/{bas.stem}"
     if bare and bare_skip(bas):
         return [("SKIP", label, "REM BARE: skip")]
     source, zargs = spec(bas)
     with tempfile.TemporaryDirectory(prefix="screens-") as tmp:
-        if model == "plus":
+        if emu == "cpcec":
+            cmd = [sys.executable, str(CPCRUN), str(source), "--emu", "cpcec", "--model", model,
+                   "--timeout", str(timeout), "--quiet", "--shot-dir", tmp]
+        elif model == "plus":
             # Caprice32: one shot per program, file named by us; the shot's own
             # name comes back on stderr ("shot: NAME")
             cmd = [sys.executable, str(CPCRUN), str(source), "--model", "plus",
@@ -103,7 +114,7 @@ def run_test(bas: Path, model: str, timeout: float, update: bool, org: str | Non
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout * 4 + 120)
         if proc.returncode != 0:
             return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]
-        if model == "plus":
+        if model == "plus" and emu != "cpcec":
             m = re.search(r"^shot: (\S+)$", proc.stderr, re.MULTILINE)
             if m and (Path(tmp) / "plus-shot.png").exists():
                 (Path(tmp) / "plus-shot.png").rename(Path(tmp) / f"{m.group(1)}.png")
@@ -112,8 +123,8 @@ def run_test(bas: Path, model: str, timeout: float, update: bool, org: str | Non
             return [("ERROR", label, "program took no screenshot")]
         out = []
         for shot in shots:
-            name = f"{model}/{shot.stem}"
-            gold = GOLDEN / model / shot.name
+            name = f"{gdir}/{shot.stem}"
+            gold = GOLDEN / gdir / shot.name
             actual = gold.with_suffix(".actual.png")
             diff = gold.with_suffix(".diff.png")
             if update:
@@ -157,7 +168,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("files", nargs="*", type=Path)
     ap.add_argument("--update", action="store_true", help="regenerate the golden screenshots")
-    ap.add_argument("--model", choices=ALL_MODELS, action="append", help="only this model (repeatable; default 464 and 6128 on chips; plus = Caprice32)")
+    ap.add_argument("--emu", choices=("chips", "cpcec"), default="chips",
+                    help="chips (default; --model plus then means Caprice32) or CPCEC (default model plus)")
+    ap.add_argument("--model", choices=ALL_MODELS, action="append", help="only this model (repeatable; default 464 and 6128 on chips; plus = Caprice32; 464/6128/plus on cpcec)")
     ap.add_argument("-k", dest="pattern", default=None, help="only tests whose name contains PATTERN")
     ap.add_argument("-j", dest="jobs", type=int, default=8)
     ap.add_argument("--timeout", type=float, default=60.0)
@@ -169,6 +182,8 @@ def main() -> int:
         args.bare = True
     if args.cold and "plus" in (args.model or ()):
         ap.error("--cold is chips only")
+    if args.emu == "cpcec" and args.cold:
+        ap.error("--cold is chips only")
     if args.bare and args.update:
         ap.error("goldens come from firmware-mode runs: --update can't be combined with --bare")
 
@@ -178,9 +193,10 @@ def main() -> int:
     if not files:
         print("run.py: no screen tests found", file=sys.stderr)
         return 1
-    jobs = [(f, m) for f in files for m in (args.model or MODELS)]
+    models = args.model or (("plus",) if args.emu == "cpcec" else MODELS)
+    jobs = [(f, m) for f in files for m in models]
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = list(pool.map(lambda j: run_test(j[0], j[1], args.timeout, args.update, args.org, args.bare, args.cold), jobs))
+        results = list(pool.map(lambda j: run_test(j[0], j[1], args.timeout, args.update, args.org, args.bare, args.cold, args.emu), jobs))
     flat = sorted((r for rs in results for r in rs), key=lambda r: r[1])
     for status, name, detail in flat:
         print(f"{status:8} {name}" + (f"  ({detail})" if detail else ""))

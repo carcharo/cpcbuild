@@ -4,7 +4,7 @@
 printer.
 
     cpcrun.py prog.bas [--org ADDR] [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
-                       [--emu cap32|chips] [--model 464|664|6128|plus]
+                       [--emu cap32|chips|cpcec] [--model 464|664|6128|plus]
                       [--shot F.png [--shot-at N]] [--shot-dir D]   (chips only)
                       [--bare] [--cold]
                       [--disk-file NAME=PATH ...]                   (Caprice32 only)
@@ -23,8 +23,23 @@ model), waits a CAP32_DELAY and types run"<prog> as on the other models. The
 Plus's printer port is the same &EFxx and is captured the same way, the END
 marker and exit codes are unchanged. --emu chips --model plus is an error.
 
+--emu cpcec (Phase 7) runs CPCEC (tools/cpcec, built by fetch_build.sh with our
+small patch; $CPCEC overrides the path). It is headless (SDL dummy drivers, no
+window or sound, no real-time delays), supports every model, draws the Plus
+sprites per scanline (Caprice32 does it once per frame), and honours the same
+contracts: the printer capture and the END marker (the run ends 3 frames after
+it), exit codes 0/1/2/4, --timeout (which is also CPC time: TIMEOUT*50 frames;
+a hang is exit 2). --type is not supported. Discs: CPCEC autoruns the .dsk
+itself (it picks the program, here the only file; on the Plus it presses F1 in
+the cartridge menu). --shot-dir works as for chips: Shot("name") in a program
+saves <shot-dir>/name.png (CPCEC's own screen grab, 768x536 RGB; no SHOT_HOLD,
+the program goes on, any number of shots); --shot F.png [--shot-at FRAMES]
+saves the screen when the run ends (or at that frame). CPCEC's colours differ
+from Caprice32's by design, so its screenshots have their own goldens
+(tests/screens/golden/cpcec-plus). --cpr works too.
+
 --cpr FILE.cpr runs a prebuilt cartridge instead of a program (no compile, no
-DSK): Caprice32 loads it in place of the system cartridge, so there is no
+DSK): Caprice32 (or CPCEC) loads it in place of the system cartridge, so there is no
 firmware and the cartridge starts at reset (a GX4000-style boot); implies
 --model plus. Printer capture and END detection are as for a program (the
 cartridge's END marker, then `rst 0` back into the cartridge: the run stops at
@@ -132,6 +147,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent  # cpcbuild/
 DEFAULT_ZXBASIC = REPO_ROOT.parent / "zxbasic"
 DEFAULT_CAP32 = REPO_ROOT.parent / "caprice32" / "cap32"
+DEFAULT_CPCEC = REPO_ROOT / "tools" / "cpcec" / "work" / "cpcec"
 
 # Sent by .core.__CPC_END (zxbasic's src/lib/arch/cpc/runtime/bootstrap.asm)
 # right before its `rst 0`, under -D __CPC_PRINTER_ECHO__ only -- see the
@@ -155,6 +171,11 @@ def zxbasic_dir() -> Path:
 def cap32_bin() -> Path:
     env = os.environ.get("CAP32")
     return Path(env).resolve() if env else DEFAULT_CAP32
+
+
+def cpcec_bin() -> Path:
+    env = os.environ.get("CPCEC")
+    return Path(env).resolve() if env else DEFAULT_CPCEC
 
 
 def subprocess_env() -> dict[str, str]:
@@ -301,6 +322,52 @@ def amsdos_bin(bin_path: Path, stem: str, org: int) -> bytes:
 
 class TimeoutHit(Exception):
     pass
+
+
+# CPCEC's -mN machine numbers (464, 664, 6128, 6128 Plus)
+CPCEC_MODELS = {"464": 0, "664": 1, "6128": 2, "plus": 3}
+
+
+def run_cpcec(
+    file_path: Path,
+    printer_out: Path,
+    timeout: float,
+    env: dict[str, str],
+    model: str,
+    shot: Path | None = None,
+    shot_dir: Path | None = None,
+    shot_at: int | None = None,
+) -> None:
+    """Run CPCEC (our patched build, see tools/cpcec/cpcbuild.patch) headlessly on
+    a .dsk or .cpr, printer into printer_out. It quits 3 frames after the END
+    marker; TimeoutHit if it gets to TIMEOUT*50 emulated frames first (CPCEC
+    exits 3) or the wall clock (4x TIMEOUT: it runs far faster than real time)
+    is up."""
+    cpcec = cpcec_bin()
+    if not cpcec.exists():
+        raise BuildError(f"cpcec not found at {cpcec} (run sh tools/cpcec/fetch_build.sh, or set CPCEC=/path/to/cpcec)")
+    cmd = [str(cpcec), "--headless", "--end-on-marker", "--printer", str(printer_out),
+           "--max-frames", str(int(timeout * 50)), f"-m{CPCEC_MODELS[model]}"]
+    if file_path.suffix.lower() == ".dsk":
+        cmd.append("-x")  # discs on, the 464 included
+    if model in ("464", "664"):
+        cmd.append("-k0")  # a stock 464/664 has 64 KB (the 6128 and Plus 128 KB)
+    if shot_dir:
+        cmd += ["--shot-dir", str(shot_dir)]
+    if shot:
+        cmd += ["--shot", str(shot)]
+        if shot_at is not None:
+            cmd += ["--shot-at", str(shot_at)]
+    cmd.append(str(file_path))
+    try:
+        proc = subprocess.run(cmd, env=env, capture_output=True, timeout=timeout * 4 + 10)
+    except subprocess.TimeoutExpired:
+        raise TimeoutHit() from None
+    if proc.returncode == 3:
+        raise TimeoutHit()
+    if proc.returncode != 0:
+        sys.stderr.write(proc.stderr.decode("latin-1"))
+        raise BuildError(f"cpcec exited {proc.returncode}")
 
 
 # Caprice32's system.model numbers. The 464 has no disc interface built in;
@@ -495,9 +562,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="CPC model to emulate (default 6128; plus with --cpr). plus = 6128 Plus, Caprice32 only")
     parser.add_argument(
         "--emu",
-        choices=("cap32", "chips"),
+        choices=("cap32", "chips", "cpcec"),
         default="cap32",
-        help="emulator: Caprice32 (default) or the floooh/chips-based tools/chipsrun",
+        help="emulator: Caprice32 (default), the floooh/chips-based tools/chipsrun, or CPCEC (tools/cpcec)",
     )
     parser.add_argument(
         "--type",
@@ -529,19 +596,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.cpr:
         if args.program:
             parser.error("--cpr runs a cartridge: no program to compile")
-        if args.model != "plus" or args.emu != "cap32":
-            parser.error("--cpr needs --model plus and --emu cap32")
+        if args.model != "plus" or args.emu not in ("cap32", "cpcec"):
+            parser.error("--cpr needs --model plus and --emu cap32 or cpcec")
         if not args.cpr.is_file():
             parser.error(f"{args.cpr}: not found")
         if args.bare or args.zxbc_args or args.org or args.disk_files:
             parser.error("--cpr takes no compile options or disk files")
     elif not args.program:
         parser.error("a program (or --cpr FILE.cpr) is required")
-    plus_shot = args.model == "plus" and args.shot is not None
-    if (args.shot_dir or args.shot_at is not None) and args.emu != "chips":
-        parser.error("--shot-at/--shot-dir need --emu chips")
-    if args.shot and args.emu != "chips" and not plus_shot:
-        parser.error("--shot needs --emu chips or --model plus")
+    plus_shot = args.model == "plus" and args.shot is not None and args.emu == "cap32"
+    if (args.shot_dir or args.shot_at is not None) and args.emu == "cap32":
+        parser.error("--shot-at/--shot-dir need --emu chips or cpcec")
+    if args.shot and args.emu == "cap32" and not plus_shot:
+        parser.error("--shot needs --emu chips or cpcec, or --model plus")
+    if args.emu == "cpcec" and (args.typed or args.cold):
+        parser.error("--emu cpcec has no --type or --cold")
     if plus_shot and args.cpr:
         parser.error("--shot with --cpr is not supported")
     if args.cold and args.emu != "chips":
@@ -646,11 +715,17 @@ def main(argv: list[str] | None = None) -> int:
             pack_dsk(bin_path, dsk_path, stem, env, org, extra_files)
         if plus_shot:
             shot_tmp.mkdir()
+        if args.emu == "cpcec" and args.shot_dir:
+            args.shot_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            run_emulator(dsk_path if bas_path else None, stem, printer_out, args.timeout, env, args.model,
-                         args.typed, args.end_on_marker, args.cpr.resolve() if args.cpr else None,
-                         shot_tmp if plus_shot else None, args.shot_wait)
+            if args.emu == "cpcec":
+                run_cpcec(args.cpr.resolve() if args.cpr else dsk_path, printer_out, args.timeout, env, args.model,
+                          args.shot, args.shot_dir, args.shot_at)
+            else:
+                run_emulator(dsk_path if bas_path else None, stem, printer_out, args.timeout, env, args.model,
+                             args.typed, args.end_on_marker, args.cpr.resolve() if args.cpr else None,
+                             shot_tmp if plus_shot else None, args.shot_wait)
         except TimeoutHit:
             print(f"cpcrun.py: timeout after {args.timeout}s (hang -- unimplemented stub?)", file=sys.stderr)
             exit_code = 2
@@ -668,6 +743,8 @@ def main(argv: list[str] | None = None) -> int:
         # implementation detail of this harness, not part of the program's
         # output.
         text = text.replace("\x04STATE\n", "")
+        if args.emu == "cpcec":
+            text = re.sub(r"\x04SHOT \S+\n", "", text)  # the harness's own lines, like chips
         if plus_shot and exit_code == 0:
             # a screenshot run never reaches address 0 (the program holds its
             # screen at Shot()): success is the SHOT line plus the PNG
