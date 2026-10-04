@@ -1209,3 +1209,14 @@ firmware-clock timing in the tests: bare variants due in B5).
   logic 102 checks and title/play shots pass bare and cold, pixel-identical
   to the firmware goldens; tests/disc.py covers RUN"BARE (12/12 on
   Caprice32).
+
+## 2026-10-04: Phase 6 complete
+
+- User played the bare Starfall builds from the disc (`RUN"BARE`) on
+  Caprice32: 6128 (songs from bank 0) and 464 (songs in the program, as in
+  the firmware 464 build), music and effects on both: all fine.
+- Confirmed (user): bare PAUSE ends on a new key press (no key buffer; a key
+  held when PAUSE starts doesn't end it); bare INPUT's underscore cursor;
+  keep the compile-time switch `-D CPC_BAREMETAL` for now (the run-time
+  FirmwareOff() alternative stays noted in docs/phase6-design.md).
+- Merged phase-6 into main (fast-forward), zxbasic cpc-arch at ff7acf4e.
