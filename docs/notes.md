@@ -666,7 +666,29 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     is held ~2 frames, so slow work (STR$, CHK) between a poll and the next
     poll can miss it.
 
-## Pick up here (updated 2026-10-04: Phase 6 complete, CI split)
+## Pick up here (updated 2026-10-05: Phase 7 complete)
+
+State: Phase 7 (CPC Plus / ASIC) done and merged into cpcbuild `main`
+(zxbasic `cpc-arch` 833e52f7); CI green, seven jobs incl. the Plus job on
+Caprice32 and CPCEC (patched, headless). Details: the Phase 7 sections below
+and docs/library.md section 10.
+
+Next, per the plan:
+1. Research task R8 (CPCEC as WASM in VS Code; GPLv3 implications) before
+   Phase 8 (tooling: CPC support in the NextBuild Studio extensions).
+2. Or earlier follow-ups first: Spectrum 128K Starfall to 25 Hz; fold the
+   game sprite/font routines into the libraries, then revisit Starfall;
+   W150/W190/W170 warnings.
+3. The platformer and its tutorial come after Phase 8, with the planned
+   Plus sprite manager and palette cycling (plan, Phase 8 section).
+
+Phase 7 follow-ups to remember: plusdemo's SHOT=40 build has only tens of
+bytes below &4000 (library growth breaks it first); Starfall Plus's
+multiplex has little timing margin in step-down frames (plus_mux catches
+it); Caprice32 can't show sprite multiplexing (use CPCEC); the agent's
+"compiler drops calls whose result is unused" report is unconfirmed.
+
+## Pick up here (2026-10-04: Phase 6 complete, CI split; superseded)
 
 State: Phase 6 done and merged into cpcbuild `main` (zxbasic `cpc-arch`
 ff7acf4e); CI restructured into five parallel jobs (~5 min, docs-only
@@ -1515,3 +1537,4 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   wrong mkcpr/cpcrun command lines, DmaStart refusal, Starfall's disc build
   described as software sprites); the main model rewrote the section from
   the cpcplus.bas header and these notes.
+- Phase 7 merged into main (fast-forward), 2026-10-05.
