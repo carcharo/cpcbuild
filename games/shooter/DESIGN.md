@@ -87,19 +87,22 @@ in `platform_cpc.bas` or `platform_zx.bas`.
 
 ### Per-platform notes
 
-- **CPC** (`platform_cpc.bas`): cpcbuild library (sprites, masked; tiles for the
-  border and HUD frame; ScanKeys; SetPalette), `music/music.bas`, framehook.bas
-  with `GameMode(1)` while playing. Custom 8x8 sprite routines (the cpcbuild library
-  at 20.5 KB didn't fit below &4000 when added to the game code). Erasing restores
-  the background from the tile map with TileRestore-like logic per platform.
+- **CPC** (`platform_cpc.bas`): the cpcbuild library: `spritelist.bas` (sprites
+  ORed onto the plain black playfield and erased by clearing their box), `text.bas`
+  (the 5x7 font), `tiles.bas` (border, HUD rule, ground), `fill.bas` (playfield
+  clear), ScanKeys, SetPalette; `music/music.bas`, framehook.bas with `GameMode(1)`
+  while playing. Three small assembly routines remain where BASIC measured too slow:
+  the per-sprite call (to spritelist's register entry), the HUD and the stars.
+  The graphics sit above &8000 in the 6128 builds (`#pragma hidata`).
   - **6128:** double-buffered with `EnableDoubleBuffer`; songs and effects in
     an extra bank via `MusicInitBank`, loaded from the disc at start.
   - **464:** single-buffered. Draws in flyback order (wait for flyback, erase and
     redraw each sprite in turn, top to bottom) to keep tearing to one line.
     Music in main RAM; pacing at 25.0 steps/s with about 30 % CPU to spare (not
     held to a frame).
-- **Spectrum** (`platform_zx.bas`): custom 16x16-pixel masked sprite routines (Boriel's
-  maskedsprites took 2.3 frames for 25 sprites). PRINT AT for text.
+- **Spectrum** (`platform_zx.bas`): `zxbuild/sprites.bas` (pre-shifted OR sprites
+  with background and attribute save; it began as this game's own engine, after
+  Boriel's maskedsprites took 2.3 frames for 25 sprites). PRINT AT for text.
   - **128K:** `music/music.bas` with the IM2 frame hook; double-buffered using shadow
     screens (banks 5 and 7).
   - **48K:** single-buffered; no music, short beeper effects through `PlatSfx`.
@@ -107,7 +110,7 @@ in `platform_cpc.bas` or `platform_zx.bas`.
     to nearest 2-pixel boundary; only the shifts used are stored since x steps are 4 pixels)
     and any line y (0-176), save/restore the background. Sprites 16x8 pixels (8x8 logical
     units), padded to 16x16 with transparent lower half. Collision stays in logical units.
-    Candidates for later folding into per-platform sprite libraries.
+    (Now in lib/zxbuild, which rounds x down to a multiple of 4 pixels.)
 
 ## Builds
 

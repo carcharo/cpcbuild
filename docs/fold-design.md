@@ -250,3 +250,28 @@ unchanged. Speeds unchanged (25.0), goldens unchanged, `make disc` 12/12.
 With ~950 bytes more than the ~3,250 counted at the stage gate, the
 rewrite (step 6) has about 4,200 bytes for the library routines (~3,060)
 and the BASIC that replaces the engine.
+
+## Steps 6 and 7 done (2026-10-09)
+
+- CPC (step 6): platform_cpc.bas 1,206 -> 678 lines on spritelist, text,
+  tiles and fill. Three small asm routines stay, each measured: SF_SPRITE
+  (calls spritelist's register entry `__SL_SPRITE`; SprListDraw from BASIC
+  costs ~1,100 T and ~20 sprites a step dropped the 6128 below 25/s),
+  SF_HUD (BASIC missed 25/s and was ~500 bytes larger) and Stars. The
+  library got documented register entries (spritelist `__SL_*`, text
+  `__TX_PUTS`/`__TX_PENS`) so the game calls no internals through faked
+  frames. SPRLIST_MAX 29, TEXT_QUEUE 101 (the game's real maxima). Starfall's
+  font is generated pre-shifted (assets/fontcpc.bas).
+  6128 headroom below &4000: 1,104 bytes (bare 639); 6128 and 464 25.0
+  steps/s; 464 unpaced spare ~30 % (was ~32 %); 6128 NOGAMEMODE 24.7 (was
+  24.9). Goldens unchanged everywhere. The Plus layer needed one alias line.
+- Spectrum (step 7): platform_zx_draw.asm deleted; lib/zxbuild via its
+  documented asm entries; 48K 25.0, 128K 24.2 (lib/zxbuild's addressing
+  made 8-bit to win back 0.6 %); 128K spare 937 bytes (was 635).
+- Found on the way: a Caprice32 bug (ASIC DCSR/DMA registers written into
+  RAM at &6C00-&6C0F) that corrupted the new layout's PRINT code; patched
+  in tools/caprice32. Bare text wrap hardened (zxbasic 58fa70d3).
+- Section 6's "in BASIC unless measuring shows they need asm" turned out
+  as: the sprite call, HUD and stars needed asm; everything else is BASIC.
+  For games with many sprites the lesson is the BASIC call overhead
+  (~1,100 T a call with five arguments), which the register entries avoid.

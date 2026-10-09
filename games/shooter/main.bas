@@ -102,7 +102,6 @@ SUB Tick(w AS UBYTE)
 END SUB
 
 DIM inp, st AS UBYTE
-DIM tstep AS UINTEGER
 
 ' The title screen. Returns 0 when the player starts, 1 after a few
 ' seconds idle (the attract mode).
@@ -144,8 +143,8 @@ FUNCTION TitleScreen() AS UBYTE
       GameSeed(PlatFrames() + idle)
       RETURN 0
     END IF
-    IF idle > 200 THEN RETURN 1
-  LOOP
+  LOOP UNTIL idle > 200
+  RETURN 1
 END FUNCTION
 
 ' A game. demo = 1: the attract mode (the computer plays, any key ends it,

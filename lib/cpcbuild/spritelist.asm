@@ -22,9 +22,33 @@
 ; inside the 2 KB block: with a hardware-scroll offset a box that crosses
 ; the block's wrap point is drawn wrong (no clipping, no wrap handling).
 ;
-; Each routine reads its parameters from the calling sub's IX frame:
-; x = (ix+5), y = (ix+7), w = (ix+9), h = (ix+11), data = (ix+12)
-; (16-bit); all but the data are UBYTE parameters of the sub.
+; Entry points. Each is a register-level routine that keeps IX, IY and the
+; stack and uses no firmware; AF, BC, DE, HL and the flags are clobbered
+; (the lists below say more precisely). The BASIC subs of spritelist.bas
+; call the same cores, so assembly callers need no IX frame.
+;   __SL_BEGIN    SprListBegin: no inputs.                  clobbers AF BC DE HL
+;   __SL_SPRITE   SprListDraw: C = x (byte column), B = y (pixel line),
+;                 E = w (bytes), D = h (lines), HL = data (w*h bytes).
+;                 Draws it and enters it in the list (single buffering:
+;                 first erases the previous frame's sprite in this slot).
+;                 Nothing happens if the list is full or w or h is 0.
+;                                                           clobbers AF BC DE HL
+;   __SL_END      SprListEnd: no inputs.                    clobbers AF BC DE HL
+;   __SL_RESET    SprListReset: no inputs.                  clobbers AF
+;   __SL_PAPER    (a byte variable) SprListPaper: the background byte;
+;                 an assembly caller sets it with  ld (__SL_PAPER), a
+;   __SL_DRAW_SPRITE  the thin wrapper of the BASIC SprListDraw: loads the
+;                 registers of __SL_SPRITE from the sub's IX frame (x =
+;                 (ix+5), y = (ix+7), w = (ix+9), h = (ix+11), spr =
+;                 (ix+12), 16-bit; all but spr UBYTE) and falls into it.
+; Lower down, used by the above and callable alone:
+;   __SL_DRAW     OR a box onto the screen, no list entry: HL = data, DE =
+;                 screen address of the top-left byte, C = w, B = h
+;                                                           clobbers AF BC DE HL
+;   __SL_ERASE_ONE  HL = a list entry: fills its box with the paper byte
+;                                                           clobbers AF BC DE HL
+;   __SL_ERASEL   HL = first entry, A = count: erases that many entries
+;                                                           clobbers AF BC DE HL
 ;
 ; __SL_MAX (entries per list, 1-255) is an EQU that spritelist.bas puts
 ; in its subs' asm blocks from SPRLIST_MAX (the preprocessor's #define
@@ -481,22 +505,34 @@ __SL_RESET:
     ld   (__SL_CNT), a
     ret
 
-; __SL_DRAW_SPRITE -- SprListDraw(x, y, w, h, spr): the sub's IX frame.
-; Does nothing if the list is full or w or h is 0.
-; Single buffering: first erases the previous frame's entry in this slot.
+; __SL_DRAW_SPRITE -- SprListDraw(x, y, w, h, spr): loads the registers of
+; __SL_SPRITE from the sub's IX frame and falls into it.
 ; Firmware entry called: none. Registers clobbered: AF, BC, DE, HL.
 __SL_DRAW_SPRITE:
+    ld   c, (ix+5)          ; x
+    ld   b, (ix+7)          ; y
+    ld   e, (ix+9)          ; w
+    ld   d, (ix+11)         ; h
+    ld   l, (ix+12)
+    ld   h, (ix+13)         ; data
+
+; __SL_SPRITE -- C = x (byte column), B = y (pixel line), E = w, D = h,
+; HL = data. Does nothing if the list is full or w or h is 0.
+; Single buffering: first erases the previous frame's entry in this slot.
+; Firmware entry called: none. Registers clobbered: AF, BC, DE, HL.
+__SL_SPRITE:
     ld   a, (__SL_CNT)
     cp   __SL_MAX
     ret  nc
-    ld   c, (ix+9)          ; width
-    ld   b, (ix+11)         ; height
-    ld   a, c
+    ld   a, d
     or   a
     ret  z
-    ld   a, b
+    ld   a, e
     or   a
     ret  z
+    push hl                 ; data
+    push de                 ; h, w
+    push bc                 ; x, y
     ld   a, (__SL_CNT)
     ld   c, a               ; (C is free again below)
     ld   l, a
@@ -515,26 +551,21 @@ __SL_DRAW_SPRITE:
     jr   c, __SLS_1
     call __SL_ERASE_ONE     ; HL = the entry still
 __SLS_1:
-    ld   c, (ix+5)
-    ld   b, (ix+7)
+    pop  bc                 ; C = x, B = y
     call __CB_ADDR          ; HL = screen address
-    ex   de, hl
+    ex   de, hl             ; DE = screen address
     ld   hl, (__SL_E)
     ld   (hl), e
     inc  hl
     ld   (hl), d
     inc  hl
-    ld   a, (ix+9)
-    ld   (hl), a
+    pop  bc                 ; C = w, B = h
+    ld   (hl), c
     inc  hl
-    ld   c, a
-    ld   a, (ix+11)
-    ld   (hl), a
-    ld   b, a
+    ld   (hl), b
     ld   hl, __SL_CNT
     inc  (hl)
-    ld   l, (ix+12)
-    ld   h, (ix+13)
+    pop  hl                 ; data
     jp   __SL_DRAW
 
     pop namespace

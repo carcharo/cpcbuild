@@ -12,25 +12,35 @@
 ' ground; the 128 x 160 playfield is cells 2-17 x 2-21 (byte column
 ' 8 + x / 2, line 16 + y). Logical units are mode-0 pixels.
 '
-' Drawing is not the library's: the playfield background is plain black
-' (plus a few static stars), so a sprite is erased by clearing its box,
-' and sprites (pixels only: transparent is black, drawn with OR onto the
-' erased box) by a routine specialised for 4-byte-wide ones. Tiles (border, HUD rule, ground) and text (a 5x7 font, 7 bytes a
-' glyph, not 32-byte tiles) are drawn by routines in the same assembly
-' block too. Together that is about 5 times cheaper than PutSpriteMasked +
-' TileRestore (which a full formation could not afford at 25 steps a
-' second) and about 4 KB smaller than the library's sprite, tile and fill
-' modules plus a tile font (the 6128 build must fit under &4000 with the
-' music player). It uses only the library's display, keyboard and palette
-' modules, and reads its CB_BASE, so it draws on whichever screen the
-' library says is hidden.
+' The layer is BASIC on the cpcbuild library: sprites by spritelist.bas,
+' text by text.bas, tiles by tiles.bas, the playfield clear by fill.bas,
+' plus the display, keyboard and palette modules. The playfield background
+' is plain black (plus a few static stars), which is what spritelist.bas is
+' for: a sprite (pixels only: transparent is black) is ORed onto the black
+' and erased by clearing its box, which a full formation needs to be cheap
+' enough for 25 steps a second. The text is a 5 x 7 font (7 bytes a glyph,
+' not 32-byte tile glyphs). What is left of Starfall's own is three small
+' assembly routines, each because BASIC was measurably too slow or too big:
+' SF_SPRITE (the kind-to-frame table and the logical-to-screen mapping,
+' calling spritelist's __SL_SPRITE with registers: a BASIC call of
+' SprListDraw costs ~1,100 T and a step draws ~20 sprites, which dropped
+' the 6128 below 25 steps a second), SF_HUD (the HUD diffing per screen,
+' drawing through tiles' __CB_TILE_AT and text's __TX_PENS/__TX_PUTS: in
+' BASIC it also missed 25 steps a second and was ~500 bytes larger) and
+' Stars (BASIC: 132 bytes against ~45, ~14,000 T a frame).
 '
-' The sprite list: PlatSprite appends an entry (screen address and type)
-' to the list of the screen being drawn. 6128: PlatFrameBegin erases the
-' list of the hidden screen (drawn two frames ago), then PlatSprite draws.
-' 464: the list is the one screen's; PlatSprite erases the previous frame's
-' sprite of the same slot (same call number) just before drawing its
-' own, so each sprite is blank only for a moment: flyback order.
+' The sprite list: PlatSprite draws with SprListDraw. 6128:
+' PlatFrameEnd flips, then SprListBegin erases the list of the screen to
+' be drawn next (drawn two frames ago). 464: the list is the one screen's;
+' SprListDraw erases the previous frame's sprite of the same slot (same
+' call number) just before drawing its own, so each sprite is blank only
+' for a moment: flyback order.
+'
+' The erase, the stars and the queued text come at the end of
+' PlatFrameEnd, in that order, so that everything the game draws until
+' the next PlatFrameEnd (the sprites, and the text PlatText draws at once
+' on the screen being drawn and again on the other one, TextAtBoth and
+' TextFlush) lands on a screen that has already been erased and starred.
 '
 ' Timing: one logic step is two frames (25 Hz) counted by Frames(); a
 ' step that takes longer is never made up for.
@@ -49,21 +59,35 @@
 #endif
 #endif
 
+' Sizes of the library's lists, set to what the game can produce: a frame's
+' sprites are at most 29 (the formation 18, the diver 1, the ship or its
+' explosion 1, bullets 2, bombs 3, explosions 4); the text queue (6128
+' only) holds the title's nine texts at once: 8 + 4 + 4 x 4 + 10 + 14 + 13
+' characters and 4 bytes of header each = 101 bytes (GAME OVER and NEW HIGH
+' SCORE: 31).
+#define SPRLIST_MAX 29
+#define TEXT_QUEUE 101
+
 #include <cpc.bas>
 #include <cpcbuild/display.bas>
 #include <cpcbuild/keyboard.bas>
 #include <cpcbuild/palette.bas>
+#include <cpcbuild/spritelist.bas>
+#include <cpcbuild/text.bas>
+#include <cpcbuild/tiles.bas>
+#include <cpcbuild/fill.bas>
 #include <framehook.bas>
 
 #ifdef CPC6128
 ' Double-buffered builds: the constant graphics arrays below (sprites,
-' sprites_pal, shots, tiles, tiles_pal, font: 970 bytes) have their data bytes
-' placed from &8000 up (their descriptors stay low), which keeps the low
-' segment (the part below the back screen at &4000) smaller. The gap up to
-' &8000 is zero-filled in the one .bin; EnableDoubleBuffer copies the screen
-' over &4000-&7FFF. Nothing here is read by the firmware through a pointer
-' (and &8000-&BFFF would be fine for that anyway). The 464 has one screen
-' and no limit at &4000, so it keeps everything in place.
+' sprites_pal, shots, tiles, tiles_pal, font: 970 bytes; and the star table)
+' have their data bytes placed from &8000 up (their descriptors stay low),
+' which keeps the low segment (the part below the back screen at &4000)
+' smaller. The gap up to &8000 is zero-filled in the one .bin;
+' EnableDoubleBuffer copies the screen over &4000-&7FFF. Nothing here is
+' read by the firmware through a pointer (and &8000-&BFFF would be fine for
+' that anyway). The 464 has one screen and no limit at &4000, so it keeps
+' everything in place.
 #pragma hidata = $8000
 #endif
 ' sprites: 12 frames of 4 bytes x 8 lines (32 bytes, pixels only: they are ORed
@@ -73,8 +97,33 @@
 ' tiles: 0 border outer, 1 inner left, 2 inner right, 3 HUD rule, 4 ground,
 ' 5 ground fill, 6 life icon; and tiles_pal, the 16 pens
 #include "assets/tiles.bas"
-' font: 7 bytes a character, ASCII 45-90
-#include "assets/font.bas"
+' font: 7 bytes a character, ASCII 45-90, in the library's format (assets/
+' fontcpc.bas: the 5 x 7 font shifted left 2, so bit 7 is the leftmost
+' pixel and the glyph keeps its one-pixel left margin)
+#include "assets/fontcpc.bas"
+' the static stars: 20 x (offset in the 16 KB screen, byte)
+DIM starTab(59) AS UBYTE => { _
+    $61, $02, $AA, _
+    $2A, $31, $51, _
+    $01, $1E, $A2, _
+    $24, $3C, $55, _
+    $13, $19, $A2, _
+    $13, $0D, $51, _
+    $B6, $09, $AA, _
+    $7E, $09, $51, _
+    $E7, $1A, $A2, _
+    $89, $23, $55, _
+    $1D, $32, $A2, _
+    $57, $26, $51, _
+    $6F, $0E, $AA, _
+    $AF, $21, $51, _
+    $80, $0C, $A2, _
+    $8F, $32, $55, _
+    $37, $16, $A2, _
+    $FE, $13, $51, _
+    $83, $3E, $AA, _
+    $52, $34, $51 _
+}
 #ifdef CPC6128
 #pragma hidata = 0
 #endif
@@ -104,561 +153,151 @@
 #include "../../tests/screens/lib/shot.bas"
 #endif
 
-' ---- the sprite engine ----------------------------------------------
-' Entries are 3 bytes (screen address, type 0 = 4 x 8, 1 = 1 x 4); the
-' lists hold 40. NSTARS static stars: (offset in the 16 KB screen, byte).
+' ---- sprites, stars, the HUD ------------------------------------------
+
+DIM hudS, hudH AS UINTEGER
+DIM hudL, hudW, hudDirty AS UBYTE
+DIM curTune, bankOK AS UBYTE         ' music; songs in the bank
+DIM fT AS UINTEGER                  ' Frames() at the start of this step
+
+' ---- PlatSprite: assembly ---------------------------------------------
+' PlatSprite(kind, frame, x, y): a sprite of the playfield. Logical x, y
+' (mode-0 pixels) map to byte column 8 + x / 2 and line 16 + y; one at
+' y >= 160 is not drawn. The work is SF_SPRITE, in assembly (see the
+' header): SprListDraw called from BASIC costs
+' ~1,100 T-states a sprite more than its routine (spritelist.bas, Cost), and
+' a frame has about 20 sprites, which 25 steps a second cannot afford.
 asm
     jp SF_END
 
 SF_SPR:     defw 0              ; the 12 4 x 8 frames
 SF_SHOT:    defw 0              ; the 2 1 x 4 frames
-SF_SGL:     defb 0              ; 1 = single-buffered
-SF_BUF:     defb 0              ; list of the screen being drawn (0, 1)
-SF_N0:      defb 0              ; entries in list 0
-SF_N1:      defb 0              ; entries in list 1 (must follow SF_N0)
-SF_OLDN:    defb 0              ; single: entries of the previous frame
-SF_CNT:     defb 0              ; entries so far this frame
-SF_LP:      defw 0              ; the list being filled
-SF_E:       defw 0              ; the entry being written
-SF_EC:      defb 0
-SF_KBASE:   defb 0, 1, 3, 5, 7, 255, 255, 9     ; first frame of each kind
-SF_L0:      defs 120
-SF_L1:      defs 120
-SF_TILEP:   defw 0              ; the 7 tiles (32 bytes each)
-SF_FONTP:   defw 0              ; the font
-SF_PEN:     defb 1              ; pen of the glyph being drawn (0-3)
-SF_PENTAB:  defb 0, 0, $80, $40, $08, $04, $88, $44    ; left, right pixel
-SF_BLANK:   defb 0, 0, 0, 0, 0, 0, 0
-SF_TXTLEN:  defb 0              ; bytes in the text queue
-SF_TXTP:    defb 0              ; frames it is still to be drawn on
-SF_TXT:     defs 160            ; entries: col, row, length, characters
-SF_HUDB:    defs 20             ; the HUD as characters (1 = life icon)
-SF_HUDS:    defs 40             ; what each screen shows (255 = unknown)
-SF_CL:      defb 0
-SF_CC:      defb 0
+SF_KBASE:   defb 0, 1, 3, 5, 7  ; first frame of each kind (0-4, 7; kinds 5, 6 are the shots)
+            defb 0, 0, 9
 
-; SF_DRAW8: 4 x 8 sprite (pixels only, 32 bytes) ORed onto the screen
-; (which the erase left black), HL = data, DE = screen address
-SF_DRAW8:
-    ld b, 8
-SF_D8R:
-    push de
-    ld a, (de)
-    or (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (de)
-    or (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (de)
-    or (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (de)
-    or (hl)
-    ld (de), a
-    inc hl
-    pop de
-    ld a, d
-    add a, 8
-    ld d, a
-    and $38
-    jr nz, SF_D8N
-    ld a, d
-    sub $40
-    ld d, a
-    ld a, e
-    add a, 80
-    ld e, a
-    jr nc, SF_D8N
-    inc d
-SF_D8N:
-    djnz SF_D8R
-    ret
-
-; SF_DRAW1: 1 x 4 sprite (4 bytes), HL = data, DE = screen address
-SF_DRAW1:
-    ld b, 4
-SF_D1R:
-    ld a, (de)
-    or (hl)
-    ld (de), a
-    inc hl
-    ld a, d
-    add a, 8
-    ld d, a
-    and $38
-    jr nz, SF_D1N
-    ld a, d
-    sub $40
-    ld d, a
-    ld a, e
-    add a, 80
-    ld e, a
-    jr nc, SF_D1N
-    inc d
-SF_D1N:
-    djnz SF_D1R
-    ret
-
-; SF_ERASE8: clears a 4 x 8 box, HL = screen address. Rows alternate
-; direction, so the pointer is already at the next row's near end.
-SF_ERASE8:
-    ld b, 0
-    ld c, 4
-SF_E8L:
-    ld (hl), b
-    inc hl
-    ld (hl), b
-    inc hl
-    ld (hl), b
-    inc hl
-    ld (hl), b
-    ld a, h
-    add a, 8
-    ld h, a
-    and $38
-    jr nz, SF_E8A
-    ld a, h
-    sub $40
-    ld h, a
-    ld a, l
-    add a, 80
-    ld l, a
-    jr nc, SF_E8A
-    inc h
-SF_E8A:
-    ld (hl), b
-    dec hl
-    ld (hl), b
-    dec hl
-    ld (hl), b
-    dec hl
-    ld (hl), b
-    ld a, h
-    add a, 8
-    ld h, a
-    and $38
-    jr nz, SF_E8B
-    ld a, h
-    sub $40
-    ld h, a
-    ld a, l
-    add a, 80
-    ld l, a
-    jr nc, SF_E8B
-    inc h
-SF_E8B:
-    dec c
-    jr nz, SF_E8L
-    ret
-
-; SF_ERASE1: clears a 1 x 4 box, HL = screen address
-SF_ERASE1:
-    ld b, 0
-    ld c, 4
-SF_E1L:
-    ld (hl), b
-    ld a, h
-    add a, 8
-    ld h, a
-    and $38
-    jr nz, SF_E1N
-    ld a, h
-    sub $40
-    ld h, a
-    ld a, l
-    add a, 80
-    ld l, a
-    jr nc, SF_E1N
-    inc h
-SF_E1N:
-    dec c
-    jr nz, SF_E1L
-    ret
-
-; SF_ERASE_ONE: HL = an entry
-SF_ERASE_ONE:
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld a, (hl)
-    ex de, hl
-    or a
-    jp z, SF_ERASE8
-    jp SF_ERASE1
-
-; SF_ERASEL: HL = a list, A = its entry count
-SF_ERASEL:
-    or a
-    ret z
-    ld (SF_EC), a
-SF_ELP:
-    push hl
-    call SF_ERASE_ONE
-    pop hl
-    inc hl
-    inc hl
-    inc hl
-    ld a, (SF_EC)
-    dec a
-    ld (SF_EC), a
-    jr nz, SF_ELP
-    ret
-
-; SF_STARS: puts the static stars on the drawing screen where it is black
-SF_STARS:
-    ld a, (.core.CB_BASE)
-    ld b, a
-    ld hl, SF_STARTAB
-    ld c, 20
-SF_ST1:
-    ld e, (hl)
-    inc hl
-    ld a, (hl)
-    inc hl
-    or b
-    ld d, a
-    ld a, (de)
-    or a
-    jr nz, SF_ST2
-    ld a, (hl)
-    ld (de), a
-SF_ST2:
-    inc hl
-    dec c
-    jr nz, SF_ST1
-    ret
-
-SF_STARTAB:
-    defb $61, $02, $AA
-    defb $2A, $31, $51
-    defb $01, $1E, $A2
-    defb $24, $3C, $55
-    defb $13, $19, $A2
-    defb $13, $0D, $51
-    defb $B6, $09, $AA
-    defb $7E, $09, $51
-    defb $E7, $1A, $A2
-    defb $89, $23, $55
-    defb $1D, $32, $A2
-    defb $57, $26, $51
-    defb $6F, $0E, $AA
-    defb $AF, $21, $51
-    defb $80, $0C, $A2
-    defb $8F, $32, $55
-    defb $37, $16, $A2
-    defb $FE, $13, $51
-    defb $83, $3E, $AA
-    defb $52, $34, $51
-
-; SF_BEGIN: start of a frame
-SF_BEGIN:
-    ld a, (SF_SGL)
-    or a
-    jr nz, SF_BSGL
-    ld a, (SF_BUF)
-    or a
-    jr nz, SF_B1
-    ld hl, SF_L0
-    ld (SF_LP), hl
-    ld a, (SF_N0)
-    jr SF_B2
-SF_B1:
-    ld hl, SF_L1
-    ld (SF_LP), hl
-    ld a, (SF_N1)
-SF_B2:
-    call SF_ERASEL
-    xor a
-    ld (SF_CNT), a
-    jp SF_STARS
-SF_BSGL:
-    ld a, (SF_CNT)
-    ld (SF_OLDN), a
-    xor a
-    ld (SF_CNT), a
-    ld hl, SF_L0
-    ld (SF_LP), hl
-    ret
-
-; SF_FEND: end of a frame (before the flip)
-SF_FEND:
-    ld a, (SF_SGL)
-    or a
-    jr nz, SF_FS
-    ld hl, SF_N0
-    ld a, (SF_BUF)
-    or a
-    jr z, SF_FE0
-    inc hl
-SF_FE0:
-    ld a, (SF_CNT)
-    ld (hl), a
-    ret
-SF_FS:
-    ld a, (SF_OLDN)
-    ld hl, SF_CNT
-    sub (hl)
-    jr c, SF_FS2
-    jr z, SF_FS2
-    push af
-    ld a, (SF_CNT)
-    ld e, a
-    add a, a
-    add a, e
-    ld e, a
-    ld d, 0
-    ld hl, SF_L0
-    add hl, de
-    pop af
-    call SF_ERASEL
-SF_FS2:
-    jp SF_STARS
-
-; SF_SPRITE: PlatSprite(kind, frame, x, y), IX = the SUB's frame
+; SF_SPRITE: PlatSprite(kind, frame, x, y), IX = the SUB's frame. Maps the
+; kind and frame to the graphic and calls the library's register entry
+; __SL_SPRITE (C = x, B = y, E = w, D = h, HL = data; spritelist.asm). Clobbers
+; AF, BC, DE, HL (IX kept).
 SF_SPRITE:
-    ld a, (ix+11)
+    ld a, (ix+11)           ; y
     cp 160
     ret nc
-    ld a, (SF_CNT)
-    cp 40
-    ret nc
-    ld c, a
-    add a, a
-    add a, c
-    ld e, a
-    ld d, 0
-    ld hl, (SF_LP)
-    add hl, de
-    ld (SF_E), hl
-    ld a, (SF_SGL)
-    or a
-    jr z, SF_S1
-    ld a, (SF_OLDN)
-    cp c
-    jr z, SF_S1
-    jr c, SF_S1
-    ld hl, (SF_E)
-    push bc
-    call SF_ERASE_ONE
-    pop bc
-SF_S1:
-    ld a, (ix+9)
+    add a, 16
+    ld b, a                 ; B = line
+    ld a, (ix+9)            ; x
     srl a
     add a, 8
-    ld c, a
-    ld a, (ix+11)
-    add a, 16
-    ld b, a
-    call .core.__CB_ADDR
-    push hl
-    ld a, (ix+5)
+    ld c, a                 ; C = byte column
+    ld a, (ix+5)            ; kind
     ld e, a
+    sub 5
+    cp 2
+    jr c, SF_SSHOT
     ld d, 0
     ld hl, SF_KBASE
     add hl, de
     ld a, (hl)
-    cp 255
-    jr z, SF_SMALL
-    add a, (ix+7)
+    add a, (ix+7)           ; + frame
     ld l, a
     ld h, 0
     add hl, hl
     add hl, hl
     add hl, hl
     add hl, hl
-    add hl, hl
+    add hl, hl              ; * 32
     ld de, (SF_SPR)
     add hl, de
-    pop de
-    push hl
-    ld hl, (SF_E)
-    ld (hl), e
-    inc hl
-    ld (hl), d
-    inc hl
-    ld (hl), 0
-    pop hl
-    call SF_DRAW8
-    jr SF_S2
-SF_SMALL:
-    ld a, (ix+5)
-    sub 5
+    ld de, 8 * 256 + 4      ; 4 x 8
+    jp .core.__SL_SPRITE
+SF_SSHOT:
     add a, a
-    add a, a
+    add a, a                ; (kind - 5) * 4
     ld l, a
     ld h, 0
     ld de, (SF_SHOT)
     add hl, de
-    pop de
-    push hl
-    ld hl, (SF_E)
-    ld (hl), e
-    inc hl
-    ld (hl), d
-    inc hl
-    ld (hl), 1
-    pop hl
-    call SF_DRAW1
-SF_S2:
-    ld hl, SF_CNT
-    inc (hl)
-    ret
+    ld de, 4 * 256 + 1      ; 1 x 4
+    jp .core.__SL_SPRITE
 
-; SF_CELL: B = cell row, C = cell column -> DE = the cell's screen address
-SF_CELL:
-    ld a, b
-    add a, a
-    add a, a
-    add a, a
-    ld b, a
-    ld a, c
-    add a, a
-    add a, a
-    ld c, a
-    call .core.__CB_ADDR
-    ex de, hl
-    ret
+SF_END:
+end asm
 
-; SF_TILE: A = tile, B = cell row, C = cell column
-SF_TILE:
-    push af
-    call SF_CELL
-    pop af
-    ld l, a
-    ld h, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    ld bc, (SF_TILEP)
-    add hl, bc
-    ld b, 8
-SF_TL1:
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    inc de
-    ld a, (hl)
-    ld (de), a
-    inc hl
-    dec de
-    dec de
-    dec de
-    ld a, d
-    add a, 8
-    ld d, a
-    djnz SF_TL1
-    ret
+SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
+  ASM
+  call SF_SPRITE
+  END ASM
+END SUB
 
-; SF_GLY: draws character A (ASCII 45-90, else blank) at cell row B,
-; column C in pen SF_PEN (0-3)
-SF_GLY:
-    push iy
-    push af
-    call SF_CELL
-    pop af
-    push de
-    sub 45
-    jr c, SF_GBL
-    cp 46
-    jr nc, SF_GBL
-    ld l, a
-    ld h, 0
-    ld e, a
-    ld d, 0
-    add hl, hl
-    add hl, hl
-    add hl, hl
-    or a
-    sbc hl, de
-    ld de, (SF_FONTP)
-    add hl, de
-    push hl
-    pop iy
-    jr SF_GGO
-SF_GBL:
-    ld iy, SF_BLANK
-SF_GGO:
-    ld a, (SF_PEN)
-    and 3
-    add a, a
-    ld e, a
-    ld d, 0
-    ld hl, SF_PENTAB
-    add hl, de
-    ld e, (hl)
-    inc hl
-    ld d, (hl)
-    pop hl
-    ld b, 7
-SF_GR:
-    ld c, (iy+0)
-    inc iy
-    sla c
-    sla c
-    sla c
-    sla c
-    sbc a, a
-    and d
-    ld (hl), a
-    inc hl
-    sla c
-    sbc a, a
-    and e
-    ld (hl), a
-    sla c
-    sbc a, a
-    and d
-    or (hl)
-    ld (hl), a
-    inc hl
-    sla c
-    sbc a, a
-    and e
-    ld (hl), a
-    sla c
-    sbc a, a
-    and d
-    or (hl)
-    ld (hl), a
-    inc hl
-    xor a
-    ld (hl), a
-    dec hl
-    dec hl
-    dec hl
-    ld a, h
-    add a, 8
-    ld h, a
-    djnz SF_GR
-    xor a
-    ld (hl), a
-    inc hl
-    ld (hl), a
-    inc hl
-    ld (hl), a
-    inc hl
-    ld (hl), a
-    pop iy
-    ret
+' The sprite and shot graphics, for SF_SPRITE (the arrays are only reached
+' by address, so BASIC hands the addresses over).
+SUB SfGfx(spr AS UINTEGER, shots AS UINTEGER)
+  ASM
+  ld l, (ix+4)
+  ld h, (ix+5)
+  ld (SF_SPR), hl
+  ld l, (ix+6)
+  ld h, (ix+7)
+  ld (SF_SHOT), hl
+  END ASM
+END SUB
 
-; SF_DEC5: HL = value, DE = destination: five ASCII digits, DE advanced
+' The static stars, on the screen being drawn where it is black: put the
+' byte of each of the 20 table entries (offset in the 16 KB screen, byte) at
+' its place unless something is drawn there. Assembly for size and speed (a
+' BASIC version took 132 bytes, ~14,000 T-states a frame; this is ~45 bytes,
+' ~2,500). Clobbers AF, BC, DE, HL.
+SUB FASTCALL Stars(st AS UINTEGER)   ' st: @starTab(0), in HL
+  ASM
+  ld a, (.core.CB_BASE)
+  ld b, a
+  ld c, 20
+SF_ST1:
+  ld e, (hl)
+  inc hl
+  ld a, (hl)
+  inc hl
+  or b
+  ld d, a
+  ld a, (de)
+  or a
+  jr nz, SF_ST2
+  ld a, (hl)
+  ld (de), a
+SF_ST2:
+  inc hl
+  dec c
+  jr nz, SF_ST1
+  END ASM
+END SUB
+
+' Blanks the playfield (64 bytes x 160 lines from byte column 8, line 16) of
+' the screen being drawn, then the stars.
+SUB ClearField()
+  FillRect(8, 16, 64, 160, 0)
+  Stars(@starTab(0))
+END SUB
+
+' ---- the HUD: assembly -------------------------------------------------
+' SfHud draws the HUD: hudS, hudL, hudW, hudH as 20 characters (cells 0-4
+' score, 6 life icon, 7 lives, 9 W, 10-11 wave, 13 H, 14-18 high score),
+' each cell that differs from what the screen being drawn shows (one list of
+' 20 per screen, 255 = unknown). Assembly, because the same in BASIC (it
+' was written first) made the 6128 build miss its 25 steps a second (23.4
+' to 24.5 steps/s on the bench: a changed cell costs ~5,800 T-states
+' through TextAt(col, row, CHR$(c)) against ~2,900 here, and the digit and
+' diff loops dozens of BASIC statements) and ~500 bytes larger. It draws
+' through the library's documented register entries (tile8.asm, text.asm):
+' __CB_TILE_AT, __TX_PENS, __TX_PUTS, not through their BASIC subs.
+asm
+    jp SF_HEND
+
+SF_HUDB:    defs 20             ; the HUD as characters
+SF_HUDS:    defs 40             ; what each screen shows (255 = unknown)
+SF_HCH:     defb 0              ; the character being drawn
+
+; SF_DEC5: HL = value, DE = destination: five ASCII digits, DE advanced.
+; Clobbers AF, BC, DE, HL.
 SF_DEC5:
     ld bc, -10000
     call SF_DE1
@@ -684,9 +323,35 @@ SF_DE2:
     inc de
     ret
 
-; SF_HUD: builds the HUD from hudS, hudL, hudW, hudH and draws the cells
-; that differ from what the screen being drawn shows. Cells: 0-4 score,
-; 6 life icon, 7 lives, 9 W, 10-11 wave, 13 H, 14-18 high score.
+; SF_HCELL: draws character A (1 = the life icon, else a font character) at
+; cell column C, row 0. Letters (65 up) are drawn in pen 2, the rest in pen
+; 1, the text module's default. Clobbers AF, BC, DE, HL (the library's
+; routines use no others).
+SF_HCELL:
+    cp 1
+    jr nz, SF_HTXT
+    ld b, 0
+    ld hl, 6                    ; tile 6
+    jp .core.__CB_TILE_AT       ; C = cell x, B = cell y, HL = tile
+SF_HTXT:
+    ld (SF_HCH), a
+    cp 65
+    jr c, SF_HDRAW
+    ld a, 2
+    push bc
+    call .core.__TX_PENS        ; A = ink | paper << 4
+    pop bc
+    call SF_HDRAW
+    ld a, 1
+    jp .core.__TX_PENS
+SF_HDRAW:
+    xor a                       ; row 0
+    ld b, 1                     ; one character
+    ld de, SF_HCH
+    jp .core.__TX_PUTS          ; A = row, C = column, B = length, DE = text
+
+; SF_HUD: builds the characters and draws the cells that differ from what the
+; screen being drawn shows. Clobbers AF, BC, DE, HL.
 SF_HUD:
     ld de, SF_HUDB
     ld hl, (_hudS)
@@ -704,7 +369,7 @@ SF_HUD:
     ld a, 32
     ld (de), a
     inc de
-    ld a, 87
+    ld a, 87                    ; W
     ld (de), a
     inc de
     ld a, (_hudW)
@@ -727,7 +392,7 @@ SF_HW2:
     ld a, 32
     ld (de), a
     inc de
-    ld a, 72
+    ld a, 72                    ; H
     ld (de), a
     inc de
     ld hl, (_hudH)
@@ -735,9 +400,9 @@ SF_HW2:
     ld a, 32
     ld (de), a
     ld hl, SF_HUDS
-    ld a, (SF_BUF)
-    or a
-    jr z, SF_HU1
+    ld a, (.core.CB_BASE)
+    rla                         ; carry = the screen at &C000
+    jr nc, SF_HU1
     ld de, 20
     add hl, de
 SF_HU1:
@@ -751,25 +416,7 @@ SF_HU2:
     push hl
     push de
     push bc
-    cp 1
-    jr nz, SF_HU3
-    ld a, 6
-    ld b, 0
-    call SF_TILE
-    jr SF_HU5
-SF_HU3:
-    ld e, a
-    ld d, 1
-    cp 65
-    jr c, SF_HU6
-    ld d, 2
-SF_HU6:
-    ld a, d
-    ld (SF_PEN), a
-    ld a, e
-    ld b, 0
-    call SF_GLY
-SF_HU5:
+    call SF_HCELL
     pop bc
     pop de
     pop hl
@@ -782,197 +429,16 @@ SF_HU4:
     jr nz, SF_HU2
     ret
 
-; SF_TEXTADD: PlatText(col, row, s$) with IX = the SUB's frame
-SF_TEXTADD:
-    ld l, (ix+8)
-    ld h, (ix+9)
-    ld c, (hl)
-    inc hl
-    ld b, (hl)
-    inc hl
-    ld a, b
-    or a
-    ret nz
-    ld a, (SF_TXTLEN)
-    add a, c
-    ret c
-    add a, 3
-    ret c
-    cp 161
-    ret nc
-    push hl
-    ld a, (SF_TXTLEN)
-    ld e, a
-    ld d, 0
-    ld hl, SF_TXT
-    add hl, de
-    ex de, hl
-    ld a, (ix+5)
-    ld (de), a
-    inc de
-    ld a, (ix+7)
-    ld (de), a
-    inc de
-    ld a, c
-    ld (de), a
-    inc de
-    pop hl
-    ld a, (SF_TXTLEN)
-    add a, c
-    add a, 3
-    ld (SF_TXTLEN), a
-    ld a, (SF_SGL)
-    xor 1
-    inc a
-    ld (SF_TXTP), a
-    ld a, c
-    or a
-    ret z
-    ldir
-    ret
-
-; SF_TEXTDRAW: draws the queued text, while it is still pending
-SF_TEXTDRAW:
-    ld a, (SF_TXTP)
-    or a
-    ret z
-    dec a
-    ld (SF_TXTP), a
-    ld a, 1
-    ld (SF_PEN), a
-    ld hl, SF_TXT
-    ld a, (SF_TXTLEN)
-    ld e, a
-SF_TD1:
-    ld a, e
-    or a
-    ret z
-    ld c, (hl)
-    inc hl
-    ld b, (hl)
-    inc hl
-    ld d, (hl)
-    inc hl
-    ld a, e
-    sub d
-    sub 3
-    ld e, a
-SF_TD2:
-    ld a, d
-    or a
-    jr z, SF_TD1
-    ld a, (hl)
-    inc hl
-    push hl
-    push de
-    push bc
-    call SF_GLY
-    pop bc
-    pop de
-    pop hl
-    inc c
-    dec d
-    jr SF_TD2
-
-; SF_CLEAR: blanks the playfield on the screen being drawn (64 x 160 bytes)
-SF_CLEAR:
-    ld a, 16
-    ld (SF_CL), a
-    ld a, 20
-    ld (SF_CC), a
-SF_CLR1:
-    ld a, (SF_CL)
-    ld b, a
-    ld c, 8
-    call .core.__CB_ADDR
-    ld b, 8
-SF_CLR2:
-    push bc
-    push hl
-    ld d, h
-    ld e, l
-    inc de
-    ld (hl), 0
-    ld bc, 63
-    ldir
-    pop hl
-    ld a, h
-    add a, 8
-    ld h, a
-    pop bc
-    djnz SF_CLR2
-    ld a, (SF_CL)
-    add a, 8
-    ld (SF_CL), a
-    ld hl, SF_CC
-    dec (hl)
-    jr nz, SF_CLR1
-    ret
-
-SF_END:
+SF_HEND:
 end asm
 
-SUB SFSetup(spr AS UINTEGER, shots AS UINTEGER, tilesp AS UINTEGER, fontp AS UINTEGER, sgl AS UBYTE)
-  ASM
-  ld l, (ix+4)
-  ld h, (ix+5)
-  ld (SF_SPR), hl
-  ld l, (ix+6)
-  ld h, (ix+7)
-  ld (SF_SHOT), hl
-  ld l, (ix+8)
-  ld h, (ix+9)
-  ld (SF_TILEP), hl
-  ld l, (ix+10)
-  ld h, (ix+11)
-  ld (SF_FONTP), hl
-  ld a, (ix+13)
-  ld (SF_SGL), a
-  END ASM
-END SUB
-
-SUB SFTile(col AS UBYTE, row AS UBYTE, t AS UBYTE)
-  ASM
-  ld a, (ix+9)
-  ld b, (ix+7)
-  ld c, (ix+5)
-  call SF_TILE
-  END ASM
-END SUB
-
-SUB SFBegin()
-  ASM
-  call SF_BEGIN
-  call SF_TEXTDRAW
-  END ASM
-END SUB
-
-SUB SFEnd()
-  ASM
-  call SF_FEND
-  END ASM
-END SUB
-
-SUB SFStars()
-  ASM
-  call SF_STARS
-  END ASM
-END SUB
-
-SUB SFClear()
-  ASM
-  call SF_CLEAR
-  call SF_STARS
-  END ASM
-END SUB
-
-SUB SFHud()
+SUB SfHud()
   ASM
   call SF_HUD
   END ASM
 END SUB
 
-SUB SFHudReset()
+SUB SfHudReset()
   ASM
   ld hl, SF_HUDS
   ld de, SF_HUDS + 1
@@ -982,46 +448,7 @@ SUB SFHudReset()
   END ASM
 END SUB
 
-SUB SFText(col AS UBYTE, row AS UBYTE, s AS STRING)
-  ASM
-  call SF_TEXTADD
-  END ASM
-END SUB
-
-' After a flip: the other list belongs to the screen being drawn now.
-SUB SFSwap()
-  ASM
-  ld a, (SF_BUF)
-  xor 1
-  ld (SF_BUF), a
-  END ASM
-END SUB
-
-' Empties both lists and the text queue (the screens have been cleared).
-SUB SFReset()
-  ASM
-  xor a
-  ld (SF_N0), a
-  ld (SF_N1), a
-  ld (SF_CNT), a
-  ld (SF_OLDN), a
-  ld (SF_TXTLEN), a
-  ld (SF_TXTP), a
-  END ASM
-END SUB
-
-SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
-  ASM
-  call SF_SPRITE
-  END ASM
-END SUB
-
 ' ---- the rest of the layer --------------------------------------------
-
-DIM hudS, hudH AS UINTEGER
-DIM hudL, hudW, hudDirty AS UBYTE
-DIM pbuf, curTune, bankOK AS UBYTE   ' the drawing screen's list (0, 1); music; songs in the bank
-DIM fT AS UINTEGER                  ' Frames() at the start of this step
 
 SUB PlatInit()
   DIM r, c AS UBYTE
@@ -1029,28 +456,29 @@ SUB PlatInit()
   SetPalette(@tiles_pal(0), tiles_PENS)
   SetBorder 0
   ScreenInit()
-#ifdef CPC464
-  SFSetup(@sprites(0), @shots(0), @tiles(0), @font(0), 1)
-#else
-  SFSetup(@sprites(0), @shots(0), @tiles(0), @font(0), 0)
-#endif
+  SetTileSet(@tiles(0))
+  SfGfx(@sprites(0), @shots(0))
+  TextFont(@font(0), font_FIRST, 7, font_FIRST + font_COUNT - 1)
+  TextPen(1, 0)
   FOR c = 0 TO 19
-    SFTile(c, 1, 3)
-    SFTile(c, 22, 4)
-    SFTile(c, 23, 5)
-    SFTile(c, 24, 5)
+    DoTile8(c, 1, 3)
+    DoTile8(c, 22, 4)
+    DoTile8(c, 23, 5)
+    DoTile8(c, 24, 5)
   NEXT c
   FOR r = 2 TO 21
-    SFTile(0, r, 0)
-    SFTile(1, r, 1)
-    SFTile(18, r, 2)
-    SFTile(19, r, 0)
+    DoTile8(0, r, 0)
+    DoTile8(1, r, 1)
+    DoTile8(18, r, 2)
+    DoTile8(19, r, 0)
   NEXT r
-  SFStars()
+  Stars(@starTab(0))
 #ifndef CPC464
   EnableDoubleBuffer()
 #endif
-  SFHudReset()
+  SprListReset()
+  SprListBegin()
+  SfHudReset()
   hudS = 65535
   hudDirty = 2
 #ifndef NOSOUND
@@ -1059,7 +487,7 @@ SUB PlatInit()
   bankOK = BankAvailable()
 #ifdef CPC_BAREMETAL
 #ifndef NODISC
-  ' Bare: no disc, so no BankLoad. The disc loader (loader.asm, RUN"BARE)
+  ' Bare: no disc, so no BankLoad. The disc loader (loader.asm, RUN"BARE")
   ' put STARFALL.DAT into bank 0 before starting this program; check its
   ' "AT" signature (the songs' header) so a start without the loader runs
   ' silent instead of playing garbage.
@@ -1080,19 +508,24 @@ SUB PlatInit()
 #endif
 END SUB
 
-' Start of a drawn frame: erases what was drawn here before (6128), draws
-' queued text.
+' Start of a drawn frame: nothing to do here, the screen to draw on was
+' erased, starred and given its text at the end of the last PlatFrameEnd.
 SUB PlatFrameBegin()
-  SFBegin()
 END SUB
 
-' End of a frame: flip (6128), then wait for the next logic step.
+' End of a frame: 464: erase what was not redrawn, stars. 6128: flip, erase
+' the list of the screen to draw on next, stars, the text queued for it.
+' Then wait for the next logic step.
 SUB PlatFrameEnd()
-  SFEnd()
-#ifndef CPC464
+  SprListEnd()
+#ifdef CPC464
+  Stars(@starTab(0))
+  SprListBegin()
+#else
   FlipBuffer()
-  SFSwap()
-  pbuf = 1 - pbuf
+  SprListBegin()
+  Stars(@starTab(0))
+  TextFlush()
 #endif
 #ifndef NOPACE
 #ifdef SF_PLUS_MUX
@@ -1132,26 +565,33 @@ SUB PlatHud(score AS UINTEGER, lives AS UBYTE, wave AS UBYTE, hiscore AS UINTEGE
   END IF
   IF hudDirty > 0 THEN
     hudDirty = hudDirty - 1
-    SFHud()
+    SfHud()
   END IF
 END SUB
 
-' Text at a character cell (upper case, digits and - . =), drawn on both
-' screens during the next frames.
+' Text at a character cell (upper case, digits and - . =), drawn on the
+' screen being drawn now and, double-buffered, on the other one after the
+' next flip.
 SUB PlatText(col AS UBYTE, row AS UBYTE, s AS STRING)
-  SFText(col, row, s)
+#ifdef CPC464
+  TextAt(col, row, s)
+#else
+  TextAtBoth(col, row, s)
+#endif
 END SUB
 
 ' Clears the playfield (and queued text) on both screens.
 SUB PlatClear()
-  SFClear()
+#ifndef CPC464
+  TextFlush()
+#endif
+  ClearField()
 #ifndef CPC464
   FlipBuffer()
-  SFSwap()
-  pbuf = 1 - pbuf
-  SFClear()
+  ClearField()
 #endif
-  SFReset()
+  SprListReset()
+  SprListBegin()
 END SUB
 
 ' Bits: 1 left (O, cursor left, joystick), 2 right (P, cursor right), 4

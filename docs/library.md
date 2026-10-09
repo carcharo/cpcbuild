@@ -1050,6 +1050,14 @@ DO
 LOOP
 ```
 
+**From assembly**, skipping the call from BASIC (worth it for many sprites a frame:
+Starfall's CPC layer draws ~20 a step this way): `.core.__SL_BEGIN`,
+`.core.__SL_SPRITE` with C = x (byte column), B = y (line), E = w, D = h, HL = data,
+`.core.__SL_END` and `.core.__SL_RESET` are the routines behind the four calls;
+`ld (.core.__SL_PAPER), a` sets the paper byte. They clobber AF, BC, DE and HL
+(`__SL_RESET` only AF) and keep IX and IY; the full list is at the top of
+`lib/cpcbuild/spritelist.asm`.
+
 ### 7.16 Text (`cpcbuild/text.bas`)
 
 Text from a compact 1-bit font, drawn straight into screen memory in 8 x 8 pixel
@@ -1093,6 +1101,11 @@ Mode 0: ScreenInit()
 TextFont(@font(0), 45, 7, 90)          ' ASCII 45-90, 7 rows
 TextPen(3, 1): TextAt(2, 0, "SCORE 00000")
 ```
+
+**From assembly:** `.core.__TX_PUTS` draws B characters from DE (no length
+prefix) at cell column C, row A, in the current pens; `.core.__TX_PENS` sets the
+pens from A = ink + paper × 16 (it rebuilds its table only when they change). Both
+clobber AF, BC, DE and HL; see the top of `lib/cpcbuild/text.asm`.
 
 ## 10. CPC Plus (cpcplus)
 

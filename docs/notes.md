@@ -666,7 +666,30 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     is held ~2 frames, so slow work (STR$, CHK) between a poll and the next
     poll can miss it.
 
-## Pick up here (updated 2026-10-05: Phase 7 complete)
+## Pick up here (updated 2026-10-09: fold of Starfall's routines done)
+
+State: on cpcbuild branch `fold` (not merged to main yet; CI now runs on
+it), zxbasic `cpc-arch` pushed. Done today: compiler warnings fixed;
+per-routine `#require`; the cpcbuild asm split; new modules spritelist,
+text (CPC) and lib/zxbuild/sprites (Spectrum); `#pragma hidata`; Starfall
+rewritten on the libraries (CPC, Plus, Spectrum; goldens unchanged); R8
+(CPCEC in VS Code: works; its own GPLv3 extension); patched Caprice32
+(tools/caprice32). Details: docs/fold-design.md and the 2026-10-09 notes.
+
+Next:
+1. Review `fold` with the user, then merge to main.
+2. Phase 8 (tooling: CPC support in NextBuild Studio extensions; the
+   emulator as a separate GPLv3 extension, see R8).
+3. Later: the platformer and its tutorial (flip-screen, single-buffered,
+   464; plan, Phase 8 section); Spectrum 128K to 25 Hz (24.2 now).
+4. Deferred by the user: report the Caprice32 DCSR/DMA bug upstream
+   (ColinPitrat/caprice32; tools/caprice32/caprice32-asic-regs.patch).
+   Also a candidate upstream report: Boriel's cb/maskedsprites.bas
+   FASTCALL routines with locals (fork-only policy for now).
+5. lib/cpcplus would save ~1,000-1,500 bytes for typical programs from
+   the same per-routine #require split (not done).
+
+## Pick up here (2026-10-05: Phase 7 complete; superseded)
 
 State: Phase 7 (CPC Plus / ASIC) done and merged into cpcbuild `main`
 (zxbasic `cpc-arch` 833e52f7); CI green, seven jobs incl. the Plus job on
