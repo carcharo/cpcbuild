@@ -38,6 +38,8 @@ See [DESIGN.md](DESIGN.md) for the full rules, coordinate system, asset pipeline
 
 Bare and firmware builds are both on the one disc because they cost nothing to carry; `RUN"DISC` is the default.
 
+The loaders run at &9E00 with their 2 KB AMSDOS buffer at &9600, above everything a game build loads (the 6128 builds reach &83CA); `RUN"BARE` stages the songs at &8000 before the game is loaded over them. Details in the `loader.asm` header.
+
 ## Starfall Plus (CPC Plus / GX4000)
 
 The same game with the Plus's hardware: the ship, the diver, the bullets, the bombs and the explosions are ASIC hardware sprites (see `platform_plus.bas`), and the playfield and sprites use 12-bit colours. In the disc build the formation is still drawn in software; in the cartridge (`-D PLUS_MUX`) it is too hardware: six sprites, re-positioned and recoloured for each of the three rows by raster interrupts (`platform_plus_mux.inc`), one shared alien shape per frame, a row colour each. Where the multiplexing cannot show a frame (a row of more than 6, rows closer than 12 lines, a sprite out of the ASIC's range, more than 24 formation sprites in a frame) the layer draws that frame's formation in software. Build with `sh build_plus.sh` (or `make plus`):
@@ -104,7 +106,7 @@ waves); at most one effect per step, interrupts off while it plays.
 ## Known limits
 
 - **Spectrum 128K at 24.2 steps/s:** most steps fit the two-frame budget, but about 20 of 250 (formation moves and similar peaks) take a third frame; the Arkos player costs about 0.2 frame per step. Options: a cheaper player, or trimming the peak steps.
-- **Memory:** CPC 6128 ends 1.5 KB below &4000 (with double buffering); the extra RAM bank holds the music. Tighter changes (more enemies, larger sprites) would require single buffering or code reorganisation.
+- **Memory:** with double buffering the 6128 builds' code must end below &4000 (the back screen): the firmware build ends 2.6 KB below it, the bare build 2.1 KB. Their graphics (970 bytes) are placed at &8000-&83CA with `#pragma hidata`, which leaves the file padded with zeros over &4000-&7FFF (33.7 KB instead of 14.7 KB; a little longer to load from a real disc). The extra RAM bank holds the music.
 - **Sprites:** Both CPC and Spectrum use custom sprite routines (CPC: the cpcbuild library didn't fit below &4000 at 20.5 KB; Spectrum: Boriel's maskedsprites took 2.3 frames for 25 sprites). Folding them into the libraries is a follow-up phase.
 
 ## Tests

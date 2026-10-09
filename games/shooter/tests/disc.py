@@ -68,9 +68,9 @@ def main():
             return 2
     D = ("STARFALL.DAT", "starfall.dat", "0x4000")
     SETS = (
-        ("run\"disc", ("DISC.BIN", "loader.bin", "0x8000"),
+        ("run\"disc", ("DISC.BIN", "loader.bin", "0x9E00"),
          ("STARFALL.BIN", "starfall.bin", "0x40"), ("STARFA64.BIN", "starfa64.bin", "0x40")),
-        ("run\"bare", ("BARE.BIN", "bare.bin", "0x8000"),
+        ("run\"bare", ("BARE.BIN", "bare.bin", "0x9E00"),
          ("STARBARE.BIN", "starbare.bin", "0x40"), ("STARBA64.BIN", "starba64.bin", "0x40")),
     )
     bad = 0

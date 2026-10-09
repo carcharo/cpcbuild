@@ -398,6 +398,25 @@ Rules:
 * **Memory.** A program that calls `EnableDoubleBuffer` must fit its code and
   data in &0040-&3FFF (about 16 KB), and its heap must lie above &7FFF. The compiler
   stops with an error if not. Programs that never call it are unaffected.
+* **Graphics and other constant data can go above &8000** to save room below
+  &4000. `#pragma hidata = $8000` places the data of the initialised global
+  arrays declared after it (`DIM ... => {...}`, as the asset files are) from
+  &8000 upward, one after the other, until `#pragma hidata = 0`:
+
+  ```basic
+  #pragma hidata = $8000
+  #include "assets/sprites.bas"
+  #include "assets/tiles.bas"
+  #pragma hidata = 0
+  ```
+
+  Only the bytes move; the arrays are used as before. The room is &8000 up to the
+  heap (about 2.9 KB with the default heap at &8B60; `--heap-size` or
+  `--heap-address` make more), and the compiler stops with an error if the data
+  runs into the heap. The program is still one file, with zeros at &4000-&7FFF
+  in it (about 16 KB more to load; `EnableDoubleBuffer` overwrites them).
+  Local arrays, arrays without initial values and strings stay where they are.
+  `--arch cpc` only.
 * **What draws where.** After `EnableDoubleBuffer`, every cpcbuild call
   (`PutSprite`, `FillRect`, `TileMap`, `ClearScreen`, `PokeScreen`,
   `GetBlock` ...) uses the hidden screen. The screen on view changes only in
