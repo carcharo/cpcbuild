@@ -22,10 +22,24 @@
 ;
 ; Plain Z80 for the Boriel assembler (zxbasm), run by the firmware like
 ; any binary: no runtime, so it has the firmware's own state and the game
-; starts exactly as with RUN"STARFALL". It is at &8000 (the game builds end
-; below &4000, bare ones below &8000: they are loaded over &0040 upwards);
-; a 2 KB AMSDOS buffer follows at &8800 and the songs' staging area at
-; &9000.
+; starts exactly as with RUN"STARFALL". Memory plan (the program is one file
+; loaded over &0040 upwards; the double-buffered builds are padded with zeros
+; over &4000-&7FFF and carry their graphics above &8000, #pragma hidata):
+;
+;   RUN"DISC / RUN"BARE   loader at &9E00 (about 300 bytes): the top of the
+;              user RAM below the firmware's workspace (HIMEM is about
+;              &A67B), above anything the program loads (its high data
+;              starts at &8000 and must end below &9600, see build_cpc.sh)
+;              and in the part of the heap that the program only clears
+;              after this loader has jumped to it. The 2 KB AMSDOS buffer is
+;              &9600-&9DFF, right below the loader (CAS_IN_OPEN needs it; it
+;              holds the header and the file's last partial sector). The
+;              songs (BARE only, 1.2 KB) are staged at &8000: free until
+;              the game binary is loaded over it, and outside &4000-&7FFF,
+;              which extra bank 0 hides while the copy runs.
+;   RUN"PLUS   unchanged from before the move: loader at &8000, buffer at
+;              &8800 (STARPLUS.BIN is a single-buffered build that ends
+;              below &8000 and has no high data).
 ;
 ; Is there extra RAM? The test of cpcbuild's CPC_INIT_BANKS (lib/cpcbuild/
 ; banks.asm, the same as BankAvailable()): write the complement of the byte
@@ -35,15 +49,23 @@
 ; firmware hand-over; BankAvailable() is the same code.
 ; ----------------------------------------------------------------
 
-        org $8000
+#ifdef PLUSLOAD
+        org $8000               ; Plus: see the memory plan above
+#else
+        org $9E00               ; DISC/BARE: see the memory plan above
+#endif
 
 CAS_IN_OPEN     equ $BC77
 CAS_IN_DIRECT   equ $BC83
 CAS_IN_CLOSE    equ $BC7A
 TXT_OUTPUT      equ $BB5A
 KL_INIT_BACK    equ $BCCE
-BUFFER          equ $8800
-DATBUF          equ $9000
+#ifdef PLUSLOAD
+BUFFER          equ $8800       ; 2 KB AMSDOS buffer: &8800-&8FFF
+#else
+BUFFER          equ $9600       ; 2 KB AMSDOS buffer: &9600-&9DFF, below the loader
+#endif
+DATBUF          equ $8000       ; BARE: the songs staged here (free until the game loads)
 
 start:
 #ifdef PLUSLOAD
@@ -172,7 +194,7 @@ rfgo:
 
 #ifdef BARE
 ; The staged file (rf_len bytes at DATBUF) into extra bank 0 at &4000. This
-; code is at &8000, outside the paged range; interrupts are off while the
+; code is at &9E00, outside the paged range; interrupts are off while the
 ; bank is in (the firmware's handler is in main RAM, not touched, but there
 ; is no reason to take one).
 copydat:

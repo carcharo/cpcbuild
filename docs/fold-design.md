@@ -223,3 +223,30 @@ Starfall's sprite, tile and font data is about 940 bytes.
 | Step | Work | Who |
 |---|---|---|
 | 5b | Data above &8000: research the options (Boriel `DIM ... AT` with initialisers, an `ORG` in the data, a padded single binary vs a second file loaded by the loader, the heap start, the test runners and disc packer), then the main model picks one; implement with tests; move Starfall's graphics data there | sonnet agent researches and implements; main model decides and checks |
+
+Step 5b decision (main model, 2026-10-09, from the research agent's proofs
+on chips 6128/464/bare and a Caprice32 disc boot): **one padded file**.
+zxbasm already supports an `org $8000 ... org <back>` round trip in the
+middle of a program, and writes one .bin with the gap zero-filled; the
+zeros at &4000-&7FFF are harmless (EnableDoubleBuffer copies the screen
+over them). Needed: a per-segment memory check in zxbc (today it rejects
+the binary as overlapping &4000), `#pragma hidata = <addr>` placing
+initialised global arrays there without editing the asset files, Starfall's
+loaders moved off &8000 (to &9E00), and build_cpc.sh's headroom read from
+the low segment. Cost: a double-buffered build's file grows by about
+19 KB of zeros (Starfall 14.7 -> 33.7 KB), estimated 2-5 s more on a real
+disc (emulators load too fast to measure). Not chosen: a second file for
+the high data (no padding, but every loader and the chips, Caprice32 and
+CPCEC runners would need changes); it can be added later as a packing
+step if the load time matters.
+
+Step 5b **done** (2026-10-09): zxbasic dc848853/10e69aab (`#pragma hidata`,
+per-segment memory check, an assembler fix for temporary labels across an
+ORG) and Starfall: its sprites, shots, tiles, palettes and font (970 bytes)
+at &8000-&83CA in the two 6128 builds. Headroom below &4000: firmware
+1,649 -> 2,603 bytes, bare 1,183 -> 2,135; files 33,674 bytes. Loaders at
+&9E00 (AMSDOS buffer &9600, bare song staging &8000); the Plus loader is
+unchanged. Speeds unchanged (25.0), goldens unchanged, `make disc` 12/12.
+With ~950 bytes more than the ~3,250 counted at the stage gate, the
+rewrite (step 6) has about 4,200 bytes for the library routines (~3,060)
+and the BASIC that replaces the engine.

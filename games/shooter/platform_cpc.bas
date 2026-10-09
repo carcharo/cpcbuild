@@ -55,6 +55,17 @@
 #include <cpcbuild/palette.bas>
 #include <framehook.bas>
 
+#ifdef CPC6128
+' Double-buffered builds: the constant graphics arrays below (sprites,
+' sprites_pal, shots, tiles, tiles_pal, font: 970 bytes) have their data bytes
+' placed from &8000 up (their descriptors stay low), which keeps the low
+' segment (the part below the back screen at &4000) smaller. The gap up to
+' &8000 is zero-filled in the one .bin; EnableDoubleBuffer copies the screen
+' over &4000-&7FFF. Nothing here is read by the firmware through a pointer
+' (and &8000-&BFFF would be fine for that anyway). The 464 has one screen
+' and no limit at &4000, so it keeps everything in place.
+#pragma hidata = $8000
+#endif
 ' sprites: 12 frames of 4 bytes x 8 lines (32 bytes, pixels only: they are ORed
 ' onto the erased black); shots: 2 of 1 x 4 (4 bytes)
 #include "assets/sprites.bas"
@@ -64,6 +75,9 @@
 #include "assets/tiles.bas"
 ' font: 7 bytes a character, ASCII 45-90
 #include "assets/font.bas"
+#ifdef CPC6128
+#pragma hidata = 0
+#endif
 
 #ifndef NOSOUND
 #ifdef CPC6128

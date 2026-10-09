@@ -1601,3 +1601,16 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
 - New library modules (fold steps 3-5, untracked until the stage gate):
   lib/cpcbuild/spritelist.bas, lib/cpcbuild/text.bas, lib/zxbuild/sprites.bas;
   figures in docs/fold-design.md "As built".
+- `#pragma hidata` (zxbasic dc848853, 10e69aab, docs 332bcd85): data of
+  initialised global arrays placed from an address upward, emitted in the
+  CPC epilogue as org/org-back round trips; one padded .bin; zxbc's memory
+  check is per ORG segment. Found on the way: zxbasm forgot pending
+  temporary-label references at an ORG (fixed). `-H` is the heap SIZE (the
+  heap is top-aligned), not its address. A multi-line `DIM ... => { _`
+  initialiser doesn't parse (existing behaviour).
+- Starfall 6128 builds use it: 970 bytes of graphics at &8000-&83CA;
+  headroom below &4000 2,603 (bare 2,135); files 33,674 bytes. Loaders moved
+  to &9E00 (buffer &9600; bare songs staged at &8000, not &4000, because
+  extra bank 0 hides &4000-&7FFF during the copy). make disc 12/12, speeds
+  25.0, goldens unchanged. Real-disc load time not measured (est. 2-5 s
+  more for the padding).
