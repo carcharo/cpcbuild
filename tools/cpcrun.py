@@ -88,6 +88,7 @@ Pipeline:
   2. Pack the resulting .bin into an AMSDOS .dsk with the fork's
      tools/cpc/mkdsk.py.
   3. Run Caprice32 headlessly (SDL_VIDEODRIVER=dummy; $CAP32, default
+     tools/caprice32/work/src/cap32 (`make cap32`), else the unpatched
      ../caprice32/cap32 relative to this repo) with the virtual printer
      enabled and pointed at a private temp file, autocommanding
      `run"<prog>"`, then CAP32_WAITBREAK (every compiled program reaches
@@ -146,6 +147,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent  # cpcbuild/
 DEFAULT_ZXBASIC = REPO_ROOT.parent / "zxbasic"
+# patched build (tools/caprice32, `make cap32`), else the unpatched sibling checkout
+PATCHED_CAP32 = REPO_ROOT / "tools" / "caprice32" / "work" / "src" / "cap32"
 DEFAULT_CAP32 = REPO_ROOT.parent / "caprice32" / "cap32"
 DEFAULT_CPCEC = REPO_ROOT / "tools" / "cpcec" / "work" / "cpcec"
 
@@ -170,7 +173,14 @@ def zxbasic_dir() -> Path:
 
 def cap32_bin() -> Path:
     env = os.environ.get("CAP32")
-    return Path(env).resolve() if env else DEFAULT_CAP32
+    if env:
+        return Path(env).resolve()
+    if PATCHED_CAP32.exists():
+        return PATCHED_CAP32
+    if DEFAULT_CAP32.exists():
+        print(f"cpcrun: warning: using unpatched Caprice32 at {DEFAULT_CAP32} "
+              "(run `make cap32` for the patched build)", file=sys.stderr)
+    return DEFAULT_CAP32
 
 
 def cpcec_bin() -> Path:

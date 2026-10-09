@@ -43,7 +43,9 @@ from pathlib import Path
 BENCH_DIR = Path(__file__).resolve().parent
 CPCBUILD_ROOT = BENCH_DIR.parent
 ZXBASIC_DIR = CPCBUILD_ROOT.parent / "zxbasic"
-CAP32_BIN = CPCBUILD_ROOT.parent / "caprice32" / "cap32"
+CAP32_BIN = CPCBUILD_ROOT / "tools" / "caprice32" / "work" / "src" / "cap32"  # make cap32
+if not CAP32_BIN.exists():
+    CAP32_BIN = CPCBUILD_ROOT.parent / "caprice32" / "cap32"  # unpatched
 CAP32_CFG = CAP32_BIN.parent / "cap32.cfg"
 MKDSK = ZXBASIC_DIR / "tools" / "cpc" / "mkdsk.py"
 

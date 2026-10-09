@@ -6,7 +6,7 @@ name: CI
 #   bare-disc      make test-bare-disc    (bare-metal disc start + screens)
 #   bare-cold      make test-bare-cold    (cold start, no firmware + screens)
 #   zx-games       make test-zx test-games
-#   plus           build Caprice32 headless at the pinned commit, make test-plus
+#   plus           build patched Caprice32 (tools/caprice32) at the pinned commit, make test-plus
 #                  (6128 Plus: smoke tests, conformance firmware + bare, screens), then
 #                  build CPCEC (tools/cpcec: pinned commit + our patch) and make test-cpcec
 # `make ci` runs the same targets serially (local all-in-one). Shared setup lives in
@@ -195,9 +195,6 @@ jobs:
     if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      # same pin as the ROMs (.github/actions/setup caprice32-sha)
-      CAPRICE32_SHA: 6c12c4c92360065cdc229ac9ada7551f941436b8
     steps:
       - name: Checkout cpcbuild
         uses: actions/checkout@v7
@@ -206,24 +203,23 @@ jobs:
       - uses: ./cpcbuild/.github/actions/setup
         with:
           chips: 'false'
-          caprice32-full: 'true'
-      - name: Cache the Caprice32 build
+      - name: Cache the patched Caprice32 build
         id: cap32cache
         uses: actions/cache@v6
         with:
-          path: caprice32/cap32
-          key: cap32-${{ runner.os }}-${{ env.CAPRICE32_SHA }}
-      - name: Build Caprice32 (headless, SDL dummy video, no audio)
+          path: cpcbuild/tools/caprice32/work
+          key: cap32-${{ runner.os }}-${{ hashFiles('cpcbuild/tools/caprice32/fetch_build.sh', 'cpcbuild/tools/caprice32/caprice32-asic-regs.patch') }}
+      - name: Build Caprice32 (pinned commit + caprice32-asic-regs.patch; headless use via SDL dummy video, no audio)
         if: steps.cap32cache.outputs.cache-hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libsdl2-dev libfreetype6-dev zlib1g-dev libpng-dev
-          make -C caprice32 -j4 cap32
+          sh cpcbuild/tools/caprice32/fetch_build.sh
       - name: Use cpcrun's generated Caprice32 config
         # cap32.cfg is tracked in the caprice32 repo; cpcrun.py fills in
         # cap32.cfg.tmpl itself when it is absent. Remove it on every run (a
         # cache hit skips the build step), or the tracked file's paths are used.
-        run: rm -f caprice32/cap32.cfg
+        run: rm -f cpcbuild/tools/caprice32/work/src/cap32.cfg
       - name: Runtime libraries for a cached cap32
         if: steps.cap32cache.outputs.cache-hit == 'true'
         run: sudo apt-get update && sudo apt-get install -y libsdl2-2.0-0 libfreetype6 libpng16-16
@@ -231,7 +227,6 @@ jobs:
         working-directory: cpcbuild
         env:
           ZXBASIC: ${{ github.workspace }}/zxbasic
-          CAP32: ${{ github.workspace }}/caprice32/cap32
           SDL_AUDIODRIVER: dummy
         run: make test-plus
       - name: Cache the CPCEC build

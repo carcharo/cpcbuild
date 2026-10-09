@@ -1347,11 +1347,17 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   macros (LOAD, PAUSE, REPEAT, NOP, LOOP, INT, STOP). Lists anywhere in the
   first 64 KB at an even address (DMA reads RAM, not the ASIC page). AY
   ownership rules as for the music player.
-- **Caprice32 quirks (not fixed, emulator side):** with the ASIC page out it
-  writes the DMA address/prescaler/DCSR registers into RAM at &6C00-&6C0F,
-  and a PRI interrupt ORs &80 into RAM at &6C0F; DmaActive() there reflects
-  only DmaStart/DmaStop (CPCEC clears the bit at STOP). Caprice32 also
-  reports the Plus CRTC as type 0 (CPCEC: 3, like real Plus machines).
+- **Caprice32 DCSR/DMA registers (patched, tools/caprice32):** stock Caprice32
+  wrote the DMA address/prescaler/DCSR registers (&6C00-&6C0B, &6C0F) and the
+  PRI bit (OR &80 into &6C0F) into whatever is mapped at &4000-&7FFF, i.e.
+  into program RAM whenever the ASIC page is out. It corrupted program code
+  (PRINT's CR routine) at one layout, so plus_mux and the Plus tests failed or
+  passed depending on the memory layout on stock Caprice32. `make cap32`
+  builds the pinned commit with caprice32-asic-regs.patch (registers kept in
+  the ASIC register page buffer) and all tools default to that binary.
+  Remaining differences: DmaActive() on Caprice32 reflects only
+  DmaStart/DmaStop (CPCEC clears the bit at STOP), and Caprice32 reports the
+  Plus CRTC as type 0 (CPCEC: 3, like real Plus machines).
 - **Bare programs loaded by RUN" must end below &A67B** (AMSDOS HIMEM),
   although the bare map allows code up to &B7FF; plus_big_hi (library above
   &8000) is firmware-only for that reason. Cartridges have no such limit.
@@ -1614,3 +1620,18 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   extra bank 0 hides &4000-&7FFF during the copy). make disc 12/12, speeds
   25.0, goldens unchanged. Real-disc load time not measured (est. 2-5 s
   more for the padding).
+- Starfall Plus plus_mux failed on Caprice32 only, at one code layout
+  (found during the CPC layer rewrite, fold step 6): a **Caprice32 bug**.
+  On every Plus raster interrupt it ORs &80 into &6C0F (DCSR) of whatever
+  is mapped at &4000-&7FFF, which is program RAM when the ASIC page is out
+  (and asic_dma_cycle writes &6C00-&6C0B the same way). There it hit
+  `__BT_CR` (`ld (&BC0C),a` became `ld (&BC8C),a`), so the text column
+  never reset and PRINT walked through low RAM. Proven with a traced
+  Caprice32 (interrupts preserve every register; the byte flips at the
+  first raster interrupt). Patched in tools/caprice32 (`make cap32`; the
+  tools and CI use it). Upstream report: the user's call.
+- Hardening (zxbasic 58fa70d3): the bare text wraps when the column is
+  past TXT_COLS, not only equal (2 bytes, 7 T a character). Its 2 bytes
+  moved plusdemo's raster-bar timing on CPCEC by a few pixels on some
+  lines; the cpcec-plus/plusdemo golden was regenerated (bare matches it;
+  Caprice32's unchanged).
