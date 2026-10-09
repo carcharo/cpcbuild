@@ -29,6 +29,7 @@
 #pragma case_insensitive = TRUE
 
 sub SetPalette(colours as uinteger, count as ubyte)
+    #require "cpcbuild/palette.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -41,6 +42,7 @@ sub SetPalette(colours as uinteger, count as ubyte)
 end sub
 
 sub PalUpload(colours as uinteger, count as ubyte, first as ubyte)
+    #require "cpcbuild/palette.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -53,7 +55,5 @@ sub PalUpload(colours as uinteger, count as ubyte, first as ubyte)
 end sub
 
 #pragma pop(case_insensitive)
-
-#require "cpcbuild/palette.asm"
 
 #endif

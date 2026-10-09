@@ -96,6 +96,7 @@
 #pragma case_insensitive = TRUE
 
 function fastcall BankAvailable() as ubyte
+    #require "cpcbuild/banks.asm"
     asm
     push namespace core
     ld a, (CBK_PRESENT)
@@ -105,6 +106,7 @@ end function
 
 ' n = 0-3: that extra bank at &4000-&7FFF; anything else (255): main RAM.
 sub BankSelect(n as ubyte)
+    #require "cpcbuild/banks.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -115,6 +117,7 @@ sub BankSelect(n as ubyte)
 end sub
 
 sub BankOff()
+    #require "cpcbuild/banks.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -126,6 +129,7 @@ end sub
 
 ' 0-3: the bank in; 255: main RAM.
 function BankSelected() as ubyte
+    #require "cpcbuild/banks.asm"
     asm
     push namespace core
     ld a, (CBK_CFG)
@@ -139,6 +143,7 @@ __BKS_DONE:
 end function
 
 function BankPeek(bank as ubyte, addr as uinteger) as ubyte
+    #require "cpcbuild/banks.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -179,6 +184,7 @@ __BKP_END:
 end function
 
 sub BankPoke(bank as ubyte, addr as uinteger, value as ubyte)
+    #require "cpcbuild/banks.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -217,6 +223,7 @@ end sub
 
 ' Main RAM (src, outside &4000-&7FFF) -> bank at bankaddr. 1 = done.
 function BankCopyIn(bank as ubyte, bankaddr as uinteger, src as uinteger, length as uinteger) as ubyte
+    #require "cpcbuild/bankcopy.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -265,6 +272,7 @@ end function
 
 ' Bank at bankaddr -> main RAM (dst, outside &4000-&7FFF). 1 = done.
 function BankCopyOut(bank as ubyte, bankaddr as uinteger, dst as uinteger, length as uinteger) as ubyte
+    #require "cpcbuild/bankcopy.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -332,6 +340,7 @@ end function
 ' CAS_IN_CLOSE (&BC7A) or CAS_IN_ABANDON (&BC7D). All corrupt AF, BC, DE,
 ' HL, IX (the gate keeps IX).
 function BankLoad(filename as string, bank as ubyte, addr as uinteger) as ubyte
+    #require "cpcbuild/bankload.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -465,7 +474,5 @@ end function
 #endif
 
 #pragma pop(case_insensitive)
-
-#require "cpcbuild/banks.asm"
 
 #endif

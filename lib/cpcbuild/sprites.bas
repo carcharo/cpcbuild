@@ -31,6 +31,7 @@
 #pragma case_insensitive = TRUE
 
 sub PutSprite(x as integer, y as integer, w as ubyte, h as ubyte, spr as uinteger)
+    #require "cpcbuild/sprput.asm"
     asm
     push namespace core
     call __CB_PUT_SPRITE
@@ -39,6 +40,7 @@ sub PutSprite(x as integer, y as integer, w as ubyte, h as ubyte, spr as uintege
 end sub
 
 sub PutSpriteMasked(x as integer, y as integer, w as ubyte, h as ubyte, spr as uinteger)
+    #require "cpcbuild/sprmask.asm"
     asm
     push namespace core
     call __CB_PUT_MASKED
@@ -47,6 +49,7 @@ sub PutSpriteMasked(x as integer, y as integer, w as ubyte, h as ubyte, spr as u
 end sub
 
 sub GetBlock(x as integer, y as integer, w as ubyte, h as ubyte, buffer as uinteger)
+    #require "cpcbuild/sprget.asm"
     asm
     push namespace core
     call __CB_GET_BLOCK
@@ -55,8 +58,5 @@ sub GetBlock(x as integer, y as integer, w as ubyte, h as ubyte, buffer as uinte
 end sub
 
 #pragma pop(case_insensitive)
-
-#require "cpcbuild/core.asm"
-#require "cpcbuild/sprite.asm"
 
 #endif

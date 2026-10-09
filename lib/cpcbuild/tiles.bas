@@ -45,12 +45,14 @@
 #pragma case_insensitive = TRUE
 
 sub fastcall SetTileSet(addr as uinteger)
+    #require "cpcbuild/core.asm"
     asm
     ld (.core.CB_TILESET), hl
     end asm
 end sub
 
 sub DoTile8(x as ubyte, y as ubyte, tile as ubyte)
+    #require "cpcbuild/tile8.asm"
     asm
     push namespace core
     ld c, (ix+5)
@@ -63,6 +65,7 @@ sub DoTile8(x as ubyte, y as ubyte, tile as ubyte)
 end sub
 
 sub DoTile16(x as ubyte, y as ubyte, tile as ubyte)
+    #require "cpcbuild/tile16.asm"
     asm
     push namespace core
     ld c, (ix+5)
@@ -74,6 +77,7 @@ sub DoTile16(x as ubyte, y as ubyte, tile as ubyte)
 end sub
 
 sub TileMap(map as uinteger, x as ubyte, y as ubyte, w as ubyte, h as ubyte)
+    #require "cpcbuild/tilemap.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -88,6 +92,7 @@ sub TileMap(map as uinteger, x as ubyte, y as ubyte, w as ubyte, h as ubyte)
 end sub
 
 sub TileMapPart(map as uinteger, mapw as ubyte, x as ubyte, y as ubyte, w as ubyte, h as ubyte)
+    #require "cpcbuild/tilemap.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -103,6 +108,7 @@ sub TileMapPart(map as uinteger, mapw as ubyte, x as ubyte, y as ubyte, w as uby
 end sub
 
 sub TileRestore(map as uinteger, mapw as ubyte, x as ubyte, y as ubyte, w as ubyte, h as ubyte)
+    #require "cpcbuild/tilerestore.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -118,7 +124,5 @@ sub TileRestore(map as uinteger, mapw as ubyte, x as ubyte, y as ubyte, w as uby
 end sub
 
 #pragma pop(case_insensitive)
-
-#require "cpcbuild/tiles.asm"
 
 #endif

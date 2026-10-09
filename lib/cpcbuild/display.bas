@@ -38,6 +38,7 @@
 #pragma case_insensitive = TRUE
 
 sub fastcall ScreenInit()
+    #require "cpcbuild/core.asm"
     asm
     push namespace core
     call __CB_SYNC
@@ -46,6 +47,7 @@ sub fastcall ScreenInit()
 end sub
 
 sub fastcall WaitRetrace(frames as uinteger)
+    #require "cpcbuild/retrace.asm"
     asm
     push namespace core
     ld b, h
@@ -60,6 +62,7 @@ end sub
 ' compiler reserves it for the back screen -- only in programs that call this
 ' sub (or another sub that reserves it, such as the banks library's).
 sub fastcall EnableDoubleBuffer()
+    #require "cpcbuild/dbuf.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -69,6 +72,7 @@ sub fastcall EnableDoubleBuffer()
 end sub
 
 sub fastcall DisableDoubleBuffer()
+    #require "cpcbuild/dbuf.asm"
     asm
     push namespace core
     call __CB_DBUF_OFF
@@ -77,6 +81,7 @@ sub fastcall DisableDoubleBuffer()
 end sub
 
 sub fastcall FlipBuffer()
+    #require "cpcbuild/dbuf.asm"
     asm
     push namespace core
     call __CB_FLIP
@@ -86,6 +91,7 @@ end sub
 
 ' B = y, C = x -> HL = address (cpcbuild/core.asm), then write.
 sub PokeScreen(x as ubyte, y as ubyte, value as ubyte)
+    #require "cpcbuild/core.asm"
     asm
     push namespace core
     PROC
@@ -108,6 +114,7 @@ __PS_OFF:
 end sub
 
 function PeekScreen(x as ubyte, y as ubyte) as ubyte
+    #require "cpcbuild/core.asm"
     asm
     push namespace core
     PROC
@@ -132,7 +139,5 @@ __PK_END:
 end function
 
 #pragma pop(case_insensitive)
-
-#require "cpcbuild/display.asm"
 
 #endif

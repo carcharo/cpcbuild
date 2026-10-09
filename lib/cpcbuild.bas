@@ -13,6 +13,11 @@
 '   cpcbuild/tiles.bas     SetTileSet, DoTile8, DoTile16, TileMap
 '   cpcbuild/keyboard.bas  ScanKeys, KeyDown, AnyKeyDown, KEY_* / JOY_*
 '   cpcbuild/palette.bas   SetPalette, PalUpload
+'   cpcbuild/spritelist.bas
+'                          SprListBegin, SprListDraw, SprListEnd,
+'                          SprListReset, SprListPaper
+'   cpcbuild/text.bas      TextFont, TextPen, TextAt, TextAtBoth,
+'                          TextFlush
 '
 ' Only what a program calls is compiled in. Written from scratch for
 ' this project (MIT). Design: cpcbuild/docs/phase4c-design.md.
@@ -27,5 +32,7 @@
 #include once <cpcbuild/tiles.bas>
 #include once <cpcbuild/keyboard.bas>
 #include once <cpcbuild/palette.bas>
+#include once <cpcbuild/spritelist.bas>
+#include once <cpcbuild/text.bas>
 
 #endif
