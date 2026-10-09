@@ -1538,3 +1538,25 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   described as software sprites); the main model rewrote the section from
   the cpcplus.bas header and these notes.
 - Phase 7 merged into main (fast-forward), 2026-10-05.
+
+## 2026-10-09: compiler warnings fixed; fold design; R8 spike
+
+- W150/W190/W170 false positives fixed in the compiler (zxbasic a7c325e6),
+  not by changing the declarations: no source-level form avoids W150
+  short of `byref` (which changes the calling convention), and a trailing
+  BASIC label avoids W190 but needs a unique name per routine. The fix: no
+  W150 for parameters of a routine containing `asm`; no W190 when the body
+  ends in `asm` (the string sentinel is still appended, so code is
+  unchanged); no W170 for functions in library files (arch stdlib/runtime
+  or any -I dir; a program whose own dir is passed with -I loses its W170
+  too). Upstream's own zx48k stdlib had the same noise (70 W150 for a
+  five-line program). bounce.bas 119 -> 1 (a real one, `tk`); binaries
+  byte-identical; pytest 2177; `make ci` green. Starfall still has 4 real
+  warnings in its own code (main.bas:75 `w`, :105 `tstep`, :149
+  `TitleScreen` no return, platform_cpc.bas:1207 `PlatEnd` unused at -O2):
+  clean up in the Starfall rewrite.
+- Fold of Starfall's drawing routines into the libraries: design in
+  docs/fold-design.md (decisions recorded there). Found: `#require` is
+  global (recorded at parse time), so any call into sprite.asm costs 1,643
+  bytes and `DoTile8` 1,290; the 6128 Starfall has 1,560 bytes below &4000
+  (bare 1,098), the 128K Spectrum 635 below &C000.
