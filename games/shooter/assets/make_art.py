@@ -16,6 +16,9 @@ one; transparent = alpha 0):
   font.bas     the font: 7 bytes (5-bit rows) for each of ASCII 45..90
                        ("-" to "Z": digits, upper case, - . = and others
                        blank), CONST font_FIRST, font_COUNT
+  fontcpc.bas  the same in cpcbuild/text.bas's format (each row shifted left
+                       2: bit 7 the leftmost pixel), what the CPC layer
+                       includes; font.bas stays for tests/screens/text5x7.bas
   starfall.pal the 16 pens (firmware colours)
 
 Spectrum 1-bit art for the Spectrum builds (assets/zx/): the same shapes,
@@ -260,19 +263,29 @@ def tiles_image():
     return im
 
 
-def font_bas():
-    """The font as a Boriel include: 7 row bytes per character 45..90."""
-    out = ["' font.bas -- Starfall's 5x7 font, written by make_art.py. Do not edit.",
-           "' Characters 45 ('-') to 90 ('Z'), 7 bytes each, one byte per row, bit 4 the",
-           "' leftmost pixel.", "",
+def font_bas(shift=0, name="font.bas"):
+    """The font as a Boriel include: 7 row bytes per character 45..90, each
+    row shifted left by `shift` (0: bit 4 the leftmost pixel, as drawn here;
+    2: the cpcbuild/text.bas format, bit 7 the leftmost, keeping the glyph's
+    one-pixel left margin)."""
+    if shift:
+        where = ["' in the library's format (cpcbuild/text.bas): the rows of font.bas shifted",
+                 "' left by %d, so bit 7 is the leftmost pixel of the 8-pixel cell (the glyph" % shift,
+                 "' keeps a one-pixel left margin, as the game always drew it)."]
+        head = "' Characters 45 ('-') to 90 ('Z'), 7 bytes each, one byte per row,"
+    else:
+        head = "' Characters 45 ('-') to 90 ('Z'), 7 bytes each, one byte per row, bit 4 the"
+        where = ["' leftmost pixel."]
+    out = ["' %s -- Starfall's 5x7 font, written by make_art.py. Do not edit." % name,
+           head] + where + [""] + [
            "CONST font_FIRST AS UBYTE = 45", "CONST font_COUNT AS UBYTE = 46", "",
            "DIM font(%d) AS UBYTE => { _" % (46 * 7 - 1)]
     lines = []
     for c in range(45, 91):
         g = FONT.get(chr(c))
-        rows = [int(r.replace("#", "1").replace(".", "0"), 2) for r in g] if g else [0] * 7
+        rows = [int(r.replace("#", "1").replace(".", "0"), 2) << shift for r in g] if g else [0] * 7
         lines.append("    " + ", ".join("$%02X" % b for b in rows))
-    out.append(", _\n".replace("\\n", "\n").join(lines) + " _")
+    out.append(", _\n".join(lines) + " _")
     out.append("}")
     return "\n".join(out) + "\n"
 
@@ -306,6 +319,7 @@ def main():
     sheet([BULLET, BOMB], 2).save(out / "shots.png")
     tiles_image().save(out / "tiles.png")
     (out / "font.bas").write_text(font_bas())
+    (out / "fontcpc.bas").write_text(font_bas(2, "fontcpc.bas"))
     (out / "starfall.pal").write_text(
         "# Starfall's 16 pens (firmware colours)\n" + ",".join(map(str, PENS)) + "\n")
     zx_sheet(FRAMES, 8, 8).save(out / "zx" / "zx_sprites.png")

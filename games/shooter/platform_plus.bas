@@ -82,7 +82,8 @@
 '   - Fallback: when a frame cannot be multiplexed (more than 6 in a row, a row whose
 '     sprites differ in y, rows closer than 12 lines or out of order, x above 175, a
 '     row too low for H4 to finish before the frame entry, more than 24 formation
-'     calls) the logged sprites are drawn in software by the CPC engine (SF_SPRITE) and
+'     calls) the logged sprites are drawn in software by the CPC layer (SF_SPRITE, which
+'     draws with the library's sprite list) and
 '     the six sprites hide; the next normal frame multiplexes again. The game's own
 '     numbers (6 per row, rows 12 apart, x 0-120, y up to 143) never trigger it.
 '
@@ -154,6 +155,9 @@ HW_NSL      EQU 10              ; slots the table covers (hidden at each frame s
 #else
 HW_NSL      EQU 11
 #endif
+; the number of software sprites the frame that just ended drew (the layer's list
+; has been started again by then): tests/plus_mux.bas reads it as SF_CNT
+SF_CNT      EQU .core.__SL_OLDN
 HW_REGP:    defw 0              ; the register table (hwReg)
 HW_NP:      defb 0              ; pictures to load at the next frame
 HW_CNT:     defs 8              ; objects of each kind queued this frame

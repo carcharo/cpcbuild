@@ -106,8 +106,8 @@ waves); at most one effect per step, interrupts off while it plays.
 ## Known limits
 
 - **Spectrum 128K at 24.2 steps/s:** most steps fit the two-frame budget, but about 20 of 250 (formation moves and similar peaks) take a third frame; the Arkos player costs about 0.2 frame per step. Options: a cheaper player, or trimming the peak steps.
-- **Memory:** with double buffering the 6128 builds' code must end below &4000 (the back screen): the firmware build ends 2.6 KB below it, the bare build 2.1 KB. Their graphics (970 bytes) are placed at &8000-&83CA with `#pragma hidata`, which leaves the file padded with zeros over &4000-&7FFF (33.7 KB instead of 14.7 KB; a little longer to load from a real disc). The extra RAM bank holds the music.
-- **Sprites:** Both CPC and Spectrum use custom sprite routines (CPC: the cpcbuild library didn't fit below &4000 at 20.5 KB; Spectrum: Boriel's maskedsprites took 2.3 frames for 25 sprites). Folding them into the libraries is a follow-up phase.
+- **Memory:** with double buffering the 6128 builds' code must end below &4000 (the back screen): the firmware build ends 1,104 bytes below it, the bare build 639. Their graphics (1 KB) are placed from &8000 with `#pragma hidata`, which leaves the file padded with zeros over &4000-&7FFF (33.7 KB; a little longer to load from a real disc). The extra RAM bank holds the music.
+- **Sprites:** both platforms draw through the libraries: CPC `cpcbuild/spritelist.bas` (sprites on the plain black playfield, erased by clearing their box), `text.bas` and `tiles.bas`; Spectrum `zxbuild/sprites.bas`. Each layer keeps a little assembly for the per-sprite call and, on the CPC, the HUD and stars, where BASIC measured too slow (see the layer headers).
 
 ## Tests
 

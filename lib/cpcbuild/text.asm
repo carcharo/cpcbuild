@@ -33,9 +33,24 @@
 ; (the size, TEXT_QUEUE, is a BASIC #define): entries are col, row,
 ; length, pens (ink | paper << 4), then the characters.
 ;
-; Each routine reads its parameters from the calling sub's IX frame where
-; it says so: col = (ix+5), row = (ix+7), string = (ix+8) (16-bit).
-
+; Entry points (register level: no IX frame, no firmware; IX is untouched,
+; IY is saved and restored; nothing else is kept unless said):
+;   __TX_PUTS  draw a string: C = column (cell), A = row (cell), DE = the
+;              characters (no length prefix), B = how many. In the current
+;              pens. Cut off at the right edge; nothing in mode 2 or below
+;              row 24; B = 0 draws nothing. Rebuilds the pen table first if
+;              the mode changed.                         clobbers AF BC DE HL
+;   __TX_PENS  set the pens: A = ink | paper << 4 (mode 0: 0-15, mode 1:
+;              0-3). Rebuilds the table only if they differ.
+;                                                        clobbers AF BC DE HL
+;   __TX_AT, __TX_PEN: the wrappers of the BASIC TextAt / TextPen; they read
+;              the sub's IX frame: TextAt col = (ix+5), row = (ix+7), string =
+;              (ix+8) (16-bit pointer to a BASIC string: length word, then
+;              the characters), which it passes to __TX_PUTS; TextPen ink =
+;              (ix+5), paper = (ix+7), always rebuilding the table. An
+;              assembly caller uses __TX_PUTS and __TX_PENS directly.
+;   __TX_GLYPH, __TX_BUILD: internal.
+;
 #include once <cpcbuild/core.asm>
 
     push namespace core
