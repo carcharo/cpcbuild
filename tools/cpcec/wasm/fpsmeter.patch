@@ -1,0 +1,25 @@
+diff --git a/cpcec-cb.h b/cpcec-cb.h
+index c29265c..8cd0f02 100644
+--- a/cpcec-cb.h
++++ b/cpcec-cb.h
+@@ -19,6 +19,9 @@
+ 
+ #include <stdlib.h>
+ #include <string.h>
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++#endif
+ 
+ char cb_headless=0,cb_noconfig=0,cb_endmarker=0,cb_quit=0,cb_status=0;
+ const char *cb_printer_path=NULL,*cb_shot_dir=NULL,*cb_shot_file=NULL;
+@@ -89,6 +92,10 @@ void cb_printer(int c) // called with every byte the program sends to the printe
+ void cb_frame(void) // end of every emulated frame, before the picture is shown
+ {
+ 	++cb_frame_no;
++	#ifdef __EMSCRIPTEN__
++	{ static double t0=0; static long n0=0; double t=emscripten_get_now(); // fps meter for the console
++	if (t-t0>=1000) { if (t0) printf("[wasm] %.1f frames/s (frame %ld)\n",(cb_frame_no-n0)*1000.0/(t-t0),cb_frame_no); t0=t; n0=cb_frame_no; } }
++	#endif
+ 	if (printer) printer_flush(); // so a watcher of the file sees the program's output at once
+ 	for (int i=0;i<cb_shot_n;)
+ 		if (cb_shots[i].due<=cb_frame_no)
