@@ -124,7 +124,7 @@
 ' So put the sprites that move least FIRST in the list.
 '
 ' Written from scratch for this project (MIT); the engine is the generic
-' form of Starfall's Spectrum layer (games/shooter/platform_zx_draw.asm).
+' form of Starfall's former Spectrum layer's engine.
 ' ----------------------------------------------------------------
 
 #ifndef __LIBRARY_ZXBUILD_SPRITES__
@@ -142,6 +142,10 @@
 #endif
 #ifndef ZXSPR_IMAGES
 #define ZXSPR_IMAGES 16
+#endif
+
+#if ZXSPR_MAX > 63 || ZXSPR_IMAGES > 64
+#error "zxbuild/sprites: ZXSPR_MAX at most 63, ZXSPR_IMAGES at most 64"
 #endif
 
 ' the areas (also used by the assembler: the EQUs in SpritesInit)
@@ -171,7 +175,6 @@ __ZXS_Q     equ ZXS_Q
 END ASM
 
 DIM zxsDbl AS UBYTE             ' 1: double-buffered
-DIM zxsBank0 AS UBYTE           ' the bank that was at &C000 before bank 7
 DIM zxsNext AS UINTEGER         ' next free byte of the image area (0: not initialised)
 
 FUNCTION FASTCALL ZxsPaging() AS UBYTE

@@ -1422,8 +1422,9 @@ A frame is `SpritesBegin()`, one `SpriteAdd` per sprite, `SpritesSync()`, then
   reverse order, then draws. It keeps the leading run of sprites that are the same
   as last time on that screen and doesn't touch them, so put the sprites that move
   least first.
-* **Limits:** `ZXSPR_MAX` sprites a frame (default 28), `ZXSPR_IMAGES` images
-  (default 16); wide sprites with y over 184 and narrow ones over 188 are dropped,
+* **Limits:** `ZXSPR_MAX` sprites a frame (default 28, at most 63), `ZXSPR_IMAGES`
+  images (default 16, at most 64; the compiler stops with an error past either);
+  wide sprites with y over 184 and narrow ones over 188 are dropped,
   and wide ones past x = 240 are drawn at 240.
 * **Memory:** a fixed data area of 84 x `ZXSPR_MAX` + 44 x `ZXSPR_IMAGES` bytes
   from `ZXSPR_BASE` (default &DB00 to &E6F0). Set any of the three with `#define`
@@ -1443,6 +1444,13 @@ multiple of 8), 3,900 (x = 4 mod 8), 2,700 without attributes; narrow 2,200, 1,6
 without attributes; an unchanged sprite about 270. `SpriteAdd` from BASIC adds
 about 1,500. Size: 2,354 bytes for the whole API, plus the data area (not in the
 program file).
+
+**From assembly**, skipping the BASIC call (about 1,500 T-states a sprite: worth it
+for a game drawing 25 sprites a step, as Starfall's Spectrum layer does): call
+`.core.__ZXS_QRESET` (start the frame), `.core.__ZXS_SPRITE` with B = image,
+D = x, E = y (queue one), `.core.__ZXS_SYNC` and `.core.__ZXS_FLIP`, the routines
+behind `SpritesBegin`, `SpriteAdd`, `SpritesSync` and `SpritesFlip`. Their
+registers are listed at the top of `lib/zxbuild/sprites.asm`.
 
 It doesn't use Boriel's `cb/maskedsprites.bas` for paging: that file's
 `CheckMemoryPaging` and `SetDrawingScreen7` are FASTCALL routines with local
