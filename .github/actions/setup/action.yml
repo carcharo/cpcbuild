@@ -6,15 +6,13 @@ description: >
 inputs:
   python-version:
     default: '3.14.3'
-  # Pinned: ROMs come from this caprice32 commit (rom/ only; the whole tree, built, for the plus job).
+  # Pinned: ROMs come from this caprice32 commit (rom/ only). Keep in sync with SHA in
+  # tools/caprice32/fetch_build.sh, which the plus job uses to build the patched cap32.
   caprice32-sha:
     default: 6c12c4c92360065cdc229ac9ada7551f941436b8
   # Keep in sync with SHA in tools/chipsrun/fetch_chips.sh (cache key only).
   chips-sha:
     default: 9e88298ce56319953ac7a43213a1120359f7a3a6
-  caprice32-full:
-    description: 'true to check out the whole caprice32 tree (to build cap32) instead of just rom/'
-    default: 'false'
   chips:
     description: 'true to restore the chips cache and build chipsrun/zxrun'
     default: 'false'
@@ -29,7 +27,6 @@ runs:
         path: zxbasic
 
     - name: Fetch CPC ROMs (caprice32 rom/ at pinned commit)
-      if: inputs.caprice32-full != 'true'
       uses: actions/checkout@v7
       with:
         repository: ColinPitrat/caprice32
@@ -37,14 +34,6 @@ runs:
         path: caprice32
         sparse-checkout: rom
         sparse-checkout-cone-mode: true
-
-    - name: Fetch Caprice32 (whole tree at pinned commit, to build cap32)
-      if: inputs.caprice32-full == 'true'
-      uses: actions/checkout@v7
-      with:
-        repository: ColinPitrat/caprice32
-        ref: ${{ inputs.caprice32-sha }}
-        path: caprice32
 
     - name: Set up Python ${{ inputs.python-version }}
       uses: actions/setup-python@v7

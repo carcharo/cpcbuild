@@ -15,7 +15,7 @@ each model boots
 The same three for RUN"BARE with STARBARE.BIN (6128) / STARBA64.BIN (464).
 
 A 464 is a stock 64 KB machine with the DDI-1 disc ROM; the 6128 has 128 KB.
-Needs Caprice32 ($CAP32, default ../caprice32/cap32). Not part of the chips
+Needs Caprice32 ($CAP32, default tools/caprice32/work/src/cap32, else ../caprice32/cap32). Not part of the chips
 CI. Exit status 0 if all passed.
 """
 import os
@@ -30,7 +30,10 @@ HERE = Path(__file__).resolve().parent
 GAME = HERE.parent
 BUILD = GAME / "build"
 REPO = GAME.parent.parent
-CAP32 = Path(os.environ.get("CAP32", REPO.parent / "caprice32" / "cap32"))
+sys.path.insert(0, str(REPO / "tools"))
+from cpcrun import cap32_bin  # noqa: E402
+
+CAP32 = cap32_bin()
 DELAYS = 14
 
 
