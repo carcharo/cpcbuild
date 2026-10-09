@@ -76,10 +76,11 @@ ScreenInit()                ' always call after Mode
 does (it reads the firmware's screen base and scroll offset). Call it after
 every `Mode`.
 
-The compiler warns about unused parameters (W150), missing return values (W190)
-and, for routines you never call, W170 when it compiles these files. They are
-false positives: the routines are written in `asm` and read their arguments from
-the stack frame.
+The library compiles without warnings (since zxbasic `a7c325e6`): the
+compiler doesn't report unused parameters (W150) or missing return values
+(W190) for routines written in `asm`, which read their arguments from the
+stack frame and return in registers, and it drops the library routines you
+never call without a W170 for each.
 
 Compile and run (from the compiler fork):
 
