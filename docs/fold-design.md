@@ -103,6 +103,16 @@ than `PutSpriteMasked` + `TileRestore`, per the game's own comparison.
 - No clipping by default (fastest); optional clipping to a rectangle set
   with `SprListClip(x, y, w, h)`, compiled in only if called.
 
+As built (2026-10-09, untracked until the stage gate): `SprListBegin`,
+`SprListDraw(x, y, w, h, spr)` (UBYTE arguments), `SprListEnd`,
+`SprListReset` (not `SprListClear`), `SprListPaper(b)`; no clipping (a
+sprite must lie wholly on the screen). Routine cost as the game's (4x8
+draw + erase 3,004 T against the game's 2,940; 1x4 719 both); from BASIC
+about 1,100 T more per call. Measured from BASIC, erase + draw is about
+1.6x cheaper than `FillRect` + `PutSprite`; the game's "5 times cheaper
+than PutSpriteMasked + TileRestore" was not re-measured (TileRestore not
+benched). Size: 1,005 bytes for Begin + Draw + End, 320 of them the lists.
+
 ### 4. New CPC module: `cpcbuild/text.bas` (compact bitmap font)
 
 - Font: one byte per pixel row, up to 8 rows, the leftmost pixel in a
@@ -117,6 +127,16 @@ than `PutSpriteMasked` + `TileRestore`, per the game's own comparison.
 - Mode 0 first (what Starfall needs); mode 1 in the same module if it
   costs little, otherwise later.
 
+As built: `TextFont(addr, first, rows [, last])` (bit 7 leftmost, 8
+pixels wide at most; `last` lets characters above the font draw blank),
+`TextPen(inkpen, paperpen)`, `TextAt`, `TextAtBoth`, `TextFlush` (the
+program calls it after `FlipBuffer`). Modes 0 and 1 (mode 1 ~110 bytes).
+A mode 0 glyph ~2,600 T against the game's `SF_GLY` ~2,950; each `TextAt`
+call costs ~2,900 T for the compiler's string copy. Starfall's font
+matches the game's pixels when shifted left by 2 (the game leaves a
+one-pixel left margin). Size: `TextAt` ~825 bytes plus ~390 of string
+support; `TextAtBoth`/`TextFlush` ~350 more, 160 of them the queue.
+
 ### 5. New Spectrum library: `lib/zxbuild/sprites.bas`
 
 The Starfall Spectrum engine made generic: 16x8 and 8x4 pre-shifted OR
@@ -127,6 +147,20 @@ unchanged sprites" sync. Images are built from the source art at start
 address the program chooses (default &DB00, bank 7 on 128K). The name
 mirrors `lib/cpcbuild`; `lib/music` stays the shared cross-platform
 library.
+
+As built: `SpritesInit(double)`, `SpriteImage(n, src, wide, attr)`,
+`SpritesBegin`, `SpriteAdd(n, x, y)`, `SpritesSync`, `SpritesFlip`,
+`SpritesReset`, plus `SpritesDone` (back to screen 5, as the game's
+`PlatEnd`) and `SpritesScreen()`. Narrow images are 4x4 pixels (Starfall's
+shots are 2 pixels wide), not 8x4. Data area 84 x ZXSPR_MAX + 44 x
+ZXSPR_IMAGES bytes (&BF0 by default, &DB00-&E6F0). Per sprite, erase +
+draw + attributes ~3,300 T (wide, x a multiple of 8), ~3,900 (x = 4 mod 8),
+~2,200 narrow; an unchanged sprite ~270. It does not use Boriel's
+`cb/maskedsprites.bas`: its `CheckMemoryPaging` and `SetDrawingScreen7`
+are FASTCALL routines with locals but no stack frame of their own, and
+they overwrote the caller's locals when called from `SpritesInit`
+(the agent's minimal reproduction; Starfall's `PlatInit` calls them and
+survives by luck).
 
 ### 6. Starfall on the libraries
 
@@ -148,16 +182,32 @@ library.
 | Step | Work | Who |
 |---|---|---|
 | 0 | Compiler warning fix (W150/W190/W170): **done**, zxbasic a7c325e6 | sonnet agent; main model reviewed, committed |
-| 1 | `#require` inside SUB/FUNCTION (compiler, tests) | sonnet agent, after step 0 lands (same parser file) |
-| 2 | Split sprite/tiles/fill asm; measure sizes; existing goldens unchanged | sonnet agent |
-| 3 | `spritelist.bas` from the game's `SF_DRAW*`/`SF_ERASE*`/`SF_BEGIN`/`SF_FEND`/`SF_SPRITE`, with screen tests | sonnet agent (can run alongside 4 and 5) |
-| 4 | `text.bas` from `SF_GLY`/`SF_TEXTADD`/`SF_TEXTDRAW`, with screen tests | sonnet agent |
-| 5 | `zxbuild/sprites.bas` from `platform_zx_draw.asm` + `PzBuild`, with zx screen tests | sonnet agent |
+| 1 | `#require` inside SUB/FUNCTION (compiler, tests): **done**, zxbasic 762456ed | sonnet agent (own worktree); main model reviewed, merged |
+| 2 | Split sprite/tiles/fill asm; measure sizes; existing goldens unchanged: **done** (pure move: the same 2,096 instruction lines) | sonnet agent; main model checked |
+| 3 | `spritelist.bas` from the game's `SF_DRAW*`/`SF_ERASE*`/`SF_BEGIN`/`SF_FEND`/`SF_SPRITE`, with screen tests: **done** | sonnet agent |
+| 4 | `text.bas` from `SF_GLY`/`SF_TEXTADD`/`SF_TEXTDRAW`, with screen tests: **done** | sonnet agent |
+| 5 | `zxbuild/sprites.bas` from `platform_zx_draw.asm` + `PzBuild`, with zx screen tests: **done** | sonnet agent |
 | 6 | Starfall CPC layer on the libraries; then Plus fallback | sonnet agent; main model checks goldens, speed, size |
 | 7 | Starfall Spectrum layer on `zxbuild` | sonnet agent; main model checks as above |
-| 8 | library.md sections, notes, README | main model (from the headers and measurements) |
+| 8 | library.md sections, notes, README: library.md 7.15, 7.16, 12 and the size table **done** | main model (from the headers and measurements) |
 
 The main model writes each agent spec, reviews every diff, runs the
 milestone checks itself, and commits. Agents don't commit, never run
 `git stash`/`checkout`/`reset`/`clean`, and each gets its own scratchpad
 subfolder.
+
+## Stage gate (2026-10-09): the size budget for step 6
+
+The 6128 Starfall now has 1,649 bytes below &4000 (it gained 89 from the
+split). Its own engine is about 1,600 bytes, so about 3,250 bytes are free
+for the library routines plus the BASIC that replaces the engine. The
+library routines it would call (measured): SprList 1,005, TextAt +
+TextAtBoth/TextFlush about 1,220 (the game already has string support),
+DoTile8 485, FillRect 349: about 3,060. That leaves about 190 bytes for the
+BASIC replacing the HUD diffing, stars, kind table and playfield clear,
+which is not enough. Ways to make room, for the user to choose at the gate:
+smaller lists and queue (`SPRLIST_MAX 40` costs 320 bytes where the game
+used 240; `TEXT_QUEUE` 160), a playfield clear by `SprListPaper`-style
+boxes instead of `FillRect`, keeping the HUD and stars as a small game asm
+helper (allowed by section 6), or moving more of the game's data out of
+the first 16 KB.

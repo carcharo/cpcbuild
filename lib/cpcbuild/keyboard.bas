@@ -91,6 +91,7 @@
 
 ' No firmware calls. Clobbers nothing the compiler relies on.
 sub fastcall ScanKeys()
+    #require "cpcbuild/keys.asm"
     asm
     push namespace core
     call __CB_SCAN_KEYS
@@ -99,6 +100,7 @@ sub fastcall ScanKeys()
 end sub
 
 function fastcall KeyDown(key as ubyte) as ubyte
+    #require "cpcbuild/keys.asm"
     asm
     push namespace core
     call __CB_KEY_DOWN
@@ -107,6 +109,7 @@ function fastcall KeyDown(key as ubyte) as ubyte
 end function
 
 function fastcall AnyKeyDown() as ubyte
+    #require "cpcbuild/keys.asm"
     asm
     push namespace core
     call __CB_ANY_KEY
@@ -115,7 +118,5 @@ function fastcall AnyKeyDown() as ubyte
 end function
 
 #pragma pop(case_insensitive)
-
-#require "cpcbuild/keys.asm"
 
 #endif

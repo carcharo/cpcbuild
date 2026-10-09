@@ -29,6 +29,7 @@
 #pragma case_insensitive = TRUE
 
 function PenByte(pen as ubyte) as ubyte
+    #require "cpcbuild/penbyte.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -38,6 +39,7 @@ function PenByte(pen as ubyte) as ubyte
 end function
 
 sub FillRect(x as integer, y as integer, w as ubyte, h as ubyte, pen as ubyte)
+    #require "cpcbuild/fill.asm"
     asm
     push namespace core
     call __CB_FILL_RECT
@@ -46,6 +48,8 @@ sub FillRect(x as integer, y as integer, w as ubyte, h as ubyte, pen as ubyte)
 end sub
 
 sub ClearScreen(pen as ubyte)
+    #require "cpcbuild/penbyte.asm"
+    #require "cpcbuild/clear.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -56,8 +60,5 @@ sub ClearScreen(pen as ubyte)
 end sub
 
 #pragma pop(case_insensitive)
-
-#require "cpcbuild/core.asm"
-#require "cpcbuild/fill.asm"
 
 #endif

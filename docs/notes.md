@@ -1584,3 +1584,20 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   Code extension (CPCEC WASM + host page + source); the MIT NextBuild
   Studio extensions drive it only through VS Code commands/messages. No
   need to contact CPCEC's author (GPLv3 compliance suffices).
+- Upstream bug found (Boriel `cb/maskedsprites.bas`, zx48k stdlib):
+  `CheckMemoryPaging` and `SetDrawingScreen7` are FASTCALL with local
+  variables, and a FASTCALL routine gets no frame of its own, so its
+  locals are `(ix-n)` of the caller's frame: e.g. `FUNCTION FASTCALL F()
+  AS UByte: DIM b AS UByte ...` compiles to `ld (ix-1), a` with no
+  `push ix`. Calling them from a SUB/FUNCTION corrupts that routine's
+  locals (Starfall's Spectrum PlatInit survives by luck; lib/zxbuild does
+  its own paging check). The compiler doesn't warn about locals in a
+  FASTCALL routine; a candidate for an upstream report (fork-only policy
+  for now).
+- Per-routine `#require` (zxbasic 762456ed): a `#require` inside a
+  SUB/FUNCTION body counts only if the routine is emitted (FuncRef.requires,
+  added to REQUIRES in the translator's visit_FUNCDECL). File-level
+  behaviour unchanged; bounce and Starfall binaries byte-identical.
+- New library modules (fold steps 3-5, untracked until the stage gate):
+  lib/cpcbuild/spritelist.bas, lib/cpcbuild/text.bas, lib/zxbuild/sprites.bas;
+  figures in docs/fold-design.md "As built".

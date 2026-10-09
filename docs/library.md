@@ -19,18 +19,24 @@ Contents
 9. [API reference](#9-api-reference)
 10. [CPC Plus (cpcplus)](#10-cpc-plus-cpcplus)
 11. [Performance tips](#11-performance-tips)
+12. [Spectrum sprites (zxbuild)](#12-spectrum-sprites-zxbuild)
 
 ## 1. Using the library
 
 ```basic
 #include <cpc.bas>          ' Mode, SetInk, SetBorder, WaitVsync, sound, AY
-#include <cpcbuild.bas>     ' everything below (display, sprites, fill, tiles, keyboard, palette)
+#include <cpcbuild.bas>     ' everything below (display, sprites, fill, tiles, keyboard, palette, spritelist, text)
 ```
 
-`cpcbuild.bas` includes six files that can also be included one at a time:
+`cpcbuild.bas` includes eight files that can also be included one at a time:
 `<cpcbuild/display.bas>`, `<cpcbuild/sprites.bas>`, `<cpcbuild/fill.bas>`,
-`<cpcbuild/tiles.bas>`, `<cpcbuild/keyboard.bas>`, `<cpcbuild/palette.bas>`.
-Only the routines a program calls are compiled in. Other files: `<font.bas>`,
+`<cpcbuild/tiles.bas>`, `<cpcbuild/keyboard.bas>`, `<cpcbuild/palette.bas>`,
+`<cpcbuild/spritelist.bas>`, `<cpcbuild/text.bas>`.
+Only the routines a program calls are compiled in (each routine pulls in
+only the assembly it needs); including the umbrella without calling
+anything adds nothing. Settings such as `SPRLIST_MAX` and `TEXT_QUEUE` must
+be `#define`d before the first include that reaches the module, which with
+`cpcbuild.bas` means before `#include <cpcbuild.bas>`. Other files: `<font.bas>`,
 `<play.bas>`, `<point.bas>`, `<screen.bas>`, `<input.bas>`.
 
 All of it is for `--arch cpc` only (the files stop with `#error` otherwise).
@@ -970,6 +976,105 @@ SetFont(@myfont(0))
 | `SCREEN$(row, col)` (`screen.bas`) | The character at a text cell, as a one-character string, or `""`. |
 | `INPUT(maxchars)` (`input.bas`) | Reads a line with the firmware cursor: `a$ = INPUT(20)`. |
 
+### 7.15 Sprite list (`cpcbuild/spritelist.bas`)
+
+Sprites for a game whose background behind them is one colour: a sprite is drawn
+by OR onto the screen and erased by filling its box with the background byte, so
+there is no mask and no save buffer. Each frame the program draws all its sprites
+again; the module remembers what it drew, to erase it.
+
+| Call | Parameters | Returns |
+|---|---|---|
+| `SprListBegin()` | | sub |
+| `SprListDraw(x, y, w, h, spr)` | `x, y, w, h AS UBYTE`; `spr AS UINTEGER` | sub |
+| `SprListEnd()` | | sub |
+| `SprListReset()` | | sub |
+| `SprListPaper(b)` | `b AS UBYTE` | sub |
+
+A frame is `SprListBegin()`, one `SprListDraw` per sprite, `SprListEnd()`, then
+`FlipBuffer()` (or `WaitRetrace`) as usual.
+
+* **SprListDraw** draws `w` bytes (1-8) by `h` lines (1-255) from `spr` at byte
+  column `x` (0-79), line `y` (0-199). The data is the [Sprite](#sprite) format,
+  pixels only: pen 0 is transparent, and overlapping sprites mix their pixels.
+* **Double buffering on:** `SprListBegin` erases what was drawn on the screen
+  about to be drawn on (two frames ago).
+* **Double buffering off:** each `SprListDraw` first erases what the same call
+  number drew last frame, then draws, so a sprite is blank only between the two
+  ("flyback order"); `SprListEnd` erases the previous frame's extra sprites.
+* **SprListReset** forgets both lists without erasing: call it after clearing the
+  screen yourself, and when switching double buffering on or off.
+* **SprListPaper** sets the byte an erased box is filled with (default 0), a
+  `PenByte()` value.
+* **Capacity:** `#define SPRLIST_MAX n` (1-255, default 40 per list) before the
+  first include that reaches the module. Sprites beyond it are not drawn.
+* **No clipping:** a sprite must lie wholly on the screen (`x + w <= 80`,
+  `y + h <= 200`), or it corrupts memory. A box that crosses the wrap point of a
+  hardware-scrolled screen is drawn wrongly.
+
+Cost (chips, T-states including the CPC's wait states): draw + erase of a 4 x 8
+byte sprite 3,004 inside the routines, 1 x 4 bytes 719; one frame of one 4 x 8
+sprite from BASIC (Begin, Draw, End) 4,585, of which about 1,100 is the call from
+BASIC. Size: 1,005 bytes for Begin, Draw and End, 320 of them the two lists at the
+default capacity.
+
+```basic
+#define SPRLIST_MAX 24
+#include <cpcbuild.bas>
+EnableDoubleBuffer()
+DO
+    SprListBegin()
+    SprListDraw(shipx, 180, 4, 8, @ship(0))
+    SprListDraw(shotx, shoty, 1, 4, @shot(0))
+    SprListEnd()
+    FlipBuffer()
+LOOP
+```
+
+### 7.16 Text (`cpcbuild/text.bas`)
+
+Text from a compact 1-bit font, drawn straight into screen memory in 8 x 8 pixel
+cells: much smaller than a tile font or `SetFont`.
+
+| Call | Parameters | Returns |
+|---|---|---|
+| `TextFont(addr, first, rows [, last])` | `addr AS UINTEGER`; `first, rows, last AS UBYTE` | sub |
+| `TextPen(inkpen, paperpen)` | `UBYTE` | sub |
+| `TextAt(col, row, s$)` | `col, row AS UBYTE`; `s$ AS STRING` | sub |
+| `TextAtBoth(col, row, s$)` | as `TextAt` | sub |
+| `TextFlush()` | | sub |
+
+* **Font format:** `rows` bytes a glyph (1-8), top row first, glyphs from
+  character code `first` up to `last` (default 255). In each byte bit 7 is the
+  leftmost pixel; a set bit is ink, a clear bit paper. Lines below `rows` are
+  paper, and characters outside the font are drawn as paper. The font is read in
+  place.
+* **Cells:** mode 0 is 20 x 25 cells (4 bytes x 8 lines), mode 1 40 x 25 (2 bytes x
+  8 lines). Text past the right edge is cut off. Mode 2 is not supported.
+* **TextPen** sets the pens for the text drawn next (default 1 on 0).
+* **TextAtBoth** draws now and, with double buffering on, queues the text. Call
+  `TextFlush()` once per frame after `FlipBuffer`: it draws the queued text on the
+  other screen, in the pens it was queued with. The queue is `TEXT_QUEUE` bytes
+  (`#define` before the include, 1-255, default 160; an entry is the string's
+  length plus 4). Text that doesn't fit is drawn but not queued.
+* No firmware calls, so it works in bare-metal builds; it honours the hardware
+  scroll offset.
+
+Cost (chips, game mode): a 7-row glyph about 2,600 T-states in mode 0, 2,130 in
+mode 1; each `TextAt` call about 2,900 more for the compiler's copy of the string
+argument; `TextPen` about 6,300 (mode 0, it builds a table); an empty `TextFlush`
+about 60. Size: `TextFont` + `TextAt` 1,216 bytes, about 390 of them the compiler's
+string support (shared with any other string use); `TextAtBoth` + `TextFlush`
+another 397, 160 of them the queue.
+
+```basic
+#include <cpcbuild.bas>
+#include "font.bas"                   ' DIM font(321) AS UBYTE => {...}
+Mode 0: ScreenInit()
+TextFont(@font(0), 45, 7, 90)          ' ASCII 45-90, 7 rows
+TextPen(3, 1): TextAt(2, 0, "SCORE 00000")
+```
+
 ## 10. CPC Plus (cpcplus)
 
 `lib/cpcplus` drives the CPC Plus / GX4000 ASIC: 16 hardware sprites, the
@@ -1241,6 +1346,23 @@ Before those changes, about 103k T per iteration were the demo's own BASIC, abou
 `-D GAMEMODE` (game mode on), `-D FWSOUND` (firmware sound instead of music player),
 `-D BENCH` (runs 250 updates and prints the rate), `-D SHOT=n` (n updates then screenshot).
 
+**What each routine adds** to a program (bytes; a mode-0 program that includes
+`cpcbuild.bas` and calls `Mode`, `ScreenInit` and the one routine; each routine
+pulls in only the assembly it needs, and including the library costs nothing):
+
+| Call | Bytes | Call | Bytes |
+|---|---|---|---|
+| `PutSprite` | 636 | `DoTile8` | 485 |
+| `PutSpriteMasked` | 952 | `TileMap` | 779 |
+| `GetBlock` | 624 | `TileRestore` | 1,047 |
+| `FillRect` | 349 | `EnableDoubleBuffer` + `FlipBuffer` | 154 |
+| `ClearScreen` | 149 | `SprListBegin` + `Draw` + `End` | 1,005 |
+| `TextFont` + `TextAt` | 1,216 | + `TextAtBoth` + `TextFlush` | 397 |
+
+Routines that share code cost less together than the sum (`PutSprite` and
+`GetBlock` share the clipper; `TextAt` shares the string support with any other
+string use).
+
 **Other things that cost time or memory.**
 
 * Strings built in a loop can overflow the default 4.7 KB heap (error 9 or a reset);
@@ -1249,3 +1371,60 @@ Before those changes, about 103k T per iteration were the demo's own BASIC, abou
 * A `FOR` loop with a `UBYTE` counter that runs to 255 never ends.
 * `AND` and `OR` are logical operators in Boriel; use `BAND`, `BOR` and `BXOR` for
   bits.
+
+## 12. Spectrum sprites (zxbuild)
+
+`lib/zxbuild/sprites.bas` is for `--arch zx48k` (48K and 128K): pre-shifted OR
+sprites with background save and attribute colour, double-buffered on the 128K
+(screens 5 and 7). It is Starfall's Spectrum engine made into a library. The
+Spectrum builds find it with `-I lib`, as they find `music/`.
+
+| Call | Parameters | Returns |
+|---|---|---|
+| `SpritesInit(double)` | `UBYTE`: 1 double-buffered, 0 single | `UBYTE`: 1 if double buffering is on |
+| `SpriteImage(n, src, wide, attr)` | `n, wide, attr AS UBYTE`; `src AS UINTEGER` | sub |
+| `SpritesBegin()` | | sub |
+| `SpriteAdd(n, x, y)` | `UBYTE` | sub |
+| `SpritesSync()` | | sub |
+| `SpritesFlip()` | | sub |
+| `SpritesReset()` | | sub |
+| `SpritesScreen()` | | `UINTEGER`: &4000, or &C000 double-buffered |
+| `SpritesDone()` | | sub |
+
+A frame is `SpritesBegin()`, one `SpriteAdd` per sprite, `SpritesSync()`, then
+(after `HALT`, so the switch lands in the frame blank) `SpritesFlip()`.
+
+* **Images:** `wide` 16 x 8 pixels (16 bytes, row-major, left byte then right
+  byte), or narrow 4 x 4 pixels (4 bytes, the pixels in the high nibble). Bit 7
+  is the leftmost pixel; set bits are ink, drawn by OR. `SpriteImage` builds two
+  shifts (0 and 4 pixels), so x is rounded down to a multiple of 4. `attr` is the
+  attribute the covered cells get (0 = leave attributes alone).
+* **Erase:** `SpritesSync` puts back the saved screen bytes and attributes, in
+  reverse order, then draws. It keeps the leading run of sprites that are the same
+  as last time on that screen and doesn't touch them, so put the sprites that move
+  least first.
+* **Limits:** `ZXSPR_MAX` sprites a frame (default 28), `ZXSPR_IMAGES` images
+  (default 16); wide sprites with y over 184 and narrow ones over 188 are dropped,
+  and wide ones past x = 240 are drawn at 240.
+* **Memory:** a fixed data area of 84 x `ZXSPR_MAX` + 44 x `ZXSPR_IMAGES` bytes
+  from `ZXSPR_BASE` (default &DB00 to &E6F0). Set any of the three with `#define`
+  before the include.
+* **128K double buffering:** bank 7 stays paged in at &C000 (screen 7 is
+  &C000-&DAFF), so the data area must be at &DB00 or above, and the program and
+  stack below &C000. `SpritesInit` falls back to one screen if there is no paging
+  or the stack is too high. Screen 7 isn't cleared for you: clear both screens and
+  call `SpritesReset()`. Call `SpritesDone()` before returning to BASIC.
+* **48K, or `SpritesInit(0)`:** one screen, changed in place; pace frames with
+  `HALT` before `SpritesSync`.
+* PRINT and PLOT keep drawing on screen 5; `SpritesScreen()` gives the address of
+  the screen being drawn on (attributes at +&1800).
+
+Cost (chips, T-states per sprite, erase + draw + attributes): wide 3,300 (x a
+multiple of 8), 3,900 (x = 4 mod 8), 2,700 without attributes; narrow 2,200, 1,650
+without attributes; an unchanged sprite about 270. `SpriteAdd` from BASIC adds
+about 1,500. Size: 2,354 bytes for the whole API, plus the data area (not in the
+program file).
+
+It doesn't use Boriel's `cb/maskedsprites.bas` for paging: that file's
+`CheckMemoryPaging` and `SetDrawingScreen7` are FASTCALL routines with local
+variables, which overwrite the locals of the SUB or FUNCTION that calls them.
