@@ -424,6 +424,19 @@ Phase 8 tools, sprites and tiles through the editors/importer, cpcbuild
 calls, music, building for CPC and Spectrum. Revisit once Phase 8 is done,
 so the tutorial shows the finished tools.
 
+Shape (user, 2026-10-09): a **flip-screen** (room by room) platformer,
+**single-buffered, aimed at the CPC 464**. Reasons: the 464 has about
+34.8 KB for code and data in firmware mode (&0040 up to the heap at
+&8B60; about 46 KB bare, up to &B800), against 16 KB under &4000 for a
+double-buffered 6128 build; a flip-screen game redraws the background
+only between rooms, so sprites can be drawn in flyback order as on
+Starfall's 464 build; it is the simplest to teach step by step. Sprites
+over the tiled background are masked with the background restored
+(`PutSpriteMasked` + `TileRestore`/`GetBlock`), not the plain-background
+sprite list. The same build runs on a 6128; 6128 extras (songs or more
+levels in the extra banks, double buffering) can be an optional later
+chapter. More levels than fit: load per level from disc (firmware mode).
+
 Library additions for the platformer (Plus hardware sprites, user ideas
 2026-10-04), in `lib/cpcplus`:
 - **Sprite manager:** allocate/free the 16 slots as objects enter and leave

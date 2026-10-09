@@ -211,3 +211,15 @@ used 240; `TEXT_QUEUE` 160), a playfield clear by `SprListPaper`-style
 boxes instead of `FillRect`, keeping the HUD and stars as a small game asm
 helper (allowed by section 6), or moving more of the game's data out of
 the first 16 KB.
+
+Decided (user, 2026-10-09): make room with a toolchain feature first,
+**data above &8000** (step 5b below), and size Starfall's lists and queue
+to what it needs (`SPRLIST_MAX`, `TEXT_QUEUE` in the game, no library
+change). Keeping the HUD and stars as game asm is the fallback only if
+those are not enough. In double-buffered builds &8000-&8B5F (about 2.9
+KB) is unused today (the heap starts at &8B60 and is 4.7 KB by default);
+Starfall's sprite, tile and font data is about 940 bytes.
+
+| Step | Work | Who |
+|---|---|---|
+| 5b | Data above &8000: research the options (Boriel `DIM ... AT` with initialisers, an `ORG` in the data, a padded single binary vs a second file loaded by the loader, the heap start, the test runners and disc packer), then the main model picks one; implement with tests; move Starfall's graphics data there | sonnet agent researches and implements; main model decides and checks |
