@@ -411,6 +411,12 @@ build spike.** Can CPCEC be the in-VS Code emulator?
   recommendation (CPCEC WASM, chips WASM with Plus left to an external
   emulator, or launching the desktop emulator) for the user to decide.
 
+  **R8 outcome (2026-10-09):** CPCEC builds to WASM unchanged (SDL2 port +
+  ASYNCIFY, tools/cpcec/wasm/build.sh) and runs at full speed in a browser
+  tab. User's decision: the emulator is its own GPLv3 extension; the MIT
+  extensions drive it through VS Code commands/messages. Details in
+  docs/notes.md.
+
 **After Phase 8: platformer tutorial (user idea, 2026-10-04).** Build the
 platformer (the deferred Phase 5c extra) and turn it into a step-by-step
 tutorial that teaches the toolchain by following it: project setup in the

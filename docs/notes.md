@@ -1560,3 +1560,27 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   global (recorded at parse time), so any call into sprite.asm costs 1,643
   bytes and `DoTile8` 1,290; the 6128 Starfall has 1,560 bytes below &4000
   (bare 1,098), the 128K Spectrum 635 below &C000.
+- R8 (CPCEC in VS Code) done. Technical: CPCEC builds to WebAssembly
+  unchanged with Emscripten's SDL2 port (release-2.32.10) and ASYNCIFY
+  (`-sUSE_SDL=2 -sASYNCIFY`, ROMs and media via --preload-file); the only
+  patch is a console fps meter. tools/cpcec/wasm/build.sh rebuilds it.
+  Sizes: index.wasm 1,287,913 bytes (378,714 gzipped), index.js 188 KB,
+  ROMs ~295 KB. In a visible Chrome tab Starfall Plus ran at a steady
+  50.0 frames/s (CPCEC's title: 100%), and the user confirmed smooth
+  motion, sound and keys. Hidden tabs throttle timers to 1/s and the
+  emulator yields through them (stalls, then catch-up): a VS Code webview
+  hidden behind another tab will do the same. Not done: a non-ASYNCIFY
+  main loop (needed if a slow machine falls behind: no delay is called,
+  so the tab never yields), a host interface in place of SDL2 (~300-400
+  lines of C + ~150 JS, est.), debugger bridge (CPCEC already has
+  debug_peek/poke, the debug_point[] breakpoint table, debug_step/leap/
+  fall/drop: wrap them with EMSCRIPTEN_KEEPALIVE and call between frames,
+  bypassing its modal debugger UI).
+  Licence (main model's reading of GPLv3, not legal advice): shipping the
+  WASM is distributing GPLv3 object code, so its source (CPCEC, our
+  patches, the build script) goes with it; extension code calling the
+  WASM's exports in the same page is likely one combined work.
+  **Decided (user, 2026-10-09):** the emulator becomes its own GPLv3 VS
+  Code extension (CPCEC WASM + host page + source); the MIT NextBuild
+  Studio extensions drive it only through VS Code commands/messages. No
+  need to contact CPCEC's author (GPLv3 compliance suffices).
