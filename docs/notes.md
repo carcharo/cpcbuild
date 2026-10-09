@@ -1629,7 +1629,9 @@ CI restructured (pre-7-ci): parallel jobs, nightly gate, docs-only pushes skip C
   never reset and PRINT walked through low RAM. Proven with a traced
   Caprice32 (interrupts preserve every register; the byte flips at the
   first raster interrupt). Patched in tools/caprice32 (`make cap32`; the
-  tools and CI use it). Upstream report: the user's call.
+  tools and CI use it). **Upstream report to ColinPitrat/caprice32:
+  deferred by the user (2026-10-09), to do later**; the patch and its
+  header (tools/caprice32/caprice32-asic-regs.patch) are the material.
 - Hardening (zxbasic 58fa70d3): the bare text wraps when the column is
   past TXT_COLS, not only equal (2 bytes, 7 T a character). Its 2 bytes
   moved plusdemo's raster-bar timing on CPCEC by a few pixels on some
