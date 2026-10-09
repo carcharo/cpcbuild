@@ -668,8 +668,8 @@ Decisions and versions. The detailed Phase -1/0 findings are in
 
 ## Pick up here (updated 2026-10-09: fold of Starfall's routines done)
 
-State: on cpcbuild branch `fold` (not merged to main yet; CI now runs on
-it), zxbasic `cpc-arch` pushed. Done today: compiler warnings fixed;
+State: merged into cpcbuild `main` (fast-forward from `fold`, db4004b,
+2026-10-09), zxbasic `cpc-arch` pushed. Done today: compiler warnings fixed;
 per-routine `#require`; the cpcbuild asm split; new modules spritelist,
 text (CPC) and lib/zxbuild/sprites (Spectrum); `#pragma hidata`; Starfall
 rewritten on the libraries (CPC, Plus, Spectrum; goldens unchanged); R8
@@ -677,7 +677,7 @@ rewritten on the libraries (CPC, Plus, Spectrum; goldens unchanged); R8
 (tools/caprice32). Details: docs/fold-design.md and the 2026-10-09 notes.
 
 Next:
-1. Review `fold` with the user, then merge to main.
+1. ~~Review `fold` with the user, then merge to main.~~ Done 2026-10-09.
 2. Phase 8 (tooling: CPC support in NextBuild Studio extensions; the
    emulator as a separate GPLv3 extension, see R8).
 3. Later: the platformer and its tutorial (flip-screen, single-buffered,
