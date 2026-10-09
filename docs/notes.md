@@ -666,28 +666,51 @@ Decisions and versions. The detailed Phase -1/0 findings are in
     is held ~2 frames, so slow work (STR$, CHK) between a poll and the next
     poll can miss it.
 
-## Pick up here (updated 2026-10-09: fold of Starfall's routines done)
+## Pick up here (updated 2026-10-10: fold merged; next Phase 8)
 
-State: merged into cpcbuild `main` (fast-forward from `fold`, db4004b,
-2026-10-09), zxbasic `cpc-arch` pushed. Done today: compiler warnings fixed;
-per-routine `#require`; the cpcbuild asm split; new modules spritelist,
-text (CPC) and lib/zxbuild/sprites (Spectrum); `#pragma hidata`; Starfall
-rewritten on the libraries (CPC, Plus, Spectrum; goldens unchanged); R8
-(CPCEC in VS Code: works; its own GPLv3 extension); patched Caprice32
-(tools/caprice32). Details: docs/fold-design.md and the 2026-10-09 notes.
+State: everything is on cpcbuild `main` (the `fold` branch was merged by
+fast-forward and deleted, 2026-10-10; CI green on main, all seven jobs)
+and zxbasic `cpc-arch` 886a7bdb, both pushed. Working trees clean (an
+untracked cpcbuild/.claude/settings.json holds a Chrome permission; leave
+it). Done 2026-10-09: compiler warnings fixed (a7c325e6); per-routine
+`#require` (762456ed); the cpcbuild asm split; new modules spritelist and
+text (CPC) and lib/zxbuild/sprites (Spectrum); `#pragma hidata`
+(dc848853, 10e69aab); Starfall rewritten on the libraries (CPC, Plus,
+Spectrum; goldens unchanged); bare text wrap hardened (58fa70d3); R8
+(CPCEC in VS Code works; it becomes its own GPLv3 extension); patched
+Caprice32 (tools/caprice32, `make cap32`). Details: docs/fold-design.md
+and the 2026-10-09 entries at the end of this file.
+
+Local setup for the next session: `make cap32` (patched Caprice32 into
+tools/caprice32/work; the tools prefer it, the stock ../caprice32 only
+with a warning), `make cpcec`, `make chips`. The R8 WASM build needs an
+emsdk (EMSDK=... sh tools/cpcec/wasm/build.sh FILE.cpr); the spike's
+emsdk was in a session scratch folder and is gone, so install one first.
 
 Next:
-1. ~~Review `fold` with the user, then merge to main.~~ Done 2026-10-09.
-2. Phase 8 (tooling: CPC support in NextBuild Studio extensions; the
-   emulator as a separate GPLv3 extension, see R8).
-3. Later: the platformer and its tutorial (flip-screen, single-buffered,
-   464; plan, Phase 8 section); Spectrum 128K to 25 Hz (24.2 now).
-4. Deferred by the user: report the Caprice32 DCSR/DMA bug upstream
+1. **Phase 8** (plan, Phase 8 section): CPC support in the NextBuild
+   Studio extensions (sprite/palette/tile formats, the image importer,
+   Arkos .aks, file icons and templates, build/run buttons). The emulator
+   is a separate GPLv3 VS Code extension (CPCEC WASM + host page + its
+   source) that the MIT extensions drive only through VS Code commands /
+   messages (user's decision, R8). Starting points: tools/cpcec/wasm/
+   build.sh; the R8 notes on what is not done yet (a non-ASYNCIFY main
+   loop, a host interface in place of SDL2, the debugger bridge over
+   CPCEC's debug_peek/poke, debug_point[], debug_step/leap/fall/drop);
+   hidden webviews throttle timers like hidden tabs. Contact em00k about
+   the extensions (plan's open question 6, not done yet).
+2. Later: the platformer and its tutorial (flip-screen, single-buffered,
+   464-first; plan, Phase 8 section), with the planned Plus sprite
+   manager and palette cycling; Spectrum 128K to 25 Hz (24.2 now).
+3. Deferred by the user: report the Caprice32 DCSR/DMA bug upstream
    (ColinPitrat/caprice32; tools/caprice32/caprice32-asic-regs.patch).
    Also a candidate upstream report: Boriel's cb/maskedsprites.bas
    FASTCALL routines with locals (fork-only policy for now).
-5. lib/cpcplus would save ~1,000-1,500 bytes for typical programs from
-   the same per-routine #require split (not done).
+4. Small items: lib/cpcplus would save ~1,000-1,500 bytes for typical
+   programs from the same per-routine #require split; the remaining real
+   warnings in Starfall (Tick's `w`, `PlatEnd`, the 464's `bankOK`) are
+   true and harmless; docs/library.md has a double "2." section number
+   and 7.x subsections under section 9 (old numbering, not fixed).
 
 ## Pick up here (2026-10-05: Phase 7 complete; superseded)
 
