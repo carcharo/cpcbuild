@@ -1,7 +1,7 @@
 ' ----------------------------------------------------------------
 ' platform_zx.bas -- the Starfall portable layer for the ZX Spectrum
 ' (--arch zx48k). The API is games/shooter/DESIGN.md's layer table; the
-' sprite engine is platform_zx_draw.asm (included below).
+' sprite engine is lib/zxbuild/sprites.bas.
 '
 '   -D ZX128   Spectrum 128K: double-buffered (screens 5 and 7), Arkos music
 '              and effects (music/music.bas, IM2 frame hook). If the machine
@@ -35,32 +35,30 @@
 ' PlatClear clears rows 2-23 (not the HUD).
 '
 ' ---------------- Sprites ----------------
-' Not maskedsprites' drawing code. Boriel's cb/maskedsprites.bas is still
-' used for what it does well (paging check, bank 7 at C000, switching
-' which screen is shown and drawn on) but its 16-line sprites were too slow:
-' benchmarked here, saving + drawing + restoring 25 of them took 2.3 frames
-' (50 Hz) with nothing else, against the 2 frames of a whole 25 Hz game
-' step. Ours (platform_zx_draw.asm) are 16x8 pixels, drawn from pre-shifted
-' copies, with the saved background and the attribute handling in the same
-' routine: about 4.7K T-states per sprite (erase, draw, attributes) and,
-' because a sprite that is unchanged since its screen was last drawn is left
-' alone, much less in practice. The art needs only the pixel shifts our
-' even x allow (0 and 4 pixels).
-'
+' lib/zxbuild/sprites.bas (the generic form of the engine this file used to
+' carry): 16x8-pixel sprites drawn from pre-shifted copies (0 and 4 pixels),
+' the saved background and the attribute handling in the same routine; a
+' sprite that is unchanged since its screen was last drawn is left alone.
 ' The art is the one of assets/zx/ (img2cpc.py --spectrum output, UDG order):
 '   zx_sprites  12 frames of 4 cells (top-left, top-right, then two empty
 '               cells), 32 bytes each: ship; enemy row 0 (2 frames), row 1,
 '               row 2; diver (2); explosion (3)
 '   zx_shots    2 frames of 32 bytes: bullet, bomb
 ' Only the first 16 bytes of a frame are read (the art in the 16x8 top
-' half). The art is ink only: drawing is (screen OR graph), which is what
-' a mask made of "everything that isn't ink" would give. Bullets and bombs
-' (1x4 units = 2x4 pixels, art in the top-left 2x4 pixels of the frame) are
-' one byte wide at any x (our x*2 is a multiple of 4, the art 2 pixels).
-' PlatInit makes the copies (graph bytes only) in the sprite area.
+' half). The library wants a wide image as 16 bytes, row-major (left byte,
+' right byte per row), so PlatInit interleaves the two cells of each sheet
+' frame into a 16-byte buffer (PzCell) before SpriteImage; the shots are
+' already in the narrow format (4 bytes, the pixels in the high nibble) and
+' are passed as they are. (Converting in the asset pipeline instead would
+' change the format the layer tests' art is in, and the generator is shared
+' with the CPC layer; 20 lines of BASIC at start-up cost nothing.)
+' The art is ink only: drawing is (screen OR graph). Bullets and bombs (1x4
+' units = 2x4 pixels) are one byte wide at any x.
 '
-' Kinds (the first argument of PlatSprite; tables PzNFrames, PzSheet,
-' PzBase, PzAttr below hold the per-kind data):
+' Kinds (the first argument of PlatSprite) are library images: image n of
+' kind k and frame f is 2 k + f, up to 17 images with the explosion's 3rd
+' frame (ZXSPR_IMAGES 17; PzNFrames, PzSheet, PzBase, PzAttr below hold the
+' per-kind data):
 '   0 ship, 1-3 enemy rows 0-2, 4 diver, 5 bullet, 6 bomb, 7 explosion
 ' Limits: at most 28 sprites a frame (more are dropped), y <= 152 (156 for
 ' bullets and bombs): below that the sprite would run off the screen.
@@ -89,35 +87,32 @@
 '   ORG-        our program: heap (256 bytes), variables, init, the music
 '               player (128K: the Arkos AKG player, about 3.3 KB; the IM2
 '               vector block, 512 bytes aligned to 256; the songs and the
-'               effect bank), the sprite engine, the game and the Boriel
-'               runtime. 48K: ORG 32768, ends about AEBF, to DB00 free.
-'               128K: ORG 31744 (7C00), ends about BD85, and it has to end
-'               below C000 (635 bytes to spare when this was written;
-'               build_zx.sh checks). 7C00-7FFF is the heap and the first
+'               effect bank), the sprite library, the game and the Boriel
+'               runtime. 48K: ORG 32768, to DB00 free. 128K: ORG 31744
+'               (7C00); it has to end below C000 (build_zx.sh checks). 7C00-7FFF is the heap and the first
 '               700 bytes or so of the variables, the only contended part
 '               of the program (all the code is above 8000).
-'   DB00-E830   the sprite engine's data (platform_zx_draw.asm, fixed
-'               addresses): DB00 the draw records (2 sets x 28 x 16 bytes),
-'               DE80 the saved backgrounds (2 x 28 x 24), E400 the image
-'               pointers, E440 the attribute table, E450 the images (graph
-'               bytes: 40 per wide frame, 8 per narrow, about 500 bytes in
-'               all). The 48K build has one set only (the rest is unused).
-'   E830-FFFF   free (about 6 KB in bank 7 on a 128K).
-'   128K only:  bank 7 is paged in at C000-FFFF for good: it holds screen 7
-'               (C000-DAFF) and the engine's data above it, so one mapping
-'               reaches both screens and the data. PlatEnd pages the bank
+'   DB00-E6F0   the sprite library's data (lib/zxbuild/sprites.bas, ZXSPR_BASE
+'               = DB00 by default): the draw records (2 sets x 28 x 16
+'               bytes), the saved backgrounds (2 x 28 x 24), the image table
+'               and the images (about 500 bytes in all, 14 images of 16),
+'               the queue. The 48K build uses one set only.
+'   E6F0-FFFF   free (about 6 KB in bank 7 on a 128K).
+'   128K only:  bank 7 is paged in at C000-FFFF for good (SpritesInit): it
+'               holds screen 7 (C000-DAFF) and the library's data above it, so one mapping
+'               reaches both screens and the data. PlatEnd (SpritesDone) pages the bank
 '               that was there back (BASIC, or the headless runner's stack
 '               up at FF42, needs it). Banks 0-4 are free (they would take
 '               song data if the program ever outgrows C000).
 '   Contention: screen 5 (4000) is contended on both models, and bank 7 (odd
-'               banks) on a 128K, so the engine's data in bank 7 is slower
+'               banks) on a 128K, so the library's data in bank 7 is slower
 '               than main RAM would be; measured: moving it made no
 '               difference to the benchmark, the screen writes dominate.
 '
 ' ---------------- Frame model ----------------
 ' PlatFrameBegin empties the queue; PlatSprite queues (kind, frame, x, y)
 ' and the order is the drawing order; PlatFrameEnd makes the drawing screen
-' show exactly the queue (platform_zx_draw.asm: unchanged sprites at the
+' show exactly the queue (SpritesSync: unchanged sprites at the
 ' start of the list are left alone, the rest of the old ones are erased in
 ' reverse order and the rest of the new ones drawn):
 '   128K: draws on the hidden screen, then waits until 2 frames have passed
@@ -167,12 +162,15 @@
 #endif
 #endif
 
-#include <cb/maskedsprites.bas>
+#include <scrbuffer.bas>
+#include <memcopy.bas>
+#define ZXSPR_IMAGES 17            ' image 2 kind + frame: up to 16 (the explosion)
+#include <zxbuild/sprites.bas>
 #include <music/music.bas>
 
 ' Start-up (runs where this file is included, so include it before any
 ' code that matters): the stack must not be in the top 16K, which on a
-' 128K is the paged window and on both models holds our sprite area.
+' 128K is the paged window and on both models holds the sprite library's data.
 ' The BASIC loader (CLEAR) already leaves it below the program; a loader
 ' that starts the program with SP near the top (the headless runner does)
 ' gets it moved to just below the program's ORG.
@@ -184,9 +182,6 @@ ASM
     jr c, __PZ_SP_OK
     ld sp, .core.__START_PROGRAM    ; just below our code (the ORG)
 __PZ_SP_OK:
-    jp __PZ_DRAW_END
-#include "platform_zx_draw.asm"
-__PZ_DRAW_END:
 END ASM
 
 #ifdef BENCH
@@ -222,9 +217,6 @@ END ASM
 #endif
 
 CONST PZ_KINDS AS UBYTE = 8
-CONST PZ_IMGTAB AS UINTEGER = 58368     ' E400: see platform_zx_draw.asm
-CONST PZ_ATTRTAB AS UINTEGER = 58432    ' E440
-CONST PZ_IMGS AS UINTEGER = 58448       ' E450
 
 ' ---- per-kind data (0 ship, 1-3 enemy rows, 4 diver, 5 bullet, 6 bomb, 7 explosion)
 DIM PzNFrames(7) AS UBYTE => {1, 2, 2, 2, 2, 1, 1, 3}
@@ -237,7 +229,7 @@ DIM PzAttr(7) AS UBYTE => {69, 68, 66, 67, 70, 71, 70, 71}
 ' ---- state
 DIM pzDbl AS UBYTE                  ' 1: double-buffered
 DIM pzDs AS UBYTE                   ' drawing set (0/1): the HUD shadows
-DIM pzBank0 AS UBYTE                ' the bank that was at C000 before we paged in 7
+DIM pzCell(15) AS UBYTE             ' one wide image in the library's format
 DIM pzLast AS UINTEGER              ' FRAMES at the last flip
 #ifdef ZX48
 DIM pzSfxDone AS UBYTE              ' 1: a beeper effect already played this step
@@ -317,85 +309,102 @@ FUNCTION PzDetectJoy() AS UBYTE
 #endif
 END FUNCTION
 
-' Make the images of the art at address a (left cell 8 bytes, right cell 8)
-' at dst, graph bytes only (set = ink): for a wide sprite 8 rows of 2 bytes,
-' then the same shifted right by 4 pixels, 8 rows of 3 bytes; for a narrow one
-' (art in the first 4 rows of the left cell) 4 rows of 1 byte, then shifted.
-' Returns the address after them.
-FUNCTION PzBuild(kind AS UBYTE, frame AS UBYTE, a AS UINTEGER, dst AS UINTEGER) AS UINTEGER
-  DIM r, l, rt AS UBYTE
-  POKE UINTEGER PZ_IMGTAB + CAST(UINTEGER, kind * 4 + frame) * 2, dst
-  IF kind = 5 OR kind = 6 THEN
-    FOR r = 0 TO 3
-      l = PEEK(a + r)
-      POKE dst + r, l
-      POKE dst + 4 + r, l >> 4
-    NEXT r
-    RETURN dst + 8
-  END IF
-  FOR r = 0 TO 7
-    l = PEEK(a + r): rt = PEEK(a + 8 + r)
-    POKE dst + r * 2, l
-    POKE dst + r * 2 + 1, rt
-    POKE dst + 16 + r * 3, l >> 4
-    POKE dst + 16 + r * 3 + 1, ((l BAND 15) << 4) BOR (rt >> 4)
-    POKE dst + 16 + r * 3 + 2, (rt BAND 15) << 4
-  NEXT r
-  RETURN dst + 40
-END FUNCTION
+' Print on the screen at hi (&40 or &C0 high byte): PRINT and CLS go where
+' Boriel's screen variables say, and the library leaves them on screen 5.
+SUB PzPrintOn(hi AS UBYTE)
+  DIM a AS UINTEGER
+  a = CAST(UINTEGER, hi) << 8
+  SetScreenBufferAddr(a)
+  SetAttrBufferAddr(a + 6144)
+END SUB
 
-' ---------------- the layer ----------------
-
-SUB PzAsmInit(hi AS UBYTE, dbl AS UBYTE)
+' Swap the print screen between screen 5 and screen 7 (Boriel's screen
+' variables; the library keeps its own state and leaves these alone). The
+' layer keeps PRINT on the screen being drawn on, except inside PlatText.
+SUB PzToggleScreen()
   ASM
-    ld a,(ix+5)
-    ld b,(ix+7)
-    push ix
-    call __PZ_INIT
-    pop ix
+    ld a,(.core.SCREEN_ADDR + 1)
+    xor 0x80
+    ld (.core.SCREEN_ADDR + 1),a
+    ld a,(.core.SCREEN_ATTR_ADDR + 1)
+    xor 0x80
+    ld (.core.SCREEN_ATTR_ADDR + 1),a
   END ASM
 END SUB
 
+' The HUD rule: the last line of character row 1 (the font leaves it empty),
+' blue like the cells above it, on the screen at base (row 1's text cells
+' recolour theirs)
+SUB PzRule(base AS UINTEGER)
+  DIM k AS UBYTE
+  FOR k = 0 TO 31
+    POKE base + 1792 + 32 + k, 255
+  NEXT k
+  MemSet(base + 6144 + 32, 65, 32)
+END SUB
+
+' The two cells of a sheet frame at u (left 8 bytes, right 8) as the
+' library's wide format at d: 8 rows of left byte, right byte. (In asm: the
+' same loop in BASIC took 1 to 2 frames of the start-up for the 12 frames.)
+SUB PzCell(u AS UINTEGER, d AS UINTEGER)
+  ASM
+    ld l,(ix+4)
+    ld h,(ix+5)                 ; HL = left cell
+    ld e,(ix+6)
+    ld d,(ix+7)                 ; DE = the 16 bytes
+    ld c,8
+__PZ_CELL1:
+    ld a,(hl)                   ; left byte of the row
+    ld (de),a
+    inc de
+    push bc
+    ld bc,8
+    add hl,bc
+    ld a,(hl)                   ; right byte
+    ld (de),a
+    inc de
+    or a
+    sbc hl,bc
+    inc hl
+    pop bc
+    dec c
+    jr nz,__PZ_CELL1
+  END ASM
+END SUB
+
+' ---------------- the layer ----------------
+
 SUB PlatInit()
-  DIM k, f, b AS UBYTE
-  DIM u, dst AS UINTEGER
+  DIM k, f, n AS UBYTE
+  DIM u AS UINTEGER
   BORDER 0: PAPER 0: INK 0: BRIGHT 0: FLASH 0
   CLS
   pzJoy = PzDetectJoy()
 #ifdef ZX128
-  pzDbl = CheckMemoryPaging()
+  pzDbl = SpritesInit(1)        ' bank 7 at C000 for good, drawn on screen 7
 #else
-  pzDbl = 0
+  pzDbl = SpritesInit(0)
 #endif
-  IF pzDbl THEN
-    pzBank0 = GetBankPreservingRegs()
-    SetVisibleScreen(5)
-    b = SetDrawingScreen7()   ' bank 7 stays paged in at C000 for good
-    CLS
-    PzAsmInit(192, 1)         ' frame 0 is drawn on screen 7, then flipped to
-  ELSE
-    PzAsmInit(64, 0)
-  END IF
+  IF pzDbl THEN MemSet(49152, 0, 6912)     ' screen 7 (SpritesInit leaves it)
+  SpritesReset()
   pzDs = 0
   pzLast = PEEK(UINTEGER, 23672)
   pzHValid(0) = 0: pzHValid(1) = 0
-  dst = PZ_IMGS
+  ' the images: image 2 k + f is frame f of kind k
   FOR k = 0 TO PZ_KINDS - 1
-    POKE PZ_ATTRTAB + k, PzAttr(k)
     FOR f = 0 TO PzNFrames(k) - 1
-      IF PzSheet(k) = 0 THEN u = PLAT_ZX_SPRITES ELSE u = PLAT_ZX_SHOTS
-      dst = PzBuild(k, f, u + CAST(UINTEGER, PzBase(k) + f) * 32, dst)
+      n = k + k + f
+      IF PzSheet(k) = 0 THEN
+        u = PLAT_ZX_SPRITES + CAST(UINTEGER, PzBase(k) + f) * 32
+        PzCell(u, @pzCell(0))
+        SpriteImage(n, @pzCell(0), 1, PzAttr(k))
+      ELSE
+        SpriteImage(n, PLAT_ZX_SHOTS + CAST(UINTEGER, PzBase(k) + f) * 32, 0, PzAttr(k))
+      END IF
     NEXT f
   NEXT k
-  ' HUD rule: the last line of character row 1 (the font leaves it empty),
-  ' blue like the cells above it, on both screens
-  FOR f = 0 TO pzDbl
-    FOR k = 0 TO 31
-      POKE GetScreenBufferAddr() + 1792 + 32 + k, 255
-    NEXT k
-    MemSet(GetAttrBufferAddr() + 32, 65, 32)       ' (row 1: text cells recolour theirs)
-    IF pzDbl THEN ToggleDrawingScreen()
-  NEXT f
+  PzRule(16384)
+  IF pzDbl THEN PzRule(49152): PzPrintOn(192)     ' PRINT where we draw
 #ifdef ZX128
   SfxInit(PLAT_ZX_SFX)
 #endif
@@ -406,32 +415,48 @@ SUB PlatFrameBegin()
   pzSfxDone = 0
 #endif
   ASM
-    call __PZ_QRESET
+    call .core.__ZXS_QRESET     ; SpritesBegin, without a BASIC call around it
   END ASM
 END SUB
 
+' Queues image 2 kind + frame at pixel x*2, line y + 32 (nothing for y >= 160:
+' too low for the screen, and y + 32 would wrap). This is SpriteAdd's job,
+' done as the call of the library's entry point: the same thing in BASIC (a
+' call of SpriteAdd with the arithmetic in the arguments) made the step 8 %
+' slower (the game queues about 25 sprites a step).
 SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
   ASM
-    ld b,(ix+5)
-    ld c,(ix+7)
-    ld d,(ix+9)
-    ld e,(ix+11)
-    push ix
-    call __PZ_SPRITE
-    pop ix
+    ld a,(ix+11)
+    cp 160
+    jr nc,__PZ_SPR_END
+    add a,32
+    ld e,a                      ; E = y + 32
+    ld a,(ix+9)
+    add a,a
+    ld d,a                      ; D = x pixels
+    ld a,(ix+5)
+    add a,a
+    add a,(ix+7)
+    ld b,a                      ; B = image 2 kind + frame
+    call .core.__ZXS_SPRITE
+__PZ_SPR_END:
   END ASM
 END SUB
 
 SUB PlatFrameEnd()
   IF pzDbl THEN
     ASM
-    call __PZ_SYNC              ; draw the frame on the hidden screen,
+    call .core.__ZXS_SYNC       ; SpritesSync: draw the frame on the hidden screen,
     END ASM
     PzWait()                    ' then wait for the moment to show it
-    ToggleVisibleScreen()
-    ToggleDrawingScreen()
     ASM
-    call __PZ_FLIP
+    call .core.__ZXS_FLIP       ; SpritesFlip: show it, draw on the other,
+    ld a,(.core.SCREEN_ADDR + 1)    ; and PRINT there too (PzToggleScreen)
+    xor 0x80
+    ld (.core.SCREEN_ADDR + 1),a
+    ld a,(.core.SCREEN_ATTR_ADDR + 1)
+    xor 0x80
+    ld (.core.SCREEN_ATTR_ADDR + 1),a
     END ASM
     pzDs = 1 - pzDs
   ELSE
@@ -439,7 +464,7 @@ SUB PlatFrameEnd()
     ' of the beam
     PzWait()
     ASM
-    call __PZ_SYNC
+    call .core.__ZXS_SYNC       ; SpritesSync
     END ASM
   END IF
 END SUB
@@ -467,18 +492,16 @@ END SUB
 SUB PlatText(col AS UBYTE, row AS UBYTE, s AS STRING)
   PzPrint(row, col, 7, s)
   IF pzDbl THEN
-    ToggleDrawingScreen()
+    PzToggleScreen()
     PzPrint(row, col, 7, s)
-    ToggleDrawingScreen()
+    PzToggleScreen()
   END IF
 END SUB
 
 SUB PlatClear()
   PzClearArea(16384)
   IF pzDbl THEN PzClearArea(49152)
-  ASM
-    call __PZ_RESET
-  END ASM
+  SpritesReset()
 END SUB
 
 FUNCTION PlatInput() AS UBYTE
@@ -660,11 +683,8 @@ SUB PlatEnd()
 #ifdef ZX128
   MusicStop()
 #endif
-  IF pzDbl THEN
-    SetVisibleScreen(5)
-    SetDrawingScreen5()
-    SetBankPreservingINTs(pzBank0)   ' the stack may live up there (the runner's does)
-  END IF
+  SpritesDone()                      ' screen 5 shown, the bank at C000 back (the stack may live up there: the runner's does)
+  PzPrintOn(64)
   PAPER 0: INK 7: BRIGHT 0
   CLS
   PRINT AT 0, 0;

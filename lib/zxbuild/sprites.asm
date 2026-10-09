@@ -1,8 +1,7 @@
 ; -----------------------------------------------------------------------
 ; zxbuild/sprites.asm -- the Spectrum sprite engine behind sprites.bas
 ; (Z80, --arch zx48k). Written from scratch for this project (MIT); the
-; engine is the one Starfall's Spectrum layer used (games/shooter/
-; platform_zx_draw.asm), made generic. Read the header of sprites.bas for
+; engine is the one Starfall's former Spectrum layer carried, made generic. Read the header of sprites.bas for
 ; the API, formats, memory map and costs.
 ;
 ; The constants __ZXS_* (sprite capacity, images, the addresses of the
@@ -294,15 +293,12 @@ __ZXS_SPRITE:
     ld a,b
     cp __ZXS_NI
     ret nc                      ; no such image
-    ld l,a
-    ld h,0
-    add hl,hl
-    add hl,hl
-    ld a,__ZXS_IMGTAB & 0xFF
-    add a,l
+    add a,a
+    add a,a                     ; 4 bytes an entry (at most 64 images)
+    add a,__ZXS_IMGTAB & 0xFF
     ld l,a
     ld a,__ZXS_IMGTAB >> 8
-    adc a,h
+    adc a,0
     ld h,a                      ; HL = its table entry
     inc hl
     ld a,(hl)                   ; address high byte: 0 = undefined
@@ -324,15 +320,12 @@ __ZXS_SPRITE_OK:
     ld a,(__ZXS_QN)
     cp __ZXS_NS
     ret nc                      ; more than we can hold: dropped
-    ld l,a
-    ld h,0
-    add hl,hl
-    add hl,hl
-    ld a,__ZXS_Q & 0xFF
-    add a,l
+    add a,a
+    add a,a                     ; 4 bytes an entry (at most 64 sprites)
+    add a,__ZXS_Q & 0xFF
     ld l,a
     ld a,__ZXS_Q >> 8
-    adc a,h
+    adc a,0
     ld h,a                      ; HL = the queue entry
     ld (hl),b
     inc hl
@@ -437,12 +430,14 @@ __ZXS_ADD_R0:
     ld (hl),d
     inc hl
     ld (hl),e
-    ld l,b                      ; the image's table entry
-    ld h,0
-    add hl,hl
-    add hl,hl
-    ld bc,__ZXS_IMGTAB
-    add hl,bc
+    ld a,b                      ; the image's table entry
+    add a,a
+    add a,a
+    add a,__ZXS_IMGTAB & 0xFF
+    ld l,a
+    ld a,__ZXS_IMGTAB >> 8
+    adc a,0
+    ld h,a
     ld c,(hl)
     inc hl
     ld b,(hl)                   ; BC = image (unshifted copy)
