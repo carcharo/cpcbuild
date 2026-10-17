@@ -21,3 +21,10 @@ python3 $A/split_rooms.py $A/tower.tmx -o $A/rooms.bas
 mkdir -p $A/zx
 $I --spectrum --name zx_tiles $A/zx/zx_tiles.png -o $A/zx/zx_tiles.bas
 $I --spectrum --zx-sprite --name zx_sprites $A/zx/zx_sprites.png -o $A/zx/zx_sprites.bas
+
+# CPC Plus: the lit lamp's flame in pens 11-14 (cycled), hardware sprites
+# (16 x 16, every art pixel 2 wide) and the 12-bit pens
+mkdir -p $A/plus
+python3 $A/make_plus_art.py
+$I --mode 0 --name tiles --tiles --palette-file $A/lamp.pal $A/plus/plus_tiles.png -o $A/plus/tiles.bas
+$I --plus-sprite --name lpsprites $A/plus/plus_sprites.png -o $A/plus/lpsprites.bas

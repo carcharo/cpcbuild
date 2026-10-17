@@ -39,15 +39,21 @@
 #include <cpcbuild/display.bas>
 #include <cpcbuild/keyboard.bas>
 #include <cpcbuild/palette.bas>
+#ifndef LAMP_PLUS
 #include <cpcbuild/sprites.bas>
+#endif
 #include <cpcbuild/text.bas>
 #include <cpcbuild/tiles.bas>
 #include <cpcbuild/fill.bas>
 #include <framehook.bas>
 
 ' tiles: see make_art.py; sprites: 12 masked frames of 4 x 16
+#ifdef LAMP_PLUS
+#include "assets/plus/tiles.bas"
+#else
 #include "assets/tiles.bas"
 #include "assets/sprites.bas"
+#endif
 #include "assets/fontcpc.bas"
 
 #ifdef NOSOUND
@@ -150,6 +156,7 @@ SUB PlatTileRaw(cx AS UBYTE, cy AS UBYTE, t AS UBYTE)
   DoTile8(cx, cy, t)
 END SUB
 
+#ifndef LAMP_PLUS     ' (the Plus layer has hardware sprites: platform_plus.bas)
 ' Sprite slot s shows frame f at pixel x, line y at the next flush.
 SUB PlatSprite(s AS UBYTE, f AS UBYTE, x AS UBYTE, y AS UBYTE)
   DIM bit AS UBYTE
@@ -215,6 +222,8 @@ SUB PlatFlush()
   NEXT s
   dMask = 0
 END SUB
+
+#endif
 
 ' Hearts and numbers where they changed; the room name when the room did.
 SUB PlatHud(lit AS UBYTE, total AS UBYTE, lives AS UBYTE, room AS UBYTE)
@@ -298,7 +307,11 @@ SUB PlatFrameEnd()
 #endif
   fT = CAST(UINTEGER, Frames())
 #ifndef NOFLUSH
+#ifdef LAMP_PLUS
+  PlatFlushPlus()
+#else
   PlatFlush()
+#endif
 #endif
 END SUB
 

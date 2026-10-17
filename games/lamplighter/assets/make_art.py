@@ -26,6 +26,10 @@ one):
                         only, drawn by OR; the colour comes from the program's
                         attributes); frame f is cells f (top) and f + 12
                         (bottom) in the converted data
+  plus/plus_tiles.png   128x8  the tiles for the CPC Plus build: tile 6 (lit lamp)
+                        has its flame in pens 11-14 (G L P M, used by no other
+                        tile), which palette cycling rotates (make_plus_art.py
+                        makes the Plus sprites and pens from the same art)
   font.bas      none: the CPC build reuses Starfall's 5x7 font (fontcpc.bas)
 
 The tower's rooms are described in ROOMS below with a few commands each
@@ -187,10 +191,24 @@ TILES = [
 ]
 TILES += [["KKKKKKKK"] * 8] * (16 - len(TILES))
 
+# CPC Plus: the lit lamp (tile 6) with its flame drawn in pens 11-14 (G L P M),
+# which no other tile uses: platform_plus.bas cycles those four pens' colours
+# (palette cycling) so the flames flicker. Same shape and window as tile 6.
+PLUS_LIT = ["KKKggKKK",
+            "KPGLLGPK",
+            "KGgLMgGK",
+            "KGgLLgGK",
+            "KKPggPKK",
+            "KKKKgKKK",
+            "KKKKgKKK",
+            "KKKggKKK"]
 
-def tiles_image():
+
+def tiles_image(plus=False):
     img = Image.new("RGB", (8 * len(TILES), 8))
     for t, rows in enumerate(TILES):
+        if plus and t == T_LIT:
+            rows = PLUS_LIT
         assert len(rows) == 8 and all(len(r) == 8 for r in rows), t
         for y, row in enumerate(rows):
             for x, ch in enumerate(row):
@@ -506,6 +524,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     (out / "lamp.pal").write_text("# Lamplighter's 16 pens (firmware colours)\n" + ",".join(map(str, PENS)) + "\n")
     tiles_image().save(out / "tiles.png")
+    (out / "plus").mkdir(exist_ok=True)
+    tiles_image(plus=True).save(out / "plus" / "plus_tiles.png")
     sprites_image(frames()).save(out / "sprites.png")
     (out / "tower.tmx").write_text(tmx(tower()))
     (out / "zx").mkdir(exist_ok=True)

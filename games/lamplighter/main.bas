@@ -37,7 +37,11 @@ CONST FIRST_ROOM AS UBYTE = 9
 
 #include once "assets/rooms.bas"
 #ifdef __CPC__
+#ifdef PLUS
+#include "platform_plus.bas"
+#else
 #include "platform_cpc.bas"
+#endif
 #else
 #include "platform_zx.bas"
 #endif
