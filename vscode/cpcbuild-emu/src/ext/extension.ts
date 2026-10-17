@@ -5,6 +5,7 @@ import {
   type EmuOpenResult, type EmuReadMemoryArgs, type EmuReadMemoryResult, type EmuScreenshotResult, type EmuState, type EmuVersion,
 } from '../emuApi';
 import { encodePng } from '../shared/png';
+import { deliver, EVENT_TIMEOUT_MS } from './deliver';
 import { Session, type SessionEvent } from './session';
 
 /** The CPCEC commit the bundled build comes from (tools/cpcec/fetch_build.sh pins the same). */
@@ -21,14 +22,15 @@ let eventChain: Promise<void> = Promise.resolve();
 type Err = { error: string };
 const fail = (e: unknown): Err => ({ error: e instanceof Error ? e.message : String(e) });
 
-/** Runs `cpcbuild.emuEvent` (Studio registers it) if it exists; events are delivered one at a time, in order. */
+async function defaultRun(ev: EmuEvent): Promise<unknown> {
+  if (!(await vscode.commands.getCommands()).includes('cpcbuild.emuEvent')) return undefined;
+  return vscode.commands.executeCommand('cpcbuild.emuEvent', ev);
+}
+
+/** Runs `cpcbuild.emuEvent` (Studio registers it) if it exists; events are delivered one at a time, in order, each with a timeout. */
 function fireEvent(s: Session, event: SessionEvent, state: EmuState | undefined): void {
   const ev: EmuEvent = { session: s.id, event, state };
-  eventChain = eventChain.then(async () => {
-    try {
-      if ((await vscode.commands.getCommands()).includes('cpcbuild.emuEvent')) await vscode.commands.executeCommand('cpcbuild.emuEvent', ev);
-    } catch { /* a failing listener must not disturb the emulator */ }
-  });
+  eventChain = eventChain.then(async () => { await deliver(ev, EVENT_TIMEOUT_MS, defaultRun); });
 }
 
 function pick(session: unknown): Session {
@@ -160,7 +162,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const r = await pick(a.session).request<{ rgba: string; width: number; height: number }>({ type: 'screenshot' });
     return { png: encodePng(Buffer.from(r.rgba, 'base64'), r.width, r.height).toString('base64'), width: r.width, height: r.height };
   }));
-  reg('cpcbuild.emu._probeAudio', () => { pick(undefined).notice({ kind: 'probeAudio' }); }); // test hook, not contributed
+  if (process.env.CPCEMU_TEST_HOOKS) reg('cpcbuild.emu._probeAudio', () => { pick(undefined).notice({ kind: 'probeAudio' }); }); // test hook: only when the test runner sets CPCEMU_TEST_HOOKS
   reg('cpcbuild.emu.close', cmd((a: { session?: string }) => { pick(a.session).panel.dispose(); return {}; }));
 
   // user-facing

@@ -212,7 +212,7 @@ export class DebugController implements vscode.Disposable {
   async toggle(arg?: unknown): Promise<ToggleResult> {
     if (!this.symbols.loaded) await this.symbols.reload();
     const table = this.symbols.table;
-    const a = arg as { addr?: number; symbol?: string; text?: string; sym?: SymbolInfo } | string | undefined;
+    const a = (arg === null ? undefined : arg) as { addr?: number; symbol?: string; text?: string; sym?: SymbolInfo } | string | undefined;
     let rec: BreakpointRec | undefined;
     const sym = typeof a === 'object' ? symbolOfArg(a, table) : undefined;
     if (typeof a === 'object' && a?.sym) rec = { addr: a.sym.addr, symbol: a.sym.name };
@@ -220,6 +220,7 @@ export class DebugController implements vscode.Disposable {
       rec = sym && sym.addr <= a.addr ? { addr: a.addr, symbol: sym.name, ...(a.addr > sym.addr ? { offset: a.addr - sym.addr } : {}) } : { addr: a.addr & 0xffff };
     } else {
       let text = typeof a === 'string' ? a : (a?.symbol ?? a?.text);
+      if (typeof text !== 'string') text = undefined;
       if (text === undefined) {
         const cur = this.state?.paused ? hex4(this.state.pc) : '';
         text = await vscode.window.showInputBox({

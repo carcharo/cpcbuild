@@ -2,18 +2,21 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
+import { findZxbasic, warnNoZxbasic } from './testutil';
 import { loadIndex, stdlibDirOf } from './libfs';
 import { BARE_ONLY, Finding, FIRMWARE_ONLY, lint, LintContext, literalValue, RuleId } from './lint';
 
 const REPO = path.resolve(__dirname, '../../../..');
-const ZXBASIC = process.env.ZXBASIC ?? '/Users/barry/RetroDev/Amstrad/zxbasic';
-const index = loadIndex(REPO, stdlibDirOf(ZXBASIC));
+const ZXBASIC = findZxbasic(REPO);
+warnNoZxbasic(ZXBASIC);
+const d = ZXBASIC ? describe : describe.skip;
+const index = loadIndex(REPO, (ZXBASIC ? stdlibDirOf(ZXBASIC) : undefined));
 
 const run = (src: string, ctx: LintContext = {}): Finding[] => lint(src, { index, ...ctx });
 const ids = (src: string, ctx?: LintContext): RuleId[] => run(src, ctx).map((f) => f.rule);
 const src = (...lines: string[]): string => lines.join('\n') + '\n';
 
-describe('CB001 Mode without ScreenInit', () => {
+d('CB001 Mode without ScreenInit', () => {
   it('positive: drawing right after Mode', () => {
     const f = run(src('Mode 1', 'FillRect(0, 0, 4, 4, 1)'));
     expect(f.map((x) => x.rule)).toEqual(['CB001']);
@@ -35,7 +38,7 @@ describe('CB001 Mode without ScreenInit', () => {
   });
 });
 
-describe('CB002 settings defined after the include', () => {
+d('CB002 settings defined after the include', () => {
   it('positive: SPRLIST_MAX and TEXT_QUEUE', () => {
     const f = run(src('#include <cpcbuild.bas>', '#define SPRLIST_MAX 24', '#define TEXT_QUEUE 200'));
     expect(f.map((x) => x.rule)).toEqual(['CB002', 'CB002']);
@@ -51,7 +54,7 @@ describe('CB002 settings defined after the include', () => {
   });
 });
 
-describe('CB003 firmware-only / bare-only calls', () => {
+d('CB003 firmware-only / bare-only calls', () => {
   it('positive: firmware-only in a bare target', () => {
     const f = run(src('SoundQueue(1, 239, 50, 12, 0)', 'x = SoundFree(1)'), { arch: 'cpc', bare: true });
     expect(f.map((x) => x.rule)).toEqual(['CB003', 'CB003']);
@@ -73,7 +76,7 @@ describe('CB003 firmware-only / bare-only calls', () => {
   });
 });
 
-describe('CB004 12-bit palette before Mode', () => {
+d('CB004 12-bit palette before Mode', () => {
   it('positive', () => {
     const f = run(src('SetPalette12(0, &H0F00)', 'Mode 1'));
     expect(f.map((x) => x.rule)).toEqual(['CB004']);
@@ -87,7 +90,7 @@ describe('CB004 12-bit palette before Mode', () => {
   });
 });
 
-describe('CB005 Plus program ends without SpritesHideAll', () => {
+d('CB005 Plus program ends without SpritesHideAll', () => {
   const head = '#include <cpcplus/cpcplus.bas>';
   it('positive', () => {
     const f = run(src(head, 'SpriteMove(0, 10, 10)', 'END'));
@@ -102,7 +105,7 @@ describe('CB005 Plus program ends without SpritesHideAll', () => {
   });
 });
 
-describe('CB006 AY owners mixed', () => {
+d('CB006 AY owners mixed', () => {
   it('positive: AyWrite then MusicInit; Play with its include', () => {
     expect(ids(src('AyWrite 7, 62', 'MusicInit(@tune, 0)'))).toEqual(['CB006']);
     expect(ids(src('#include <play.bas>', 'Play "O4C"', 'AyWrite 7, 62'))).toEqual(['CB006']);
@@ -114,7 +117,7 @@ describe('CB006 AY owners mixed', () => {
   });
 });
 
-describe('CB007 literal out of range', () => {
+d('CB007 literal out of range', () => {
   it('positive: UBYTE 256, negative into UBYTE, UINTEGER 70000', () => {
     const f = run(src('FillRect(0, 0, 4, 4, 256)', 'KeyDown(-1)', 'SetTileSet(70000)'));
     expect(f.map((x) => x.rule)).toEqual(['CB007', 'CB007', 'CB007']);
@@ -143,7 +146,7 @@ describe('CB007 literal out of range', () => {
   });
 });
 
-describe('CB008 Spectrum-only modules under a CPC target', () => {
+d('CB008 Spectrum-only modules under a CPC target', () => {
   it('positive', () => {
     const f = run(src('#include <print42.bas>', '#include once <attr.bas>'), { arch: 'cpc' });
     expect(f.map((x) => x.rule)).toEqual(['CB008', 'CB008']);
@@ -157,7 +160,7 @@ describe('CB008 Spectrum-only modules under a CPC target', () => {
   });
 });
 
-describe('CB009 sprite sizes', () => {
+d('CB009 sprite sizes', () => {
   it('positive: 0, above 255, SprListDraw above 8', () => {
     const f = run(src('PutSprite(0, 0, 0, 8, @s)', 'PutSpriteMasked(0, 0, 4, 256, @s)', 'GetBlock(0, 0, 0, 1, @b)', 'SprListDraw(1, 2, 9, 8, @s)'));
     expect(f.map((x) => x.rule)).toEqual(['CB009', 'CB009', 'CB009', 'CB009']);
@@ -168,7 +171,7 @@ describe('CB009 sprite sizes', () => {
   });
 });
 
-describe('CB011 #if defined()', () => {
+d('CB011 #if defined()', () => {
   it('positive: #if, #elif, with || and a space', () => {
     const f = run(src('#if defined(A) || defined(B)', '#endif', '#if defined (A)', '#endif'));
     expect(f.map((x) => x.rule)).toEqual(['CB011', 'CB011']);
@@ -180,7 +183,7 @@ describe('CB011 #if defined()', () => {
   });
 });
 
-describe('shadowing, includes and lines', () => {
+d('shadowing, includes and lines', () => {
   it('a user routine with a library name silences every rule on it', () => {
     expect(ids(src('FUNCTION KeyDown(k AS UBYTE) AS UBYTE', 'RETURN 0', 'END FUNCTION', 'x = KeyDown(300)'))).toEqual([]);
     expect(ids(src('x = KeyDown(300)'), { userNames: new Set(['keydown']) })).toEqual([]);
@@ -196,7 +199,7 @@ describe('shadowing, includes and lines', () => {
  * deliberate edge-case conformance tests, which feed the library out-of-range values on purpose
  * (so the lint is right about them; the tests are about the library's handling).
  */
-describe('corpus: the repo programs', () => {
+d('corpus: the repo programs', () => {
   const deliberate: Record<string, RuleId[]> = {
     'tests/conformance/cb_fill.bas': ['CB007'], // PenByte(3) in mode 2: the masking test
     'tests/conformance/cb_palette.bas': ['CB007', 'CB007', 'CB007'], // SetInk(16,..), SetInk(1,30), SetBorder(40): the "ignored" tests

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT OR GPL-3.0-or-later -- interface contract shared by cpcbuild-studio and cpcbuild-emu
 /**
  * emuApi.ts -- the cpcbuild.emu.* command contract, API version 1
  * (docs/phase8-design.md section 2). Types only.

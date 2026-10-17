@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { findZxbasic, warnNoZxbasic } from './testutil';
 import { mask } from './bastok';
 import { callAt, describeRoutine, paramRanges } from './libhover';
 import { indexDocs, sectionFor, slugify } from './libdocs';
@@ -8,8 +9,10 @@ import { libraryFiles, loadIndex, stdlibDirOf, stdlibFiles } from './libfs';
 import { buildIndex, LibIndex, parseParams } from './libindex';
 
 const REPO = path.resolve(__dirname, '../../../..');
-const ZXBASIC = process.env.ZXBASIC ?? '/Users/barry/RetroDev/Amstrad/zxbasic';
-const stdlib = stdlibDirOf(ZXBASIC);
+const ZXBASIC = findZxbasic(REPO);
+warnNoZxbasic(ZXBASIC);
+const d = ZXBASIC ? describe : describe.skip;
+const stdlib = (ZXBASIC ? stdlibDirOf(ZXBASIC) : undefined);
 const lib = loadIndex(REPO);
 const both: LibIndex = loadIndex(REPO, stdlib);
 
@@ -23,7 +26,7 @@ function oracle(file: string): string[] {
   return [...names].sort();
 }
 
-describe('library index: counts per file', () => {
+d('library index: counts per file', () => {
   const expected: Record<string, number> = {
     'cpcbuild/banks.bas': 9,
     'cpcbuild/display.bas': 7,
@@ -63,7 +66,7 @@ describe('library index: counts per file', () => {
   });
 });
 
-describe('library index: entries', () => {
+d('library index: entries', () => {
   it('PutSprite', () => {
     const r = lib.byName.get('putsprite')![0];
     expect(r).toMatchObject({
@@ -141,7 +144,7 @@ describe('library index: entries', () => {
   });
 });
 
-describe('parseParams / buildIndex edge cases', () => {
+d('parseParams / buildIndex edge cases', () => {
   it('byval, defaults, empty', () => {
     expect(parseParams('byval row as ubyte, col as ubyte = 3')).toEqual([
       { name: 'row', type: 'UBYTE' },
@@ -190,7 +193,7 @@ describe('parseParams / buildIndex edge cases', () => {
   });
 });
 
-describe('docs mapping', () => {
+d('docs mapping', () => {
   const md = fs.readFileSync(path.join(REPO, 'docs/library.md'), 'utf8');
   const docs = indexDocs(md);
   it('slugs follow GitHub rules', () => {
@@ -218,7 +221,7 @@ describe('docs mapping', () => {
   });
 });
 
-describe('call parsing for signature help', () => {
+d('call parsing for signature help', () => {
   it('finds the call and the argument index', () => {
     expect(callAt('x = PutSprite(1, 2, ')).toEqual({ name: 'PutSprite', active: 2 });
     expect(callAt('PutSprite(Foo(1, 2), ')).toEqual({ name: 'PutSprite', active: 1 });

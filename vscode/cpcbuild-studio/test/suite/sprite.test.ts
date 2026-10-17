@@ -49,7 +49,7 @@ test('sprite: a .cpcspr opens in the editor, webview ready, no webview error', a
   const uri = put('hero.cpcspr', serialiseSprite(sprite('hero')));
   const { doc } = await openSpr(uri);
   assert.strictEqual(doc.state.name, 'hero');
-  await new Promise((r) => setTimeout(r, 600));
+  await waitFor('the first render', () => doc.renderedCount > 0);
   assert.deepStrictEqual(doc.webviewErrors, []);
   await closeClean();
 });

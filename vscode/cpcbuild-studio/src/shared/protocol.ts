@@ -36,6 +36,8 @@ export type RequestMap<R> = { [K in keyof R]: { args: unknown; result: unknown }
 
 export type WebToHost<R extends RequestMap<R>> =
   | { type: 'ready' }
+  /** The first view (or the fatal state) is on screen without a render error: the smoke tests wait on this. */
+  | { type: 'rendered' }
   /** An uncaught error in the webview; the host logs it and counts it (the smoke test). */
   | { type: 'error'; message: string }
   | { [K in keyof R & string]: { type: 'request'; id: number; name: K; args: R[K]['args'] } }[keyof R & string];

@@ -14,8 +14,11 @@ import {
 } from '../core/spriteDoc';
 import { assetSnippets, equivalentCommand, exportAsset, gridFromImage, renderSheet, type HeaderStyle } from '../core/spriteExport';
 import type { SpriteRequests, SpriteView, GenerateResult } from '../shared/spriteProtocol';
+import { insideRootFrom } from '../core/paths';
 import { getChannel } from './channel';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
+import { NOT_IN_PROJECT, projectRootOf, viewRootOf } from './importer';
+import { isTrusted, restrictedText } from './trust';
 
 export const SPRITE_VIEW_TYPE = 'cpcbuild.spriteEditor';
 export const TILE_VIEW_TYPE = 'cpcbuild.tileEditor';
@@ -39,9 +42,23 @@ interface Aux {
 const dirOf = (uri: vscode.Uri): vscode.Uri => vscode.Uri.joinPath(uri, '..');
 const stemOf = (uri: vscode.Uri): string => path.posix.basename(uri.path).replace(/\.[^.]*$/, '');
 
-/** A path as written in a document (posix, relative to the document, or absolute). */
+/**
+ * A path as written in a document (posix, relative to the document). It must stay inside the project
+ * folder (the nearest cpcbuild.json above, else the document's own folder): absolute paths, `..` out and
+ * symlinks that leave throw PathEscapeError, whose message is the document problem to show.
+ */
 export function resolveRel(doc: vscode.Uri, rel: string): vscode.Uri {
-  return path.isAbsolute(rel) ? vscode.Uri.file(rel) : vscode.Uri.joinPath(dirOf(doc), ...rel.split(/[\\/]/));
+  if (doc.scheme !== 'file') return vscode.Uri.joinPath(dirOf(doc), ...rel.split(/[\\/]/));
+  return vscode.Uri.file(insideRootFrom(viewRootOf(doc.fsPath), path.dirname(doc.fsPath), rel));
+}
+
+/** resolveRel for reads: undefined when the path leaves the project (the file then reads as missing). */
+export function resolveRelSafe(doc: vscode.Uri, rel: string): vscode.Uri | undefined {
+  try {
+    return resolveRel(doc, rel);
+  } catch {
+    return undefined;
+  }
 }
 
 export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, SpriteOp, SpriteView> {
@@ -123,9 +140,9 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
   }
 
   private async loadPalette(doc: Doc, a: Aux, rel: string): Promise<void> {
-    const uri = resolveRel(doc.uri, rel);
-    this.watch(doc, uri, () => void this.loadPalette(doc, a, rel));
-    const text = await this.readText(uri);
+    const uri = resolveRelSafe(doc.uri, rel);
+    if (uri) this.watch(doc, uri, () => void this.loadPalette(doc, a, rel));
+    const text = uri ? await this.readText(uri) : undefined;
     if (a.palPath !== rel) return; // the document moved on
     a.palText = text;
     a.palLoaded = true;
@@ -153,9 +170,9 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
   }
 
   private async loadOutput(doc: Doc, a: Aux, rel: string): Promise<void> {
-    const uri = resolveRel(doc.uri, rel);
-    this.watch(doc, uri, () => void this.loadOutput(doc, a, rel));
-    const text = await this.readText(uri);
+    const uri = resolveRelSafe(doc.uri, rel);
+    if (uri) this.watch(doc, uri, () => void this.loadOutput(doc, a, rel));
+    const text = uri ? await this.readText(uri) : undefined;
     if (a.outPath !== rel) return;
     a.outText = text ?? null;
     this.broadcast(doc);
@@ -222,6 +239,8 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
 
   /** Writes the generated file (and the .pal beside a Plus .bin). Throws with the exporter's message. */
   async generateDoc(doc: Doc): Promise<GenerateResult> {
+    if (!isTrusted()) throw new Error(restrictedText('Generate'));
+    if (!projectRootOf(doc.uri.fsPath)) throw new Error(`${path.basename(doc.uri.fsPath)} is ${NOT_IN_PROJECT}`);
     const a = this.auxOf(doc);
     this.syncPalette(doc, a);
     // a palette file may still be loading: wait for it
@@ -230,7 +249,7 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
     const pal = this.palette(doc, a);
     if (pal.loading) throw new Error('the palette file is still loading; try again');
     const ex = exportAsset(s, { source: path.posix.basename(doc.uri.path), header: this.headerStyle(doc), palette: pal });
-    const out = resolveRel(doc.uri, s.output);
+    const out = resolveRel(doc.uri, s.output); // throws if the output leaves the project
     await vscode.workspace.fs.createDirectory(dirOf(out));
     const written: string[] = [];
     if (ex.bin) {
@@ -266,6 +285,8 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
   }
 
   protected async afterSave(doc: Doc): Promise<void> {
+    // generate-on-save writes files and may read a palette: only in a trusted workspace and a CPCBuild project
+    if (!isTrusted() || !projectRootOf(doc.uri.fsPath)) return this.broadcast(doc);
     if (vscode.workspace.getConfiguration('cpcbuild.assets', doc.uri).get<boolean>('generateOnSave', true)) await this.generateAndReport(doc);
     else this.broadcast(doc);
   }
@@ -289,7 +310,8 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
         return this.inlinePalette(doc, args as SpriteRequests['inlinePalette']['args']);
       case 'openPalette': {
         const p = doc.state.palette;
-        if ('file' in p) await vscode.commands.executeCommand('vscode.openWith', resolveRel(doc.uri, p.file), PALETTE_VIEW_TYPE);
+        const pu = 'file' in p ? resolveRelSafe(doc.uri, p.file) : undefined;
+        if (pu) await vscode.commands.executeCommand('vscode.openWith', pu, PALETTE_VIEW_TYPE);
         return { ok: true };
       }
       case 'importPng':
@@ -311,7 +333,7 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
       if (!text) continue;
       try {
         const file = (JSON.parse(text) as { palette?: { file?: unknown } }).palette?.file;
-        if (typeof file === 'string' && resolveRel(f, file).toString() === target.toString()) n++;
+        if (typeof file === 'string' && resolveRelSafe(f, file)?.toString() === target.toString()) n++;
       } catch {
         // not ours to judge
       }
@@ -336,12 +358,13 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
       if (!picked) return { used: false };
       rel = path.relative(dirOf(doc.uri).fsPath, picked.fsPath).split(path.sep).join('/');
     }
-    const text = await this.readText(resolveRel(doc.uri, rel));
+    const palUri = resolveRel(doc.uri, rel); // a path outside the project throws with its reason
+    const text = await this.readText(palUri);
     if (text === undefined) throw new Error(`${rel} could not be read`);
     const r = resolvePalette({ kind: s.kind, palette: { file: rel } }, text);
     if (r.problem) throw new Error(r.problem);
     if (s.kind === 'cpc' && r.pens && r.pens.length > MAXPENS[s.mode]) throw new Error(`palette has ${r.pens.length} pens, mode ${s.mode} has ${MAXPENS[s.mode]}`);
-    const others = await this.otherUsers(doc, resolveRel(doc.uri, rel));
+    const others = await this.otherUsers(doc, palUri);
     const emit = others > 0 ? false : undefined;
     this.commit(doc, { op: 'setPaletteFile', file: rel, emitPalette: emit });
     return {
@@ -441,7 +464,7 @@ export async function insertAssetUse(ed: SpriteEditors, uri?: vscode.Uri): Promi
   const text = Buffer.from(await vscode.workspace.fs.readFile(target)).toString('utf8');
   const state = open?.doc.state ?? provider.parse(text, target);
   const code = vscode.window.visibleTextEditors.find((e) => /\.(bas|zxb|zxbas)$/i.test(e.document.fileName)) ?? vscode.window.visibleTextEditors.find((e) => e.document.uri.scheme === 'file' && !SPRITE_FILE.test(e.document.fileName));
-  const outAbs = resolveRel(target, state.output).fsPath;
+  const outAbs = (resolveRelSafe(target, state.output) ?? vscode.Uri.joinPath(dirOf(target), 'invalid-output-path')).fsPath;
   const rel = code ? path.relative(path.dirname(code.document.uri.fsPath), outAbs).split(path.sep).join('/') : state.output;
   const snips = assetSnippets(state, rel);
   const insert = snips.map((x) => x.text).join('');

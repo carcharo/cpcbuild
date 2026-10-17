@@ -11,6 +11,7 @@ async function main(): Promise<void> {
   const extensionTestsPath = path.resolve(__dirname, './suite/index');
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcemu-ws-'));
   process.env.CPCEMU_MEDIA = path.join(extensionDevelopmentPath, 'test', '.media');
+  process.env.CPCEMU_TEST_HOOKS = '1'; // registers cpcbuild.emu._probeAudio (never in a packaged run)
   process.env.CPCEMU_LOG ??= path.join(os.tmpdir(), 'cpcemu-test.log');
   fs.rmSync(process.env.CPCEMU_LOG, { force: true });
   // a short user-data dir: the default under .vscode-test is too long for the IPC socket in a deep checkout

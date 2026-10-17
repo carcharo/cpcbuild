@@ -16,7 +16,9 @@ import { ARKOS_MISSING, convertMusic, findArkosTools, MusicConvertOptions, previ
 import { buildTarget } from './build';
 import { channelSink, getChannel, tee } from './channel';
 import { absFrom, readSettings, resolveLibrary, Settings } from './config';
-import { projectRootOf } from './importer';
+import { NOT_IN_PROJECT, projectRootOf } from './importer';
+import { notifyUntrusted, isTrusted, restrictedText } from './trust';
+import { killTree } from './runTool';
 import { runInEmulator } from './run';
 
 const MUSIC_EXTS = /\.(aks|vt2)$/i;
@@ -75,7 +77,17 @@ export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): 
   const quiet = a.quiet === true;
   const uri = await pickMusicFile(arg, quiet, false);
   if (!uri) return undefined;
+  const failEarly = (error: string): MusicConvertOutcome => {
+    getChannel().appendLine(`Convert Music failed: ${error}`);
+    if (!quiet) void vscode.window.showErrorMessage(`CPCBuild: ${error}`);
+    return { ok: false, output: '', name: '', argv: [], error };
+  };
+  if (!isTrusted()) {
+    notifyUntrusted('Convert Music');
+    return failEarly(restrictedText('Convert Music'));
+  }
   const root = projectRootOf(uri.fsPath);
+  if (!root) return failEarly(`${path.basename(uri.fsPath)} is ${NOT_IN_PROJECT}`);
   const s = readSettings(root);
   const opts: MusicConvertOptions = { name: a.name, sfx: a.sfx, subsongs: a.subsongs, psg: a.psg, at: a.at, bin: a.bin, output: a.output };
   if (opts.sfx === undefined && !quiet) {
@@ -113,6 +125,8 @@ interface Playing {
   used?: string;
   session?: string;
   pid?: number;
+  /** True while the process Studio started is still running. */
+  alive?: () => boolean;
 }
 let current: Playing | undefined;
 
@@ -150,7 +164,12 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
     if (!quiet) void vscode.window.showErrorMessage(`CPCBuild: ${error}`);
     return { ok: false, error };
   };
+  if (!isTrusted()) {
+    notifyUntrusted('Play Music');
+    return fail(restrictedText('Play Music'));
+  }
   const root = projectRootOf(uri.fsPath);
+  if (!root) return fail(`${path.basename(uri.fsPath)} is ${NOT_IN_PROJECT}`);
   const s = readSettings(root);
   const library = resolveLibrary(root, s);
   if (!library) return fail('the cpcbuild library was not found. Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/).');
@@ -191,7 +210,7 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
   await stopCurrent(false);
   const out = await runInEmulator(root, b.run, sink, s, library);
   if (!out.ok) return fail(out.message ?? 'the emulator could not be started');
-  current = { dsk: b.run.file, used: out.used, session: out.session, pid: out.pid };
+  current = { dsk: b.run.file, used: out.used, session: out.session, pid: out.pid, alive: out.alive };
   if (!quiet) void vscode.window.showInformationMessage(`CPCBuild: playing ${plan.name} (${out.used}). ESC or "CPCBuild: Stop Music" ends it.`);
   return { ok: true, dsk: b.run.file, program: posix(path.relative(root, path.join(dir, 'preview.bas'))), used: out.used, session: out.session, plan };
 }
@@ -207,26 +226,26 @@ async function stopCurrent(report: boolean): Promise<MusicStopOutcome> {
   current = undefined;
   if (!c) return { stopped: false, how: 'nothing-to-stop' };
   if (c.session) {
-    const cmds = await vscode.commands.getCommands(true);
-    if (cmds.includes('cpcbuild.emu.reset')) {
-      const r = await vscode.commands.executeCommand<unknown | EmuError>('cpcbuild.emu.reset', { session: c.session });
-      if (r && typeof r === 'object' && 'error' in r) {
-        if (report) void vscode.window.showWarningMessage(`CPCBuild: could not reset the emulator: ${(r as EmuError).error}`);
-        return { stopped: false, error: (r as EmuError).error };
-      }
-      return { stopped: true, how: 'reset' };
+    let r: unknown | EmuError;
+    let reached = true;
+    try {
+      r = await vscode.commands.executeCommand<unknown | EmuError>('cpcbuild.emu.reset', { session: c.session });
+    } catch {
+      reached = false; // the emulator extension is gone: nothing to reset
     }
-  }
-  if (c.pid) {
-    for (const target of [-c.pid, c.pid]) {
-      try {
-        process.kill(target, 'SIGTERM');
-        return { stopped: true, how: 'killed' };
-      } catch {
-        /* already gone, or not a group leader: try the next */
-      }
+    if (r && typeof r === 'object' && 'error' in r) {
+      if (report) void vscode.window.showWarningMessage(`CPCBuild: could not reset the emulator: ${(r as EmuError).error}`);
+      return { stopped: false, error: (r as EmuError).error };
     }
+    if (reached) return { stopped: true, how: 'reset' };
   }
+  // an external emulator: only the process we started, and only while it still runs (a bare pid can be reused)
+  if (c.pid && c.alive?.()) {
+    const pid = c.pid;
+    killTree(pid, { kill: (sig) => process.kill(pid, sig) }, 'SIGTERM');
+    return { stopped: true, how: 'killed' };
+  }
+  if (c.pid) return { stopped: true, how: 'nothing-to-stop' };
   return { stopped: true, how: 'killed' };
 }
 

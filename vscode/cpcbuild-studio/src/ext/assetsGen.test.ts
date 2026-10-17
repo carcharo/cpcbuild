@@ -140,3 +140,29 @@ describe('header modes and failures', () => {
     expect(text).toContain('10 frame(s)');
   });
 });
+
+describe('path containment (recipe-supplied paths)', () => {
+  const r = (): Recipe => argvToRecipe(committed().find(([f]) => f.endsWith('spr1.bas'))![1]).recipe;
+  it('refuses ../, absolute and symlink-escaping outputs and sources on both engines, writing nothing', async () => {
+    const outside = scratchDir('assetsgen-outside-');
+    fs.symlinkSync(outside, path.join(root, 'escape'));
+    const cases: [string, Recipe][] = [
+      ['../evil.bas', { ...r(), output: '../evil.bas' }],
+      ['/tmp/evil.bas', { ...r(), output: path.join(outside, 'abs.bas') }],
+      ['symlink', { ...r(), output: 'escape/evil.bas' }],
+      ['source', { ...r(), source: '../../etc/hosts' }],
+      ['palette', { ...r(), writePalette: '../p.pal' }],
+    ];
+    for (const engine of ['builtin', 'python'] as const) {
+      for (const [name, rec] of cases) {
+        const res = await generate(root, 'assets/x.cpcimp', rec, settings({ engine }));
+        expect(res.ok, `${engine} ${name}`).toBe(false);
+        expect(res.error, `${engine} ${name}`).toMatch(/assets\/x\.cpcimp: ".*" (is outside|is an absolute|leads outside)/);
+      }
+    }
+    expect(fs.readdirSync(outside)).toEqual([]);
+    expect(fs.existsSync(path.join(root, '..', 'evil.bas'))).toBe(false);
+    fs.rmSync(path.join(root, 'escape'));
+    fs.rmSync(outside, { recursive: true, force: true });
+  });
+});

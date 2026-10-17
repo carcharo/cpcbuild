@@ -3,7 +3,14 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import type { StudioApi } from '../../src/ext/activate';
 import { test, waitFor } from './harness';
+
+async function api(): Promise<StudioApi> {
+  const ext = vscode.extensions.getExtension<StudioApi>('cpcbuild.cpcbuild-studio');
+  if (!ext) throw new Error('extension not found');
+  return ext.isActive ? ext.exports : ext.activate();
+}
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 
@@ -118,7 +125,8 @@ test('outside a cpcbuild project: no diagnostics and no hover or completion from
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-outside-'));
   try {
     const doc = await openSource(path.join(dir, 'nextbuild.bas'));
-    await new Promise((r) => setTimeout(r, 1500)); // longer than the lint debounce
+    const a = await api();
+    await waitFor('the lint pass to run (and find nothing to report)', () => a.lintRuns(doc.uri) > 0);
     assert.deepStrictEqual(ownDiagnostics(doc.uri), []);
     const hs = (await vscode.commands.executeCommand('vscode.executeHoverProvider', doc.uri, new vscode.Position(4, 3))) as vscode.Hover[];
     assert.ok(!hs.map(textOf).join('\n').includes('PutSprite'), 'no Studio hover');

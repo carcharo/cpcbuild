@@ -70,7 +70,7 @@ test('importer: Import Image writes assets/<stem>.cpcimp, opens it, renders with
   await waitFor('webview ready', () => doc.readyCount > 0);
   // the webview asked for the picture and the converter's answer
   await waitFor('source and preview requests', () => a.importer.requestLog.includes('sourceImage') && a.importer.requestLog.includes('preview'));
-  await new Promise((res) => setTimeout(res, 400));
+  await waitFor('the first render', () => doc.renderedCount > 0);
   assert.deepStrictEqual(doc.webviewErrors, []);
   // importing again opens the existing recipe and does not overwrite it
   fs.writeFileSync(uri.fsPath, serialiseRecipe({ ...doc.state, name: 'kept' }));

@@ -9,10 +9,12 @@ import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { generateTemplate } from '../src/core/templates';
+import { findZxbasic } from '../src/core/testutil';
 
 function makeWorkspace(extRoot: string): string {
   const repo = path.resolve(extRoot, '..', '..');
-  const zxbasic = process.env.ZXBASIC ?? '/Users/barry/RetroDev/Amstrad/zxbasic';
+  const zxbasic = findZxbasic(extRoot);
+  if (!zxbasic) throw new Error('the zxbasic checkout was not found: set ZXBASIC, or put it next to the cpcbuild checkout (../zxbasic)');
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-int-'));
   for (const [rel, text] of Object.entries(generateTemplate('firmware', { name: 'tplfw' }).files)) {
     const f = path.join(ws, rel);
@@ -47,7 +49,7 @@ async function main(): Promise<void> {
     await runTests({
       extensionDevelopmentPath: [studio, emu],
       extensionTestsPath: path.resolve(__dirname, './integration/index'),
-      launchArgs: [ws, '--disable-extensions', `--user-data-dir=${userData}`],
+      launchArgs: [ws, '--disable-extensions', '--disable-workspace-trust', `--user-data-dir=${userData}`],
     });
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });

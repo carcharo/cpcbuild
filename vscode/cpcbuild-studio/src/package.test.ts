@@ -55,7 +55,9 @@ describe('package.json contributions', () => {
   });
   it('language icons and the icon theme point at existing SVGs', () => {
     const ids = c.languages.map((l: { id: string }) => l.id);
-    for (const id of ['cpcbuild-dsk', 'cpcbuild-cdt', 'cpcbuild-cpr']) expect(ids).toContain(id);
+    // .dsk/.cdt/.cpr belong to other Amstrad extensions: Studio gives them icons through the theme only, no language claim
+    for (const id of ['cpcbuild-dsk', 'cpcbuild-cdt', 'cpcbuild-cpr']) expect(ids).not.toContain(id);
+    for (const l of c.languages) for (const e of l.extensions) expect(['.dsk', '.cdt', '.cpr']).not.toContain(e);
     for (const l of c.languages) {
       expect(l.extensions.length).toBeGreaterThan(0);
       expect(exists(l.icon.light)).toBe(true);
@@ -73,5 +75,20 @@ describe('package.json contributions', () => {
       expect(t.startsWith('<svg')).toBe(true);
       expect(t).not.toMatch(/<script|<image|href=/);
     }
+  });
+
+  it('limits itself in untrusted workspaces: every setting that names a program or path is restricted', () => {
+    const u = pkg.capabilities.untrustedWorkspaces;
+    expect(u.supported).toBe('limited');
+    expect(u.description).toBeTruthy();
+    const keys = Object.keys(c.configuration.properties);
+    const restricted: string[] = u.restrictedConfigurations;
+    for (const k of restricted) expect(keys).toContain(k);
+    const namesProgramOrPath = keys.filter((k) => /(command|cwd|path|args|outputDir|engine)$/i.test(k));
+    expect(namesProgramOrPath.length).toBeGreaterThan(8);
+    for (const k of namesProgramOrPath) expect(restricted, k).toContain(k);
+  });
+  it('explorer and editor-title menus only show inside a CPCBuild project', () => {
+    for (const m of [...c.menus['explorer/context'], ...c.menus['editor/title']]) expect(m.when, m.command).toMatch(/^cpcbuild\.inProject && /);
   });
 });

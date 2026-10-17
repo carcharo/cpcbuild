@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { MemoryModel, pageBase, toBase64, WINDOW_BYTES, BYTES_PER_ROW } from '../core/memdiff';
 import { hex4 } from '../core/map';
 import { describeAddress, resolveTarget } from '../core/symbols';
-import type { MemEmpty, MemHostMsg, MemSnapshot, MemStatus, MemWebMsg } from '../shared/memoryProtocol';
+import { parseMemWebMsg, type MemEmpty, type MemHostMsg, type MemSnapshot, type MemStatus, type MemWebMsg } from '../shared/memoryProtocol';
 import { DebugController } from './debug';
 import { isError } from './emuClient';
 import { webviewHtml, webviewRoot } from './webviewHtml';
@@ -87,19 +87,25 @@ export class MemoryView implements vscode.Disposable {
     this.panel = panel;
     this.ready = false;
     panel.webview.html = webviewHtml(vscode, panel.webview, this.ctx.extensionUri, 'memory', 'CPC Memory');
-    panel.webview.onDidReceiveMessage((m: MemWebMsg) => void this.onMessage(m), undefined, this.subs);
-    panel.onDidChangeViewState((e) => e.webviewPanel.visible && void this.refresh(), undefined, this.subs);
+    // listeners live as long as this panel, not as long as the view: reopening must not accumulate them
+    const mine: vscode.Disposable[] = [];
+    mine.push(
+      panel.webview.onDidReceiveMessage((raw: unknown) => void this.onMessage(parseMemWebMsg(raw))),
+      panel.onDidChangeViewState((e) => e.webviewPanel.visible && void this.refresh()),
+    );
     panel.onDidDispose(() => {
+      mine.forEach((d) => d.dispose());
       this.panel = undefined;
       this.ready = false;
-    }, undefined, this.subs);
+    });
   }
 
   private post(m: MemHostMsg): void {
     if (this.panel && this.ready) void this.panel.webview.postMessage(m);
   }
 
-  private async onMessage(m: MemWebMsg): Promise<void> {
+  private async onMessage(m: MemWebMsg | undefined): Promise<void> {
+    if (!m) return; // not a message this view understands
     switch (m.type) {
       case 'ready':
         this.ready = true;
@@ -124,7 +130,7 @@ export class MemoryView implements vscode.Disposable {
         await this.refresh();
         break;
       case 'control':
-        await vscode.commands.executeCommand(`cpcbuild.debug.${m.cmd}`);
+        await vscode.commands.executeCommand(`cpcbuild.debug.${m.cmd}`); // m.cmd is one of the five names (parseMemWebMsg)
         break;
       case 'command':
         if (ALLOWED.has(m.command)) await vscode.commands.executeCommand(m.command, m.command === 'workbench.extensions.search' ? '@id:cpcbuild.cpcbuild-emu' : undefined);

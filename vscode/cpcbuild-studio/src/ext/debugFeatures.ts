@@ -26,6 +26,8 @@ export interface DebugApi {
   breakpoints(): BreakpointRec[];
   symbols(): SymbolTable | undefined;
   reloadSymbols(): Promise<void>;
+  /** The one map file the symbol source watches (the active target's), if any. */
+  watchedMap(): string | undefined;
   /** The memory view model: moves the window (address or symbol), reads, returns the snapshot. */
   memoryShow(arg: ShowArgs | string): Promise<MemSnapshot | undefined>;
   memorySnapshot(): MemSnapshot | undefined;
@@ -61,6 +63,7 @@ export function registerDebugFeatures(context: vscode.ExtensionContext, reg: (id
     breakpoints: () => ctl.breakpoints(),
     symbols: () => ctl.symbols.table,
     reloadSymbols: () => ctl.symbols.reload(),
+    watchedMap: () => ctl.symbols.watchedMap,
     memoryShow: (arg) => memory.show(arg),
     memorySnapshot: () => memory.snapshot,
     memoryStats: () => memory.stats,

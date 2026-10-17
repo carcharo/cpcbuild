@@ -332,6 +332,14 @@ async function handle(r: HostRequest): Promise<unknown> {
 }
 const STEPPING = Symbol('answered later');
 
+/** Requests run one at a time, in arrival order: an `open` that is still loading must not interleave with a `readMemory` or `step`. */
+let queue: Promise<unknown> = Promise.resolve();
+function enqueue<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(job, job);
+  queue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
 window.addEventListener('message', (ev: MessageEvent) => {
   const m = ev.data as (HostRequest & { kind?: undefined }) | HostNotice;
   if ('kind' in m && m.kind) {
@@ -352,14 +360,14 @@ window.addEventListener('message', (ev: MessageEvent) => {
     return;
   }
   const req = m as HostRequest;
-  handle(req).then(
+  void enqueue(() => handle(req)).then(
     (result) => { if (result !== STEPPING) post({ kind: 'response', id: req.id, ok: true, result }); },
     (err: unknown) => { stepping = null; post({ kind: 'response', id: req.id, ok: false, error: err instanceof Error ? err.message : String(err) }); },
   );
 });
 
 // ---- toolbar and keyboard ----
-const ui = (type: 'reset' | 'pause' | 'resume'): void => { handle({ id: -1, type }).catch((e: unknown) => post({ kind: 'log', text: String(e) })); };
+const ui = (type: 'reset' | 'pause' | 'resume'): void => { enqueue(() => handle({ id: -1, type })).catch((e: unknown) => post({ kind: 'log', text: String(e) })); };
 btnReset.addEventListener('click', () => { if (M) ui('reset'); });
 btnPause.addEventListener('click', () => {
   if (M) ui(ex.emu_stopped() ? 'resume' : 'pause');

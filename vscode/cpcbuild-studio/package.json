@@ -15,6 +15,29 @@
   "activationEvents": [
     "workspaceContains:**/cpcbuild.json"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In Restricted Mode the palette, sprite, tile and map editors, the image importer and the symbol views open, but nothing that starts a program runs: Build, Run, Regenerate Assets and generate-on-save, Convert and Play Music, Open in Tiled and the tool checks of Check Environment. Settings that name programs or paths (compiler, Python, library, emulators, Arkos, Tiled) and the \"library\" field of cpcbuild.json are ignored until the workspace is trusted.",
+      "restrictedConfigurations": [
+        "cpcbuild.zxbc.command",
+        "cpcbuild.zxbc.cwd",
+        "cpcbuild.zxbc.args",
+        "cpcbuild.python.path",
+        "cpcbuild.library.path",
+        "cpcbuild.build.outputDir",
+        "cpcbuild.run.caprice32Path",
+        "cpcbuild.run.cpcecPath",
+        "cpcbuild.run.rvmPath",
+        "cpcbuild.run.customCommand",
+        "cpcbuild.run.autorunCommand",
+        "cpcbuild.assets.engine",
+        "cpcbuild.arkos.toolsPath",
+        "cpcbuild.arkos.trackerPath",
+        "cpcbuild.tiled.path"
+      ]
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -308,74 +331,74 @@
       "explorer/context": [
         {
           "command": "cpcbuild.runFile",
-          "when": "resourceExtname =~ /^\\.(dsk|cpr|bin)$/",
+          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|cpr|bin)$/",
           "group": "navigation@90"
         },
         {
           "command": "cpcbuild.importImage",
-          "when": "resourceExtname =~ /^\\.(png|gif|bmp)$/",
+          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(png|gif|bmp)$/",
           "group": "navigation@90"
         },
         {
           "command": "cpcbuild.tmx.generate",
-          "when": "resourceExtname == .tmx",
+          "when": "cpcbuild.inProject && resourceExtname == .tmx",
           "group": "navigation@91"
         },
         {
           "command": "cpcbuild.openInTiled",
-          "when": "resourceExtname == .tmx",
+          "when": "cpcbuild.inProject && resourceExtname == .tmx",
           "group": "navigation@92"
         },
         {
           "command": "cpcbuild.music.convert",
-          "when": "resourceExtname =~ /^\\.(aks|vt2)$/",
+          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(aks|vt2)$/",
           "group": "navigation@91"
         },
         {
           "command": "cpcbuild.music.play",
-          "when": "resourceExtname =~ /^\\.(aks|vt2)$/",
+          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(aks|vt2)$/",
           "group": "navigation@92"
         }
       ],
       "editor/title": [
         {
           "command": "cpcbuild.openAsText",
-          "when": "activeCustomEditorId == cpcbuild.paletteEditor",
+          "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.paletteEditor",
           "group": "navigation@90"
         },
         {
           "command": "cpcbuild.openAsText",
-          "when": "activeCustomEditorId == cpcbuild.importer",
+          "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.importer",
           "group": "navigation@90"
         },
         {
           "command": "cpcbuild.tmx.generate",
-          "when": "activeCustomEditorId == cpcbuild.tmxViewer",
+          "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.tmxViewer",
           "group": "navigation@10"
         },
         {
           "command": "cpcbuild.openInTiled",
-          "when": "activeCustomEditorId == cpcbuild.tmxViewer",
+          "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.tmxViewer",
           "group": "navigation@20"
         },
         {
           "command": "cpcbuild.openAsText",
-          "when": "activeCustomEditorId == cpcbuild.tmxViewer",
+          "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.tmxViewer",
           "group": "navigation@90"
         },
         {
           "command": "cpcbuild.generateAssetFile",
-          "when": "activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor",
+          "when": "cpcbuild.inProject && (activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor)",
           "group": "navigation@10"
         },
         {
           "command": "cpcbuild.insertAssetUse",
-          "when": "activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor",
+          "when": "cpcbuild.inProject && (activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor)",
           "group": "navigation@20"
         },
         {
           "command": "cpcbuild.openAsText",
-          "when": "activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor",
+          "when": "cpcbuild.inProject && (activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor)",
           "group": "navigation@90"
         }
       ],
@@ -762,45 +785,6 @@
     ],
     "languages": [
       {
-        "id": "cpcbuild-dsk",
-        "extensions": [
-          ".dsk"
-        ],
-        "aliases": [
-          "Amstrad disc image"
-        ],
-        "icon": {
-          "light": "./media/icons/dsk.svg",
-          "dark": "./media/icons/dsk.svg"
-        }
-      },
-      {
-        "id": "cpcbuild-cdt",
-        "extensions": [
-          ".cdt"
-        ],
-        "aliases": [
-          "Amstrad tape image"
-        ],
-        "icon": {
-          "light": "./media/icons/cdt.svg",
-          "dark": "./media/icons/cdt.svg"
-        }
-      },
-      {
-        "id": "cpcbuild-cpr",
-        "extensions": [
-          ".cpr"
-        ],
-        "aliases": [
-          "CPC Plus cartridge"
-        ],
-        "icon": {
-          "light": "./media/icons/cpr.svg",
-          "dark": "./media/icons/cpr.svg"
-        }
-      },
-      {
         "id": "cpcbuild-sprite",
         "extensions": [
           ".cpcspr"
@@ -923,7 +907,7 @@
     "test:unit": "vitest run",
     "test:vscode": "npm run build && npm run build:test && node out/test/runTest.js",
     "test": "npm run test:unit && npm run test:vscode",
-    "package": "npm run build && vsce package",
+    "package": "npm run build && vsce package --allow-missing-repository",
     "test:integration": "npm run build && npm run build:test && node out/test/runIntegration.js"
   },
   "devDependencies": {

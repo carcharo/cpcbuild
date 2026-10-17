@@ -85,7 +85,12 @@ export class Session {
 
   /** Sends a request once the page is up and waits for its answer. */
   async request<T = unknown>(body: Body, timeoutMs = 10000): Promise<T> {
-    await Promise.race([this.ready, new Promise<void>((_, rej) => setTimeout(() => rej(new Error('the emulator page did not start')), 20000))]);
+    let startTimer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([this.ready, new Promise<void>((_, rej) => { startTimer = setTimeout(() => rej(new Error('the emulator page did not start')), 20000); })]);
+    } finally {
+      if (startTimer) clearTimeout(startTimer);
+    }
     if (this.closed) throw new Error('the emulator tab was closed');
     const id = this.nextId++;
     return new Promise<T>((resolve, reject) => {

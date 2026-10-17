@@ -29,3 +29,21 @@ export function rng(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * The zxbasic checkout (the compiler fork): $ZXBASIC, else a `zxbasic` folder in `start` or any folder above
+ * it (so REPO/../zxbasic, and a worktree under the main checkout, both resolve). undefined when absent.
+ */
+export function findZxbasic(start: string): string | undefined {
+  const ok = (d: string): boolean => fs.existsSync(path.join(d, 'zxbc.py'));
+  if (process.env.ZXBASIC) return ok(process.env.ZXBASIC) ? process.env.ZXBASIC : undefined;
+  for (let d = path.resolve(start); ; d = path.dirname(d)) {
+    if (ok(path.join(d, 'zxbasic'))) return path.join(d, 'zxbasic');
+    if (path.dirname(d) === d) return undefined;
+  }
+}
+
+/** Warns once (use with `ZXBASIC ? describe : describe.skip`) that the zxbasic-dependent suites are skipped. */
+export function warnNoZxbasic(zx: string | undefined): void {
+  if (!zx) console.warn('SKIPPED: the zxbasic checkout was not found. Set ZXBASIC or put it next to the cpcbuild checkout (../zxbasic).');
+}

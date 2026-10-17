@@ -17,17 +17,19 @@ import { decodeImage, ImageReadError } from '../core/imageio';
 import { defaultName } from '../core/img2cpc';
 import { encodePng } from '../core/image';
 import type { GenerateOutcome, ImporterView, PickWhich, PreviewResponse, SourceImage } from '../shared/importerProtocol';
+import { insideRoot } from '../core/paths';
 import { cachedDecode, decoderFor, describeError, generate, isStale, regenerateAll, rootIo, type GenResult, type GenSettings } from './assetsGen';
 import { channelSink, getChannel, tee } from './channel';
 import { readSettings, resolveLibrary, type Settings } from './config';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
+import { isTrusted, requireTrust, restrictedText } from './trust';
 import { findProjects, loadProjectFile, pickProject, PROJECT_FILE } from './projects';
 
 export const IMPORTER_VIEW_TYPE = 'cpcbuild.importer';
 export const IMAGE_EXTS = ['png', 'gif', 'bmp'];
 
-/** Folder the recipe's paths are relative to: the nearest cpcbuild.json above it, else its workspace folder, else its own folder. */
-export function projectRootOf(file: string): string {
+/** Folder the file's paths are relative to: the nearest cpcbuild.json above it, or undefined (not in a CPCBuild project). */
+export function projectRootOf(file: string): string | undefined {
   let d = path.dirname(file);
   for (let i = 0; i < 20; i++) {
     if (fs.existsSync(path.join(d, PROJECT_FILE))) return d;
@@ -35,8 +37,21 @@ export function projectRootOf(file: string): string {
     if (up === d) break;
     d = up;
   }
-  const wf = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file));
-  return wf ? wf.uri.fsPath : path.dirname(file);
+  return undefined;
+}
+
+/** For read-only previews: the project root, else the file's own folder (reads are still contained to it). Never used to write. */
+export function viewRootOf(file: string): string {
+  return projectRootOf(file) ?? path.dirname(file);
+}
+
+export const NOT_IN_PROJECT = 'not in a CPCBuild project: there is no cpcbuild.json in this folder or above it. Create one with "CPCBuild: New Project".';
+
+/** The project root for a write, or undefined after telling the user. */
+export function requireProjectRoot(file: string): string | undefined {
+  const r = projectRootOf(file);
+  if (!r) void vscode.window.showWarningMessage(`CPCBuild: ${path.basename(file)} is ${NOT_IN_PROJECT}`);
+  return r;
 }
 
 const toRel = (root: string, abs: string): string => path.relative(root, abs).split(path.sep).join('/');
@@ -60,6 +75,21 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
   /** The last generation per document (shown as a notice in the panel). */
   private readonly lastGen = new Map<string, GenerateOutcome>();
 
+  /** Documents with a remembered generation outcome (the entry goes when its document is disposed). */
+  get generatedCount(): number {
+    return this.lastGen.size;
+  }
+
+  async openCustomDocument(uri: vscode.Uri, ctx: vscode.CustomDocumentOpenContext): Promise<StudioDocument<Recipe>> {
+    const doc = await super.openCustomDocument(uri, ctx);
+    const dispose = doc.dispose.bind(doc);
+    doc.dispose = () => {
+      this.lastGen.delete(uri.toString());
+      dispose();
+    };
+    return doc;
+  }
+
   parse(text: string): Recipe {
     return parseRecipe(text);
   }
@@ -74,7 +104,7 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
   }
 
   private rootOf(doc: StudioDocument<Recipe>): string {
-    return projectRootOf(doc.uri.fsPath);
+    return viewRootOf(doc.uri.fsPath);
   }
 
   view(state: Recipe, doc: StudioDocument<Recipe>): Omit<ImporterView, 'version' | 'canUndo' | 'canRedo' | 'fileName'> {
@@ -87,13 +117,13 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
     let outputExists = false;
     if (state.source) {
       try {
-        const st = fs.statSync(path.resolve(root, state.source));
+        const st = fs.statSync(insideRoot(root, state.source));
         sourceKey = `${state.source}:${st.size}:${st.mtimeMs}`;
       } catch {
         sourceKey = `${state.source}:missing`;
       }
       try {
-        outputExists = fs.existsSync(path.resolve(root, effectiveOutput(state)));
+        outputExists = fs.existsSync(insideRoot(root, effectiveOutput(state)));
         stale = isStale(root, recipePath, state);
       } catch {
         // an unreadable tree is not worth a failed render
@@ -118,8 +148,8 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
   }
 
   protected async afterSave(doc: StudioDocument<Recipe>): Promise<void> {
-    const root = this.rootOf(doc);
-    if (!readSettings(root).generateOnSave || !doc.state.source) return;
+    const root = projectRootOf(doc.uri.fsPath);
+    if (!root || !isTrusted() || !readSettings(root).generateOnSave || !doc.state.source) return; // outside a project or in Restricted Mode: nothing is written
     const out = await this.run(doc);
     if (!out.ok) {
       getChannel().appendLine(`${toRel(root, doc.uri.fsPath)}: ${out.error}`);
@@ -129,7 +159,14 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
 
   /** Generates the document's current state (saved or not) and remembers the outcome. */
   async run(doc: StudioDocument<Recipe>): Promise<GenerateOutcome> {
-    const root = this.rootOf(doc);
+    const root = projectRootOf(doc.uri.fsPath);
+    const blocked = !isTrusted() ? restrictedText('Generate') : !root ? `${path.basename(doc.uri.fsPath)} is ${NOT_IN_PROJECT}` : undefined;
+    if (blocked || !root) {
+      const out: GenerateOutcome = { ok: false, written: [], error: blocked, at: Date.now() };
+      this.lastGen.set(doc.uri.toString(), out);
+      this.broadcast(doc);
+      return out;
+    }
     const r = await generate(root, toRel(root, doc.uri.fsPath), doc.state, genSettings(root), { sink: channelSink });
     const out: GenerateOutcome = { ok: r.ok, written: r.written, error: r.error, at: Date.now() };
     this.lastGen.set(doc.uri.toString(), out);
@@ -163,7 +200,7 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
       case 'openPalette': {
         const f = doc.state.palette?.file ?? doc.state.plus?.palette?.file;
         if (!f) return { ok: false };
-        await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.resolve(root, f)));
+        await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(insideRoot(root, f)));
         return { ok: true };
       }
       default:
@@ -182,8 +219,9 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
     const src = doc.state.source;
     if (!src) return { ok: false, error: '', empty: true };
     try {
-      const bytes = fs.readFileSync(path.resolve(root, src));
-      const img = cachedDecode(path.resolve(root, src), new Uint8Array(bytes));
+      const abs = insideRoot(root, src);
+      const bytes = fs.readFileSync(abs);
+      const img = cachedDecode(abs, new Uint8Array(bytes));
       return { ok: true, width: img.width, height: img.height, format: path.extname(src).slice(1).toLowerCase(), rgba: Buffer.from(img.data.buffer, img.data.byteOffset, img.data.byteLength).toString('base64') };
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') return { ok: false, error: `${src}: the image was not found. Use Change... to pick it again.` };
@@ -280,6 +318,7 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
   private async savePreprocessed(doc: StudioDocument<Recipe>, root: string): Promise<{ file?: string; error?: string }> {
     const r = doc.state;
     if (!r.grid || !r.source) return { error: 'There is no pre-processing to save.' };
+    if (!projectRootOf(doc.uri.fsPath)) return { error: `${path.basename(doc.uri.fsPath)} is ${NOT_IN_PROJECT}` };
     try {
       const img = composeSheet(decodeImage(rootIo(root).readFile(r.source)), r.grid);
       const stem = path.basename(doc.uri.fsPath).replace(/\.cpcimp$/i, '');
@@ -316,7 +355,8 @@ export async function importImageCommand(arg?: vscode.Uri | { uri?: vscode.Uri; 
     void vscode.window.showErrorMessage(`CPCBuild: ${path.basename(image.fsPath)} is not a PNG, GIF or BMP image.`);
     return undefined;
   }
-  const root = projectRootOf(image.fsPath);
+  const root = requireProjectRoot(image.fsPath);
+  if (!root) return undefined;
   const src = toRel(root, image.fsPath);
   const stem = path.basename(image.fsPath).replace(/\.[^.]*$/, '');
   const inAssets = path.dirname(src).split('/').includes('assets');
@@ -333,6 +373,7 @@ export async function importImageCommand(arg?: vscode.Uri | { uri?: vscode.Uri; 
 
 /** CPCBuild: Regenerate Assets: every recipe the project's assets globs match, with the selected engine. */
 export async function regenerateAssetsCommand(args?: { root?: string }): Promise<GenResult[] | undefined> {
+  if (!requireTrust('Regenerate Assets')) return undefined;
   let root = args?.root;
   let globs: string[] = [];
   if (root) {

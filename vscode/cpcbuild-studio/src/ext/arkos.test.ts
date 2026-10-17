@@ -13,6 +13,10 @@ const TOOLS = [process.env.AT3_TOOLS, path.join(REPO, 'tools/arkos/work/bin'), p
 const have = TOOLS ? it : it.skip;
 const dir = scratchDir('arkos-');
 const A = 'games/shooter/assets';
+// the project root of the conversions: the inputs mirrored from the repo (paths stay inside it), outputs under out/
+fs.mkdirSync(path.join(dir, A), { recursive: true });
+fs.cpSync(path.join(REPO, A), path.join(dir, A), { recursive: true });
+const O = (n: string): string => path.join(dir, 'out', n);
 const S = { pythonPath: 'python3', library: REPO, toolsDir: TOOLS };
 
 /** The script run the way build_assets.sh runs it (from the repo root, AT3_TOOLS set). */
@@ -68,59 +72,79 @@ describe('finding the tools', () => {
     expect(findArkosTools({ setting: path.join(dir, 'none') })).toBeUndefined();
   });
   it('says how to get them when missing', async () => {
-    const r = await convertMusic(REPO, `${A}/title.vt2`, { output: path.join(dir, 'x.bas') }, { pythonPath: 'python3', library: REPO });
+    const r = await convertMusic(dir, `${A}/title.vt2`, { output: 'out/x.bas' }, { pythonPath: 'python3', library: REPO });
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/sh tools\/arkos\/fetch\.sh/);
   });
 });
 
+describe('convertMusic keeps its paths inside the project', () => {
+  it('refuses ../, absolute and symlink-escaping input, output and --bin', async () => {
+    const outside = scratchDir('arkos-outside-');
+    fs.symlinkSync(outside, path.join(dir, 'escape'));
+    const cases = [
+      ['../song.aks', {}],
+      [`${A}/title.vt2`, { output: '../evil.bas' }],
+      [`${A}/title.vt2`, { output: path.join(outside, 'abs.bas') }],
+      [`${A}/title.vt2`, { output: 'escape/evil.bas' }],
+      [`${A}/title.vt2`, { at: '0x4000', bin: '../evil.bin' }],
+    ] as const;
+    for (const [input, o] of cases) {
+      const r = await convertMusic(dir, input, { ...o }, { pythonPath: 'python3', library: REPO, toolsDir: dir });
+      expect(r.ok, input + JSON.stringify(o)).toBe(false);
+      expect(r.error).toMatch(/outside the project folder|absolute path|symbolic link/);
+    }
+    expect(fs.readdirSync(outside)).toEqual([]);
+    fs.rmSync(path.join(dir, 'escape'));
+  });
+});
+
 describe("convertMusic output is the repo script's, on Starfall's songs", () => {
   have('a song: title.vt2 == the committed title.bas == the script run directly', async () => {
-    const out = path.join(dir, 'title.bas');
-    const r = await convertMusic(REPO, `${A}/title.vt2`, { name: 'sf_title', output: out }, S);
+    const out = O('title.bas');
+    const r = await convertMusic(dir, `${A}/title.vt2`, { name: 'sf_title', output: path.relative(dir, out) }, S);
     expect(r.ok, r.error).toBe(true);
-    const direct = path.join(dir, 'title-direct.bas');
+    const direct = O('title-direct.bas');
     script([`${A}/title.vt2`, direct, '--name', 'sf_title']);
     same(out, direct);
     same(out, path.join(REPO, A, 'title.bas'));
   });
   have('the game song', async () => {
-    const out = path.join(dir, 'gamesong.bas');
-    const r = await convertMusic(REPO, `${A}/game.vt2`, { name: 'sf_game', output: out }, S);
+    const out = O('gamesong.bas');
+    const r = await convertMusic(dir, `${A}/game.vt2`, { name: 'sf_game', output: path.relative(dir, out) }, S);
     expect(r.ok, r.error).toBe(true);
     same(out, path.join(REPO, A, 'gamesong.bas'));
   });
   have('an effects bank: sfx.vt2 --sfx == the committed sfx.bas', async () => {
-    const out = path.join(dir, 'sfx.bas');
-    const r = await convertMusic(REPO, `${A}/sfx.vt2`, { name: 'sf_sfx', sfx: true, output: out }, S);
+    const out = O('sfx.bas');
+    const r = await convertMusic(dir, `${A}/sfx.vt2`, { name: 'sf_sfx', sfx: true, output: path.relative(dir, out) }, S);
     expect(r.ok, r.error).toBe(true);
     same(out, path.join(REPO, A, 'sfx.bas'));
   });
   have('--psg needs an .aks (the tool rewrites the song\'s clock): the tool\'s message comes through for a .vt2', async () => {
-    const r = await convertMusic(REPO, `${A}/zx/sfx_zx.vt2`, { name: 'sf_sfx', sfx: true, psg: 'spectrum', output: path.join(dir, 'sfx_zx.bas') }, S);
-    const direct = spawnSync('python3', ['tools/aks2bas.py', '--sfx', `${A}/zx/sfx_zx.vt2`, path.join(dir, 'd.bas'), '--name', 'sf_sfx', '--psg', 'spectrum'], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS } });
+    const r = await convertMusic(dir, `${A}/zx/sfx_zx.vt2`, { name: 'sf_sfx', sfx: true, psg: 'spectrum', output: 'out/sfx_zx.bas' }, S);
+    const direct = spawnSync('python3', ['tools/aks2bas.py', '--sfx', `${A}/zx/sfx_zx.vt2`, path.join(dir, 'out', 'd.bas'), '--name', 'sf_sfx', '--psg', 'spectrum'], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS } });
     expect(r.ok).toBe(false);
     expect(r.error).toBe(direct.stderr.trim().split('\n').pop());
   });
   have('a 6128 bank song: --at 0x4000 --bin == the committed title_bank.bin', async () => {
-    const bin = path.join(dir, 'title_bank.bin');
-    const r = await convertMusic(REPO, `${A}/title.vt2`, { name: 'sf_title', at: '0x4000', bin, output: path.join(dir, 'bank.bas') }, S);
+    const bin = O('title_bank.bin');
+    const r = await convertMusic(dir, `${A}/title.vt2`, { name: 'sf_title', at: '0x4000', bin: 'out/title_bank.bin', output: 'out/bank.bas' }, S);
     expect(r.ok, r.error).toBe(true);
     same(bin, path.join(REPO, A, 'title_bank.bin'));
   });
   have('a subsong selection reaches the tool', async () => {
-    const out = path.join(dir, 'sub.bas');
-    const r = await convertMusic(REPO, `${A}/title.vt2`, { name: 'sf_title', subsongs: '1', output: out }, S);
+    const out = O('sub.bas');
+    const r = await convertMusic(dir, `${A}/title.vt2`, { name: 'sf_title', subsongs: '1', output: path.relative(dir, out) }, S);
     expect(r.ok, r.error).toBe(true);
-    const direct = path.join(dir, 'sub-direct.bas');
+    const direct = O('sub-direct.bas');
     script([`${A}/title.vt2`, direct, '--name', 'sf_title', '--subsongs', '1']);
     same(out, direct);
   });
   have('a missing song and a tool failure are reported', async () => {
-    expect((await convertMusic(REPO, 'nope.aks', {}, S)).error).toBe('nope.aks: not found');
-    const bad = path.join(dir, 'bad.aks');
-    fs.writeFileSync(bad, 'not a song');
-    const r = await convertMusic(REPO, bad, { output: path.join(dir, 'bad.bas'), name: 'bad' }, S);
+    expect((await convertMusic(dir, 'nope.aks', {}, S)).error).toBe('nope.aks: not found');
+    fs.writeFileSync(path.join(dir, 'bad.aks'), 'not a song');
+    const r = await convertMusic(dir, 'bad.aks', { output: 'out/bad.bas', name: 'bad' }, S);
     expect(r.ok).toBe(false);
     expect(r.error).toBeTruthy();
   });

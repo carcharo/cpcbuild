@@ -7,10 +7,12 @@
 import * as esbuild from 'esbuild';
 import { copyFileSync, mkdirSync, readdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const watch = process.argv.includes('--watch');
+execFileSync(process.execPath, [join(root, 'scripts/bundle.mjs')], { stdio: 'inherit' });
 const out = join(root, 'dist', 'webview');
 mkdirSync(out, { recursive: true });
 

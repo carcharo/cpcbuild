@@ -50,7 +50,7 @@ test('tmx viewer: opens with Open With, loads the map and the tileset image, no 
   copyIn('examples/assets/bgtiles.png', 'maps/bgtiles.png');
   const { doc } = await openViewer(vscode.Uri.file(path.join(ws, 'maps/level.tmx')));
   await waitFor('the atlas request', () => doc.requestLog.includes('atlases'));
-  await new Promise((r) => setTimeout(r, 400));
+  await waitFor('the first render', () => doc.renderedCount > 0);
   assert.deepStrictEqual(doc.webviewErrors, []);
   assert.strictEqual(doc.fatal, undefined);
   const v = doc.view!;
@@ -147,7 +147,7 @@ test('tmx viewer: a map the tool cannot read shows the tool\'s text; a change on
   fs.writeFileSync(path.join(ws, 'maps/chunked.tmx'), '<map width="2" height="2" tilewidth="8" tileheight="8" infinite="1"><tileset firstgid="1" tilewidth="8" tileheight="8"/><layer name="L" width="2" height="2"><data encoding="csv"><chunk x="0" y="0" width="2" height="2">1,1,1,1</chunk></data></layer></map>');
   const chunked = await openViewer(vscode.Uri.file(path.join(ws, 'maps/chunked.tmx')));
   assert.strictEqual(chunked.doc.fatal, 'tmx2bas: chunked.tmx: infinite (chunked) maps are not supported');
-  await new Promise((r) => setTimeout(r, 300));
+  await waitFor('the fatal state to render', () => chunked.doc.renderedCount > 0);
   assert.deepStrictEqual(chunked.doc.webviewErrors, []);
   await closeAll();
   fs.writeFileSync(path.join(ws, 'maps/zstd.tmx'), '<map width="1" height="1" tilewidth="8" tileheight="8"><layer name="L" width="1" height="1"><data encoding="base64" compression="zstd">AAAA</data></layer></map>');

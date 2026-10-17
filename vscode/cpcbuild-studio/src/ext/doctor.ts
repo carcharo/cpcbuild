@@ -6,6 +6,7 @@ import { findCap32, findCpcec, findRvm } from './run';
 import { runTool, Sink } from './runTool';
 import { findArkosTools } from './arkos';
 import { findTiled } from './tmxViewer';
+import { isTrusted, restrictedText } from './trust';
 
 export interface DoctorItem {
   id: string;
@@ -19,28 +20,45 @@ export interface DoctorItem {
   optional?: boolean;
 }
 
+/** True when cpcbuild-emu answers (its commands load it on demand, so asking is the test; "not found" = not installed). */
+async function emuInstalled(): Promise<boolean> {
+  try {
+    await vscode.commands.executeCommand('cpcbuild.emu.version');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function checkEnvironment(projectDir: string | undefined, sink: Sink, settings?: Settings): Promise<DoctorItem[]> {
   const base = projectDir ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
   const s = settings ?? readSettings(projectDir);
   const items: DoctorItem[] = [];
   const add = (i: DoctorItem): void => void items.push(i);
 
-  // compiler
+  // compiler and Python: running them starts programs named by settings, so not in Restricted Mode
+  const trusted = isTrusted();
   const cwd = s.zxbcCwd ? absFrom(base, s.zxbcCwd) : base;
-  const z = await runTool(s.zxbcCommand, ['--version'], { cwd, quiet: true });
-  const zOut = (z.stdout + z.stderr).trim().split('\n')[0];
-  add({
-    id: 'zxbc', label: 'zxbc (Boriel BASIC compiler, cpc arch)', ok: z.code === 0,
-    detail: z.code === 0 ? `${s.zxbcCommand.join(' ')}: ${zOut}` : z.error ?? `exited ${z.code}: ${zOut}`,
-    fix: 'Set "cpcbuild.zxbc.command" (the fork: ["poetry","run","zxbc"]) and "cpcbuild.zxbc.cwd" (your zxbasic checkout, branch cpc-arch).',
-  });
-  const py = await runTool([s.pythonPath], ['--version'], { quiet: true });
-  const pyOut = (py.stdout + py.stderr).trim();
-  add({
-    id: 'python', label: 'Python 3', ok: py.code === 0 && /Python 3/.test(pyOut),
-    detail: py.code === 0 ? `${s.pythonPath}: ${pyOut}` : py.error ?? `exited ${py.code}`,
-    fix: 'Install Python 3 or set "cpcbuild.python.path".',
-  });
+  if (trusted) {
+    const z = await runTool(s.zxbcCommand, ['--version'], { cwd, quiet: true });
+    const zOut = (z.stdout + z.stderr).trim().split('\n')[0];
+    add({
+      id: 'zxbc', label: 'zxbc (Boriel BASIC compiler, cpc arch)', ok: z.code === 0,
+      detail: z.code === 0 ? `${s.zxbcCommand.join(' ')}: ${zOut}` : z.error ?? `exited ${z.code}: ${zOut}`,
+      fix: 'Set "cpcbuild.zxbc.command" (the fork: ["poetry","run","zxbc"]) and "cpcbuild.zxbc.cwd" (your zxbasic checkout, branch cpc-arch).',
+    });
+    const py = await runTool([s.pythonPath], ['--version'], { quiet: true });
+    const pyOut = (py.stdout + py.stderr).trim();
+    add({
+      id: 'python', label: 'Python 3', ok: py.code === 0 && /Python 3/.test(pyOut),
+      detail: py.code === 0 ? `${s.pythonPath}: ${pyOut}` : py.error ?? `exited ${py.code}`,
+      fix: 'Install Python 3 or set "cpcbuild.python.path".',
+    });
+  } else {
+    for (const [id, label] of [['zxbc', 'zxbc (Boriel BASIC compiler, cpc arch)'], ['python', 'Python 3']] as const) {
+      add({ id, label, ok: false, optional: true, detail: `not run: ${restrictedText('Checking it')}`, fix: 'Trust the workspace ("Manage Workspace Trust"), then run the check again.' });
+    }
+  }
   const lib = resolveLibrary(base, s);
   add({
     id: 'library', label: 'cpcbuild library (lib/)', ok: !!lib, detail: lib ? path.join(lib, 'lib') : 'not found',
@@ -59,11 +77,10 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   // emulator
   const emu = s.emulator;
   if (emu === 'emu') {
-    const cmds = await vscode.commands.getCommands(true);
-    const has = cmds.includes('cpcbuild.emu.open');
+    const has = await emuInstalled();
     add({
       id: 'emulator', label: 'Emulator: cpcbuild-emu extension', ok: has, optional: true,
-      detail: has ? 'cpcbuild.emu.open is registered' : 'not installed (Run falls back to an external emulator)',
+      detail: has ? 'cpcbuild.emu.version answers' : 'not installed (Run falls back to an external emulator)',
       fix: 'Install the CPCBuild Emulator extension, or set "cpcbuild.run.emulator" to caprice32, cpcec or rvm.',
     });
   } else if (emu === 'caprice32' || emu === 'cpcec' || emu === 'rvm') {

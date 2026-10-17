@@ -21,15 +21,11 @@ export class EmuClient {
     const now = Date.now();
     if (this.apiOk && now - this.apiOk.at < 3000) return this.apiOk;
     let r: { ok: boolean; why?: string };
-    const cmds = await vscode.commands.getCommands(true);
-    if (!cmds.includes('cpcbuild.emu.version') || !cmds.includes('cpcbuild.emu.state')) {
-      r = { ok: false, why: 'the CPCBuild Emulator extension (cpcbuild-emu) is not installed' };
-    } else {
-      const v = await this.raw<{ api: number }>('cpcbuild.emu.version');
-      if (isError(v)) r = { ok: false, why: v.error };
-      else if (v.api !== EMU_API_VERSION) r = { ok: false, why: `cpcbuild-emu speaks API ${v.api}, Studio needs API ${EMU_API_VERSION}` };
-      else r = { ok: true };
-    }
+    // cpcbuild-emu loads on its commands, so call one: "command not found" means it is not installed
+    const v = await this.raw<{ api: number }>('cpcbuild.emu.version');
+    if (isError(v)) r = { ok: false, why: /command '.*' not found/i.test(v.error) ? 'the CPCBuild Emulator extension (cpcbuild-emu) is not installed' : v.error };
+    else if (v.api !== EMU_API_VERSION) r = { ok: false, why: `cpcbuild-emu speaks API ${v.api}, Studio needs API ${EMU_API_VERSION}` };
+    else r = { ok: true };
     this.apiOk = { at: now, ...r };
     return r;
   }

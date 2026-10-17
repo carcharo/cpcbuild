@@ -5,6 +5,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { insideRoot, PathEscapeError } from '../core/paths';
 import { parseAddress } from '../core/project';
 import { runTool, type CancelToken, type Sink } from './runTool';
 
@@ -142,6 +143,12 @@ export async function convertMusic(
   const res: MusicConvertResult = { ok: false, output, name, argv: [], bin: o.bin };
   const bad = checkMusicOptions({ ...o, name });
   if (bad) return (res.error = bad), res;
+  try {
+    for (const p of [inputRel, output, ...(o.bin ? [o.bin] : [])]) insideRoot(root, p);
+  } catch (e) {
+    if (e instanceof PathEscapeError) return (res.error = e.message), res;
+    throw e;
+  }
   if (!fs.existsSync(path.resolve(root, inputRel))) return (res.error = `${inputRel}: not found`), res;
   const script = s.library ? path.join(s.library, 'tools', 'aks2bas.py') : '';
   if (!script || !fs.existsSync(script)) {

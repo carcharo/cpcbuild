@@ -50,3 +50,33 @@ export type MemWebMsg =
   | { type: 'control'; cmd: MemControl }
   | { type: 'command'; command: string }
   | { type: 'copy'; text: string };
+
+export const MEM_CONTROLS: readonly MemControl[] = ['pause', 'resume', 'step', 'stepOver', 'stepOut'];
+
+/**
+ * The webview is untrusted input: this returns the message only when its shape is exactly one of
+ * MemWebMsg (control commands from the fixed list, integers for pages, strings of sane length), else undefined.
+ */
+export function parseMemWebMsg(raw: unknown): MemWebMsg | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const m = raw as Record<string, unknown>;
+  switch (m.type) {
+    case 'ready':
+    case 'refresh':
+      return { type: m.type };
+    case 'error':
+      return { type: 'error', message: String(m.message).slice(0, 2000) };
+    case 'goto':
+      return typeof m.text === 'string' && m.text.length <= 200 ? { type: 'goto', text: m.text } : undefined;
+    case 'page':
+      return typeof m.pages === 'number' && Number.isInteger(m.pages) && Math.abs(m.pages) <= 4096 ? { type: 'page', pages: m.pages } : undefined;
+    case 'control':
+      return typeof m.cmd === 'string' && (MEM_CONTROLS as readonly string[]).includes(m.cmd) ? { type: 'control', cmd: m.cmd as MemControl } : undefined;
+    case 'command':
+      return typeof m.command === 'string' && m.command.length <= 100 ? { type: 'command', command: m.command } : undefined;
+    case 'copy':
+      return typeof m.text === 'string' && m.text.length <= 200000 ? { type: 'copy', text: m.text } : undefined;
+    default:
+      return undefined;
+  }
+}

@@ -3,11 +3,13 @@ import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { generateTemplate } from '../src/core/templates';
+import { findZxbasic } from '../src/core/testutil';
 
 /** The temp workspace the tests open: a firmware-template project plus a deliberately broken one and an invalid one. */
 function makeWorkspace(extRoot: string): string {
   const repo = path.resolve(extRoot, '..', '..');
-  const zxbasic = process.env.ZXBASIC ?? '/Users/barry/RetroDev/Amstrad/zxbasic';
+  const zxbasic = findZxbasic(extRoot);
+  if (!zxbasic) throw new Error('the zxbasic checkout was not found: set ZXBASIC, or put it next to the cpcbuild checkout (../zxbasic)');
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-ws-'));
   const put = (rel: string, text: string): void => {
     const f = path.join(ws, rel);
@@ -38,7 +40,7 @@ async function main(): Promise<void> {
   // a short user-data dir: the default under .vscode-test is too long for the IPC socket in a deep checkout
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcud-'));
   try {
-    await runTests({ extensionDevelopmentPath, extensionTestsPath, launchArgs: [ws, '--disable-extensions', `--user-data-dir=${userData}`] });
+    await runTests({ extensionDevelopmentPath, extensionTestsPath, launchArgs: [ws, '--disable-extensions', '--disable-workspace-trust', `--user-data-dir=${userData}`] });
   } finally {
     fs.rmSync(ws, { recursive: true, force: true });
     fs.rmSync(userData, { recursive: true, force: true });

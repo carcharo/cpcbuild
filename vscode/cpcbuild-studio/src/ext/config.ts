@@ -1,6 +1,4 @@
 /** config.ts -- the `cpcbuild.*` settings (spec 6) and where the tools live. */
-import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { MODELS, Model, parseAddress } from '../core/project';
 
@@ -84,63 +82,26 @@ export function readSettings(projectDir?: string): Settings {
   };
 }
 
-const exists = (p: string): boolean => {
-  try {
-    return fs.existsSync(p);
-  } catch {
-    return false;
-  }
-};
+import { absFrom, fileExists, isLibraryDir, resolveLibraryPure, resolveMkcpr, resolveMkdskPure } from './toolpaths';
+import { isTrusted } from './trust';
 
-/** Absolute path from a setting; relative ones are taken from the project folder. */
-export function absFrom(base: string, p: string): string {
-  return path.isAbsolute(p) ? p : path.resolve(base, p);
+export { absFrom, fileExists, isLibraryDir, resolveMkcpr };
+
+/** The copy of lib/ and tools/ shipped inside the extension (set at activation); the last place the library is looked for. */
+let bundledDir: string | undefined;
+export function setBundledLibrary(dir: string | undefined): void {
+  bundledDir = dir;
+}
+export function bundledLibrary(): string | undefined {
+  return bundledDir;
 }
 
-export function isLibraryDir(dir: string): boolean {
-  return exists(path.join(dir, 'lib', 'cpcbuild.bas'));
-}
-
-/** The cpcbuild checkout (folder with lib/ and tools/): setting, then the project's "library", then upwards from the project. */
+/** The cpcbuild folder: setting, then the project's "library" (ignored in Restricted Mode), then upwards from the project, then the bundled copy. */
 export function resolveLibrary(projectDir: string, s: Settings, projectLibrary?: string | null): string | undefined {
-  const cands: string[] = [];
-  if (s.libraryPath) cands.push(absFrom(projectDir, s.libraryPath));
-  if (projectLibrary) cands.push(absFrom(projectDir, projectLibrary));
-  for (const c of cands) if (isLibraryDir(c)) return c;
-  if (cands.length) return undefined; // an explicit but wrong path: do not guess
-  let d = projectDir;
-  for (let i = 0; i < 12; i++) {
-    if (isLibraryDir(d)) return d;
-    const up = path.dirname(d);
-    if (up === d) break;
-    d = up;
-  }
-  return undefined;
+  return resolveLibraryPure(projectDir, s, isTrusted() ? projectLibrary : null, bundledDir);
 }
 
-/** The zxbasic checkout holding tools/cpc/mkdsk.py: zxbc.cwd, else the sibling of the cpcbuild checkout. */
+/** mkdsk.py (zxbc.cwd, then the zxbasic sibling of the library). It is AGPL and lives in the compiler's repo, so it is not bundled. */
 export function resolveMkdsk(s: Settings, projectDir: string, library?: string): string | undefined {
-  const tryDir = (d: string): string | undefined => {
-    const p = path.join(d, 'tools', 'cpc', 'mkdsk.py');
-    return exists(p) ? p : undefined;
-  };
-  if (s.zxbcCwd) {
-    const p = tryDir(absFrom(projectDir, s.zxbcCwd));
-    if (p) return p;
-  }
-  if (library) {
-    const p = tryDir(path.resolve(library, '..', 'zxbasic'));
-    if (p) return p;
-  }
-  return undefined;
-}
-
-export function resolveMkcpr(library?: string): string | undefined {
-  if (!library) return undefined;
-  const p = path.join(library, 'tools', 'mkcpr.py');
-  return exists(p) ? p : undefined;
-}
-
-export function fileExists(p: string): boolean {
-  return exists(p);
+  return resolveMkdskPure(s, projectDir, library);
 }

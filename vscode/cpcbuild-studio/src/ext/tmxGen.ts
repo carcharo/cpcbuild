@@ -9,6 +9,7 @@
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { insideRoot, PathEscapeError } from '../core/paths';
 import { defaultMapName, parseTmx, TmxError, tmxToBas } from '../core/tmx';
 import { runTool, type CancelToken, type Sink } from './runTool';
 
@@ -65,7 +66,17 @@ export async function generateTmx(
 ): Promise<TmxGenResult> {
   const outRel = toPosix(o.output ?? defaultOutput(tmxRel));
   const res: TmxGenResult = { ok: false, output: outRel };
-  const abs = path.resolve(root, tmxRel);
+  let abs: string;
+  try {
+    abs = insideRoot(root, tmxRel);
+    insideRoot(root, outRel);
+  } catch (e) {
+    if (e instanceof PathEscapeError) {
+      res.error = `tmx2bas.py: error: ${e.message}`;
+      return res;
+    }
+    throw e;
+  }
   if (!fs.existsSync(abs)) {
     res.error = `tmx2bas.py: error: ${tmxRel}: not found`;
     return res;

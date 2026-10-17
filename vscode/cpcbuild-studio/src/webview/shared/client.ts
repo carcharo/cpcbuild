@@ -10,6 +10,8 @@ export interface Client<R extends RequestMap<R>, V> {
   subscribe(fn: (m: Exclude<HostToWeb<V>, { type: 'response' }>) => void): () => void;
   /** Tell the host the webview is up (it answers with init and the view). Safe to call again to retry. */
   ready(): void;
+  /** Tell the host the first view (or fatal state) was rendered. */
+  rendered(): void;
   reportError(message: string): void;
   getState<T>(): T | undefined;
   setState(s: unknown): void;
@@ -46,6 +48,7 @@ export function createClient<R extends RequestMap<R>, V>(): Client<R, V> {
       return () => void listeners.delete(fn);
     },
     ready: () => api.postMessage({ type: 'ready' }),
+    rendered: () => api.postMessage({ type: 'rendered' }),
     reportError: (message) => api.postMessage({ type: 'error', message }),
     getState: <T,>() => api.getState() as T | undefined,
     setState: (s) => api.setState(s),

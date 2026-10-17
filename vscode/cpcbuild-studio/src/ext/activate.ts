@@ -6,7 +6,7 @@ import { MODELS, deriveDiscStem } from '../core/project';
 import type { EmuEvent } from '../emuApi';
 import { buildTarget, BuildResult, RunInfo } from './build';
 import { channelSink, getChannel, tee } from './channel';
-import { readSettings, resolveLibrary, resolveMkdsk } from './config';
+import { readSettings, resolveLibrary, resolveMkdsk, setBundledLibrary } from './config';
 import { checkEnvironment, doctorCommand } from './doctor';
 import { newProjectCommand } from './newProject';
 import { ImporterEditorProvider, copyImporterCommandCommand, importImageCommand, regenerateAssetsCommand } from './importer';
@@ -14,9 +14,10 @@ import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
 import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
-import { runInEmulator } from './run';
+import { runInEmulator, setStorageDir } from './run';
 import { runTool } from './runTool';
-import { state } from './state';
+import { recordEmuEvent, state } from './state';
+import { requireTrust, trustTestApi } from './trust';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
 import { registerStubs } from './stubs';
 import { registerLintAndHover } from './lintHover';
@@ -45,6 +46,10 @@ export interface StudioApi {
   debug: DebugApi;
   /** The missing-emulator warning: test hooks. */
   emuMissing: typeof emuMissingTestApi;
+  /** How many lint passes ran for a document (tests wait on this). */
+  lintRuns(uri: vscode.Uri): number;
+  /** Workspace Trust test hooks (pretend the workspace is untrusted). */
+  trust: typeof trustTestApi;
   /** runInEmulator with explicit settings (tests: no prompts, no real emulator). */
   runIn: typeof runInEmulator;
 }
@@ -69,6 +74,7 @@ async function projectAndTarget(): Promise<{ lp: LoadedProject; targetId?: strin
 }
 
 async function runTask(run: boolean): Promise<void> {
+  if (!requireTrust(run ? 'Build and Run' : 'Build')) return;
   const pt = await projectAndTarget();
   if (!pt) return;
   const wf = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(pt.lp.file));
@@ -99,6 +105,7 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
       const { parseMap, programStart } = await import('../core/map');
       load = programStart(parseMap(fs.readFileSync(mapFile, 'utf8'))) ?? 0x40;
     }
+    if (!requireTrust('Run in Emulator for a .bin file (it is packaged with Python first)')) return;
     const lib = resolveLibrary(path.dirname(file), s);
     const mkdsk = resolveMkdsk(s, path.dirname(file), lib);
     if (!mkdsk) {
@@ -136,6 +143,8 @@ async function showReport(): Promise<void> {
 }
 
 export function activate(context: vscode.ExtensionContext): StudioApi {
+  setStorageDir(context.globalStorageUri.fsPath);
+  setBundledLibrary(vscode.Uri.joinPath(context.extensionUri, 'bundled').fsPath);
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-project');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = 'cpcbuild.selectTarget';
@@ -143,6 +152,8 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
 
   async function refresh(): Promise<void> {
     const projects = await findProjects();
+    // menus for project files (Run, Import Image, ...) show only where a cpcbuild.json exists
+    void vscode.commands.executeCommand('setContext', 'cpcbuild.inProject', projects.length > 0);
     diag.clear();
     for (const p of projects) publishDiagnostics(diag, p);
     const lp = pickProject(projects);
@@ -209,7 +220,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   // The emulator extension runs this on its pause/resume/close events (design section 2); for now just log.
   const debugApi = registerDebugFeatures(context, reg);
   reg('cpcbuild.emuEvent', (ev: EmuEvent) => {
-    state.emuEvents.push(ev);
+    recordEmuEvent(ev);
     getChannel().appendLine(`emu event: ${JSON.stringify(ev)}`);
     debugApi.onEvent(ev);
   });
@@ -242,7 +253,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   reg('cpcbuild.music.play', (arg) => musicPlayCommand(arg));
   reg('cpcbuild.music.stop', () => musicStopCommand());
   registerStubs(reg);
-  registerLintAndHover(context, reg);
+  const lint = registerLintAndHover(context, reg);
 
   return {
     apiVersion: 1,
@@ -251,6 +262,8 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     debug: debugApi,
     emuMissing: emuMissingTestApi,
     runIn: runInEmulator,
+    lintRuns: (uri) => lint.runs(uri),
+    trust: trustTestApi,
     palette,
     importer,
     sprite,

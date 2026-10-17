@@ -4,7 +4,7 @@
  * through a token, and report every line to a sink (the "CPCBuild" output
  * channel and/or a task terminal). No vscode import: unit-testable in node.
  */
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -25,6 +25,8 @@ export interface ToolOptions {
   sink?: Sink;
   /** Do not echo the command line to the sink. */
   quiet?: boolean;
+  /** After a cancel's polite SIGTERM, how long before SIGKILL (default 3000 ms). */
+  killAfterMs?: number;
 }
 
 export interface ToolResult {
@@ -52,6 +54,24 @@ export function displayArg(a: string): string {
   return /^[\w@%+=:,./\\-]+$/.test(a) ? a : `"${a.replace(/"/g, '\\"')}"`;
 }
 
+/** Kills a process tree: the process group on POSIX, `taskkill /T /F` on Windows. */
+export function killTree(pid: number | undefined, child: { kill(signal?: NodeJS.Signals): boolean }, signal: NodeJS.Signals): void {
+  try {
+    if (process.platform === 'win32') {
+      if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
+      else child.kill();
+    } else if (pid) {
+      try {
+        process.kill(-pid, signal);
+      } catch {
+        child.kill(signal); // not a group leader
+      }
+    } else child.kill(signal);
+  } catch {
+    /* already gone */
+  }
+}
+
 export function runTool(command: readonly string[], args: readonly string[], opts: ToolOptions = {}): Promise<ToolResult> {
   const [exe, ...pre] = command;
   const all = [...pre, ...args];
@@ -68,20 +88,25 @@ export function runTool(command: readonly string[], args: readonly string[], opt
     const posix = process.platform !== 'win32';
     const child = spawn(exe, all, { cwd: opts.cwd, env: opts.env ?? toolEnv(), shell: false, detached: posix, windowsHide: true });
 
+    let killTimer: NodeJS.Timeout | undefined;
     const finish = (code: number | null): void => {
       if (settled) return;
       settled = true;
       sub?.dispose();
+      if (killTimer) clearTimeout(killTimer);
       for (const [buf, err] of [[outBuf, false], [errBuf, true]] as const) if (buf.s) sink?.line(buf.s, err);
       resolve({ code, stdout, stderr, cancelled, error: spawnError });
     };
     const kill = (): void => {
+      if (cancelled) return;
       cancelled = true;
-      try {
-        if (posix && child.pid) process.kill(-child.pid, 'SIGTERM');
-        else child.kill();
-      } catch {
-        /* already gone */
+      // polite first (POSIX), then SIGKILL for a tool that ignores it; Windows has no polite signal
+      killTree(child.pid, child, 'SIGTERM');
+      if (posix && !settled) {
+        killTimer = setTimeout(() => {
+          if (!settled) killTree(child.pid, child, 'SIGKILL');
+        }, opts.killAfterMs ?? 3000);
+        killTimer.unref();
       }
     };
     const sub = opts.token?.onCancellationRequested(kill);
@@ -116,16 +141,25 @@ export function runTool(command: readonly string[], args: readonly string[], opt
 }
 
 /** Starts a GUI program that outlives the call (an emulator). Resolves once it has started or failed to. */
-export function launchDetached(command: readonly string[], args: readonly string[], opts: { cwd?: string; sink?: Sink; env?: NodeJS.ProcessEnv } = {}): Promise<{ ok: boolean; error?: string; pid?: number }> {
+export interface Launched {
+  ok: boolean;
+  error?: string;
+  pid?: number;
+  /** True while the process we started has not exited (a pid alone can be reused by something else). */
+  alive?: () => boolean;
+}
+export function launchDetached(command: readonly string[], args: readonly string[], opts: { cwd?: string; sink?: Sink; env?: NodeJS.ProcessEnv } = {}): Promise<Launched> {
   const [exe, ...pre] = command;
   const all = [...pre, ...args];
   opts.sink?.line(`$ ${[exe, ...all].map(displayArg).join(' ')}`);
   return new Promise((resolve) => {
     const child = spawn(exe, all, { cwd: opts.cwd, env: opts.env ?? toolEnv(), shell: false, detached: true, stdio: 'ignore' });
     child.once('error', (e: NodeJS.ErrnoException) => resolve({ ok: false, error: e.code === 'ENOENT' ? `"${exe}" was not found` : e.message }));
+    let exited = false;
+    child.once('exit', () => (exited = true));
     child.once('spawn', () => {
       child.unref();
-      resolve({ ok: true, pid: child.pid });
+      resolve({ ok: true, pid: child.pid, alive: () => !exited && child.exitCode === null && child.signalCode === null });
     });
   });
 }

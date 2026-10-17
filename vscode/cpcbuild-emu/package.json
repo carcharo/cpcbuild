@@ -14,8 +14,29 @@
   "private": true,
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onStartupFinished"
+    "onCommand:cpcbuild.emu.version",
+    "onCommand:cpcbuild.emu.open",
+    "onCommand:cpcbuild.emu.reset",
+    "onCommand:cpcbuild.emu.pause",
+    "onCommand:cpcbuild.emu.resume",
+    "onCommand:cpcbuild.emu.step",
+    "onCommand:cpcbuild.emu.stepOver",
+    "onCommand:cpcbuild.emu.stepOut",
+    "onCommand:cpcbuild.emu.state",
+    "onCommand:cpcbuild.emu.readMemory",
+    "onCommand:cpcbuild.emu.writeMemory",
+    "onCommand:cpcbuild.emu.setBreakpoint",
+    "onCommand:cpcbuild.emu.clearBreakpoint",
+    "onCommand:cpcbuild.emu.screenshot",
+    "onCommand:cpcbuild.emu.close",
+    "onCommand:cpcbuild.emu.openFile",
+    "onCommand:cpcbuild.emu.runFile"
   ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {

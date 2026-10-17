@@ -10,6 +10,7 @@ import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
 import { regenerateAll } from './assetsGen';
 import { absFrom, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { CancelToken, runTool, Sink } from './runTool';
+import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 import type { EmuModel } from '../emuApi';
 
 export interface Artifacts {
@@ -64,6 +65,10 @@ export async function buildTarget(
   const t0 = Date.now();
   const res: BuildResult = { ok: true, root, targetId: target.id, artifacts: {}, reportLines: [], ms: 0 };
   const done = (): BuildResult => ((res.ms = Date.now() - t0), res);
+  if (!isTrusted()) {
+    notifyUntrusted('Build');
+    return done(), fail(res, restrictedText('Build'), sink);
+  }
   sink.line(`Building target ${target.id} of ${project.name} (${target.arch}, ${target.package})`);
 
   const s = settings;

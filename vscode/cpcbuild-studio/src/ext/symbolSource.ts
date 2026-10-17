@@ -32,12 +32,7 @@ export class SymbolSource implements vscode.Disposable {
   private pending?: Promise<void>;
 
   constructor() {
-    const w = vscode.workspace.createFileSystemWatcher('**/*.map');
     this.subs.push(
-      w,
-      w.onDidChange((u) => this.maybe(u)),
-      w.onDidCreate((u) => this.maybe(u)),
-      w.onDidDelete((u) => this.maybe(u)),
       vscode.window.onDidChangeActiveTextEditor(() => void this.reload()),
       vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration('cpcbuild') && void this.reload()),
       this.emitter,
@@ -51,8 +46,19 @@ export class SymbolSource implements vscode.Disposable {
     return this.current?.table;
   }
 
-  private maybe(u: vscode.Uri): void {
-    if (!this.current || path.resolve(u.fsPath) === path.resolve(this.current.mapFile) || !fs.existsSync(this.current.mapFile)) void this.reload();
+  /** Watches exactly the active target's map file (not every *.map in the workspace); re-created when the target changes. */
+  private mapWatch?: { file: string; sub: vscode.Disposable };
+  /** The map file being watched (test hook). */
+  get watchedMap(): string | undefined {
+    return this.mapWatch?.file;
+  }
+  private watchMap(file: string | undefined): void {
+    if (this.mapWatch?.file === file) return;
+    this.mapWatch?.sub.dispose();
+    this.mapWatch = undefined;
+    if (!file) return;
+    const w = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(path.dirname(file)), path.basename(file)));
+    this.mapWatch = { file, sub: vscode.Disposable.from(w, w.onDidChange(() => void this.reload()), w.onDidCreate(() => void this.reload()), w.onDidDelete(() => void this.reload())) };
   }
 
   /** Re-reads the map of the active target. Concurrent calls share one run. */
@@ -65,6 +71,7 @@ export class SymbolSource implements vscode.Disposable {
 
   private async doReload(): Promise<void> {
     this.current = undefined;
+    let watch: string | undefined;
     const lp = pickProject(await findProjects());
     if (!lp) {
       this.missing = `No ${PROJECT_FILE} in this workspace.`;
@@ -79,6 +86,7 @@ export class SymbolSource implements vscode.Disposable {
       else if (t.arch !== 'cpc') this.missing = `Target ${t.id} is not a CPC target (no zxbc memory map).`;
       else {
         const mapFile = path.join(absFrom(lp.root, s.outputDir), `${t.id}.map`);
+        watch = mapFile;
         const st = fs.statSync(mapFile, { throwIfNoEntry: false });
         if (!st) this.missing = `No ${path.basename(mapFile)} yet. Build target ${t.id} to list its symbols.`;
         else {
@@ -95,10 +103,12 @@ export class SymbolSource implements vscode.Disposable {
         }
       }
     }
+    this.watchMap(watch);
     this.emitter.fire();
   }
 
   dispose(): void {
+    this.mapWatch?.sub.dispose();
     this.subs.forEach((d) => d.dispose());
   }
 }

@@ -94,13 +94,17 @@ export function severityFor(rule: RuleId, overrides: Record<string, unknown>): v
   return SEVERITY[RULES[rule].severity as Severity];
 }
 
-export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id: string, fn: (...a: any[]) => unknown) => void): void {
+export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id: string, fn: (...a: any[]) => unknown) => void): { runs(uri: vscode.Uri): number } {
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-lint');
   const timers = new Map<string, NodeJS.Timeout>();
   context.subscriptions.push(diag, { dispose: () => timers.forEach((t) => clearTimeout(t)) });
 
+  /** Lint passes per document (the extension-host tests wait on this instead of sleeping past the debounce). */
+  const runs = new Map<string, number>();
+
   function lintNow(doc: vscode.TextDocument): void {
     if (!isBasic(doc)) return;
+    runs.set(doc.uri.toString(), (runs.get(doc.uri.toString()) ?? 0) + 1);
     const cfg = vscode.workspace.getConfiguration('cpcbuild');
     const ctx = cfg.get<boolean>('lint.enable', true) ? ctxFor(doc) : undefined;
     if (!ctx) {
@@ -296,4 +300,5 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     await vscode.window.showTextDocument(vscode.Uri.file(info.docsFile), { selection: new vscode.Range(pos, pos), preview: true });
     return { file: info.docsFile, line: sec.line, heading: sec.text };
   });
+  return { runs: (uri) => runs.get(uri.toString()) ?? 0 };
 }

@@ -54,6 +54,11 @@ function Root<R extends RequestMap<R>, V>({ client, App }: { client: Client<R, V
     client.ready();
     return off;
   }, [client]);
+  // after the first paint of a view or of the fatal state (a render error unmounts this root first, so it never reports)
+  const shown = view !== undefined || fatal !== undefined;
+  useEffect(() => {
+    if (shown) client.rendered();
+  }, [client, shown]);
   if (fatal !== undefined)
     return (
       <ErrorState

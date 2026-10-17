@@ -23,6 +23,8 @@ export class StudioDocument<S> implements vscode.CustomDocument {
   state: S;
   /** Bumped by every change of the state, including undo, redo and revert. */
   version = 0;
+  /** Bumped by Revert: undo / redo closures VS Code still holds from before it do nothing (they would resurrect discarded edits). */
+  epoch = 0;
   /** Set when the file did not parse at all; the webview then shows the fatal error state. */
   fatal?: string;
   /** Our own count of the stack VS Code keeps, only to grey the Undo / Redo buttons. */
@@ -31,6 +33,8 @@ export class StudioDocument<S> implements vscode.CustomDocument {
   readonly panels = new Set<vscode.WebviewPanel>();
   /** Test hooks: how many times a webview said ready, and the errors it reported. */
   readyCount = 0;
+  /** How many times a webview reported its first view on screen. */
+  renderedCount = 0;
   readonly webviewErrors: string[] = [];
   /** Edits in the order they were made and not undone (the same stack VS Code holds; used by the test API). */
   readonly applied: { edit: Edit<S>; undo: () => void; redo: () => void }[] = [];
@@ -135,6 +139,7 @@ export abstract class StudioEditorProvider<S, Op, V extends ViewBase> implements
     doc.state = this.parse(text, doc.uri);
     doc.fatal = undefined;
     doc.version++;
+    doc.epoch++;
     doc.undoDepth = doc.redoDepth = 0;
     doc.applied.length = 0;
     doc.undone.length = 0;
@@ -170,7 +175,9 @@ export abstract class StudioEditorProvider<S, Op, V extends ViewBase> implements
     doc.undoDepth++;
     doc.redoDepth = 0;
     doc.undone.length = 0;
+    const epoch = doc.epoch;
     const undo = (): void => {
+      if (doc.epoch !== epoch) return; // stale: the document was reverted since this edit
       doc.state = edit.before;
       doc.version++;
       doc.undoDepth = Math.max(0, doc.undoDepth - 1);
@@ -180,6 +187,7 @@ export abstract class StudioEditorProvider<S, Op, V extends ViewBase> implements
       this.broadcast(doc);
     };
     const redo = (): void => {
+      if (doc.epoch !== epoch) return;
       doc.state = edit.after;
       doc.version++;
       doc.undoDepth++;
@@ -256,6 +264,10 @@ export abstract class StudioEditorProvider<S, Op, V extends ViewBase> implements
       this.post(panel, { type: 'init', settings: this.settings(), fileName: doc.uri.path.split('/').pop() ?? '' });
       if (doc.fatal) this.post(panel, { type: 'fatal', message: doc.fatal });
       else this.post(panel, { type: 'view', view: this.currentView(doc) });
+      return;
+    }
+    if (m.type === 'rendered') {
+      doc.renderedCount++;
       return;
     }
     if (m.type === 'error') {

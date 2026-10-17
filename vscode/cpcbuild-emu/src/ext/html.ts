@@ -1,14 +1,8 @@
 import * as vscode from 'vscode';
 import type { WebviewBoot } from '../shared/protocol';
+import { nonce } from './nonce';
 
 export const ROMS = ['cpc464.rom', 'cpc664.rom', 'cpc6128.rom', 'cpcplus.rom', 'cpcados.rom'];
-
-function nonce(): string {
-  const a = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let s = '';
-  for (let i = 0; i < 32; i++) s += a[Math.floor(Math.random() * a.length)];
-  return s;
-}
 
 /** The page: strict CSP (wasm needs 'wasm-unsafe-eval'), codicons, toolbar, the canvas. */
 export function pageHtml(webview: vscode.Webview, ext: vscode.Uri, runHidden: boolean): string {

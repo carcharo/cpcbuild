@@ -20,7 +20,9 @@ import type { AtlasResult, ConvertOptions, ConvertResult, TmxViewerView, ViewNot
 import { cachedDecode, decoderFor, rootIo } from './assetsGen';
 import { channelSink, getChannel } from './channel';
 import { readSettings, resolveLibrary } from './config';
-import { projectRootOf } from './importer';
+import { insideRootFrom, PathEscapeError } from '../core/paths';
+import { NOT_IN_PROJECT, projectRootOf, viewRootOf } from './importer';
+import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 import { launchDetached } from './runTool';
 import { generateTmx } from './tmxGen';
 import { webviewHtml, webviewRoot } from './webviewHtml';
@@ -46,6 +48,10 @@ export function tiledCommand(app: string, file: string): { command: string[]; ar
 }
 
 export async function openInTiled(file: string, override?: string): Promise<{ ok: boolean; error?: string; command?: string[] }> {
+  if (!isTrusted()) {
+    notifyUntrusted('Open in Tiled');
+    return { ok: false, error: restrictedText('Open in Tiled') };
+  }
   const app = override ?? findTiled(readSettings(path.dirname(file)).tiledPath);
   if (!app) return { ok: false, error: 'Tiled was not found. Install it (mapeditor.org) or set "cpcbuild.tiled.path".' };
   const c = tiledCommand(app, file);
@@ -65,6 +71,7 @@ export class TmxDocument implements vscode.CustomDocument {
   tilesets: TmxTileset[] = [];
   readonly panels = new Set<vscode.WebviewPanel>();
   readyCount = 0;
+  renderedCount = 0;
   readonly webviewErrors: string[] = [];
   /** Test hook: the requests the webviews made, in order. */
   readonly requestLog: string[] = [];
@@ -86,7 +93,7 @@ const b64 = (u: Uint8Array): string => Buffer.from(u.buffer, u.byteOffset, u.byt
 const wire = (a: Atlas): WireAtlas => ({ firstgid: a.firstgid, tw: a.tw, th: a.th, count: a.count, columns: a.columns, width: a.width, height: a.height, rgba: b64(a.rgba) });
 
 /** Reads the external tilesets and resolves the image paths. */
-function resolveTilesets(map: TmxMap, tmxFile: string): { tilesets: TmxTileset[]; view: ViewTileset[]; notices: ViewNotice[] } {
+function resolveTilesets(map: TmxMap, tmxFile: string, root: string): { tilesets: TmxTileset[]; view: ViewTileset[]; notices: ViewNotice[] } {
   const notices: ViewNotice[] = [];
   const dir = path.dirname(tmxFile);
   const tilesets: TmxTileset[] = [];
@@ -95,16 +102,25 @@ function resolveTilesets(map: TmxMap, tmxFile: string): { tilesets: TmxTileset[]
     let t = t0;
     let imgBase = dir;
     if (t0.source) {
-      const tsx = path.resolve(dir, t0.source);
-      imgBase = path.dirname(tsx);
+      let tsx = '';
       try {
+        tsx = insideRootFrom(root, dir, t0.source);
+        imgBase = path.dirname(tsx);
         t = { ...t0, ...Object.fromEntries(Object.entries(parseTsx(fs.readFileSync(tsx, 'utf8'))).filter(([, v]) => v !== undefined)) };
       } catch (e) {
         notices.push({ severity: 'info', text: `Tileset ${t0.source} could not be read (${e instanceof Error ? e.message : String(e)}): showing numbers.` });
+        if (e instanceof PathEscapeError) imgBase = '';
       }
     }
     tilesets.push(t);
-    const imagePath = t.image ? path.resolve(imgBase, t.image.source) : undefined;
+    let imagePath: string | undefined;
+    if (t.image && imgBase !== '') {
+      try {
+        imagePath = insideRootFrom(root, imgBase, t.image.source);
+      } catch (e) {
+        notices.push({ severity: 'info', text: `Tileset image ${t.image.source} is not read: ${e instanceof Error ? e.message : String(e)}. Showing numbers.` });
+      }
+    }
     let imageStatus: ViewTileset['imageStatus'] = 'none';
     if (imagePath) imageStatus = fs.existsSync(imagePath) ? 'ok' : 'missing';
     if (imageStatus === 'missing') notices.push({ severity: 'info', text: `Tileset image not found: ${t.image?.source}. Showing numbers.` });
@@ -159,8 +175,8 @@ export function buildView(doc: TmxDocument, text: string): void {
     doc.fatal = `tmx2bas: ${path.basename(file)}: ${map.layers.length ? layerProblems[0].error : 'no tile layers in the map'}`;
     return;
   }
-  const root = projectRootOf(file);
-  const { tilesets, view, notices } = resolveTilesets(map, file);
+  const root = viewRootOf(file);
+  const { tilesets, view, notices } = resolveTilesets(map, file, root);
   if (map.infinite) notices.push({ severity: 'warning', text: 'Infinite maps are not supported by tmx2bas.py.' });
   for (const l of layerProblems) notices.push({ severity: 'warning', text: `Layer '${l.name}': ${l.error}` });
   doc.map = map;
@@ -274,6 +290,10 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
       else this.post(panel, { type: 'view', view: this.currentView(doc) });
       return;
     }
+    if (m.type === 'rendered') {
+      doc.renderedCount++;
+      return;
+    }
     if (m.type === 'error') {
       doc.webviewErrors.push(String(m.message));
       getChannel().appendLine(`${this.title}: webview error: ${m.message}`);
@@ -326,7 +346,7 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
     const map = doc.map;
     const view = doc.view;
     if (!map || !view) return out;
-    const root = projectRootOf(doc.uri.fsPath);
+    const root = viewRootOf(doc.uri.fsPath);
     if (source === 'cpctil') {
       const rel = view.cpctil?.file;
       if (!rel) {
@@ -336,12 +356,12 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
         return res;
       }
       try {
-        const abs = path.resolve(root, rel);
+        const abs = insideRootFrom(root, root, rel);
         const st = parseSprite(fs.readFileSync(abs, 'utf8'), 'til');
         let fileText: string | undefined;
         if ('file' in st.palette) {
           try {
-            fileText = fs.readFileSync(path.resolve(root, st.palette.file), 'utf8');
+            fileText = fs.readFileSync(insideRootFrom(root, path.dirname(abs), st.palette.file), 'utf8');
           } catch {
             /* resolvePalette reports it */
           }
@@ -370,7 +390,7 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
         const bytes = fs.readFileSync(t.imagePath);
         let img = cachedDecode(t.imagePath, new Uint8Array(bytes));
         if (source === 'cpc') {
-          const pv = previewOf(newRecipe(t.imagePath, { mode, kind: 'tiles', emitPalette: false }), rootIo(root), { decode: decoderFor(root) });
+          const pv = previewOf(newRecipe(posix(path.relative(root, t.imagePath)), { mode, kind: 'tiles', emitPalette: false }), rootIo(root), { decode: decoderFor(root) });
           const data = new Uint8Array(pv.width * pv.height * 4);
           pv.indices.forEach((pen, k) => {
             const row = pv.rows[pen];
@@ -410,7 +430,13 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
 
 /** Converts a .tmx with the engine the settings choose. Never throws. */
 export async function convertFile(file: string, o: ConvertOptions & { output?: string }): Promise<ConvertResult> {
+  const out0 = (error: string): ConvertResult => ({ ok: false, output: o.output ?? '', error, engine: 'builtin' });
+  if (!isTrusted()) {
+    notifyUntrusted('Convert Tiled Map');
+    return out0(restrictedText('Convert Tiled Map'));
+  }
   const root = projectRootOf(file);
+  if (!root) return out0(`${path.basename(file)} is ${NOT_IN_PROJECT}`);
   const s = readSettings(root);
   const rel = posix(path.relative(root, file));
   const r = await generateTmx(root, rel, o, { engine: s.assetsEngine, pythonPath: s.pythonPath, library: resolveLibrary(root, s) }, { sink: channelSink });
@@ -475,7 +501,7 @@ export async function tmxGenerateCommand(arg?: vscode.Uri | TmxCommandArgs): Pro
   }
   const r = await convertFile(uri.fsPath, opts);
   if (r.ok) {
-    const root = projectRootOf(uri.fsPath);
+    const root = projectRootOf(uri.fsPath) ?? path.dirname(uri.fsPath);
     const out = vscode.Uri.file(path.resolve(root, r.output));
     if (!quiet) void vscode.window.showInformationMessage(`CPCBuild: wrote ${r.output}`, 'Open').then((c) => c && vscode.window.showTextDocument(out));
   } else {

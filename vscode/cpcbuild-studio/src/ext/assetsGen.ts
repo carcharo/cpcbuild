@@ -19,6 +19,7 @@ import {
   toolMessage, type HeaderMode, type Recipe,
 } from '../core/cpcimp';
 import { globBase, matchesAny } from '../core/glob';
+import { insideRoot, PathEscapeError } from '../core/paths';
 import { runTool, type CancelToken, type Sink } from './runTool';
 
 export type AssetEngine = 'builtin' | 'python';
@@ -115,20 +116,32 @@ export function rootIo(root: string): CliIo {
     }
   };
   return {
-    readFile: (p) => wrap(p, () => new Uint8Array(fs.readFileSync(path.resolve(root, p)))),
-    readText: (p) => wrap(p, () => fs.readFileSync(path.resolve(root, p), 'utf8')),
+    readFile: (p) => wrap(p, () => new Uint8Array(fs.readFileSync(insideRoot(root, p)))),
+    readText: (p) => wrap(p, () => fs.readFileSync(insideRoot(root, p), 'utf8')),
   };
 }
 
 export function decoderFor(root: string): (p: string, bytes: Uint8Array) => RgbaImage {
-  return (p, bytes) => cachedDecode(path.resolve(root, p), bytes);
+  return (p, bytes) => cachedDecode(insideRoot(root, p), bytes);
 }
 
 /** The message to show for anything a run throws. */
 export function describeError(e: unknown): string {
   if (e instanceof Img2cpcError || e instanceof ImageReadError) return toolMessage(e);
-  if (e instanceof RecipeError) return e.message;
+  if (e instanceof RecipeError || e instanceof PathEscapeError) return e.message;
   return e instanceof Error ? e.message : String(e);
+}
+
+/** Every path a recipe names (inputs and outputs) must stay inside the project folder, whatever the engine. */
+export function checkRecipePaths(root: string, recipeRel: string, r: Recipe): void {
+  for (const p of [...inputsOf(r), ...outputsOf(r)]) {
+    try {
+      insideRoot(root, p);
+    } catch (e) {
+      if (e instanceof PathEscapeError) throw new RecipeError(`${recipeRel}: ${e.message}`);
+      throw e;
+    }
+  }
 }
 
 // ---------------------------------------------------------------- engines
@@ -136,7 +149,7 @@ export function describeError(e: unknown): string {
 function writeFiles(root: string, files: { path: string; data: string | Uint8Array }[]): string[] {
   const written: string[] = [];
   for (const f of files) {
-    const abs = path.resolve(root, f.path);
+    const abs = insideRoot(root, f.path);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
     fs.writeFileSync(abs, f.data);
     written.push(f.path);
@@ -155,6 +168,7 @@ export async function generate(
   const res: GenResult = { recipe: recipeRel, ok: false, written: [] };
   try {
     if (!r.source) throw new RecipeError(`${recipeRel}: no source image yet. Choose one in the importer.`);
+    checkRecipePaths(root, recipeRel, r);
     if (s.engine === 'builtin') {
       const out = runRecipe(r, rootIo(root), { header: s.header, recipePath: recipeRel, decode: decoderFor(root) });
       res.written = writeFiles(root, out.files);
@@ -200,7 +214,7 @@ async function generatePython(root: string, recipeRel: string, r: Recipe, s: Gen
       return res;
     }
     const out = effectiveOutput(r);
-    const abs = path.resolve(root, out);
+    const abs = insideRoot(root, out);
     const isBin = r.target.startsWith('plus') && r.plus?.format === 'bin';
     if (!isBin) {
       let text = fs.readFileSync(abs, 'utf8');

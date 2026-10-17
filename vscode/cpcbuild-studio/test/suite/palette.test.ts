@@ -45,7 +45,7 @@ test('palette: a .cpcpal opens in the custom editor, the webview reports ready, 
   assert.deepStrictEqual(doc.state.entries, [0, 26, 6, 18]);
   assert.deepStrictEqual(doc.webviewErrors, []);
   // let the first render run and be sure nothing was reported
-  await new Promise((r) => setTimeout(r, 500));
+  await waitFor('the first render', () => doc.renderedCount > 0);
   assert.deepStrictEqual(doc.webviewErrors, []);
   await closeClean();
 });
