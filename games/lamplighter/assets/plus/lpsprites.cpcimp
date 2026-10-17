@@ -1,0 +1,8 @@
+{
+  "format": "cpcimp",
+  "version": 1,
+  "source": "assets/plus/plus_sprites.png",
+  "output": "assets/plus/lpsprites.bas",
+  "target": "plus-sprite",
+  "name": "lpsprites"
+}

@@ -1,0 +1,16 @@
+{
+  "format": "cpcimp",
+  "version": 1,
+  "source": "assets/sprites.png",
+  "output": "assets/sprites.bas",
+  "target": "cpc",
+  "mode": 0,
+  "name": "sprites",
+  "kind": "sprite",
+  "frame": "8x16",
+  "masked": true,
+  "palette": {
+    "file": "assets/lamp.cpcpal"
+  },
+  "emitPalette": false
+}

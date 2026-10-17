@@ -7,7 +7,7 @@ Writes, for the CPC (mode 0, one PNG pixel = one CPC pixel, the exact RGB of
 the firmware colours in PENS so img2cpc.py's fixed palette maps them one to
 one):
 
-  lamp.pal      the 16 pens (firmware colours)
+  lamp.cpcpal   the 16 pens (firmware colours)
   tiles.png     128x8   16 tiles of 8x8 (see TILE_NAMES; the tile numbers are
                         the ones game.bas's attribute table is indexed by)
   sprites.png   96x16   12 frames of 8x16 (4 bytes x 16 lines), transparent =
@@ -522,7 +522,7 @@ def tmx(big):
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
     out.mkdir(parents=True, exist_ok=True)
-    (out / "lamp.pal").write_text("# Lamplighter's 16 pens (firmware colours)\n" + ",".join(map(str, PENS)) + "\n")
+    (out / "lamp.cpcpal").write_text("# Lamplighter's 16 pens (firmware colours)\n" + ",".join(map(str, PENS)) + "\n")
     tiles_image().save(out / "tiles.png")
     (out / "plus").mkdir(exist_ok=True)
     tiles_image(plus=True).save(out / "plus" / "plus_tiles.png")
