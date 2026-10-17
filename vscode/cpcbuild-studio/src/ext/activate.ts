@@ -9,12 +9,14 @@ import { channelSink, getChannel, tee } from './channel';
 import { readSettings, resolveLibrary, resolveMkdsk } from './config';
 import { checkEnvironment, doctorCommand } from './doctor';
 import { newProjectCommand } from './newProject';
+import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
 import { runInEmulator } from './run';
 import { runTool } from './runTool';
 import { state } from './state';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
 import { registerStubs } from './stubs';
+import { registerLintAndHover } from './lintHover';
 
 /** What the extension exports (used by the extension-host tests; not a public API). */
 export interface StudioApi {
@@ -23,6 +25,8 @@ export interface StudioApi {
   /** Builds one target of the project in `root` (no task, no terminal). */
   build(root: string, targetId: string): Promise<BuildResult>;
   emuEvents(): EmuEvent[];
+  /** The palette editor's provider (documents, edit, undo: used by the extension-host tests). */
+  palette: PaletteEditorProvider;
 }
 
 async function configTarget(): Promise<vscode.ConfigurationTarget> {
@@ -187,12 +191,22 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     state.emuEvents.push(ev);
     getChannel().appendLine(`emu event: ${JSON.stringify(ev)}`);
   });
+  const palette = new PaletteEditorProvider(context);
+  context.subscriptions.push(palette.register());
+  reg('cpcbuild.newPalette', (args) => newPaletteCommand(args));
+  reg('cpcbuild.openAsText', async (uri?: vscode.Uri) => {
+    const target = uri ?? vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+    const u = target instanceof vscode.Uri ? target : (target as { uri?: vscode.Uri } | undefined)?.uri;
+    if (u) await vscode.commands.executeCommand('vscode.openWith', u, 'default');
+  });
   registerStubs(reg);
+  registerLintAndHover(context, reg);
 
   return {
     apiVersion: 1,
     lastBuild: () => state.lastBuild,
     emuEvents: () => state.emuEvents,
+    palette,
     async build(root, targetId) {
       const lp = loadProjectFile(path.join(root, PROJECT_FILE));
       if (!lp.project) throw new Error(`${lp.file}: ${lp.errors.map((e) => e.message).join('; ')}`);

@@ -4,7 +4,6 @@ import * as vscode from 'vscode';
 export const STUB_COMMANDS: Record<string, string> = {
   'cpcbuild.newSprite': 'The sprite editor',
   'cpcbuild.newTileset': 'The tile editor',
-  'cpcbuild.newPalette': 'The palette editor',
   'cpcbuild.newPlusSprite': 'The Plus sprite editor',
   'cpcbuild.importImage': 'The image importer',
   'cpcbuild.copyImporterCommand': 'Copying the importer command',
@@ -25,8 +24,6 @@ export const STUB_COMMANDS: Record<string, string> = {
   'cpcbuild.debug.resume': 'Debugging through the emulator',
   'cpcbuild.debug.step': 'Debugging through the emulator',
   'cpcbuild.debug.toggleBreakpoint': 'Debugging through the emulator',
-  'cpcbuild.lint.toggle': 'Lint',
-  'cpcbuild.docs.open': 'Library docs lookup',
 };
 
 export function registerStubs(reg: (id: string, fn: (...a: any[]) => unknown) => void): void {
