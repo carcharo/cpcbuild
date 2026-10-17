@@ -30,3 +30,13 @@ describe('templates', () => {
     expect(generateTemplate('firmware', { name: '名前' }).disc).toBe('PROG');
   });
 });
+
+describe('template asset globs', () => {
+  it('every template lists globs that Regenerate Assets can find (recipe or palette files)', () => {
+    for (const { id } of TEMPLATES) {
+      const r = generateTemplate(id, { name: 'demo' });
+      const cfg = JSON.parse(r.files['cpcbuild.json']);
+      for (const g of cfg.assets) expect(g).toMatch(/\.(cpcimp|cpcspr|cpcpal|cpcpal12)$/);
+    }
+  });
+});

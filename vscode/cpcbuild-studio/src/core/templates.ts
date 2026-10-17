@@ -329,7 +329,7 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
           { id: 'zx128', arch: 'zx48k', main: 'src/main.bas', defines: ['ZX128'], org: 31744, heap: 256, package: 'tap' },
           { id: 'zx48', arch: 'zx48k', main: 'src/main.bas', defines: ['ZX48'], org: 32768, heap: 256, package: 'tap' },
         ],
-        assets: ['assets/**/*.png'],
+        assets: ['assets/**/*.cpcimp', 'assets/**/*.cpcpal'],
       });
       files['src/main.bas'] = SHARED_MAIN;
       files['src/game.bas'] = SHARED_GAME;
@@ -338,8 +338,9 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
       files['assets/cpc/pens.cpcpal'] = CPC_PAL;
       files['assets/zx/.gitkeep'] = '';
       files['assets/README.md'] =
-        'Put one source PNG here. `assets/cpc/` is generated from it with `--mode 0` and `assets/zx/` with `--spectrum`\n' +
-        '(tools/img2cpc.py), the way games/shooter does it. This template draws text only, so nothing is generated yet.\n';
+        'Put one source PNG here and use "CPCBuild: Import Image" twice: once with target CPC (mode 0) writing into\n' +
+        '`assets/cpc/`, once with target Spectrum writing into `assets/zx/`. The .cpcimp recipes are regenerated before\n' +
+        'each build. This template draws text only, so nothing is generated yet.\n';
       common(name, [
         'Build `cpc6128` and run it; build `zx128` for a `.tap` (Spectrum targets are build-only: load the tape in your own Spectrum emulator).',
         'Open `src/game.bas`: the shared logic. Only `platform_cpc.bas` and `platform_zx.bas` know the machine.',
