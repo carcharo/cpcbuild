@@ -52,23 +52,6 @@ calls that asked the firmware do the work themselves: `ScreenInit`,
 
 Typical start of a program:
 
-## 2. Program origin
-
-By default a CPC program loads at &0040 (64), the lowest safe address, which leaves the most room for code and data (about 34.8 KB with the default heap). Any origin from &0040 up works with `--org`. Use the origin with the compiler and tools:
-
-| Tool / build script | Option | Example |
-|---|---|---|
-| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x4000 ...` |
-| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x4000` |
-| Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x4000` |
-| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x4000 tools/cpc/run.sh prog.bas` |
-
-The tools read the actual origin from the compiled binary's memory map, so `--org` and the default can never disagree with the packer.
-
-**Caveat:** BASIC's firmware CALL writes &0040-&0047 just before a program starts, so a program loaded by `LOAD` + `CALL &0040` needs special handling (a stub at &A300 to restore the first 8 bytes; `cpcrun.py` does this for quickloads at &0040). **RUN" is safe:** AMSDOS loads last, after BASIC's write, so real RUN" at &0040 works fine on every model (464, 664, 6128).
-
-## 3. Coordinates
-
 ```basic
 #include <cpc.bas>
 #include <cpcbuild.bas>
@@ -94,7 +77,22 @@ Compile and run (from the compiler fork):
 tools/cpc/run.sh ../cpcbuild/examples/bounce.bas
 ```
 
-## 2. Coordinates
+## 2. Program origin
+
+By default a CPC program loads at &0040 (64), the lowest safe address, which leaves the most room for code and data (about 34.8 KB with the default heap). Any origin from &0040 up works with `--org`. Use the origin with the compiler and tools:
+
+| Tool / build script | Option | Example |
+|---|---|---|
+| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x4000 ...` |
+| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x4000` |
+| Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x4000` |
+| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x4000 tools/cpc/run.sh prog.bas` |
+
+The tools read the actual origin from the compiled binary's memory map, so `--org` and the default can never disagree with the packer.
+
+**Caveat:** BASIC's firmware CALL writes &0040-&0047 just before a program starts, so a program loaded by `LOAD` + `CALL &0040` needs special handling (a stub at &A300 to restore the first 8 bytes; `cpcrun.py` does this for quickloads at &0040). **RUN" is safe:** AMSDOS loads last, after BASIC's write, so real RUN" at &0040 works fine on every model (464, 664, 6128).
+
+## 3. Coordinates
 
 The library has its own coordinate system, chosen for speed. It differs from
 PLOT/DRAW/CIRCLE.
@@ -131,7 +129,7 @@ after a scroll the top-left byte moves. The library reads the offset (in
 `ScreenInit`, `WaitRetrace` and `FlipBuffer`) and adds it, wrapping inside the
 2 KB block, so drawing stays right after text scrolls. `Mode` resets the
 scroll. Several routines have fast paths that need no wrapping (see
-[Performance tips](#8-performance-tips)).
+[Performance tips](#11-performance-tips)).
 
 ## 4. Data formats
 
@@ -470,7 +468,7 @@ multiple of 4 T, 4 per microsecond; a frame is 20 ms or 80,000 T), measured in
 Caprice32. They are the routine's own cost; with interrupts always on, the
 firmware takes about 12 % of the CPU on top, so wall-clock time is longer.
 
-### 7.1 Screen basics (`cpc.bas`)
+### 9.1 Screen basics (`cpc.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -512,7 +510,7 @@ SetBorder 0
 PRINT INK 1; "Hello"
 ```
 
-### 7.2 Display (`cpcbuild/display.bas`)
+### 9.2 Display (`cpcbuild/display.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -539,7 +537,7 @@ as NextBuild's `WaitRetrace`.)
 (no scroll re-read).
 
 **EnableDoubleBuffer, DisableDoubleBuffer, FlipBuffer** are described in
-[Double buffering](#5-double-buffering). `FlipBuffer` shows what was drawn at the
+[Double buffering](#7-double-buffering). `FlipBuffer` shows what was drawn at the
 next flyback and then draws on the other screen; with double buffering off it only
 waits for the flyback. `EnableDoubleBuffer` copies the shown screen to the hidden
 one first.
@@ -557,7 +555,7 @@ WaitRetrace(2)              ' wait two frames
 PokeScreen(10, 100, PenByte(1))
 ```
 
-### 7.3 Sprites (`cpcbuild/sprites.bas`)
+### 9.3 Sprites (`cpcbuild/sprites.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -598,7 +596,7 @@ PutSpriteMasked(x, y, 4, 16, @ball(0))
 PutSprite(x, y, 4, 16, @under(0))     ' put it back
 ```
 
-### 7.4 Fill (`cpcbuild/fill.bas`)
+### 9.4 Fill (`cpcbuild/fill.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -622,7 +620,7 @@ ClearScreen(0)
 FillRect(10, 20, 8, 40, 2)    ' 8 bytes wide, 40 lines high, pen 2
 ```
 
-### 7.5 Tiles (`cpcbuild/tiles.bas`)
+### 9.5 Tiles (`cpcbuild/tiles.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -671,7 +669,7 @@ DoTile8(5, 3, 2)                                ' one cell
 TileRestore(@level(0), level_W, x, y, 4, 16)    ' erase a 4 x 16-byte sprite
 ```
 
-### 7.6 Keyboard (`cpcbuild/keyboard.bas`)
+### 9.6 Keyboard (`cpcbuild/keyboard.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -709,7 +707,7 @@ DO
 LOOP UNTIL KeyDown(KEY_ESC)
 ```
 
-### 7.7 Palette (`cpcbuild/palette.bas`)
+### 9.7 Palette (`cpcbuild/palette.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -740,7 +738,7 @@ SetPalette(@pal(0), 4)
 PalUpload(@pal(0), 2, 8)                  ' pens 8 and 9
 ```
 
-### 7.8 Frame hook and game mode (`framehook.bas`)
+### 9.8 Frame hook and game mode (`framehook.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -791,7 +789,7 @@ LOOP UNTIL KeyDown(KEY_ESC)
 GameMode(0)                         ' back to normal
 ```
 
-### 7.9 Music and sound effects (Arkos) (`music.bas` — CPC and Spectrum 128K)
+### 9.9 Music and sound effects (Arkos) (`music.bas` — CPC and Spectrum 128K)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -857,7 +855,7 @@ LOOP UNTIL KeyDown(KEY_ESC)
 MusicStop()
 ```
 
-### 7.10 Firmware sound (`cpc.bas`)
+### 9.10 Firmware sound (`cpc.bas`)
 
 These queue notes on the firmware sound manager and return at once. The manager
 plays from the interrupt handler. Each of the 3 channels (A = 1, B = 2, C = 4) has
@@ -916,7 +914,7 @@ SoundEnvelope 1, @decay(0), 1
 IF SoundFree(1) > 2 THEN r = SoundQueue(1, 239, 20, 15, 1)    ' middle C, 0.2 s, envelope 1
 ```
 
-### 7.11 Direct AY access (`cpc.bas`)
+### 9.11 Direct AY access (`cpc.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -927,7 +925,7 @@ The AY sits behind the PPI. Both calls use the PPI directly with interrupts off 
 the access and back on after (the firmware's keyboard scan shares the PPI). A write
 takes about 58 us for the raw routine, plus the call and the `di`/`ei`. In register 7
 (mixer) keep bits 6-7 clear: bit 6 makes the keyboard port an output and the keyboard
-stops reading. Read [Sound ownership](#6-sound-ownership) first. Reading register 14
+stops reading. Read [Sound ownership](#8-sound-ownership) first. Reading register 14
 returns keyboard row 0.
 
 ```basic
@@ -937,7 +935,7 @@ AyWrite 0, 239 BAND 255: AyWrite 1, 0
 AyWrite 8, 15
 ```
 
-### 7.12 Play (`play.bas`)
+### 9.12 Play (`play.bas`)
 
 ```basic
 #include <play.bas>
@@ -954,14 +952,14 @@ compiler fork. Points that matter on the CPC:
   keyboard, firmware clock and sound queue stop meanwhile, and it does not
   return until the tune is over.
 * It calls SOUND_RESET once at the start (the sound manager is then idle). It
-  owns the AY while it runs; see [Sound ownership](#6-sound-ownership).
+  owns the AY while it runs; see [Sound ownership](#8-sound-ownership).
 * It is for the CPC's 1 MHz AY clock with the tempo calibrated to the CPC's CPU
   speed (within 0.6 % in tests).
 * `--enable-break` is not supported with Play.
 * It needs the default optimisation level (`-O2`); at level 1 or lower it does
   not work.
 
-### 7.13 Font (`font.bas`)
+### 9.13 Font (`font.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -987,7 +985,7 @@ DIM myfont(767) AS UBYTE => { ... }
 SetFont(@myfont(0))
 ```
 
-### 7.14 Also in the cpc standard library
+### 9.14 Also in the cpc standard library
 
 | Call | Notes |
 |---|---|
@@ -995,7 +993,7 @@ SetFont(@myfont(0))
 | `SCREEN$(row, col)` (`screen.bas`) | The character at a text cell, as a one-character string, or `""`. |
 | `INPUT(maxchars)` (`input.bas`) | Reads a line with the firmware cursor: `a$ = INPUT(20)`. |
 
-### 7.15 Sprite list (`cpcbuild/spritelist.bas`)
+### 9.15 Sprite list (`cpcbuild/spritelist.bas`)
 
 Sprites for a game whose background behind them is one colour: a sprite is drawn
 by OR onto the screen and erased by filling its box with the background byte, so
@@ -1058,7 +1056,7 @@ Starfall's CPC layer draws ~20 a step this way): `.core.__SL_BEGIN`,
 (`__SL_RESET` only AF) and keep IX and IY; the full list is at the top of
 `lib/cpcbuild/spritelist.asm`.
 
-### 7.16 Text (`cpcbuild/text.bas`)
+### 9.16 Text (`cpcbuild/text.bas`)
 
 Text from a compact 1-bit font, drawn straight into screen memory in 8 x 8 pixel
 cells: much smaller than a tile font or `SetFont`.
