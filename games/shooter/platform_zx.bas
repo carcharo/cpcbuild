@@ -279,12 +279,130 @@ SUB PzPrint(row AS UBYTE, col AS UBYTE, ik AS UBYTE, s AS STRING)
   PRINT AT row, col; INK ik; BRIGHT 1; PAPER 0; s;
 END SUB
 
-SUB PzNum(row AS UBYTE, col AS UBYTE, v AS UINTEGER, n AS UBYTE)
+' The first drawing of the HUD on a screen (PlatHud, below) uses this BASIC
+' version, PRINT-based and slow; see there. The last n digits of v (leading
+' zeros kept), white bright on black, at character cell (row, col).
+SUB PzNumSlow(row AS UBYTE, col AS UBYTE, v AS UINTEGER, n AS UBYTE)
   DIM i AS BYTE
   FOR i = n - 1 TO 0 STEP -1
     PRINT AT row, col + i; INK 7; BRIGHT 1; PAPER 0; CHR$(48 + CAST(UBYTE, v MOD 10));
     v = v / 10
   NEXT i
+END SUB
+
+' The last n digits of v (leading zeros kept) at character cell (row, col) of
+' the screen PRINT goes to, white bright on black: what PRINT AT row, col;
+' INK 7; BRIGHT 1; PAPER 0; CHR$(48 + digit) printed digit by digit, without
+' the ROM-style print path. In asm: the BASIC version (v MOD 10 and v / 10, a
+' 16-bit division each, CHR$'s string allocation, PRINT) cost about 60,000
+' T-states for the 5-digit score, and the double-buffered build pays it
+' twice, once on each screen, in two steps running: 11 of the 250 steps of
+' the bench ran over their 2 frames because of it (24.2 steps/s on the 128K).
+' The digits come from subtracting 10000, 1000, 100 and 10 (up to 9 times
+' each); the glyphs are copied from CHARS (the ROM font, as PRINT does) to
+' the cell's 8 bitmap lines, and the cell's attribute is set to 71.
+SUB PzNum(row AS UBYTE, col AS UBYTE, v AS UINTEGER, n AS UBYTE)
+  ASM
+    ld l,(ix+8)
+    ld h,(ix+9)                 ; HL = v
+    ld de,__PZN_BUF
+    ld bc,-10000
+    call __PZN_DIG
+    ld bc,-1000
+    call __PZN_DIG
+    ld bc,-100
+    call __PZN_DIG
+    ld bc,-10
+    call __PZN_DIG
+    ld a,l                      ; what is left: the units
+    add a,48
+    ld (de),a
+    ld a,(ix+5)                 ; row
+    ld b,a
+    rrca
+    rrca
+    rrca
+    and 3                       ; row / 8, the third (and the attribute page)
+    ld d,a
+    add a,a
+    add a,a
+    add a,a
+    ld h,a                      ; bitmap offset of the third: 0, 8, 16 pages
+    ld a,b
+    and 7
+    rrca
+    rrca
+    rrca                        ; (row mod 8) * 32
+    add a,(ix+7)                ; + col: no carry (at most 224 + 31)
+    ld l,a
+    ld e,a                      ; DE = the attribute offset (page, same low byte)
+    push de
+    ld de,(.core.SCREEN_ADDR)
+    add hl,de
+    ld (__PZN_SCR),hl
+    pop hl
+    ld de,(.core.SCREEN_ATTR_ADDR)
+    add hl,de
+    ld (__PZN_ATT),hl
+    ld a,(ix+11)                ; n digits, the last n of the five
+    ld b,a
+    ld a,5
+    sub b
+    ld e,a
+    ld d,0
+    ld hl,__PZN_BUF
+    add hl,de
+__PZN_LOOP:
+    ld a,(hl)                   ; the digit's character code
+    inc hl
+    push hl
+    push bc
+    ld l,a
+    ld h,0
+    add hl,hl
+    add hl,hl
+    add hl,hl
+    ld de,(23606)               ; CHARS
+    add hl,de                   ; the glyph
+    ld de,(__PZN_SCR)
+    ld b,8
+__PZN_ROW:
+    ld a,(hl)
+    ld (de),a
+    inc hl
+    inc d
+    djnz __PZN_ROW
+    ld hl,(__PZN_ATT)
+    ld (hl),71                  ; BRIGHT, white ink, black paper
+    inc hl
+    ld (__PZN_ATT),hl
+    ld hl,(__PZN_SCR)
+    inc hl
+    ld (__PZN_SCR),hl
+    pop bc
+    pop hl
+    djnz __PZN_LOOP
+    jp __PZN_END
+; HL = value, DE = where to put the digit, BC = minus the power of ten:
+; one digit by repeated subtraction, the rest of the value left in HL
+__PZN_DIG:
+    ld a,47
+__PZN_D1:
+    inc a
+    add hl,bc
+    jr c,__PZN_D1
+    sbc hl,bc
+    ld (de),a
+    inc de
+    ret
+__PZN_BUF:
+    defs 5
+__PZN_SCR:
+    dw 0
+__PZN_ATT:
+    dw 0
+__PZN_END:
+  END ASM
 END SUB
 
 ' Kempston: 1 if port 31 looks like a joystick. A machine without one
@@ -470,8 +588,9 @@ SUB PlatFrameEnd()
 END SUB
 
 SUB PlatHud(score AS UINTEGER, lives AS UBYTE, wave AS UBYTE, hiscore AS UINTEGER)
-  DIM s AS UBYTE
+  DIM s, fresh AS UBYTE
   s = pzDs
+  fresh = 0
   IF pzHValid(s) = 0 THEN
     PzPrint(0, 1, 5, "SCORE")
     PzPrint(0, 21, 5, "WAVE")
@@ -482,11 +601,25 @@ SUB PlatHud(score AS UINTEGER, lives AS UBYTE, wave AS UBYTE, hiscore AS UINTEGE
     pzHHi(s) = hiscore + 1
     pzHLives(s) = lives + 1
     pzHWave(s) = wave + 1
+    fresh = 1
   END IF
-  IF pzHScore(s) <> score THEN PzNum(0, 7, score, 5): pzHScore(s) = score
-  IF pzHHi(s) <> hiscore THEN PzNum(1, 7, hiscore, 5): pzHHi(s) = hiscore
-  IF pzHLives(s) <> lives THEN PzNum(1, 27, lives, 1): pzHLives(s) = lives
-  IF pzHWave(s) <> wave THEN PzNum(0, 26, wave, 2): pzHWave(s) = wave
+  ' The first drawing on each screen uses PzNumSlow, as the layer always did:
+  ' its time (the step that draws it overruns its 2 frames) is part of
+  ' the game's start-up timing, which seeds the random numbers (GameSeed is
+  ' given the frame count when the player starts), so the screenshot
+  ' goldens depend on it. Every later change (a kill, a life lost) takes
+  ' PzNum, 25 times faster.
+  IF fresh = 1 THEN
+    IF pzHScore(s) <> score THEN PzNumSlow(0, 7, score, 5): pzHScore(s) = score
+    IF pzHHi(s) <> hiscore THEN PzNumSlow(1, 7, hiscore, 5): pzHHi(s) = hiscore
+    IF pzHLives(s) <> lives THEN PzNumSlow(1, 27, lives, 1): pzHLives(s) = lives
+    IF pzHWave(s) <> wave THEN PzNumSlow(0, 26, wave, 2): pzHWave(s) = wave
+  ELSE
+    IF pzHScore(s) <> score THEN PzNum(0, 7, score, 5): pzHScore(s) = score
+    IF pzHHi(s) <> hiscore THEN PzNum(1, 7, hiscore, 5): pzHHi(s) = hiscore
+    IF pzHLives(s) <> lives THEN PzNum(1, 27, lives, 1): pzHLives(s) = lives
+    IF pzHWave(s) <> wave THEN PzNum(0, 26, wave, 2): pzHWave(s) = wave
+  END IF
 END SUB
 
 SUB PlatText(col AS UBYTE, row AS UBYTE, s AS STRING)
@@ -526,8 +659,8 @@ FUNCTION PlatFrames() AS UINTEGER
   RETURN PEEK(UINTEGER, 23672)
 END FUNCTION
 
-SUB PlatMusic(tune AS UBYTE)
 #ifdef ZX128
+SUB PlatMusic(tune AS UBYTE)
   IF tune = 0 THEN
     MusicStop()
   ELSEIF tune = 1 THEN
@@ -535,8 +668,10 @@ SUB PlatMusic(tune AS UBYTE)
   ELSE
     MusicInit(PLAT_ZX_SONG_GAME, 0)
   END IF
-#endif
 END SUB
+#else
+#define PlatMusic(tune)
+#endif
 
 #ifdef ZX48
 ' ---------------- 48K beeper effects ----------------
@@ -679,6 +814,7 @@ END SUB
 ' drawn on (the 128K's bank 7 paged out again, the bank that was at C000 back:
 ' a stack up there, or BASIC itself, needs it), cleared, white on black, the
 ' cursor at the top.
+#ifdef TESTSW
 SUB PlatEnd()
 #ifdef ZX128
   MusicStop()
@@ -697,6 +833,7 @@ SUB PlatEnd()
   END ASM
 #endif
 END SUB
+#endif
 
 #ifdef SHOT
 ' Asks the test runner for a screenshot called name: the marker "&04 SHOT

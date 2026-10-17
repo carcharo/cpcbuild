@@ -393,6 +393,7 @@ REM The words of a DMA list (see the header).
 #pragma case_insensitive = TRUE
 
 function PlusAvailable() as ubyte
+    #require "cpcplus/plus.asm"
     asm
     push namespace core
     call __PL_AVAIL
@@ -401,6 +402,7 @@ function PlusAvailable() as ubyte
 end function
 
 sub PlusUnlock()
+    #require "cpcplus/plus.asm"
     asm
     push namespace core
     call __PL_ENSURE
@@ -409,6 +411,10 @@ sub PlusUnlock()
 end sub
 
 sub PlusLock()
+    #require "cpcplus/plus.asm"
+#ifdef CPC_BAREMETAL
+    #require "cpcplus/plusraster.asm"
+#endif
     asm
     push namespace core
 #ifdef CPC_BAREMETAL
@@ -420,6 +426,7 @@ sub PlusLock()
 end sub
 
 sub PlusPageIn()
+    #require "cpcplus/plus.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -429,6 +436,7 @@ sub PlusPageIn()
 end sub
 
 sub PlusPageOut()
+    #require "cpcplus/plus.asm"
     CbReserve4000()
     asm
     push namespace core
@@ -438,6 +446,7 @@ sub PlusPageOut()
 end sub
 
 sub SetPalette12(pen as ubyte, rgb as uinteger)
+    #require "cpcplus/plusgfx.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -449,6 +458,7 @@ sub SetPalette12(pen as ubyte, rgb as uinteger)
 end sub
 
 sub SetBorder12(rgb as uinteger)
+    #require "cpcplus/plusgfx.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -460,6 +470,7 @@ sub SetBorder12(rgb as uinteger)
 end sub
 
 function GetPalette12(entry as ubyte) as uinteger
+    #require "cpcplus/plusgfx.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -469,6 +480,7 @@ function GetPalette12(entry as ubyte) as uinteger
 end function
 
 sub SetPalette12Block(addr as uinteger, first as ubyte, count as ubyte)
+    #require "cpcplus/plusgfx.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -481,6 +493,7 @@ sub SetPalette12Block(addr as uinteger, first as ubyte, count as ubyte)
 end sub
 
 sub SpritePalette(addr as uinteger)
+    #require "cpcplus/plusgfx.asm"
     asm
     push namespace core
     ld l, (ix+4)
@@ -492,6 +505,7 @@ sub SpritePalette(addr as uinteger)
 end sub
 
 sub SpriteColour(n as ubyte, rgb as uinteger)
+    #require "cpcplus/plusgfx.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -509,6 +523,7 @@ __PLB_SC_END:
 end sub
 
 sub SpriteSetImage(n as ubyte, addr as uinteger)
+    #require "cpcplus/plusspr.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -520,6 +535,7 @@ sub SpriteSetImage(n as ubyte, addr as uinteger)
 end sub
 
 sub SpriteSetImagePacked(n as ubyte, addr as uinteger)
+    #require "cpcplus/plusspr.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -531,6 +547,7 @@ sub SpriteSetImagePacked(n as ubyte, addr as uinteger)
 end sub
 
 sub SpriteMove(n as ubyte, x as integer, y as integer)
+    #require "cpcplus/plusspr.asm"
     asm
     push namespace core
     call __PL_MOVE
@@ -539,6 +556,7 @@ sub SpriteMove(n as ubyte, x as integer, y as integer)
 end sub
 
 sub SpriteMoveBlock(first as ubyte, count as ubyte, addr as uinteger)
+    #require "cpcplus/plusspr.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -551,6 +569,7 @@ sub SpriteMoveBlock(first as ubyte, count as ubyte, addr as uinteger)
 end sub
 
 sub SpriteMag(n as ubyte, magx as ubyte, magy as ubyte)
+    #require "cpcplus/plusspr.asm"
     asm
     push namespace core
     ld a, (ix+7)
@@ -578,6 +597,7 @@ __PLB_SM_GO:
 end sub
 
 sub SpriteHide(n as ubyte)
+    #require "cpcplus/plusspr.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -588,6 +608,7 @@ sub SpriteHide(n as ubyte)
 end sub
 
 sub SpritesHideAll()
+    #require "cpcplus/plusspr.asm"
     asm
     push namespace core
     call __PL_HIDEALL
@@ -596,6 +617,7 @@ sub SpritesHideAll()
 end sub
 
 function PlusPeek(addr as uinteger) as ubyte
+    #require "cpcplus/plus.asm"
     asm
     push namespace core
     PROC
@@ -622,6 +644,7 @@ __PLB_PK_END:
 end function
 
 sub PlusPoke(addr as uinteger, value as ubyte)
+    #require "cpcplus/plus.asm"
     asm
     push namespace core
     PROC
@@ -646,6 +669,7 @@ __PLB_PO_END:
 end sub
 
 sub PlusPokeBlock(dest as uinteger, src as uinteger, count as uinteger)
+    #require "cpcplus/plus.asm"
     asm
     push namespace core
     PROC
@@ -684,6 +708,7 @@ __PLB_PB_END:
 end sub
 
 sub ScrollFine(dx as ubyte, dy as ubyte)
+    #require "cpcplus/plusscr.asm"
     asm
     push namespace core
     ld b, (ix+5)
@@ -694,6 +719,7 @@ sub ScrollFine(dx as ubyte, dy as ubyte)
 end sub
 
 sub ScrollBorder(flag as ubyte)
+    #require "cpcplus/plusscr.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -703,6 +729,7 @@ sub ScrollBorder(flag as ubyte)
 end sub
 
 sub SplitScreen(line as ubyte, addr as uinteger)
+    #require "cpcplus/plusscr.asm"
     asm
     push namespace core
     ld l, (ix+6)
@@ -715,6 +742,7 @@ sub SplitScreen(line as ubyte, addr as uinteger)
 end sub
 
 sub SplitScreenCrtc(line as ubyte, crtc as uinteger)
+    #require "cpcplus/plusscr.asm"
     asm
     push namespace core
     ld l, (ix+6)
@@ -726,6 +754,7 @@ sub SplitScreenCrtc(line as ubyte, crtc as uinteger)
 end sub
 
 sub SplitOff()
+    #require "cpcplus/plusscr.asm"
     asm
     push namespace core
     xor a
@@ -736,6 +765,7 @@ end sub
 
 #ifdef CPC_BAREMETAL
 sub RasterIntAt(line as ubyte, handler as uinteger)
+    #require "cpcplus/plusraster.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -747,6 +777,7 @@ sub RasterIntAt(line as ubyte, handler as uinteger)
 end sub
 
 sub RasterIntOff(line as ubyte)
+    #require "cpcplus/plusraster.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -785,6 +816,7 @@ end sub
 ' state it uses, RI_N, RI_IDX, RI_LINE, RI_HAND, RI_TP, RI_TH, RI_TQ, RI_MV, is in
 ' plusraster.asm.)
 function RasterIntMove(oldLine as ubyte, newLine as ubyte) as ubyte
+    #require "cpcplus/plusraster.asm"
     asm
     push namespace core
     PROC
@@ -1085,6 +1117,7 @@ __RM_END:
 end function
 
 sub RasterIntClear()
+    #require "cpcplus/plusraster.asm"
     asm
     push namespace core
     call __RI_CLEAR
@@ -1120,6 +1153,7 @@ end sub
 #endif
 
 sub DmaPrescaler(channel as ubyte, value as ubyte)
+    #require "cpcplus/plusdma.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -1130,6 +1164,7 @@ sub DmaPrescaler(channel as ubyte, value as ubyte)
 end sub
 
 function DmaStart(channel as ubyte, addr as uinteger) as ubyte
+    #require "cpcplus/plusdma.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -1141,6 +1176,7 @@ function DmaStart(channel as ubyte, addr as uinteger) as ubyte
 end function
 
 sub DmaStop(channel as ubyte)
+    #require "cpcplus/plusdma.asm"
     asm
     push namespace core
     ld a, (ix+5)
@@ -1154,6 +1190,7 @@ function DmaAlign(addr as uinteger) as uinteger
 end function
 
 function DmaActive() as ubyte
+    #require "cpcplus/plusdma.asm"
     asm
     push namespace core
     call __PL_DMAACTIVE
@@ -1162,13 +1199,5 @@ function DmaActive() as ubyte
 end function
 
 #pragma pop(case_insensitive)
-
-#require "cpcplus/plus.asm"
-#require "cpcplus/plusgfx.asm"
-#require "cpcplus/plusscr.asm"
-#require "cpcplus/plusdma.asm"
-#ifdef CPC_BAREMETAL
-#require "cpcplus/plusraster.asm"
-#endif
 
 #endif

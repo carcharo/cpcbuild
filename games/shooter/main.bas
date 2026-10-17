@@ -15,6 +15,16 @@
 ' world before printing) and PlatShot(name).
 ' ----------------------------------------------------------------
 
+' Either test switch: Tick and PlatEnd exist only then.
+#ifdef SHOT
+#define TESTSW
+#endif
+#ifdef BENCH
+#ifndef TESTSW
+#define TESTSW
+#endif
+#endif
+
 #ifdef __CPC__
 #ifdef PLUS
 #include "platform_plus.bas"
@@ -72,6 +82,7 @@ END SUB
 #endif
 
 ' Per-step bookkeeping for the test switches. w: 0 title, 1 play.
+#ifdef TESTSW
 SUB Tick(w AS UBYTE)
 #ifdef SHOT
   shotN = shotN + 1
@@ -100,6 +111,7 @@ SUB Tick(w AS UBYTE)
   END IF
 #endif
 END SUB
+#endif
 
 DIM inp, st AS UBYTE
 
@@ -136,7 +148,9 @@ FUNCTION TitleScreen() AS UBYTE
     PlatSprite(K_SHIP, 0, 28 + (tx BAND 126), SHIP_Y)
     PlatHud(gScore, 3, 1, gHi)
     PlatFrameEnd()
+#ifdef TESTSW
     Tick(0)
+#endif
     idle = idle + 1
     IF (inp BAND 8) = 0 THEN released = 1
     IF released = 1 AND (inp BAND 8) <> 0 THEN
@@ -170,7 +184,9 @@ SUB RunGame(demo AS UBYTE, tune AS UBYTE)
     GameDraw()
     PlatHud(gScore, gLives, gWave, gHi)
     PlatFrameEnd()
+#ifdef TESTSW
     Tick(1)
+#endif
     IF st = S_OVER THEN
       IF ov = 0 THEN
         PlatText(TX_OVER_C, TX_OVER_R, "GAME OVER")

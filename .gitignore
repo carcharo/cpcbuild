@@ -20,3 +20,4 @@ vscode/*/*.vsix
 vscode/cpcbuild-emu/wasm/
 vscode/cpcbuild-emu/test/.media/
 vscode/*/bundled/
+.worktrees/

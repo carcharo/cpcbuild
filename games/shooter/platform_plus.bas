@@ -16,7 +16,7 @@
 ' The game's logic (game.bas) and main.bas are shared with every other build:
 ' this file implements the same PlatSprite / PlatFrameBegin / PlatFrameEnd ...
 ' routines, handing the kinds 1-3 (the formation) to the engine's own
-' PlatSprite (renamed PlatSpriteCpc below) and the rest to a hardware sprite.
+' SF_SPRITE and the rest to a hardware sprite.
 '
 ' Slot plan (the ASIC has 16 sprites; sprite 0 is drawn on top):
 '
@@ -112,7 +112,6 @@
 #define PlatInit PlatInitCpc
 #define PlatFrameBegin PlatFrameBeginCpc
 #define PlatFrameEnd PlatFrameEndCpc
-#define PlatSprite PlatSpriteCpc
 #define PlatClear PlatClearCpc
 #define PlatEnd PlatEndCpc
 #ifdef PLUS_MUX
@@ -125,7 +124,6 @@
 #undef PlatInit
 #undef PlatFrameBegin
 #undef PlatFrameEnd
-#undef PlatSprite
 #undef PlatClear
 #undef PlatEnd
 
@@ -333,13 +331,6 @@ SUB MxHideAll()
   END ASM
 END SUB
 
-' the aliens' frame queued this frame (0-1), 255 = none
-FUNCTION MxFrame() AS UBYTE
-  ASM
-  ld a, (MX_FR)
-  END ASM
-END FUNCTION
-
 ' 1 if this frame's rows gave the handler lines (MxNewLine)
 FUNCTION MxLinesValid() AS UBYTE
   ASM
@@ -537,6 +528,7 @@ SUB PlatFrameBegin()
   HwFrame()
 END SUB
 
+#ifndef PLUS_MUX
 ' Number of pictures waiting to be loaded, and the next one's slot and picture
 FUNCTION HwPending() AS UBYTE
   ASM
@@ -565,6 +557,7 @@ FUNCTION HwPendingPic(i AS UBYTE) AS UBYTE
   ld a, (hl)
   END ASM
 END FUNCTION
+#endif
 
 SUB HwPendingDone()
   ASM
@@ -651,6 +644,7 @@ SUB PlatInit()
 END SUB
 
 ' Back to the machine's own world: sprites are ASIC state that survives END.
+#ifdef TESTSW
 SUB PlatEnd()
 #ifdef PLUS_MUX
   RasterIntClear()
@@ -658,5 +652,6 @@ SUB PlatEnd()
   HwHideAll()
   PlatEndCpc()
 END SUB
+#endif
 
 #endif

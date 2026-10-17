@@ -52,23 +52,6 @@ calls that asked the firmware do the work themselves: `ScreenInit`,
 
 Typical start of a program:
 
-## 2. Program origin
-
-By default a CPC program loads at &0040 (64), the lowest safe address, which leaves the most room for code and data (about 34.8 KB with the default heap). Any origin from &0040 up works with `--org`. Use the origin with the compiler and tools:
-
-| Tool / build script | Option | Example |
-|---|---|---|
-| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x4000 ...` |
-| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x4000` |
-| Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x4000` |
-| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x4000 tools/cpc/run.sh prog.bas` |
-
-The tools read the actual origin from the compiled binary's memory map, so `--org` and the default can never disagree with the packer.
-
-**Caveat:** BASIC's firmware CALL writes &0040-&0047 just before a program starts, so a program loaded by `LOAD` + `CALL &0040` needs special handling (a stub at &A300 to restore the first 8 bytes; `cpcrun.py` does this for quickloads at &0040). **RUN" is safe:** AMSDOS loads last, after BASIC's write, so real RUN" at &0040 works fine on every model (464, 664, 6128).
-
-## 3. Coordinates
-
 ```basic
 #include <cpc.bas>
 #include <cpcbuild.bas>
@@ -94,7 +77,22 @@ Compile and run (from the compiler fork):
 tools/cpc/run.sh ../cpcbuild/examples/bounce.bas
 ```
 
-## 2. Coordinates
+## 2. Program origin
+
+By default a CPC program loads at &0040 (64), the lowest safe address, which leaves the most room for code and data (about 34.8 KB with the default heap). Any origin from &0040 up works with `--org`. Use the origin with the compiler and tools:
+
+| Tool / build script | Option | Example |
+|---|---|---|
+| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x4000 ...` |
+| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x4000` |
+| Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x4000` |
+| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x4000 tools/cpc/run.sh prog.bas` |
+
+The tools read the actual origin from the compiled binary's memory map, so `--org` and the default can never disagree with the packer.
+
+**Caveat:** BASIC's firmware CALL writes &0040-&0047 just before a program starts, so a program loaded by `LOAD` + `CALL &0040` needs special handling (a stub at &A300 to restore the first 8 bytes; `cpcrun.py` does this for quickloads at &0040). **RUN" is safe:** AMSDOS loads last, after BASIC's write, so real RUN" at &0040 works fine on every model (464, 664, 6128).
+
+## 3. Coordinates
 
 The library has its own coordinate system, chosen for speed. It differs from
 PLOT/DRAW/CIRCLE.
@@ -131,7 +129,7 @@ after a scroll the top-left byte moves. The library reads the offset (in
 `ScreenInit`, `WaitRetrace` and `FlipBuffer`) and adds it, wrapping inside the
 2 KB block, so drawing stays right after text scrolls. `Mode` resets the
 scroll. Several routines have fast paths that need no wrapping (see
-[Performance tips](#8-performance-tips)).
+[Performance tips](#11-performance-tips)).
 
 ## 4. Data formats
 
@@ -470,7 +468,7 @@ multiple of 4 T, 4 per microsecond; a frame is 20 ms or 80,000 T), measured in
 Caprice32. They are the routine's own cost; with interrupts always on, the
 firmware takes about 12 % of the CPU on top, so wall-clock time is longer.
 
-### 7.1 Screen basics (`cpc.bas`)
+### 9.1 Screen basics (`cpc.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -512,7 +510,7 @@ SetBorder 0
 PRINT INK 1; "Hello"
 ```
 
-### 7.2 Display (`cpcbuild/display.bas`)
+### 9.2 Display (`cpcbuild/display.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -539,7 +537,7 @@ as NextBuild's `WaitRetrace`.)
 (no scroll re-read).
 
 **EnableDoubleBuffer, DisableDoubleBuffer, FlipBuffer** are described in
-[Double buffering](#5-double-buffering). `FlipBuffer` shows what was drawn at the
+[Double buffering](#7-double-buffering). `FlipBuffer` shows what was drawn at the
 next flyback and then draws on the other screen; with double buffering off it only
 waits for the flyback. `EnableDoubleBuffer` copies the shown screen to the hidden
 one first.
@@ -557,7 +555,7 @@ WaitRetrace(2)              ' wait two frames
 PokeScreen(10, 100, PenByte(1))
 ```
 
-### 7.3 Sprites (`cpcbuild/sprites.bas`)
+### 9.3 Sprites (`cpcbuild/sprites.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -598,7 +596,7 @@ PutSpriteMasked(x, y, 4, 16, @ball(0))
 PutSprite(x, y, 4, 16, @under(0))     ' put it back
 ```
 
-### 7.4 Fill (`cpcbuild/fill.bas`)
+### 9.4 Fill (`cpcbuild/fill.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -622,7 +620,7 @@ ClearScreen(0)
 FillRect(10, 20, 8, 40, 2)    ' 8 bytes wide, 40 lines high, pen 2
 ```
 
-### 7.5 Tiles (`cpcbuild/tiles.bas`)
+### 9.5 Tiles (`cpcbuild/tiles.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -671,7 +669,7 @@ DoTile8(5, 3, 2)                                ' one cell
 TileRestore(@level(0), level_W, x, y, 4, 16)    ' erase a 4 x 16-byte sprite
 ```
 
-### 7.6 Keyboard (`cpcbuild/keyboard.bas`)
+### 9.6 Keyboard (`cpcbuild/keyboard.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -709,7 +707,7 @@ DO
 LOOP UNTIL KeyDown(KEY_ESC)
 ```
 
-### 7.7 Palette (`cpcbuild/palette.bas`)
+### 9.7 Palette (`cpcbuild/palette.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -740,7 +738,7 @@ SetPalette(@pal(0), 4)
 PalUpload(@pal(0), 2, 8)                  ' pens 8 and 9
 ```
 
-### 7.8 Frame hook and game mode (`framehook.bas`)
+### 9.8 Frame hook and game mode (`framehook.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -791,7 +789,7 @@ LOOP UNTIL KeyDown(KEY_ESC)
 GameMode(0)                         ' back to normal
 ```
 
-### 7.9 Music and sound effects (Arkos) (`music.bas` — CPC and Spectrum 128K)
+### 9.9 Music and sound effects (Arkos) (`music.bas` — CPC and Spectrum 128K)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -857,7 +855,7 @@ LOOP UNTIL KeyDown(KEY_ESC)
 MusicStop()
 ```
 
-### 7.10 Firmware sound (`cpc.bas`)
+### 9.10 Firmware sound (`cpc.bas`)
 
 These queue notes on the firmware sound manager and return at once. The manager
 plays from the interrupt handler. Each of the 3 channels (A = 1, B = 2, C = 4) has
@@ -916,7 +914,7 @@ SoundEnvelope 1, @decay(0), 1
 IF SoundFree(1) > 2 THEN r = SoundQueue(1, 239, 20, 15, 1)    ' middle C, 0.2 s, envelope 1
 ```
 
-### 7.11 Direct AY access (`cpc.bas`)
+### 9.11 Direct AY access (`cpc.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -927,7 +925,7 @@ The AY sits behind the PPI. Both calls use the PPI directly with interrupts off 
 the access and back on after (the firmware's keyboard scan shares the PPI). A write
 takes about 58 us for the raw routine, plus the call and the `di`/`ei`. In register 7
 (mixer) keep bits 6-7 clear: bit 6 makes the keyboard port an output and the keyboard
-stops reading. Read [Sound ownership](#6-sound-ownership) first. Reading register 14
+stops reading. Read [Sound ownership](#8-sound-ownership) first. Reading register 14
 returns keyboard row 0.
 
 ```basic
@@ -937,7 +935,7 @@ AyWrite 0, 239 BAND 255: AyWrite 1, 0
 AyWrite 8, 15
 ```
 
-### 7.12 Play (`play.bas`)
+### 9.12 Play (`play.bas`)
 
 ```basic
 #include <play.bas>
@@ -954,14 +952,14 @@ compiler fork. Points that matter on the CPC:
   keyboard, firmware clock and sound queue stop meanwhile, and it does not
   return until the tune is over.
 * It calls SOUND_RESET once at the start (the sound manager is then idle). It
-  owns the AY while it runs; see [Sound ownership](#6-sound-ownership).
+  owns the AY while it runs; see [Sound ownership](#8-sound-ownership).
 * It is for the CPC's 1 MHz AY clock with the tempo calibrated to the CPC's CPU
   speed (within 0.6 % in tests).
 * `--enable-break` is not supported with Play.
 * It needs the default optimisation level (`-O2`); at level 1 or lower it does
   not work.
 
-### 7.13 Font (`font.bas`)
+### 9.13 Font (`font.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -987,7 +985,7 @@ DIM myfont(767) AS UBYTE => { ... }
 SetFont(@myfont(0))
 ```
 
-### 7.14 Also in the cpc standard library
+### 9.14 Also in the cpc standard library
 
 | Call | Notes |
 |---|---|
@@ -995,7 +993,7 @@ SetFont(@myfont(0))
 | `SCREEN$(row, col)` (`screen.bas`) | The character at a text cell, as a one-character string, or `""`. |
 | `INPUT(maxchars)` (`input.bas`) | Reads a line with the firmware cursor: `a$ = INPUT(20)`. |
 
-### 7.15 Sprite list (`cpcbuild/spritelist.bas`)
+### 9.15 Sprite list (`cpcbuild/spritelist.bas`)
 
 Sprites for a game whose background behind them is one colour: a sprite is drawn
 by OR onto the screen and erased by filling its box with the background byte, so
@@ -1058,7 +1056,7 @@ Starfall's CPC layer draws ~20 a step this way): `.core.__SL_BEGIN`,
 (`__SL_RESET` only AF) and keep IX and IY; the full list is at the top of
 `lib/cpcbuild/spritelist.asm`.
 
-### 7.16 Text (`cpcbuild/text.bas`)
+### 9.16 Text (`cpcbuild/text.bas`)
 
 Text from a compact 1-bit font, drawn straight into screen memory in 8 x 8 pixel
 cells: much smaller than a tile font or `SetFont`.
@@ -1252,6 +1250,99 @@ at an even address (`DIM list(n) AS UINTEGER` one word longer than needed,
 started at `DmaAlign(@list(0))`). While DMA runs, nothing else may write the
 same AY registers (music player, BEEP, Play, AyWrite; in firmware mode no
 firmware sounds).
+
+### Sprite manager
+
+`lib/cpcplus/sprman.bas` (opt-in: `#include <cpcplus/sprman.bas>`, which
+includes `cpcplus.bas`) hands out the hardware sprite slots as objects come
+and go, and keeps an image cache so a picture that is still in a slot is not
+uploaded again. A game that scrolls a level allocates a sprite when an enemy
+comes into view and frees it when it leaves; uploads (about 2 ms each) are
+spread over frames with a budget. Slot numbers are the hardware sprite
+numbers (the lower number is in front); the manager owns a range, the other
+slots stay the program's.
+
+| Call | What it does |
+|---|---|
+| `SprMgrInit(first, count)` | the manager owns slots first..first+count-1 (cut at 15); forgets everything, hides them |
+| `SprAlloc(img)` | a slot for the 256-byte picture at `img`, or 255 (none free, or `img` = 0). A free slot that still holds `img` is reused with no upload; else the free slot with no picture, else the one freed longest ago, gets an upload queued. The sprite is hidden until it has its picture and a position |
+| `SprAllocPacked(img)` | the same for a 128-byte packed picture. The cache keys on address and packed/unpacked: the same address as the other kind is a miss |
+| `SprFree(slot)` | hides it; the slot keeps its picture as a cache entry (a slot freed before its upload was done holds nothing) |
+| `SprSetImage(slot, img)`, `SprSetImagePacked(slot, img)` | change the picture of an allocated slot: nothing if it holds `img` already, else an upload is queued; a sprite already showing keeps its old picture until the flush |
+| `SprMove(slot, x, y)` | position, clamped as `SpriteMove`; remembered, so a sprite waiting for its upload appears at its latest position |
+| `SprMag(slot, magx, magy)` | magnification 1, 2, 4 (default 1, 1; `SprAlloc` resets it; 0 hides) |
+| `SprFlush(maxUploads)` | does up to `maxUploads` queued uploads now (slot order), then shows those sprites that have a position; call once a frame, after `WaitVsync` |
+| `SprPending()`, `SprUploads()` | uploads queued; uploads done since `SprMgrInit` (a diagnostic) |
+
+A typical frame: `WaitVsync`, `SprFlush(1)` (one unpacked upload takes
+2.2-2.4 ms, see Cost), then `SprMove` for every live sprite.
+A slot number outside the manager's range, or not allocated, is ignored by
+every call. All calls go through the `cpcplus` ones, so they follow the same
+paging rules and do nothing without an ASIC; call them from the main program,
+not from a raster handler or frame hook. Data is 160 bytes of records plus 17
+of state in the program image (no heap). Linking the module adds 722 bytes to
+a program that already uses `SpriteMove`, `SpriteMag`, `SpriteHide`,
+`SpriteSetImage` and `SpriteSetImagePacked` (measured), and nothing to one
+that does not include it.
+
+Cost, measured on Caprice32 (CPCEC agrees within 20 us; bare-mode figures
+have a 20 us resolution), bare / firmware mode. Microseconds a call adds to
+an empty call of the same signature, except where marked:
+
+| Call | Cost |
+|---|---|
+| `SprMove`, sprite showing | 259 / 303 us (`SpriteMove` itself: 139 / 166) |
+| `SprMag`, sprite showing | 259 / 299 us |
+| `SprFlush`, nothing queued | 19 / 16 us |
+| `SprPending` | 0 / 6 us |
+| `SprFree` + `SprAlloc` of the same picture (cache hit), pool of one slot | 319 / 353 us for the pair |
+| the same pair, 16-slot pool with 15 in use (the scan covers all 16) | 1,039 / 1,163 us for the pair |
+| `SprAlloc` (miss, queued) + `SprFree` of it, 8 slots in use | 1,799 / 1,976 us for the pair |
+| `SprSetImage` + `SprFlush(1)` with an upload, per upload, ms including both calls | 2.2 / 2.4 ms (the bare `SpriteSetImage`: 1.8 / 2.0) |
+| `SprSetImagePacked` + `SprFlush(1)` with an upload, per upload, ms | 5.1 / 5.6 ms (the bare `SpriteSetImagePacked`: 4.7 / 5.2) |
+
+Measured with `Ticks()` over 1,000 calls (400 uploads for the last two rows).
+Multiplexing helpers (re-using slots further down the screen from raster
+interrupts) are not part of this module.
+
+### Palette cycling
+
+`lib/cpcplus/palcycle.bas` (opt-in: `#include <cpcplus/palcycle.bas>`) rotates
+a range of screen pens or sprite colours by one entry every few frames, for
+cheap animation (flames, water, flashing, conveyor belts). Up to four cycles
+run at once.
+
+| Call | What it does |
+|---|---|
+| `PalCycleSet(id, kind, first, count, table, period)` | cycle `id` (0-3). `kind` 0: screen pens, `first` = the first pen (0-15); `kind` 1: sprite colours, `first` = the first sprite colour (1-15, palette entry 16 + first). `table` = `count` 12-bit colours as an array of `UINTEGER` `&H0RGB` (the words of `SetPalette12`; kept by reference, it must stay in place). Every `period` frames (0 counts as 1) the colours rotate by one: after k steps entry `first + i` shows `table((i + k) mod count)`. The table is written at once. The range is cut to the palette; fewer than 2 colours does nothing |
+| `PalCycleDir(id, dir)` | 0 forward (default), 1 backward, 2 ping-pong (the offset runs 0 to count - 1 and back) |
+| `PalCycleStop(id)` | stops it; the colours stay as they are |
+| `PalCycleStep()` | call once a frame, after `WaitVsync`: every cycle that is due is rotated, one block write each |
+
+**The sprite palette is shared by all 16 sprites**: a cycled sprite colour
+changes in every sprite that uses it, so reserve the cycled indices for the
+parts that should cycle. A cycle owns its entries; two cycles over the same
+entries overwrite each other. In firmware mode the first pen write stops the
+firmware's ink refresh, as `SetPalette12` does. Not in this module: cycling
+different colours in different bands of the screen (it needs a raster
+interrupt per band, bare mode only; a handler would use the `PlusHandler*`
+entries) and sprite multiplexing helpers. The calls go through the `cpcplus`
+ones: call from the main program, not from a raster handler or frame hook.
+Data is 4 records of 8 bytes and a 32-byte buffer. Linking the module adds
+501 bytes to a program that already uses `SetPalette12Block` (measured).
+
+Cost, measured as above, bare / firmware mode, microseconds a call adds to an
+empty call of the same signature:
+
+| Call | Cost |
+|---|---|
+| `PalCycleStep`, no cycle set | 219 / 236 us |
+| `PalCycleStep`, one cycle set but not due | 219 / 253 us |
+| `PalCycleStep`, one cycle due, 4 colours | 779 / 876 us |
+| `PalCycleStep`, one cycle due, 15 colours | 1,399 / 1,559 us |
+| `PalCycleStep`, one cycle due, 16 colours | 1,459 / 1,619 us |
+| `PalCycleStep`, four cycles due (16 + 4 + 8 + 8 colours) | 3,599 / 3,999 us |
+| `PalCycleSet`, 8 colours (the call with its six arguments and the first write, total) | 1,059 / 1,176 us |
 
 ### Tools
 
