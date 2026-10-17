@@ -28,6 +28,28 @@ export interface TmxTileset {
   source?: string;
   tilewidth?: number;
   tileheight?: number;
+  columns?: number;
+  tilecount?: number;
+  margin?: number;
+  spacing?: number;
+  /** The tileset image (an image-collection tileset has none). `source` is relative to the .tmx (or the .tsx). */
+  image?: { source: string; width?: number; height?: number };
+}
+
+export interface TmxObject {
+  id: number;
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  shape: 'rect' | 'point' | 'ellipse' | 'polygon' | 'polyline' | 'text' | 'tile';
+}
+
+export interface TmxObjectGroup {
+  name: string;
+  objects: TmxObject[];
 }
 
 export interface TmxLayer {
@@ -38,6 +60,10 @@ export interface TmxLayer {
   gids: number[] | null;
   /** Why `gids` is null. */
   error?: string;
+  /** Tiled's display attributes; the tool and the viewer ignore them (the viewer warns). */
+  opacity?: number;
+  offsetx?: number;
+  offsety?: number;
 }
 
 export interface TmxMap {
@@ -48,11 +74,14 @@ export interface TmxMap {
   tilesets: TmxTileset[];
   /** Tile layers in document order. */
   layers: TmxLayer[];
+  /** Object layers (viewer only). */
+  objectGroups: TmxObjectGroup[];
+  infinite: boolean;
 }
 
 // ---------------------------------------------------------------- mini XML
 
-interface El {
+export interface El {
   tag: string;
   attrs: Record<string, string>;
   children: El[];
@@ -170,6 +199,56 @@ function decodeData(data: El, count: number): number[] {
   return gids;
 }
 
+const numAttr = (v: string | undefined): number | undefined => {
+  if (v === undefined || v === '') return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+};
+
+/** The tileset attributes a .tsx file (or an embedded <tileset>) carries. */
+function tilesetFields(t: El): Omit<TmxTileset, 'firstgid' | 'source'> {
+  const img = t.children.find((c) => c.tag === 'image');
+  return {
+    name: t.attrs.name,
+    tilewidth: numAttr(t.attrs.tilewidth),
+    tileheight: numAttr(t.attrs.tileheight),
+    columns: numAttr(t.attrs.columns),
+    tilecount: numAttr(t.attrs.tilecount),
+    margin: numAttr(t.attrs.margin),
+    spacing: numAttr(t.attrs.spacing),
+    image: img?.attrs.source ? { source: img.attrs.source, width: numAttr(img.attrs.width), height: numAttr(img.attrs.height) } : undefined,
+  };
+}
+
+/** Reads an external tileset (.tsx): the fields to merge into the <tileset source="..."> entry of the map. */
+export function parseTsx(xml: string): Omit<TmxTileset, 'firstgid' | 'source'> {
+  const root = parseXml(xml);
+  if (root.tag !== 'tileset') throw new TmxError(`not a Tiled tileset (root element <${root.tag}>)`);
+  return tilesetFields(root);
+}
+
+function objectGroupOf(g: El): TmxObjectGroup {
+  return {
+    name: g.attrs.name ?? '',
+    objects: g.children
+      .filter((o) => o.tag === 'object')
+      .map((o) => {
+        const kid = (t: string): boolean => o.children.some((c) => c.tag === t);
+        const shape: TmxObject['shape'] = kid('point') ? 'point' : kid('ellipse') ? 'ellipse' : kid('polygon') ? 'polygon' : kid('polyline') ? 'polyline' : kid('text') ? 'text' : o.attrs.gid ? 'tile' : 'rect';
+        return {
+          id: numAttr(o.attrs.id) ?? 0,
+          name: o.attrs.name ?? '',
+          type: o.attrs.type ?? o.attrs.class ?? '',
+          x: numAttr(o.attrs.x) ?? 0,
+          y: numAttr(o.attrs.y) ?? 0,
+          width: numAttr(o.attrs.width) ?? 0,
+          height: numAttr(o.attrs.height) ?? 0,
+          shape,
+        };
+      }),
+  };
+}
+
 /** Parses a .tmx document. Layers that can't be decoded are kept with `error` set. */
 export function parseTmx(xml: string): TmxMap {
   const root = parseXml(xml);
@@ -179,18 +258,19 @@ export function parseTmx(xml: string): TmxMap {
   const tilesets: TmxTileset[] = root.children
     .filter((c) => c.tag === 'tileset')
     .map((t) => ({
+      ...tilesetFields(t),
       firstgid: intAttr(t.attrs.firstgid, 1),
-      name: t.attrs.name,
       source: t.attrs.source,
-      tilewidth: t.attrs.tilewidth !== undefined ? intAttr(t.attrs.tilewidth) : undefined,
-      tileheight: t.attrs.tileheight !== undefined ? intAttr(t.attrs.tileheight) : undefined,
     }));
   const layers: TmxLayer[] = root.children
     .filter((c) => c.tag === 'layer')
     .map((l) => {
       const width = l.attrs.width ? intAttr(l.attrs.width) : mapW;
       const height = l.attrs.height ? intAttr(l.attrs.height) : mapH;
-      const layer: TmxLayer = { name: l.attrs.name ?? '', width, height, gids: null };
+      const layer: TmxLayer = {
+        name: l.attrs.name ?? '', width, height, gids: null,
+        opacity: numAttr(l.attrs.opacity), offsetx: numAttr(l.attrs.offsetx), offsety: numAttr(l.attrs.offsety),
+      };
       const data = l.children.find((c) => c.tag === 'data');
       try {
         if (!data) throw new TmxError('layer has no data');
@@ -208,6 +288,8 @@ export function parseTmx(xml: string): TmxMap {
     tileheight: root.attrs.tileheight !== undefined ? intAttr(root.attrs.tileheight) : 0,
     tilesets,
     layers,
+    objectGroups: root.children.filter((c) => c.tag === 'objectgroup').map(objectGroupOf),
+    infinite: root.attrs.infinite === '1',
   };
 }
 

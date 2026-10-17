@@ -12,6 +12,7 @@ import type { EmuError, EmuModel, EmuOpenResult, EmuVersion } from '../emuApi';
 import { EMU_API_VERSION } from '../emuApi';
 import type { RunInfo } from './build';
 import { fileExists, readSettings, resolveLibrary, Settings } from './config';
+import { ExternalChoice, notifyEmuMissing } from './emuMissing';
 import { launchDetached, Sink } from './runTool';
 
 const MODEL_NUM: Record<EmuModel, number> = { '464': 0, '664': 1, '6128': 2, plus: 3 };
@@ -108,6 +109,21 @@ export interface RunOutcome {
   /** Which emulator was actually used. */
   used?: string;
   message?: string;
+  /** The cpcbuild-emu session (used === 'emu'). */
+  session?: string;
+  /** The external emulator's process id (so "Stop Music" can end it). */
+  pid?: number;
+}
+
+/** The doctor's best external emulator: the first of Caprice32, CPCEC, Retro Virtual Machine that is installed. */
+export function bestExternalEmulator(s: Settings, library?: string): ExternalChoice | undefined {
+  return findCap32(s, library) ? 'caprice32' : findCpcec(s, library) ? 'cpcec' : findRvm(s) ? 'rvm' : undefined;
+}
+
+/** Called with the session id after Run opened (or reused) a cpcbuild-emu session (the debug controls re-apply breakpoints). */
+let sessionOpened: ((session: string) => Promise<void>) | undefined;
+export function onSessionOpened(fn: ((session: string) => Promise<void>) | undefined): void {
+  sessionOpened = fn;
 }
 
 async function viaEmuExtension(run: RunInfo, sink: Sink): Promise<RunOutcome & { fallbackWhy?: string }> {
@@ -124,7 +140,12 @@ async function viaEmuExtension(run: RunInfo, sink: Sink): Promise<RunOutcome & {
   });
   if (!r || 'error' in r) return { ok: false, fallbackWhy: `cpcbuild.emu.open failed${r && 'error' in r ? `: ${r.error}` : ''}` };
   sink.line(`emulator session ${r.session}`);
-  return { ok: true, used: 'emu' };
+  try {
+    await sessionOpened?.(r.session);
+  } catch {
+    /* the debug controls must never fail a Run */
+  }
+  return { ok: true, used: 'emu', session: r.session };
 }
 
 /** Launches `run` in the emulator the settings choose. Never throws. */
@@ -135,9 +156,11 @@ export async function runInEmulator(root: string, run: RunInfo, sink: Sink, sett
   if (choice === 'emu') {
     const r = await viaEmuExtension(run, sink);
     if (r.ok) return r;
-    sink.line(`Run: ${r.fallbackWhy}. Falling back to an external emulator (change "cpcbuild.run.emulator" to hide this).`, true);
-    void vscode.window.showWarningMessage(`CPCBuild: ${r.fallbackWhy}. Using an external emulator instead.`);
-    choice = findCap32(s, library) ? 'caprice32' : findCpcec(s, library) ? 'cpcec' : findRvm(s) ? 'rvm' : 'caprice32';
+    const external = bestExternalEmulator(s, library);
+    sink.line(`Run: ${r.fallbackWhy}. Falling back to an external emulator (set "cpcbuild.run.emulator" to hide this).`, true);
+    // one warning per session, not one per Run (emuMissing.ts)
+    void notifyEmuMissing({ why: r.fallbackWhy ?? 'the emulator extension is unavailable', external, library });
+    choice = external ?? 'caprice32';
   }
   switch (choice) {
     case 'caprice32': {
@@ -147,25 +170,25 @@ export async function runInEmulator(root: string, run: RunInfo, sink: Sink, sett
         sink.line('Run: this is not the patched Caprice32 of `make cap32` (the stock one mishandles the Plus ASIC); Plus programs may misbehave.', true);
       }
       const r = await launchDetached([bin], cap32Args(run, s.autorunCommand, cap32Config(bin)), { cwd: path.dirname(bin), sink });
-      return r.ok ? { ok: true, used: 'caprice32' } : { ok: false, message: `could not start Caprice32: ${r.error}` };
+      return r.ok ? { ok: true, used: 'caprice32', pid: r.pid } : { ok: false, message: `could not start Caprice32: ${r.error}` };
     }
     case 'cpcec': {
       const bin = findCpcec(s, library);
       if (!bin) return { ok: false, message: 'CPCEC was not found. Run `make cpcec` in the cpcbuild checkout, or set "cpcbuild.run.cpcecPath".' };
       const r = await launchDetached([bin], cpcecArgs(run), { sink });
-      return r.ok ? { ok: true, used: 'cpcec' } : { ok: false, message: `could not start CPCEC: ${r.error}` };
+      return r.ok ? { ok: true, used: 'cpcec', pid: r.pid } : { ok: false, message: `could not start CPCEC: ${r.error}` };
     }
     case 'rvm': {
       const app = findRvm(s);
       if (!app) return { ok: false, message: 'Retro Virtual Machine was not found in /Applications. Install it, or set "cpcbuild.run.rvmPath".' };
       const r = process.platform === 'darwin' ? await launchDetached(['open'], ['-a', app, run.file], { sink }) : await launchDetached([app], [run.file], { sink });
-      return r.ok ? { ok: true, used: 'rvm' } : { ok: false, message: `could not start Retro Virtual Machine: ${r.error}` };
+      return r.ok ? { ok: true, used: 'rvm', pid: r.pid } : { ok: false, message: `could not start Retro Virtual Machine: ${r.error}` };
     }
     case 'custom': {
       if (!s.customCommand.trim()) return { ok: false, message: 'No custom command. Set "cpcbuild.run.customCommand" (use ${dsk}, ${cpr}, ${bin}, ${model}).' };
       const words = expandTemplate(s.customCommand, run);
       const r = await launchDetached([words[0]], words.slice(1), { sink });
-      return r.ok ? { ok: true, used: 'custom' } : { ok: false, message: `could not start "${words[0]}": ${r.error}` };
+      return r.ok ? { ok: true, used: 'custom', pid: r.pid } : { ok: false, message: `could not start "${words[0]}": ${r.error}` };
     }
     default:
       return { ok: false, message: `unknown emulator "${choice}"` };

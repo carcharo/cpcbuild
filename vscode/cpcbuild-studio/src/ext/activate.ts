@@ -20,6 +20,10 @@ import { state } from './state';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
 import { registerStubs } from './stubs';
 import { registerLintAndHover } from './lintHover';
+import { DebugApi, registerDebugFeatures } from './debugFeatures';
+import { emuMissingTestApi } from './emuMissing';
+import { musicConvertCommand, musicPlayCommand, musicStopCommand } from './music';
+import { generateTmxAsset, openInTiledCommand, TmxViewerProvider, tmxGenerateCommand } from './tmxViewer';
 
 /** What the extension exports (used by the extension-host tests; not a public API). */
 export interface StudioApi {
@@ -35,6 +39,14 @@ export interface StudioApi {
   /** The sprite (.cpcspr) and tile (.cpctil) editors' providers. */
   sprite: SpriteEditorProvider;
   tile: SpriteEditorProvider;
+  /** The .tmx viewer's provider (documents, requests: extension-host tests). */
+  tmx: TmxViewerProvider;
+  /** Live views and debug controls (extension-host tests). */
+  debug: DebugApi;
+  /** The missing-emulator warning: test hooks. */
+  emuMissing: typeof emuMissingTestApi;
+  /** runInEmulator with explicit settings (tests: no prompts, no real emulator). */
+  runIn: typeof runInEmulator;
 }
 
 async function configTarget(): Promise<vscode.ConfigurationTarget> {
@@ -195,9 +207,11 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     if (pick) await vscode.workspace.getConfiguration('cpcbuild').update('model', pick, await configTarget());
   });
   // The emulator extension runs this on its pause/resume/close events (design section 2); for now just log.
+  const debugApi = registerDebugFeatures(context, reg);
   reg('cpcbuild.emuEvent', (ev: EmuEvent) => {
     state.emuEvents.push(ev);
     getChannel().appendLine(`emu event: ${JSON.stringify(ev)}`);
+    debugApi.onEvent(ev);
   });
   const palette = new PaletteEditorProvider(context);
   context.subscriptions.push(palette.register());
@@ -220,6 +234,13 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     const u = target instanceof vscode.Uri ? target : (target as { uri?: vscode.Uri } | undefined)?.uri;
     if (u) await vscode.commands.executeCommand('vscode.openWith', u, 'default');
   });
+  const tmx = new TmxViewerProvider(context);
+  context.subscriptions.push(tmx.register(), registerAssetGenerator((uri) => generateTmxAsset(uri)));
+  reg('cpcbuild.tmx.generate', (arg) => tmxGenerateCommand(arg));
+  reg('cpcbuild.openInTiled', (arg) => openInTiledCommand(arg));
+  reg('cpcbuild.music.convert', (arg) => musicConvertCommand(arg));
+  reg('cpcbuild.music.play', (arg) => musicPlayCommand(arg));
+  reg('cpcbuild.music.stop', () => musicStopCommand());
   registerStubs(reg);
   registerLintAndHover(context, reg);
 
@@ -227,10 +248,14 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     apiVersion: 1,
     lastBuild: () => state.lastBuild,
     emuEvents: () => state.emuEvents,
+    debug: debugApi,
+    emuMissing: emuMissingTestApi,
+    runIn: runInEmulator,
     palette,
     importer,
     sprite,
     tile,
+    tmx,
     async build(root, targetId) {
       const lp = loadProjectFile(path.join(root, PROJECT_FILE));
       if (!lp.project) throw new Error(`${lp.file}: ${lp.errors.map((e) => e.message).join('; ')}`);

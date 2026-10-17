@@ -1,0 +1,30 @@
+/* tmx.css -- layout of the .tmx viewer (S7). */
+.tmx { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
+.tmx-form { padding: var(--cb-space-1) var(--cb-space-3); gap: var(--cb-space-3); border-bottom: 1px solid var(--vscode-panel-border); }
+.tmx-form label { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
+.tmx-num { width: 5em; }
+.tmx-room { gap: var(--cb-space-1); }
+.tmx-notices { display: flex; flex-direction: column; }
+.tmx-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--cb-panel-w); }
+.tmx-map { position: relative; min-width: 0; min-height: 240px; overflow: hidden; background: var(--vscode-editor-background); }
+.tmx-map canvas { display: block; image-rendering: pixelated; touch-action: none; cursor: crosshair; }
+.tmx-map:focus-visible { outline-offset: -2px; }
+.tmx-side { border-left: 1px solid var(--vscode-panel-border); padding: var(--cb-space-2) var(--cb-space-3); overflow: auto; display: flex; flex-direction: column; gap: var(--cb-space-4); min-width: 0; }
+.tmx-h { font-weight: 600; margin-bottom: var(--cb-space-2); }
+.tmx-strip { display: block; max-width: 100%; image-rendering: pixelated; cursor: pointer; margin-bottom: var(--cb-space-2); border: 1px solid var(--vscode-panel-border); }
+.tmx-pick { display: flex; align-items: center; gap: var(--cb-space-2); }
+.tmx-dl { display: grid; grid-template-columns: auto 1fr; gap: var(--cb-space-1) var(--cb-space-3); margin: 0 0 var(--cb-space-2); }
+.tmx-dl dt { color: var(--vscode-descriptionForeground); }
+.tmx-dl dd { margin: 0; font-family: var(--vscode-editor-font-family); }
+.tmx-err { color: var(--vscode-errorForeground); margin-bottom: var(--cb-space-2); }
+.tmx-objs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow: auto; }
+.tmx-actions { padding: var(--cb-space-2) var(--cb-space-3); gap: var(--cb-space-2); border-top: 1px solid var(--vscode-panel-border); }
+.tmx-actions label { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
+.cb-btn[disabled] { opacity: 0.5; cursor: default; }
+
+@media (max-width: 720px) {
+  .tmx { height: auto; min-height: 100vh; }
+  .tmx-body { grid-template-columns: minmax(0, 1fr); }
+  .tmx-map { height: 55vh; }
+  .tmx-side { border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
+}

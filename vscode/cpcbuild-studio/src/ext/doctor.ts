@@ -4,6 +4,8 @@ import * as vscode from 'vscode';
 import { absFrom, fileExists, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { findCap32, findCpcec, findRvm } from './run';
 import { runTool, Sink } from './runTool';
+import { findArkosTools } from './arkos';
+import { findTiled } from './tmxViewer';
 
 export interface DoctorItem {
   id: string;
@@ -77,9 +79,9 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   }
 
   // optional tools
-  const arkos = lib && [path.join(lib, 'tools/arkos/work/bin'), process.env.AT3_TOOLS ?? ''].find((p) => p && fileExists(p));
-  add({ id: 'arkos', label: 'Arkos command-line tools', ok: !!arkos, optional: true, detail: arkos || 'not found', fix: 'Run `sh tools/arkos/fetch.sh` in the cpcbuild checkout.' });
-  const tiled = ['/Applications/Tiled.app', '/usr/bin/tiled', '/usr/local/bin/tiled'].find(fileExists);
+  const arkos = findArkosTools({ setting: s.arkosToolsPath, env: process.env.AT3_TOOLS, library: lib, base });
+  add({ id: 'arkos', label: 'Arkos command-line tools', ok: !!arkos, optional: true, detail: arkos || 'not found', fix: 'Run `sh tools/arkos/fetch.sh` in the cpcbuild checkout (on macOS it also re-signs the downloaded tools, which otherwise hang), or set "cpcbuild.arkos.toolsPath".' });
+  const tiled = findTiled(s.tiledPath);
   add({ id: 'tiled', label: 'Tiled map editor', ok: !!tiled, optional: true, detail: tiled ?? 'not found', fix: 'Install Tiled (mapeditor.org) for "Open in Tiled".' });
 
   sink.line('CPCBuild environment check');

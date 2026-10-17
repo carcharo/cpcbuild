@@ -1,0 +1,19 @@
+/* memory.css -- the memory view (S9). Only --vscode-* variables. */
+.mem { display: flex; flex-direction: column; min-height: 100vh; }
+.mem-go { display: flex; gap: var(--cb-space-2); align-items: center; padding: var(--cb-space-2) var(--cb-space-3); flex-wrap: wrap; }
+.mem-input {
+  height: var(--cb-control-h); min-width: 14em; padding: 0 var(--cb-space-2); font-family: var(--vscode-editor-font-family);
+  background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, transparent); border-radius: var(--cb-radius);
+}
+.mem-dump { flex: 1; padding: var(--cb-space-2) var(--cb-space-3); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); font-variant-numeric: tabular-nums; overflow: auto; }
+.mem-stale { opacity: 0.6; }
+.mem-row { display: grid; grid-template-columns: 6ch auto 17ch minmax(8ch, 1fr); gap: 0 var(--cb-space-3); white-space: pre; line-height: 1.5; }
+.mem-addr { color: var(--vscode-descriptionForeground); }
+.mem-bytes { display: inline-flex; gap: 0.6ch; }
+.mem-b { padding: 0 2px; border-radius: 2px; }
+.mem-b:nth-child(8) { margin-right: 1ch; }
+.mem-changed { background: var(--vscode-editor-findMatchHighlightBackground); text-decoration: underline dotted; }
+.mem-pc { outline: 1px solid var(--vscode-debugIcon-breakpointForeground, var(--vscode-focusBorder)); }
+.mem-sp { outline: 1px dashed var(--vscode-focusBorder); }
+.mem-sym { overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) { .mem-row { grid-template-columns: 6ch auto; } .mem-ascii, .mem-sym { display: none; } }

@@ -14,11 +14,19 @@ describe('package.json contributions', () => {
   });
   it('has the spec 7.1 commands (and none under .emu.)', () => {
     const ids: string[] = c.commands.map((x: { command: string }) => x.command);
-    for (const want of ['newProject', 'newSprite', 'newTileset', 'newPalette', 'newPlusSprite', 'importImage', 'copyImporterCommand', 'regenerateAssets', 'generateAssetFile', 'insertAssetUse', 'build', 'buildAndRun', 'run', 'selectTarget', 'selectEmulator', 'selectModel', 'runFile', 'showBuildReport', 'tmx.generate', 'openInTiled', 'music.convert', 'music.play', 'music.stop', 'music.openTracker', 'symbols.refresh', 'watch.add', 'watch.remove', 'memory.show', 'debug.pause', 'debug.resume', 'debug.step', 'debug.toggleBreakpoint', 'lint.toggle', 'docs.open', 'checkEnvironment', 'openSettings']) {
+    for (const want of ['newProject', 'newSprite', 'newTileset', 'newPalette', 'newPlusSprite', 'importImage', 'copyImporterCommand', 'regenerateAssets', 'generateAssetFile', 'insertAssetUse', 'build', 'buildAndRun', 'run', 'selectTarget', 'selectEmulator', 'selectModel', 'runFile', 'showBuildReport', 'tmx.generate', 'openInTiled', 'music.convert', 'music.play', 'music.stop', 'music.openTracker', 'symbols.refresh', 'symbols.filter', 'symbols.toggleRuntime', 'memory.show', 'debug.pause', 'debug.resume', 'debug.step', 'debug.stepOver', 'debug.stepOut', 'debug.toggleBreakpoint', 'debug.showRegisters', 'lint.toggle', 'docs.open', 'checkEnvironment', 'openSettings']) {
       expect(ids).toContain('cpcbuild.' + want);
     }
     expect(ids.filter((i) => i.includes('.emu.'))).toEqual([]);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('contributes the CPCBuild view container with the symbols, registers and breakpoints views', () => {
+    expect(c.viewsContainers.activitybar.map((v: { id: string }) => v.id)).toContain('cpcbuild');
+    expect(c.views.cpcbuild.map((v: { id: string }) => v.id)).toEqual(['cpcbuild.symbols', 'cpcbuild.registers', 'cpcbuild.breakpoints']);
+    const ids: string[] = c.commands.map((x: { command: string }) => x.command);
+    // every command a menu offers exists, and the watch commands are not contributed (deferred)
+    for (const group of Object.values(c.menus) as { command: string }[][]) for (const m of group) expect(ids).toContain(m.command);
+    expect(ids).not.toContain('cpcbuild.watch.add');
   });
   it('has every setting of spec 6 under cpcbuild.', () => {
     const keys = Object.keys(c.configuration.properties);

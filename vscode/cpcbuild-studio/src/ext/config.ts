@@ -30,6 +30,11 @@ export interface Settings {
   assetsHeader: 'img2cpc' | 'studio' | 'none';
   generateOnSave: boolean;
   regenerateBeforeBuild: boolean;
+  /** Arkos command-line tools folder (empty = $AT3_TOOLS, then tools/arkos/work/bin). */
+  arkosToolsPath: string;
+  arkosTrackerPath: string;
+  arkosPsg: 'cpc' | 'spectrum';
+  tiledPath: string;
 }
 
 /** A resource scope only when the folder is inside a workspace folder (else the workspace-level settings apply). */
@@ -72,6 +77,10 @@ export function readSettings(projectDir?: string): Settings {
     assetsHeader: ((h) => (h === 'studio' || h === 'none' ? h : 'img2cpc'))(c.get<string>('assets.header')),
     generateOnSave: c.get<boolean>('assets.generateOnSave', true),
     regenerateBeforeBuild: c.get<boolean>('assets.regenerateBeforeBuild', true),
+    arkosToolsPath: c.get<string>('arkos.toolsPath') ?? '',
+    arkosTrackerPath: c.get<string>('arkos.trackerPath') ?? '',
+    arkosPsg: c.get<string>('arkos.psg') === 'spectrum' ? 'spectrum' : 'cpc',
+    tiledPath: c.get<string>('tiled.path') ?? '',
   };
 }
 

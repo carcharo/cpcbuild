@@ -142,42 +142,38 @@
       {
         "command": "cpcbuild.symbols.refresh",
         "title": "Refresh Symbols",
-        "category": "CPCBuild"
-      },
-      {
-        "command": "cpcbuild.watch.add",
-        "title": "Add Watch",
-        "category": "CPCBuild"
-      },
-      {
-        "command": "cpcbuild.watch.remove",
-        "title": "Remove Watch",
-        "category": "CPCBuild"
+        "category": "CPCBuild",
+        "icon": "$(refresh)"
       },
       {
         "command": "cpcbuild.memory.show",
         "title": "Show Memory",
-        "category": "CPCBuild"
+        "category": "CPCBuild",
+        "icon": "$(chip)"
       },
       {
         "command": "cpcbuild.debug.pause",
         "title": "Debug: Pause",
-        "category": "CPCBuild"
+        "category": "CPCBuild",
+        "icon": "$(debug-pause)"
       },
       {
         "command": "cpcbuild.debug.resume",
         "title": "Debug: Resume",
-        "category": "CPCBuild"
+        "category": "CPCBuild",
+        "icon": "$(debug-continue)"
       },
       {
         "command": "cpcbuild.debug.step",
-        "title": "Debug: Step",
-        "category": "CPCBuild"
+        "title": "Debug: Step (One Instruction)",
+        "category": "CPCBuild",
+        "icon": "$(debug-step-into)"
       },
       {
         "command": "cpcbuild.debug.toggleBreakpoint",
         "title": "Debug: Toggle Breakpoint",
-        "category": "CPCBuild"
+        "category": "CPCBuild",
+        "icon": "$(debug-breakpoint)"
       },
       {
         "command": "cpcbuild.lint.toggle",
@@ -203,6 +199,54 @@
         "command": "cpcbuild.openSettings",
         "title": "Open Settings",
         "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.symbols.filter",
+        "title": "Filter Symbols",
+        "category": "CPCBuild",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "cpcbuild.symbols.toggleRuntime",
+        "title": "Show or Hide Runtime Symbols",
+        "category": "CPCBuild",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "cpcbuild.symbols.copyAddress",
+        "title": "Copy Symbol Address",
+        "category": "CPCBuild",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "cpcbuild.symbols.goToDefinition",
+        "title": "Go to Symbol Definition",
+        "category": "CPCBuild",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "cpcbuild.debug.stepOver",
+        "title": "Debug: Step Over",
+        "category": "CPCBuild",
+        "icon": "$(debug-step-over)"
+      },
+      {
+        "command": "cpcbuild.debug.stepOut",
+        "title": "Debug: Step Out",
+        "category": "CPCBuild",
+        "icon": "$(debug-step-out)"
+      },
+      {
+        "command": "cpcbuild.debug.removeBreakpoint",
+        "title": "Remove Breakpoint",
+        "category": "CPCBuild",
+        "icon": "$(close)"
+      },
+      {
+        "command": "cpcbuild.debug.showRegisters",
+        "title": "Debug: Show Registers",
+        "category": "CPCBuild",
+        "icon": "$(symbol-numeric)"
       }
     ],
     "customEditors": [
@@ -248,6 +292,16 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "cpcbuild.tmxViewer",
+        "displayName": "CPCBuild Map Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.tmx"
+          }
+        ],
+        "priority": "option"
       }
     ],
     "menus": {
@@ -261,6 +315,26 @@
           "command": "cpcbuild.importImage",
           "when": "resourceExtname =~ /^\\.(png|gif|bmp)$/",
           "group": "navigation@90"
+        },
+        {
+          "command": "cpcbuild.tmx.generate",
+          "when": "resourceExtname == .tmx",
+          "group": "navigation@91"
+        },
+        {
+          "command": "cpcbuild.openInTiled",
+          "when": "resourceExtname == .tmx",
+          "group": "navigation@92"
+        },
+        {
+          "command": "cpcbuild.music.convert",
+          "when": "resourceExtname =~ /^\\.(aks|vt2)$/",
+          "group": "navigation@91"
+        },
+        {
+          "command": "cpcbuild.music.play",
+          "when": "resourceExtname =~ /^\\.(aks|vt2)$/",
+          "group": "navigation@92"
         }
       ],
       "editor/title": [
@@ -272,6 +346,21 @@
         {
           "command": "cpcbuild.openAsText",
           "when": "activeCustomEditorId == cpcbuild.importer",
+          "group": "navigation@90"
+        },
+        {
+          "command": "cpcbuild.tmx.generate",
+          "when": "activeCustomEditorId == cpcbuild.tmxViewer",
+          "group": "navigation@10"
+        },
+        {
+          "command": "cpcbuild.openInTiled",
+          "when": "activeCustomEditorId == cpcbuild.tmxViewer",
+          "group": "navigation@20"
+        },
+        {
+          "command": "cpcbuild.openAsText",
+          "when": "activeCustomEditorId == cpcbuild.tmxViewer",
           "group": "navigation@90"
         },
         {
@@ -298,6 +387,102 @@
         {
           "command": "cpcbuild.copyImporterCommand",
           "when": "false"
+        },
+        {
+          "command": "cpcbuild.symbols.copyAddress",
+          "when": "false"
+        },
+        {
+          "command": "cpcbuild.symbols.goToDefinition",
+          "when": "false"
+        },
+        {
+          "command": "cpcbuild.debug.removeBreakpoint",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "cpcbuild.symbols.filter",
+          "when": "view == cpcbuild.symbols",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cpcbuild.symbols.toggleRuntime",
+          "when": "view == cpcbuild.symbols",
+          "group": "navigation@2"
+        },
+        {
+          "command": "cpcbuild.symbols.refresh",
+          "when": "view == cpcbuild.symbols",
+          "group": "navigation@3"
+        },
+        {
+          "command": "cpcbuild.debug.pause",
+          "when": "view == cpcbuild.registers && cpcbuild.debug.live && !cpcbuild.debug.paused",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cpcbuild.debug.resume",
+          "when": "view == cpcbuild.registers && cpcbuild.debug.paused",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cpcbuild.debug.step",
+          "when": "view == cpcbuild.registers && cpcbuild.debug.paused",
+          "group": "navigation@2"
+        },
+        {
+          "command": "cpcbuild.debug.stepOver",
+          "when": "view == cpcbuild.registers && cpcbuild.debug.paused",
+          "group": "navigation@3"
+        },
+        {
+          "command": "cpcbuild.debug.stepOut",
+          "when": "view == cpcbuild.registers && cpcbuild.debug.paused",
+          "group": "navigation@4"
+        },
+        {
+          "command": "cpcbuild.memory.show",
+          "when": "view == cpcbuild.registers",
+          "group": "navigation@5"
+        },
+        {
+          "command": "cpcbuild.debug.toggleBreakpoint",
+          "when": "view == cpcbuild.breakpoints",
+          "group": "navigation@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "cpcbuild.debug.toggleBreakpoint",
+          "when": "view == cpcbuild.symbols && viewItem =~ /^symbol\\.(basic|library|runtime)/",
+          "group": "inline@1"
+        },
+        {
+          "command": "cpcbuild.symbols.copyAddress",
+          "when": "view == cpcbuild.symbols && viewItem =~ /^symbol\\./",
+          "group": "inline@2"
+        },
+        {
+          "command": "cpcbuild.symbols.goToDefinition",
+          "when": "view == cpcbuild.symbols && viewItem =~ /^symbol\\..*\\.def$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cpcbuild.debug.toggleBreakpoint",
+          "when": "view == cpcbuild.symbols && viewItem =~ /^symbol\\./",
+          "group": "navigation@2"
+        },
+        {
+          "command": "cpcbuild.symbols.copyAddress",
+          "when": "view == cpcbuild.symbols && viewItem =~ /^symbol\\./",
+          "group": "navigation@3"
+        },
+        {
+          "command": "cpcbuild.debug.removeBreakpoint",
+          "when": "view == cpcbuild.breakpoints && viewItem == breakpoint",
+          "group": "inline@1"
         }
       ]
     },
@@ -516,8 +701,10 @@
         },
         "cpcbuild.emu.pollRateHz": {
           "type": "number",
-          "default": 10,
-          "description": "Refresh rate of live emulator views."
+          "default": 2,
+          "description": "How often (per second) the live views (symbol values, memory) read the running emulator; at most 2. While the program is paused they refresh once per pause.",
+          "maximum": 2,
+          "minimum": 0.2
         },
         "cpcbuild.keybindings.enable": {
           "type": "boolean",
@@ -685,6 +872,48 @@
         "label": "CPCBuild File Icons",
         "path": "./media/icon-theme.json"
       }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cpcbuild",
+          "title": "CPCBuild",
+          "icon": "$(chip)"
+        }
+      ]
+    },
+    "views": {
+      "cpcbuild": [
+        {
+          "id": "cpcbuild.symbols",
+          "name": "Symbols",
+          "when": "cpcbuild.active",
+          "contextualTitle": "CPCBuild Symbols"
+        },
+        {
+          "id": "cpcbuild.registers",
+          "name": "Registers",
+          "when": "cpcbuild.active",
+          "contextualTitle": "CPC Registers"
+        },
+        {
+          "id": "cpcbuild.breakpoints",
+          "name": "Breakpoints",
+          "when": "cpcbuild.active",
+          "contextualTitle": "CPC Breakpoints"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "cpcbuild.symbols",
+        "when": "cpcbuild.symbols.noMap",
+        "contents": "Build the project to list its symbols (labels and addresses from the compiler map).\n[Build](command:cpcbuild.build)"
+      },
+      {
+        "view": "cpcbuild.breakpoints",
+        "contents": "No breakpoints. Toggle one on a symbol in the Symbols view, or by name or address.\n[Toggle Breakpoint](command:cpcbuild.debug.toggleBreakpoint)"
+      }
     ]
   },
   "scripts": {
@@ -694,7 +923,8 @@
     "test:unit": "vitest run",
     "test:vscode": "npm run build && npm run build:test && node out/test/runTest.js",
     "test": "npm run test:unit && npm run test:vscode",
-    "package": "npm run build && vsce package"
+    "package": "npm run build && vsce package",
+    "test:integration": "npm run build && npm run build:test && node out/test/runIntegration.js"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
