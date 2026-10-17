@@ -13,16 +13,15 @@
 #   lampplus.dsk   disc: PLUS.BIN (the loader: RUN"PLUS) and LAMPPLUS.BIN
 # and a .map for each. The loader is Starfall's RUN"PLUS loader with the
 # program's name changed (games/shooter/loader.asm, -D PLUSLOAD).
-# Needs the sprite manager and palette cycling (lib/cpcplus/sprman, palcycle):
-# PLUSLIB is a second include directory for them when this checkout's lib/ does
-# not have them yet (default: the main checkout's lib/).
+# Needs the sprite manager and palette cycling (lib/cpcplus/sprman, palcycle),
+# in this checkout's lib/; PLUSLIB adds a second include directory if wanted.
 # Needs poetry (the compiler fork's environment) in the PATH.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
 ZX="${ZXBASIC:-$REPO/../zxbasic}"
 COMMON="$(cd "$REPO" && cd "$(git rev-parse --git-common-dir)" && pwd)/.."
-PLUSLIB="${PLUSLIB:-$COMMON/lib}"
+PLUSLIB="${PLUSLIB:-$REPO/lib}"
 export PATH="$HOME/.local/bin:$PATH"
 OUT="$HERE/build"
 if [ $# -gt 0 ] && [ "$1" != "--" ]; then OUT="$1"; shift; fi

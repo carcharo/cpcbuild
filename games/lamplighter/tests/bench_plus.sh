@@ -7,7 +7,7 @@
 #   games/lamplighter/tests/bench_plus.sh
 cd "$(dirname "$0")/../../.." || exit 1
 . games/lamplighter/tests/env.sh
-PLUSLIB="${PLUSLIB:-$common/lib}"
+PLUSLIB="${PLUSLIB:-$PWD/lib}"
 run() {   # emu variant extra
   printf "%-6s %-5s %-8s " "$1" "$2" "$3"
   bare=""; own=""

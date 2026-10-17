@@ -74,9 +74,9 @@ os.environ.setdefault("ZXBASIC", str(sibling("zxbasic")))
 os.environ.setdefault("CPC_ROM_DIR", str(sibling("caprice32") / "rom"))
 os.environ.setdefault("CAP32", str(main_checkout() / "tools" / "caprice32" / "work" / "src" / "cap32"))
 os.environ.setdefault("CPCEC", str(main_checkout() / "tools" / "cpcec" / "work" / "cpcec"))
-# the sprite manager and palette cycling (lib/cpcplus/sprman, palcycle): this
-# checkout's lib/ has them once merged; until then the main checkout's
-PLUSLIB = os.environ.get("PLUSLIB") or str(main_checkout() / "lib")
+# the sprite manager and palette cycling (lib/cpcplus/sprman, palcycle) are in
+# this checkout's lib/; PLUSLIB adds another include directory if wanted
+PLUSLIB = os.environ.get("PLUSLIB") or str(REPO / "lib")
 INC = ["-I", PLUSLIB]
 import cpcrun as cpcrun_mod  # noqa: E402
 import mkcpr  # noqa: E402
