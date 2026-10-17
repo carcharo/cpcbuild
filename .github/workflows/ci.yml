@@ -9,8 +9,11 @@ name: CI
 #   plus           build patched Caprice32 (tools/caprice32) at the pinned commit, make test-plus
 #                  (6128 Plus: smoke tests, conformance firmware + bare, screens), then
 #                  build CPCEC (tools/cpcec: pinned commit + our patch) and make test-cpcec
-# `make ci` runs the same targets serially (local all-in-one). Shared setup lives in
-# .github/actions/setup. Each failing job uploads its own screen-diff artifact.
+#   vscode         Node 22 under xvfb: make test-vscode (CPCBuild Studio), make test-wasm vsix
+#                  (CPCBuild Emulator on the wasm core, emsdk 6.0.12, then both .vsix uploaded)
+# `make ci` runs the same targets serially (local all-in-one); `make ci-vscode` runs the
+# vscode job's targets (it needs Node and an emsdk, so it is not in `make ci`). Shared setup
+# lives in .github/actions/setup. Each failing job uploads its own screen-diff artifact.
 #
 # Nightly: cpcbuild CI uses zxbasic's cpc-arch HEAD, but a zxbasic-only push does not
 # trigger it. A daily `schedule` run (default branch) goes through `gate`
@@ -261,3 +264,71 @@ jobs:
             cpcbuild/tests/**/*.actual.png
             cpcbuild/tests/**/*.diff.png
           if-no-files-found: ignore
+
+  vscode:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # the zxbc checkout (poetry) for both extensions' extension-host tests and the media build
+      ZXBASIC: ${{ github.workspace }}/zxbasic
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v7
+        with:
+          path: cpcbuild
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'false'
+      - name: Set up Node 22 (npm cache for both extensions' lock files)
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            cpcbuild/vscode/cpcbuild-studio/package-lock.json
+            cpcbuild/vscode/cpcbuild-emu/package-lock.json
+      - name: Cache the VS Code downloads of the extension-host tests (@vscode/test-electron)
+        uses: actions/cache@v6
+        with:
+          path: |
+            cpcbuild/vscode/cpcbuild-studio/.vscode-test
+            cpcbuild/vscode/cpcbuild-emu/.vscode-test
+          key: vscode-test-${{ runner.os }}-${{ hashFiles('cpcbuild/vscode/cpcbuild-studio/package-lock.json', 'cpcbuild/vscode/cpcbuild-emu/package-lock.json') }}
+      - name: Install xvfb and the SDL2 headers (CPCEC's make cpcec)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libsdl2-dev
+      - name: Cache the CPCEC checkout and build (ROMs and sources for the emulator)
+        uses: actions/cache@v6
+        with:
+          path: cpcbuild/tools/cpcec/work
+          key: cpcec-work-${{ runner.os }}-${{ hashFiles('cpcbuild/tools/cpcec/fetch_build.sh', 'cpcbuild/tools/cpcec/cpcbuild.patch') }}
+      - name: make cpcec (pinned CPCEC + cpcbuild.patch; the ROMs and the sources build-host.sh uses)
+        working-directory: cpcbuild
+        run: make cpcec
+      - name: Set up emsdk 6.0.12 (the version this repo is built with locally)
+        uses: emscripten-core/setup-emsdk@v16
+        with:
+          version: '6.0.12'
+          actions-cache-folder: emsdk-cache
+      - name: "make test-vscode (CPCBuild Studio: unit tests and extension-host tests under xvfb)"
+        working-directory: cpcbuild
+        run: xvfb-run -a make test-vscode
+      - name: "make test-wasm vsix (CPCBuild Emulator: wasm core, unit and extension-host tests, golden tests; then both .vsix)"
+        # one make run: the wasm target is built once for both targets
+        working-directory: cpcbuild
+        run: xvfb-run -a make test-wasm vsix
+      - name: Upload CPCBuild Studio .vsix
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpcbuild-studio-vsix
+          path: cpcbuild/vscode/cpcbuild-studio/*.vsix
+          if-no-files-found: error
+      - name: Upload CPCBuild Emulator .vsix
+        uses: actions/upload-artifact@v7
+        with:
+          name: cpcbuild-emu-vsix
+          path: cpcbuild/vscode/cpcbuild-emu/*.vsix
+          if-no-files-found: error

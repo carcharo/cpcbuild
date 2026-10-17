@@ -1,7 +1,10 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-plus test-cpcec cpcec cap32 chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
 
 PYTHON := python3
-ZXBASIC := ../zxbasic
+# ?= so an environment ZXBASIC (CI, or a git worktree whose sibling is elsewhere) is exported to the recipes
+ZXBASIC ?= ../zxbasic
+# the emsdk for `make wasm` (ignored when it has no emsdk_env.sh: emcc on PATH is then used)
+EMSDK ?= tools/cpcec/wasm/emsdk
 MODEL := 6128
 # ORG= (e.g. ORG=0x40) sets the program origin for run/shot; empty = compiler default
 ORG :=
@@ -79,6 +82,28 @@ test-cpcec: ## 6128 Plus on CPCEC (headless, needs `make cpcec`): smoke tests, c
 	$(PYTHON) tests/screens/run.py --emu cpcec
 	$(PYTHON) tests/screens/run.py --emu cpcec --bare
 	$(PYTHON) games/shooter/tests/run.py --plus --emu cpcec
+
+test-vscode: ## CPCBuild Studio extension: vitest unit tests, then extension-host tests (zxbc from ZXBASIC; on Linux run as xvfb-run -a make test-vscode)
+	@[ -d vscode/cpcbuild-studio/node_modules ] || (cd vscode/cpcbuild-studio && npm ci)
+	cd vscode/cpcbuild-studio && npm test
+
+wasm: ## Build the SDL-free CPCEC WebAssembly core for CPCBuild Emulator into vscode/cpcbuild-emu/wasm (needs make cpcec; EMSDK=path to an activated emsdk, default tools/cpcec/wasm/emsdk, or emcc on PATH)
+	@if [ -f "$(EMSDK)/emsdk_env.sh" ]; then EMSDK=$(EMSDK) sh tools/cpcec/wasm/build-host.sh; \
+	elif [ -x "$(EMSDK)/upstream/emscripten/emcc" ]; then PATH="$(abspath $(EMSDK))/upstream/emscripten:$$PATH" EM_CONFIG="$(abspath $(EMSDK))/.emscripten" sh tools/cpcec/wasm/build-host.sh; \
+	else sh tools/cpcec/wasm/build-host.sh; fi
+
+test-wasm: wasm ## CPCBuild Emulator: vitest and extension-host tests, then the Node golden tests of the wasm core (needs make cpcec; on Linux run as xvfb-run -a make test-wasm)
+	@[ -d vscode/cpcbuild-emu/node_modules ] || (cd vscode/cpcbuild-emu && npm ci)
+	cd vscode/cpcbuild-emu && npm test && npm run test:golden
+
+vsix: wasm ## Package both VS Code extensions: vscode/cpcbuild-studio/*.vsix and vscode/cpcbuild-emu/*.vsix (needs make cpcec for the emulator's ROMs)
+	@[ -d vscode/cpcbuild-studio/node_modules ] || (cd vscode/cpcbuild-studio && npm ci)
+	@[ -d vscode/cpcbuild-emu/node_modules ] || (cd vscode/cpcbuild-emu && npm ci)
+	cd vscode/cpcbuild-studio && npm run package
+	cd vscode/cpcbuild-emu && npm run package
+	@ls -l vscode/cpcbuild-studio/*.vsix vscode/cpcbuild-emu/*.vsix
+
+ci-vscode: test-vscode test-wasm ## The VS Code extension CI job, serially (not part of ci: it needs Node 22 and an emsdk)
 
 chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
 	sh tools/chipsrun/build.sh
