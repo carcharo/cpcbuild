@@ -157,7 +157,10 @@ DIM starTab(59) AS UBYTE => { _
 
 DIM hudS, hudH AS UINTEGER
 DIM hudL, hudW, hudDirty AS UBYTE
-DIM curTune, bankOK AS UBYTE         ' music; songs in the bank
+DIM curTune AS UBYTE                ' music
+#ifdef SF_BANKMUSIC
+DIM bankOK AS UBYTE                 ' the songs are in the bank
+#endif
 DIM fT AS UINTEGER                  ' Frames() at the start of this step
 
 ' ---- PlatSprite: assembly ---------------------------------------------
@@ -223,11 +226,13 @@ SF_SSHOT:
 SF_END:
 end asm
 
+#ifndef PLUS
 SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
   ASM
   call SF_SPRITE
   END ASM
 END SUB
+#endif
 
 ' The sprite and shot graphics, for SF_SPRITE (the arrays are only reached
 ' by address, so BASIC hands the addresses over).
@@ -658,6 +663,7 @@ END SUB
 
 ' Back to the firmware's world, for text output (main.bas under -D BENCH or
 ' -D SHOT).
+#ifdef TESTSW
 SUB PlatEnd()
   GameMode(0)
 #ifndef NOSOUND
@@ -667,6 +673,7 @@ SUB PlatEnd()
   DisableDoubleBuffer()
 #endif
 END SUB
+#endif
 
 #ifdef SHOT
 ' Asks the test runner for a screenshot called name.

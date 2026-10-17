@@ -526,8 +526,8 @@ FUNCTION PlatFrames() AS UINTEGER
   RETURN PEEK(UINTEGER, 23672)
 END FUNCTION
 
-SUB PlatMusic(tune AS UBYTE)
 #ifdef ZX128
+SUB PlatMusic(tune AS UBYTE)
   IF tune = 0 THEN
     MusicStop()
   ELSEIF tune = 1 THEN
@@ -535,8 +535,10 @@ SUB PlatMusic(tune AS UBYTE)
   ELSE
     MusicInit(PLAT_ZX_SONG_GAME, 0)
   END IF
-#endif
 END SUB
+#else
+#define PlatMusic(tune)
+#endif
 
 #ifdef ZX48
 ' ---------------- 48K beeper effects ----------------
@@ -679,6 +681,7 @@ END SUB
 ' drawn on (the 128K's bank 7 paged out again, the bank that was at C000 back:
 ' a stack up there, or BASIC itself, needs it), cleared, white on black, the
 ' cursor at the top.
+#ifdef TESTSW
 SUB PlatEnd()
 #ifdef ZX128
   MusicStop()
@@ -697,6 +700,7 @@ SUB PlatEnd()
   END ASM
 #endif
 END SUB
+#endif
 
 #ifdef SHOT
 ' Asks the test runner for a screenshot called name: the marker "&04 SHOT
