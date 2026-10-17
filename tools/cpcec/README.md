@@ -35,3 +35,22 @@ code (768x536 RGB with border on the Plus).
 smoke tests, conformance (firmware and `--bare`) and screenshots on it.
 Goldens are in `tests/screens/golden/cpcec-plus/`, separate from Caprice32's
 (CPCEC's 12-bit colour conversion is brighter by design).
+
+## The SDL-free WebAssembly build (Phase 8, `wasm/`)
+
+`wasm/build.sh` is the R8 spike (CPCEC unchanged, SDL2 + ASYNCIFY, runs in a browser tab
+by itself). `wasm/build-host.sh` is the build cpcbuild-emu ships: it replaces CPCEC's SDL2
+front end with `wasm/cpcec-wasm.h` (frame buffer, audio buffer and keyboard map in plain
+memory, no window, menus or dialogs) and turns `main()`'s loop into one callable
+`cpcec_frame()` (`wasm/host.patch`, applied on top of `cpcbuild.patch`'s tree). The host
+drives it through the `emu_*` exports of `wasm/cpcec-wasm-api.h` (API version 1; the list
+is in that file's comments): `emu_init(model)`, `emu_load(path, kind)`, `emu_frame()`,
+`emu_framebuffer()`/`emu_rgba()`, `emu_audio(ptr)`, `emu_key(cpc_key, down)`, `emu_reset()`,
+and the debugger (`emu_peek/poke/regs/break/step/step_over/step_out`). It needs no browser:
+`vscode/cpcbuild-emu/test/golden.mjs` runs it in Node and compares its pictures with the
+goldens of `make test-cpcec`, pixel for pixel. Like the rest of this directory it is GPLv3,
+derived from CPCEC (C) Cesar Nicolas-Gonzalez.
+
+    make cpcec                                          (fetch + patch + build native CPCEC)
+    EMSDK=/path/to/emsdk sh tools/cpcec/wasm/build-host.sh
+    cd vscode/cpcbuild-emu && npm run test:golden

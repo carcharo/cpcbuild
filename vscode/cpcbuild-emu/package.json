@@ -10,7 +10,8 @@
   },
   "private": true,
   "scripts": {
-    "test:wasm": "node test/wasm-smoke.mjs"
+    "test:wasm": "node test/wasm-smoke.mjs",
+    "test:golden": "python3 test/prepare_media.py && node test/golden.mjs"
   },
   "devDependencies": {
     "puppeteer-core": "^25.14.0"

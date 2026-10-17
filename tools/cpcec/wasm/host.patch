@@ -1,0 +1,98 @@
+--- a/cpcec.c
++++ b/cpcec.c
+@@ -100,6 +100,9 @@
+ #define POWER_BOOST0 0
+ #define AUDIO_ALWAYS_MONO (AUDIO_CHANNELS==1) // false, the PSG is stereo (ABC by default on the CPC)
+ unsigned char audio_surround=0; // ditto
++#ifdef CPCEC_WASM
++#define audio_fastmute 0 // CPCBuild: the headless run keeps its sound, the host takes the samples
++#endif
+ #define CB_PART 1
+ #include "cpcec-cb.h" // CPCBuild: unattended-run options
+ #include "cpcec-rt.h" // emulation framework!
+@@ -3972,6 +3975,9 @@
+ #define CB_PART 2
+ #include "cpcec-cb.h"
+ 
++#ifdef CPCEC_WASM
++#define main cpcec_start // CPCBuild: the host calls this once, then cpcec_frame() per frame
++#endif
+ int main(int argc,char *argv[])
+ {
+ 	cb_args(&argc,argv); session_prae(ARGVZERO); all_setup(); all_reset();
+@@ -4134,7 +4140,11 @@
+ 			),1;
+ 	if (cb_printer_path&&!(printer=fopen(cb_printer_path,"wb")))
+ 		return printferror("Cannot record printer!"),1;
++#ifdef CPCEC_WASM
++	if (cb_headless) onscreen_flag=0; // no status text in the picture; the host takes the sound
++#else
+ 	if (cb_headless) session_audio=0,onscreen_flag=0; // no sound, no status text in the picture
++#endif
+ 	if (bios_reload())
+ 		return printferror(txt_error_bios),1;
+ 	amsdos_load("cpcados.rom"); //if (!*bdos_rom&&!disc_disabled) disc_disabled=1,mmu_update(); // can't enable the disc drive without its ROM!
+@@ -4146,6 +4156,20 @@
+ 	video_target=&video_frame[video_pos_y*VIDEO_LENGTH_X+video_pos_x]; audio_target=audio_frame;
+ 	video_main_xlat(),video_xlat_clut(); session_resize();
+ 	// it begins, "alea jacta est!"
++#ifdef CPCEC_WASM // CPCBuild: main() ends here; cpcec_frame() below is one pass of the loop (see cpcec-wasm-api.h)
++	audio_disabled=!session_audio; return 0;
++}
++int cpcec_frame(void) // runs the emulation to the end of the next frame (0) or until the debugger stops it (1)
++{
++	int j,k; if (session_signal&SESSION_SIGNAL_DEBUG) return 1; // stopped by a breakpoint or a step: the host decides
++	if (session_listen()) return 0; // keyboard, clean-ups
++	{
++		while (!session_signal)
++			z80_main(UNLIKELY(video_pos_x<video_threshold)?0:((VIDEO_LENGTH_X+15-video_pos_x)>>4)<<multi_t);
++		if (session_signal&SESSION_SIGNAL_DEBUG) return debug_reset(),1; // breakpoint or step: clear traps, tell the host
++		if (session_signal&SESSION_SIGNAL_FRAME) // end of frame?
++		{
++#else
+ 	for (audio_disabled=!session_audio;!session_listen()&&!cb_quit;)
+ 	{
+ 		while (!session_signal)
+@@ -4154,6 +4178,7 @@
+ 				((VIDEO_LENGTH_X+15-video_pos_x)>>4)<<multi_t); // ...without missing any IRQ and CRTC deadlines!
+ 		if (session_signal&SESSION_SIGNAL_FRAME) // end of frame?
+ 		{
++#endif
+ 			if (audio_required)
+ 			{
+ 				if (audio_pos_z<AUDIO_LENGTH_Z) audio_main(TICKS_PER_FRAME); // fill sound buffer to the brim!
+@@ -4235,13 +4260,21 @@
+ 			//if (!audio_disabled) audio_main(1+(video_pos_x>>4)); // preload audio buffer
+ 		}
+ 	}
++#ifdef CPCEC_WASM
++	return 0;
++}
++#else
+ 	// it's over, "acta est fabula"
+ 	z80_close(); if (ext_rom) free(ext_rom);
+ 	disc_closeall();
+ 	cb_exit(); tape_close(); ym3_close(); if (printer) printer_close();
+ 	return session_byebye(),session_post()|cb_status;
+ }
++#endif
+ 
+ BOOTSTRAP
++#ifdef CPCEC_WASM
++#include "cpcec-wasm-api.h"
++#endif
+ 
+ // ============================================ END OF USER INTERFACE //
+--- a/cpcec-rt.h
++++ b/cpcec-rt.h
+@@ -132,7 +132,9 @@
+ int session_debug_user(int); // debug logic takes priority: 0 UNKNOWN COMMAND, !0 OK
+ int debug_xlat(int); // translate debug keys into codes (f.e. cursors)
+ 
+-#ifdef SDL2 // optional inside Win32, required elsewhere!
++#ifdef CPCEC_WASM // CPCBuild: headless WebAssembly front end, no SDL
++#include "cpcec-wasm.h"
++#elif defined(SDL2) // optional inside Win32, required elsewhere!
+ #include "cpcec-ox.h"
+ #else // Win32 (+4.0)
+ #include "cpcec-os.h"
