@@ -39,6 +39,8 @@ d('library index: counts per file', () => {
     'cpcbuild/text.bas': 6,
     'cpcbuild/tiles.bas': 6,
     'cpcplus/cpcplus.bas': 35,
+    'cpcplus/palcycle.bas': 4,
+    'cpcplus/sprman.bas': 11,
     'zxbuild/sprites.bas': 14,
     'music/music_cpc.bas': 8,
     'music/music_zx.bas': 6,
