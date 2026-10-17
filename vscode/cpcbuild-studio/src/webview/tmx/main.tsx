@@ -79,6 +79,12 @@ function TmxApp({ client, view }: Host) {
   const [msg, setMsg] = useState<ViewNotice | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [narrow, setNarrow] = useState(window.innerWidth <= 720);
+  useEffect(() => {
+    const on = (): void => setNarrow(window.innerWidth <= 720);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
   const [convName, setConvName] = useState('');
 
   const layer: TmxLayer | undefined = view.layers[Math.min(layerIdx, view.layers.length - 1)];
@@ -242,17 +248,17 @@ function TmxApp({ client, view }: Host) {
           <div class="tmx-map"><p class="cb-muted">This layer cannot be drawn.</p></div>
         )}
         <aside class="tmx-side" aria-label="Tileset and cell">
-          <section aria-labelledby="tmx-ts-h">
-            <h2 id="tmx-ts-h" class="tmx-h">Tileset</h2>
+          <details class="tmx-det" open={!narrow}>
+            <summary><h2 id="tmx-ts-h" class="tmx-h">Tileset</h2></summary>
             {atlases.length === 0 && <p class="cb-muted">No tileset image: cells are shown as numbers.</p>}
             {atlases.map((a) => <AtlasStrip key={a.firstgid} atlas={a} first={first} picked={pickedTile} onPick={pickTileNumber} />)}
             <label class="tmx-pick">
               Highlight tile number{' '}
               <input class="cb-input tmx-num" inputMode="numeric" value={pickedTile === null ? '' : String(pickedTile)} aria-label="Highlight every cell using tile number" onInput={(e) => setPickedTile(optInt((e.target as HTMLInputElement).value) ?? null)} />
             </label>
-          </section>
-          <section aria-labelledby="tmx-cell-h" class="tmx-cell">
-            <h2 id="tmx-cell-h" class="tmx-h">{info ? `Cell (${info.x}, ${info.y})` : 'Cell'}</h2>
+          </details>
+          <details class="tmx-det tmx-cell" open>
+            <summary><h2 id="tmx-cell-h" class="tmx-h">{info ? `Cell (${info.x}, ${info.y})` : 'Cell'}</h2></summary>
             {!info && <p class="cb-muted">Click a cell, or move with the arrow keys.</p>}
             {info && (
               <div aria-live="polite">
@@ -269,7 +275,7 @@ function TmxApp({ client, view }: Host) {
                 </div>
               </div>
             )}
-          </section>
+          </details>
           {view.objectGroups.some((g) => g.objects.length) && (
             <section aria-labelledby="tmx-obj-h">
               <h2 id="tmx-obj-h" class="tmx-h">Objects</h2>
@@ -404,7 +410,8 @@ function MapCanvas(p: MapProps) {
 
   // fit: integer zoom when 1 or more, else a fraction
   const fitZoom = useMemo(() => {
-    const z = Math.min(size.w / mapW, size.h / mapH);
+    // narrow window: fit by width and let a tall map scroll, rather than shrinking it to the band height
+    const z = window.innerWidth <= 720 ? size.w / mapW : Math.min(size.w / mapW, size.h / mapH);
     return z >= 1 ? Math.min(32, Math.floor(z)) : Math.max(0.05, Math.floor(z * 100) / 100);
   }, [size, mapW, mapH]);
   const zoom = p.fit ? fitZoom : p.zoom;

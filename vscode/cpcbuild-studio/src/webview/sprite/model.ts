@@ -169,7 +169,7 @@ export function penSlots(v: SpriteView): PenSlot[] {
     const cols = v.colours ?? [];
     for (let i = 0; i < cols.length; i++) {
       const c = colourOf(v, i + 1) as RGB;
-      slots.push({ index: i + 1, colour: rgbCss(c), number: hex3(cols[i]), name: `red ${parseInt(cols[i][0], 16)}, green ${parseInt(cols[i][1], 16)}, blue ${parseInt(cols[i][2], 16)}` });
+      slots.push({ index: i + 1, colour: rgbCss(c), number: hex3(cols[i]), name: '' });
     }
     return slots;
   }

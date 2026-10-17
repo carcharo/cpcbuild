@@ -32,6 +32,10 @@ export interface PenStripProps {
   groups?: { label: string; from: number }[];
   /** Show the colour name as a third line (wide layouts). */
   showNames?: boolean;
+  /** One compact line of 32 px swatches with the pen label under each; number and name live in the tooltip. */
+  compact?: boolean;
+  /** Pens that exist but are not in use (above the mode's pen count): drawn dimmed, with this reason in the tooltip. */
+  dim?(index: number): string | undefined;
   /** Caption under the swatch and in the accessible name; default "P3" / "Pen 3". */
   caption?(index: number): { short: string; spoken: string };
   onSelect(index: number, button: 'left' | 'right'): void;
@@ -78,13 +82,14 @@ export function PenStrip(p: PenStripProps) {
     }
   };
   const render = (s: PenSlot) => {
+    const dimWhy = p.dim?.(s.index);
     const isL = s.index === p.left;
     const isR = s.index === p.right;
     const badge = isL && isR ? 'LR' : isL ? 'L' : isR ? 'R' : '';
     const state = [isL && isR ? 'left and right button' : isL ? 'left button' : isR ? 'right button' : ''].filter(Boolean).join('');
     const aria = s.unset
       ? `${cap(s.index).spoken}, unset${state ? `, ${state}` : ''}`
-      : `${cap(s.index).spoken}, colour ${s.number}, ${s.name}${state ? `, ${state}` : ''}${s.warn ? `, warning: ${s.warn}` : ''}${s.error ? `, error: ${s.error}` : ''}`;
+      : `${cap(s.index).spoken}, colour ${s.number}${s.name ? `, ${s.name}` : ''}${state ? `, ${state}` : ''}${s.warn ? `, warning: ${s.warn}` : ''}${s.error ? `, error: ${s.error}` : ''}`;
     return (
       <button
         key={s.index}
@@ -92,11 +97,11 @@ export function PenStrip(p: PenStripProps) {
         role="radio"
         aria-checked={isL}
         aria-label={aria}
-        title={s.error ?? s.warn ?? (s.unset ? `${cap(s.index).short}: unset` : `${cap(s.index).short}: ${s.number} ${s.name}`)}
+        title={s.error ?? s.warn ?? dimWhy ?? (s.unset ? `${cap(s.index).short}: unset` : `${cap(s.index).short}: ${s.number}${s.name ? ` ${s.name}` : ''}`)}
         data-pen={s.index}
         tabIndex={s.index === focus ? 0 : -1}
         draggable={!!p.onReorder && !s.unset}
-        class={`cb-pen${isL ? ' cb-pen-sel' : ''}${s.error ? ' cb-pen-error' : ''}`}
+        class={`cb-pen${isL ? ' cb-pen-sel' : ''}${s.error ? ' cb-pen-error' : ''}${dimWhy ? ' cb-pen-dim' : ''}`}
         onFocus={() => setFocus(s.index)}
         onClick={(e) => p.onSelect(s.index, e.altKey ? 'right' : 'left')}
         onContextMenu={(e) => { e.preventDefault(); p.onSelect(s.index, 'right'); }}
@@ -112,20 +117,20 @@ export function PenStrip(p: PenStripProps) {
         }}
       >
         <span class="cb-pen-swatch">
-          <Swatch colour={s.colour} unset={s.unset} size={28} />
+          <Swatch colour={s.colour} unset={s.unset} size={p.compact ? 32 : 28} />
           {badge && <span class="cb-pen-badge">{badge}</span>}
           {s.warn && !s.error && <span class="cb-pen-flag"><Icon name="warning" /></span>}
           {s.error && <span class="cb-pen-flag cb-pen-flag-error"><Icon name="error" /></span>}
         </span>
         <span class="cb-pen-num">{cap(s.index).short}</span>
-        <span class="cb-pen-col">{s.unset ? 'unset' : s.number}</span>
-        {p.showNames && <span class="cb-pen-name">{s.unset ? '' : s.name}</span>}
+        {!p.compact && <span class="cb-pen-col">{s.unset ? 'unset' : s.number}</span>}
+        {!p.compact && p.showNames && <span class="cb-pen-name">{s.unset ? '' : s.name}</span>}
       </button>
     );
   };
   const groups = p.groups ?? [{ label: '', from: 0 }];
   return (
-    <div class="cb-pens" role="radiogroup" aria-label={p.label} ref={root}>
+    <div class={`cb-pens${p.compact ? ' cb-pens-compact' : ''}`} role="radiogroup" aria-label={p.label} ref={root}>
       {groups.map((g, gi) => {
         const to = gi + 1 < groups.length ? groups[gi + 1].from : Infinity;
         const slots = p.slots.filter((s) => s.index >= g.from && s.index < to);

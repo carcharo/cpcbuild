@@ -116,7 +116,7 @@ function updateUi(s?: EmuState): void {
     return;
   }
   const label = st.paused ? `Paused (${st.reason ?? 'user'}) at ${hex(st.pc)}` : suspended() ? 'Suspended (tab hidden)' : 'Running';
-  if (status.textContent !== label) status.textContent = label;
+  if (status.textContent !== label) { status.textContent = label; status.title = label; }
   btnPause.setAttribute('aria-label', st.paused ? 'Resume' : 'Pause');
   btnPause.title = st.paused ? 'Resume' : 'Pause';
   btnPause.querySelector('.codicon')!.className = 'codicon ' + (st.paused ? 'codicon-debug-continue' : 'codicon-debug-pause');
@@ -210,7 +210,7 @@ function fit(): void {
   const w = stage.clientWidth, h = stage.clientHeight;
   if (w <= 0 || h <= 0) return;
   let s = Math.min(w / W, h / H);
-  if (s >= 1) s = Math.floor(s); // integer scale when it fits: crisp pixels
+  if (s >= 1 && Math.floor(s) / s >= 0.85) s = Math.floor(s); // integer scale when it wastes under 15%: crisp pixels; else fill
   canvas.style.width = Math.floor(W * s) + 'px';
   canvas.style.height = Math.floor(H * s) + 'px';
 }
@@ -390,7 +390,8 @@ canvas.addEventListener('keyup', (e) => {
   ex.emu_key_usb(usb, 0);
   e.preventDefault();
 });
-canvas.addEventListener('blur', () => { if (M) ex.emu_keys_release(); });
+canvas.addEventListener('blur', () => { document.body.classList.remove('kb'); if (M) ex.emu_keys_release(); });
+canvas.addEventListener('focus', () => { document.body.classList.add('kb'); });
 
 updateUi();
 showSound();

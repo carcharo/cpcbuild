@@ -42,8 +42,8 @@ const FIRMWARE_MAIN = `' main.bas -- a small CPCBuild program for the firmware: 
 DIM pal(3) AS UBYTE = {0, 26, 6, 18}
 
 ' A sprite 2 bytes wide (8 pixels in mode 1) and 8 lines high. assets/ball.cpcspr
-' is the same picture as a Studio document (the editors come with later
-' versions of the extension).
+' is the same picture as a Studio document: double-click it in the
+' Explorer to open the CPCBuild Sprite Editor. See docs/library.md.
 DIM ball(15) AS UBYTE = { _
   $FF, $FF, $8F, $1F, $8F, $1F, $8F, $1F, _
   $8F, $1F, $8F, $1F, $8F, $1F, $FF, $FF }
@@ -81,7 +81,7 @@ const BARE_NOTES = `' BARE METAL: this target is built with -D CPC_BAREMETAL, so
 ' routines). The library keeps working for graphics, keys and text, but it
 ' refuses these firmware-only calls: SoundQueue, SoundFree, SoundBusy,
 ' SoundEnvelope and BankLoad. Use the Arkos player (<music/music.bas>) for
-' sound instead. See docs/library.md and the Phase 6 notes.
+' sound instead. See docs/library.md.
 '
 `;
 

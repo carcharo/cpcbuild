@@ -12,6 +12,13 @@ describe('templates', () => {
     expect(r.files['.gitignore']).toBe('build/\n');
     expect(r.files['README.md']).toContain('Three things to try');
     expect(Object.keys(r.files).some((f) => f.startsWith('assets/'))).toBe(true);
+    // no project-internal jargon or stale promises in what the user receives
+    for (const [f, text] of Object.entries(r.files)) {
+      expect(text, f).not.toMatch(/later versions|\bPhase \d/);
+    }
+  });
+  it('firmware template points at the Sprite Editor', () => {
+    expect(generateTemplate('firmware', { name: 'x' }).files['src/main.bas'] ?? '').toContain('CPCBuild Sprite Editor');
   });
   it('plus has a cartridge and a disc; shared has both machines', () => {
     const plus = parseProject(generateTemplate('plus', { name: 'x' }).files['cpcbuild.json']).project!;

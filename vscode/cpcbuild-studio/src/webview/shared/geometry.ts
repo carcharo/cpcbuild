@@ -40,8 +40,12 @@ export function cssSize(w: number, h: number, zoom: number, aw: number): { width
   return { width: Math.round(w * zoom * aw), height: h * zoom };
 }
 
+/** A measured height below this is a layout that has not settled. */
+export const MIN_FIT_H = 64;
+
 /** Largest usable step that fits the area with a margin on every side ("Fit"). */
 export function fitZoom(w: number, h: number, aw: number, availW: number, availH: number, margin = 16): number {
+  if (availH < MIN_FIT_H) availH = Infinity; // an unsettled layout measures a sliver: fit by width alone, never collapse to 1x
   const steps = ZOOM_STEPS.filter((z) => zoomUsable(z, aw));
   let best = steps[0];
   for (const z of steps) {

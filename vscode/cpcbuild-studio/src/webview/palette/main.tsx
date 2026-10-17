@@ -175,9 +175,9 @@ function PaletteApp({ client, settings, view }: Host) {
     {
       label: 'History',
       items: [
-        { kind: 'button', id: 'undo', label: 'Undo', icon: 'undo', disabled: !view.canUndo, why: 'nothing to undo', onActivate: () => void client.request('history', { action: 'undo' }) },
+        { kind: 'button', id: 'undo', label: 'Undo', icon: 'discard', disabled: !view.canUndo, why: 'nothing to undo', onActivate: () => void client.request('history', { action: 'undo' }) },
         { kind: 'button', id: 'redo', label: 'Redo', icon: 'redo', disabled: !view.canRedo, why: 'nothing to redo', onActivate: () => void client.request('history', { action: 'redo' }) },
-        { kind: 'button', id: 'reset', label: 'Reset to the last loaded palette', text: 'Reset', icon: 'discard', onActivate: () => void edit({ op: 'reset' }) },
+        { kind: 'button', id: 'reset', label: 'Reset to the last loaded palette', text: 'Reset', icon: 'debug-restart', onActivate: () => void edit({ op: 'reset' }) },
       ],
     },
     {
@@ -297,6 +297,7 @@ function PaletteApp({ client, settings, view }: Host) {
                   left={selClamped}
                   groups={plus ? [{ label: 'Pens 0-15', from: 0 }, { label: 'Border (16)', from: 16 }, { label: 'Sprite colours 1-15 (17-31)', from: 17 }] : undefined}
                   showNames={!narrow}
+                  dim={(i) => (!plus && i >= limit ? `not used in mode ${mode} (${limit} pens)` : undefined)}
                   caption={caption}
                   onSelect={(i) => setSel(i)}
                   onReorder={(from, to) => void edit({ op: 'moveEntry', from, to }).then(() => setSel(to))}

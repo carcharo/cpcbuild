@@ -20,7 +20,7 @@ export function StatusLine({ fields, hint }: { fields: (StatusField | undefined 
           </span>
         ))}
       </div>
-      {hint && <div class="cb-status-hint">{hint}</div>}
+      {hint && <span class="cb-status-hint" tabIndex={0} role="note" title={hint} aria-label={hint}>?</span>}
     </div>
   );
 }

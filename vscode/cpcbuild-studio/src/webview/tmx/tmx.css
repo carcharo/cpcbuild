@@ -10,7 +10,9 @@
 .tmx-map canvas { display: block; image-rendering: pixelated; touch-action: none; cursor: crosshair; }
 .tmx-map:focus-visible { outline-offset: -2px; }
 .tmx-side { border-left: 1px solid var(--vscode-panel-border); padding: var(--cb-space-2) var(--cb-space-3); overflow: auto; display: flex; flex-direction: column; gap: var(--cb-space-4); min-width: 0; }
-.tmx-h { font-weight: 600; margin-bottom: var(--cb-space-2); }
+.tmx-h { font-size: 1em; font-weight: 600; margin-bottom: var(--cb-space-2); }
+.tmx-det > summary { cursor: pointer; list-style-position: inside; }
+.tmx-det > summary .tmx-h { display: inline; }
 .tmx-strip { display: block; max-width: 100%; image-rendering: pixelated; cursor: pointer; margin-bottom: var(--cb-space-2); border: 1px solid var(--vscode-panel-border); }
 .tmx-pick { display: flex; align-items: center; gap: var(--cb-space-2); }
 .tmx-dl { display: grid; grid-template-columns: auto 1fr; gap: var(--cb-space-1) var(--cb-space-3); margin: 0 0 var(--cb-space-2); }
@@ -25,6 +27,6 @@
 @media (max-width: 720px) {
   .tmx { height: auto; min-height: 100vh; }
   .tmx-body { grid-template-columns: minmax(0, 1fr); }
-  .tmx-map { height: 55vh; }
+  .tmx-map { height: 55vh; min-height: 55vh; }
   .tmx-side { border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
 }

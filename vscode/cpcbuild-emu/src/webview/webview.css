@@ -6,7 +6,7 @@ body {
   font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);
 }
 #bar {
-  display: flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 4px; flex: 0 0 auto; flex-wrap: wrap;
   padding: 4px 8px;
   border-bottom: 1px solid var(--vscode-panel-border, transparent);
   background: var(--vscode-editorGroupHeader-tabsBackground, transparent);
@@ -26,10 +26,14 @@ body {
   color: var(--vscode-button-secondaryForeground) !important;
 }
 #sound:hover { background: var(--vscode-button-secondaryHoverBackground) !important; }
-#model { font-weight: 600; margin-left: 8px; }
-#status { color: var(--vscode-descriptionForeground); margin-left: 8px; font-variant-numeric: tabular-nums; }
+#model { font-weight: 600; margin-left: 8px; white-space: nowrap; }
+#status { color: var(--vscode-descriptionForeground); margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
 .grow { flex: 1; }
-#hint { color: var(--vscode-descriptionForeground); font-size: 0.9em; }
-#stage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#hint { display: none; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 0.9em; }
+body.kb #hint { display: inline; }
+#stage { flex: 1 1 auto; min-height: 0; background: #000; display: flex; align-items: flex-start; justify-content: center; overflow: hidden; }
 #screen { image-rendering: pixelated; image-rendering: crisp-edges; background: #000; display: block; outline-offset: 2px; }
-@media (max-width: 480px) { #hint { display: none; } }
+#screen:focus-visible { outline-offset: -2px; }
+#sound { white-space: nowrap; }
+@media (max-width: 720px) { body.kb #hint { display: none; } }
+@media (max-width: 560px) { #sound .lbl { display: none; } }

@@ -145,14 +145,14 @@ export function CheckField({ id, label, checked, onChange, description, disabled
 }
 
 /** 2-5 options, radiogroup; the selected one has a fill and a bottom border. Arrow keys move and select. */
-export function Segmented<T extends string | number>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string; title?: string }[]; onChange(v: T): void }) {
+export function Segmented<T extends string | number>({ label, value, options, onChange, grid }: { label: string; value: T; options: { value: T; label: string; title?: string }[]; onChange(v: T): void; /** 2-column grid for long labels (the importer target). */ grid?: boolean }) {
   const move = (i: number): void => {
     const o = options[(i + options.length) % options.length];
     onChange(o.value);
     queueMicrotask(() => document.querySelector<HTMLElement>(`[data-seg="${CSS.escape(label)}"][data-val="${CSS.escape(String(o.value))}"]`)?.focus());
   };
   return (
-    <div class="cb-seg" role="radiogroup" aria-label={label}>
+    <div class={grid ? 'cb-seg cb-seg-grid' : 'cb-seg'} role="radiogroup" aria-label={label}>
       {options.map((o, i) => (
         <button
           key={String(o.value)}

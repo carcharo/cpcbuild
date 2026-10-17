@@ -83,6 +83,21 @@ async function driver(syncDir: string, outDir: string, stop: () => boolean): Pro
       try {
         if (req.type === 'viewport') {
           await cdp.send('Emulation.setDeviceMetricsOverride', { width: req.width, height: req.height, deviceScaleFactor: 1, mobile: false });
+        } else if (req.type === 'click') {
+          // click an element of whichever webview frame holds it (DOM click, not a mouse event: nothing depends on window focus)
+          let hit = false;
+          for (const fr of page.frames()) {
+            try {
+              hit = await fr.evaluate((sel: string) => {
+                const el = document.querySelector<HTMLElement>(sel);
+                if (!el) return false;
+                el.click();
+                return true;
+              }, req.selector);
+            } catch { /* detached or cross-origin frame */ }
+            if (hit) break;
+          }
+          console.log(`  click ${req.selector}: ${hit ? 'ok' : 'NOT FOUND'}`);
         } else if (req.type === 'shot') {
           const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: true });
           fs.writeFileSync(path.join(outDir, req.file), Buffer.from(data, 'base64'));

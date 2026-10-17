@@ -1,6 +1,9 @@
 /* importer.css -- layout of the image importer (S4). */
 .imp { display: flex; flex-direction: column; min-height: 100vh; }
 .imp-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--cb-space-2) var(--cb-space-5); align-items: center; padding: var(--cb-space-2) var(--cb-gutter); border-bottom: 1px solid var(--vscode-panel-border); }
+.imp-cmdbar { flex: 1 0 100%; display: flex; align-items: center; gap: var(--cb-space-2); min-width: 0; }
+.imp-cmdline { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-unused { opacity: 0.5; }
 .imp-src, .imp-out { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); min-width: 0; }
 .imp-body { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); flex: 1; min-height: 0; }
 .imp-opts { border-right: 1px solid var(--vscode-panel-border); overflow-y: auto; }

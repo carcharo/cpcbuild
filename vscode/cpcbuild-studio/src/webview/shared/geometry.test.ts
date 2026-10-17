@@ -31,6 +31,8 @@ describe('pixel canvas geometry', () => {
   it('fit picks the largest step that fits with the margin', () => {
     expect(fitZoom(64, 64, 1, 800, 600)).toBe(8); // 8*64=512 + 32 <= 600
     expect(fitZoom(510, 200, 1, 400, 300)).toBe(1); // nothing fits: smallest
+    expect(fitZoom(24, 16, 1, 500, 20)).toBe(fitZoom(24, 16, 1, 500, Infinity)); // a sliver of a height is ignored
+    expect(fitZoom(24, 16, 1, 500, 20)).toBeGreaterThanOrEqual(8); // 24x16 at ~half of 1000 px
   });
   it('byte grid spacing', () => {
     expect([0, 1, 2, 'plus'].map((m) => byteGridEvery(m as 0))).toEqual([2, 4, 8, 0]);

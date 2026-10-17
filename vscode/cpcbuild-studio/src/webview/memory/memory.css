@@ -16,4 +16,10 @@
 .mem-pc { outline: 1px solid var(--vscode-debugIcon-breakpointForeground, var(--vscode-focusBorder)); }
 .mem-sp { outline: 1px dashed var(--vscode-focusBorder); }
 .mem-sym { overflow: hidden; text-overflow: ellipsis; }
-@media (max-width: 720px) { .mem-row { grid-template-columns: 6ch auto; } .mem-ascii, .mem-sym { display: none; } }
+/* narrow: drop the ASCII column first, keep the symbol names (the CPC-specific part) on a second line under the row */
+@media (max-width: 720px) {
+  .mem-row { grid-template-columns: 6ch auto; }
+  .mem-ascii { display: none; }
+  .mem-sym { grid-column: 1 / -1; padding-left: calc(6ch + var(--cb-space-3)); line-height: 1.2; font-size: 0.9em; }
+  .mem-sym:empty { display: none; }
+}

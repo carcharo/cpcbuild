@@ -22,9 +22,11 @@
 .pal-formats label { display: flex; gap: var(--cb-space-2); align-items: center; }
 
 @media (max-width: 720px) {
-  .pal-body { grid-template-columns: minmax(0, 1fr); }
-  .pal-side { border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
-  .pal-main { padding: var(--cb-space-2); gap: var(--cb-space-3); }
+  /* pens first, then the colour details and Copy as, then the firmware grid and the preview */
+  .pal-body { grid-template-columns: minmax(0, 1fr); align-content: start; row-gap: var(--cb-space-3); padding: var(--cb-space-2); }
+  .pal-main { display: contents; }
+  .pal-main > :not(:first-child) { order: 2; }
+  .pal-side { order: 1; border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
   .cb-notice { margin-left: var(--cb-space-2); margin-right: var(--cb-space-2); }
   .pal-grid { grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
 }

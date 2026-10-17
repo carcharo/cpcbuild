@@ -79,6 +79,7 @@ function TextField(p: { id: string; label: string; value: string; placeholder?: 
   );
 }
 
+const MIN_AVAIL_W = 64;
 function ImporterApp({ client, settings, view }: Host) {
   const r = view.recipe;
   const saved = client.getState<Persisted>() ?? {};
@@ -122,17 +123,24 @@ function ImporterApp({ client, settings, view }: Host) {
   useEffect(() => {
     const el = paneRef.current;
     if (!el) return;
-    // width only, and after the frame: a callback that changes the observed size in the same frame is the "ResizeObserver loop" error
-    const h = (): number => Math.max(200, window.innerHeight * 0.55);
-    const ro = new ResizeObserver(() => requestAnimationFrame(() => setAvail((a) => (a.w === el.clientWidth ? a : { w: el.clientWidth, h: h() }))));
+    // Fit by width (a tall image scrolls inside its pane). A width under MIN_AVAIL_W is a layout that has not settled
+    // yet (or a collapsed pane): ignore it, and re-measure after the first paint, when fonts and the grid have settled.
+    const h = (): number => Math.max(240, window.innerHeight * 0.7);
+    const measure = (): void => {
+      const w = el.clientWidth;
+      if (w < MIN_AVAIL_W) return;
+      setAvail((a) => (a.w === w && a.h === h() ? a : { w, h: h() }));
+    };
+    const ro = new ResizeObserver(() => requestAnimationFrame(measure)); // after the frame: changing the observed size inside the callback is the "ResizeObserver loop" error
     ro.observe(el);
-    const onWin = (): void => setAvail((a) => ({ w: a.w, h: h() }));
-    window.addEventListener('resize', onWin);
+    const timers = [setTimeout(measure, 0), setTimeout(measure, 150), setTimeout(measure, 600)];
+    window.addEventListener('resize', measure);
     return () => {
       ro.disconnect();
-      window.removeEventListener('resize', onWin);
+      timers.forEach(clearTimeout);
+      window.removeEventListener('resize', measure);
     };
-  }, [src]);
+  }, [src, tab, pane]);
 
   const edit = async (op: RecipeOp): Promise<void> => {
     try {
@@ -272,7 +280,7 @@ function ImporterApp({ client, settings, view }: Host) {
     if (/needs \d+ colours/.test(errText) && cpc) acts.push({ label: 'Pick a palette', onClick: () => { setOpen({ ...open, colours: true }); setPalPending('pens'); setTab('options'); queueMicrotask(() => document.getElementById('imp-pens')?.focus()); } });
     notices.push(<Notice key="err" severity="error" actions={acts}>{errText}</Notice>);
   }
-  if (view.stale && !errText && r.source) notices.push(<Notice key="stale" severity="info" actions={[{ label: 'Generate', onClick: () => void generate() }]}>{view.outputExists ? `${view.outputs[0]} is older than this recipe or its image.` : `${view.outputs[0]} has not been generated yet.`}</Notice>);
+  if (view.stale && !errText && r.source) notices.push(<Notice key="stale" severity="info">{view.outputExists ? `${view.outputs[0]} is older than this recipe or its image.` : `${view.outputs[0]} has not been generated yet.`} Use Generate{narrow ? '' : ' above'} to write it.</Notice>);
   if (view.saveProblem) notices.push(<Notice key="sp" severity="error">{view.saveProblem}</Notice>);
   if (good && cpc && good.width / (r.mode === 0 ? 2 : r.mode === 1 ? 4 : 8) > 255) notices.push(<Notice key="wide" severity="warning">A frame wider than 255 bytes cannot be drawn by the library.</Notice>);
 
@@ -287,6 +295,7 @@ function ImporterApp({ client, settings, view }: Host) {
         <>
           <Segmented<string>
             label="Target"
+            grid
             value={r.target}
             options={[
               { value: 'cpc', label: 'CPC', title: 'Screen modes 0, 1, 2 (--mode)' },
@@ -486,7 +495,7 @@ function ImporterApp({ client, settings, view }: Host) {
     </div>
   );
 
-  const rows = good?.rows ?? [];
+  const rows = [...(good?.rows ?? [])].sort((a, b) => Number(b.pixels > 0) - Number(a.pixels > 0)); // used pens first (stable)
   const dupLabels = new Map<string, number>();
   rows.forEach((row) => dupLabels.set(row.label, (dupLabels.get(row.label) ?? 0) + 1));
   const mapping = good ? (
@@ -498,7 +507,7 @@ function ImporterApp({ client, settings, view }: Host) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row.pen}>
+            <tr key={row.pen} class={row.pixels === 0 ? 'imp-unused' : undefined} title={row.pixels === 0 ? 'Not used by this image' : undefined}>
               <th scope="row">{row.pen}</th>
               <td>
                 {cpc ? (
@@ -578,6 +587,13 @@ function ImporterApp({ client, settings, view }: Host) {
         <span class="cb-muted">Output:</span> <span class="cb-mono">{view.outputs[0]}</span>
         <button type="button" class="cb-btn" disabled={!r.source} onClick={() => void generate()}><Icon name="play" /> Generate</button>
       </div>
+      {!narrow && view.command && (
+        <div class="imp-cmdbar">
+          <span class="cb-muted">Command:</span>
+          <code class="cb-mono imp-cmdline" title={view.command}>{view.command}</code>
+          <button type="button" class="cb-btn cb-btn-secondary" onClick={() => void client.request('copyCommand', {}).then((x) => setMsg(x.copied ? { severity: 'info', text: 'Command copied.' } : { severity: 'warning', text: x.reason ?? 'Nothing to copy.' }))}>Copy</button>
+        </div>
+      )}
     </header>
   );
 

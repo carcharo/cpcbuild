@@ -41,7 +41,7 @@ export function pageHtml(webview: vscode.Webview, ext: vscode.Uri, runHidden: bo
   <span id="status" role="status">No program loaded</span>
   <span class="grow"></span>
   <span id="hint">Ctrl+Shift+Esc leaves the keyboard</span>
-  <button id="sound" type="button" title="Browsers allow sound only after a click" aria-label="Click for sound"><span class="codicon codicon-unmute" aria-hidden="true"></span>Click for sound</button>
+  <button id="sound" type="button" title="Browsers allow sound only after a click" aria-label="Click for sound"><span class="codicon codicon-unmute" aria-hidden="true"></span><span class="lbl">Click for sound</span></button>
 </div>
 <div id="stage"><canvas id="screen" width="768" height="536" tabindex="0" role="application" aria-label="Amstrad CPC screen. Click to focus; your keys go to the CPC. Ctrl+Shift+Escape returns to the toolbar."></canvas></div>
 <script type="application/json" id="boot">${JSON.stringify(boot).replace(/</g, '\\u003c')}</script>

@@ -748,24 +748,32 @@ function SpriteApp({ client, settings, view }: Host) {
     {
       label: 'History',
       items: [
-        { kind: 'button', id: 'undo', label: 'Undo', icon: 'undo', disabled: !v.canUndo, why: 'nothing to undo', onActivate: () => void client.request('history', { action: 'undo' }) },
+        { kind: 'button', id: 'undo', label: 'Undo', icon: 'discard', disabled: !v.canUndo, why: 'nothing to undo', onActivate: () => void client.request('history', { action: 'undo' }) },
         { kind: 'button', id: 'redo', label: 'Redo', icon: 'redo', disabled: !v.canRedo, why: 'nothing to redo', onActivate: () => void client.request('history', { action: 'redo' }) },
       ],
     },
     {
       label: 'Asset',
       items: [
-        { kind: 'button', id: 'generate', label: `Generate ${v.output}`, text: 'Generate', icon: 'run', disabled: !!v.exportProblem, why: v.exportProblem, onActivate: () => void generate() },
-        {
-          kind: 'menu', id: 'copyas', label: 'Copy as BASIC', text: 'Copy as', icon: 'copy',
-          items: [
-            ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: s.label, onActivate: () => void copyText(s.text, s.label) })),
-            { id: 'c-cmd', label: 'Equivalent img2cpc.py command', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
-          ],
-        },
+        // narrow: Generate and Copy as move into the More menu so the toolbar stays at two rows
+        ...(narrow ? [] : [
+          { kind: 'button' as const, id: 'generate', label: `Generate ${v.output}`, text: 'Generate', icon: 'run', disabled: !!v.exportProblem, why: v.exportProblem, onActivate: () => void generate() },
+          {
+            kind: 'menu' as const, id: 'copyas', label: 'Copy as BASIC', text: 'Copy as', icon: 'copy',
+            items: [
+              ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: s.label, onActivate: () => void copyText(s.text, s.label) })),
+              { id: 'c-cmd', label: 'Equivalent img2cpc.py command', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
+            ],
+          },
+        ]),
         {
           kind: 'menu', id: 'more', label: 'More', icon: 'ellipsis',
           items: [
+            ...(narrow ? [
+              { id: 'generate', label: `Generate ${v.output}`, icon: 'run', disabled: !!v.exportProblem, onActivate: () => void generate() },
+              ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: `Copy as ${s.label}`, icon: 'copy', onActivate: () => void copyText(s.text, s.label) })),
+              { id: 'c-cmd', label: 'Copy the img2cpc.py command', icon: 'copy', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
+            ] : []),
             { id: 'takepng', label: 'Take a PNG into this frame...', icon: 'file-media', onActivate: () => void ask('importPng', { baseVersion: version.current, item: cur }).then((r) => r && (r.taken ? say('info', r.message ?? 'Image taken.', 'png') : undefined)) },
             { id: 'savepng', label: 'Export the sheet as PNG...', icon: 'save-as', onActivate: () => void ask('exportPng', {}).then((r) => r?.saved && say('info', `Saved ${r.file}`, 'png')) },
             { id: 'help', label: 'Keyboard shortcuts', shortcut: '?', onActivate: () => setHelp(true) },
@@ -830,7 +838,7 @@ function SpriteApp({ client, settings, view }: Host) {
     { id: 'size', value: plus ? `${v.w}x${v.h} px` : `${v.w}x${v.h} px = ${plural(v.w / ppb, 'byte')} wide` },
     v.analysis.itemBytes ? { id: 'bytes', value: tiles ? `${v.analysis.itemBytes} B/tile` : `${v.analysis.itemBytes} B/frame${v.masked ? ' (masked)' : ''}` } : undefined,
     { id: 'total', value: `${plural(n, noun)}, ${v.analysis.totalBytes} B total` },
-    { id: 'limit', value: `limit ${v.limit}` },
+    v.analysis.totalBytes >= v.limit * 0.9 ? { id: 'limit', value: `limit ${v.limit}` } : undefined,
     mirX || mirY ? { id: 'mirror', value: `mirror ${mirX ? 'X' : ''}${mirY ? 'Y' : ''}` } : undefined,
     sel ? { id: 'sel', value: `selection ${sel.w}x${sel.h} at ${sel.x},${sel.y}` } : undefined,
     v.analysis.warnings.length ? { id: 'warn', value: <><Icon name="warning" /> {v.analysis.warnings.length} warning{v.analysis.warnings.length === 1 ? '' : 's'}</> } : undefined,
@@ -842,6 +850,29 @@ function SpriteApp({ client, settings, view }: Host) {
 
   const props = (
     <PropertyPanel label={tiles ? 'Tile set properties' : 'Sprite properties'}>
+      {!tiles && (
+        <Section title="Preview" open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
+          <div class="sp-preview">
+            {n > 0 && <Thumb rgba={thumbs[Math.min(shown, n - 1)]} w={v.w} h={v.h} scale={plus ? 2 * magY : Math.max(1, Math.floor(96 / Math.max(v.w * (crt ? aspectWidth(aKey, 'crt') : 1), v.h)))} aw={plus ? (crt ? magX / (2 * magY) : magX / magY) : crt ? aspectWidth(aKey, 'crt') : 1} label={`Preview of ${noun} ${shown + 1}`} />}
+          </div>
+          <div class="cb-row">
+            <button type="button" class="cb-icon-btn" aria-label={playing ? 'Pause preview (P)' : 'Play preview (P)'} title={playing ? 'Pause (P)' : 'Play (P)'} aria-pressed={playing} onClick={() => setPlaying((p) => !p)}><Icon name={playing ? 'debug-pause' : 'play'} /></button>
+            <CheckField id="sp-all" label="Play all frames" checked={allFrames} onChange={setAllFrames} />
+          </div>
+          <NumberField id="sp-fps" label="Rate (frames per second)" value={fps} min={1} max={60} onCommit={setFps} />
+          {plus && (
+            <>
+              <Field id="sp-magx" label="Magnification X"><Segmented label="Magnification X" value={magX} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagX(Number(m))} /></Field>
+              <Field id="sp-magy" label="Magnification Y"><Segmented label="Magnification Y" value={magY} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagY(Number(m))} /></Field>
+              <p class="cb-muted">In CPC aspect a sprite pixel is magx / (2 x magy) as wide as it is tall.</p>
+              <div role="group" aria-label="Sprite slot (preview order only)">
+                <div class="cb-muted">Sprite slot (lower numbers draw in front; preview ordering only)</div>
+                <div class="sp-slots">{Array.from({ length: 16 }, (_, i) => <button key={i} type="button" class={`sp-slot${slot === i ? ' sp-slot-on' : ''}`} aria-pressed={slot === i} aria-label={`Sprite slot ${i}`} title="Lower numbers draw in front (preview ordering only)" onClick={() => setSlot(i)}>{i}</button>)}</div>
+              </div>
+            </>
+          )}
+        </Section>
+      )}
       <Section title={tiles ? 'Tile set' : plus ? 'Plus sprite' : 'Sprite'} open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
         <TextField id="sp-name" label="Name" value={v.name} description="Prefix of the generated arrays and constants." validate={(t) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t) ? undefined : 'Use letters, digits and _, not starting with a digit')} onCommit={(t) => void send({ op: 'setName', name: t })} />
         {!plus && (
@@ -914,29 +945,6 @@ function SpriteApp({ client, settings, view }: Host) {
           <span class="cb-muted">{v.outputState === 'current' ? 'Output is up to date' : v.outputState === 'stale' ? 'Output is out of date' : v.outputState === 'missing' ? 'Not generated yet' : ''}</span>
         </div>
       </Section>
-      {!tiles && (
-        <Section title="Preview" open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
-          <div class="sp-preview">
-            {n > 0 && <Thumb rgba={thumbs[Math.min(shown, n - 1)]} w={v.w} h={v.h} scale={plus ? 2 * magY : Math.max(1, Math.floor(96 / Math.max(v.w * (crt ? aspectWidth(aKey, 'crt') : 1), v.h)))} aw={plus ? (crt ? magX / (2 * magY) : magX / magY) : crt ? aspectWidth(aKey, 'crt') : 1} label={`Preview of ${noun} ${shown + 1}`} />}
-          </div>
-          <div class="cb-row">
-            <button type="button" class="cb-icon-btn" aria-label={playing ? 'Pause preview (P)' : 'Play preview (P)'} title={playing ? 'Pause (P)' : 'Play (P)'} aria-pressed={playing} onClick={() => setPlaying((p) => !p)}><Icon name={playing ? 'debug-pause' : 'play'} /></button>
-            <CheckField id="sp-all" label="Play all frames" checked={allFrames} onChange={setAllFrames} />
-          </div>
-          <NumberField id="sp-fps" label="Rate (frames per second)" value={fps} min={1} max={60} onCommit={setFps} />
-          {plus && (
-            <>
-              <Field id="sp-magx" label="Magnification X"><Segmented label="Magnification X" value={magX} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagX(Number(m))} /></Field>
-              <Field id="sp-magy" label="Magnification Y"><Segmented label="Magnification Y" value={magY} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagY(Number(m))} /></Field>
-              <p class="cb-muted">In CPC aspect a sprite pixel is magx / (2 x magy) as wide as it is tall.</p>
-              <div role="group" aria-label="Sprite slot (preview order only)">
-                <div class="cb-muted">Sprite slot (lower numbers draw in front; preview ordering only)</div>
-                <div class="sp-slots">{Array.from({ length: 16 }, (_, i) => <button key={i} type="button" class={`sp-slot${slot === i ? ' sp-slot-on' : ''}`} aria-pressed={slot === i} aria-label={`Sprite slot ${i}`} title="Lower numbers draw in front (preview ordering only)" onClick={() => setSlot(i)}>{i}</button>)}</div>
-              </div>
-            </>
-          )}
-        </Section>
-      )}
       <Section title="Copy as" open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
         <div class="sp-formats" role="radiogroup" aria-label="Copy format">
           {v.snippets.map((s) => (
@@ -997,6 +1005,7 @@ function SpriteApp({ client, settings, view }: Host) {
         </div>
         <div class="sp-side">{props}</div>
       </div>
+      <div class="sp-foot">
       <div class="sp-pens">
         <PenStrip
           label="Pens"
@@ -1004,7 +1013,7 @@ function SpriteApp({ client, settings, view }: Host) {
           left={lPen}
           right={rPen}
           groups={[{ label: '', from: -1 }]}
-          showNames={!narrow}
+          compact
           caption={caption}
           onSelect={penPick}
           onActivate={(i) => {
@@ -1022,6 +1031,7 @@ function SpriteApp({ client, settings, view }: Host) {
         <div class="cb-muted sp-pen-detail" aria-live="off">L: {describeValue(v, lPen)}. R: {describeValue(v, rPen)}.</div>
       </div>
       <StatusLine fields={status} hint="Wheel scrolls, Ctrl+wheel zooms, Alt+click picks, ? lists the keys" />
+      </div>
     </div>
   );
 }
