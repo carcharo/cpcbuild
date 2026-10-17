@@ -1,0 +1,16 @@
+**
+!package.json
+!README.md
+!LICENSE
+!dist/extension.js
+!dist/webview.js
+!dist/worklet.js
+!dist/webview.css
+!wasm/cpcec.js
+!wasm/cpcec.wasm
+!wasm/gpl.txt
+!wasm/package.json
+!media/roms/*.rom
+!media/codicons/codicon.css
+!media/codicons/codicon.ttf
+!source/cpcbuild-emu-source.tar.gz
