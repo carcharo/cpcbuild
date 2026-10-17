@@ -1,0 +1,18 @@
+{
+  "name": "cpcbuild-emu",
+  "displayName": "CPCBuild Emulator",
+  "description": "Amstrad CPC and CPC Plus emulator (CPCEC compiled to WebAssembly) in a VS Code tab.",
+  "version": "0.0.1",
+  "publisher": "cpcbuild",
+  "license": "GPL-3.0-or-later",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "private": true,
+  "scripts": {
+    "test:wasm": "node test/wasm-smoke.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.14.0"
+  }
+}

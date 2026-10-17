@@ -1,0 +1,41 @@
+{
+  "name": "cpcbuild-studio",
+  "displayName": "CPCBuild Studio",
+  "description": "Amstrad CPC tools for CPCBuild (Boriel BASIC --arch cpc): palette, sprite and tile editors, image importer, build and run.",
+  "version": "0.0.1",
+  "publisher": "cpcbuild",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "cpcbuild.hello",
+        "title": "CPCBuild: Hello"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --external:vscode --format=cjs --outfile=dist/extension.js",
+    "build:test": "tsc -p tsconfig.test.json",
+    "test:unit": "vitest run",
+    "test:vscode": "npm run build && npm run build:test && node out/test/runTest.js",
+    "test": "npm run test:unit && npm run test:vscode",
+    "package": "npm run build && vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}
