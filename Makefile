@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-plus test-cpcec cpcec cap32 chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-lamp test-plus test-cpcec cpcec cap32 chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -51,6 +51,9 @@ test-zx: chips ## Spectrum 48K/128K conformance and screenshot tests on chips (t
 test-games: chips ## Starfall: logic tests and screenshot goldens for all four builds on chips
 	$(PYTHON) games/shooter/tests/run.py
 	$(PYTHON) games/shooter/tests/zx/run.py
+
+test-lamp: chips ## Lamplighter: logic tests and screenshot goldens for the 464 and 6128 builds on chips
+	$(PYTHON) games/lamplighter/tests/run.py
 
 test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conformance (firmware and --bare), screenshots (firmware and --bare)
 	$(PYTHON) tests/plus/run.py

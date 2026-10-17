@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" tiledversion="1.10.2" orientation="orthogonal" renderorder="right-down" width="60" height="92" tilewidth="8" tileheight="8" infinite="0" nextlayerid="3" nextobjectid="25">
+ <properties>
+  <property name="names" value="THE BELFRY,ATTIC STORE,CLOCK LOFT,GLASS GALLERY,THE ARCHIVE,WEST STAIR,OLD LIBRARY,TOWER HALL,SERVANTS WAY,THE CELLAR,COLD STORE,BOILER ROOM"/>
+ </properties>
+ <tileset firstgid="1" name="tiles" tilewidth="8" tileheight="8" tilecount="16" columns="16">
+  <image source="tiles.png" width="128" height="8"/>
+ </tileset>
+ <layer id="1" name="tiles" width="60" height="92">
+  <data encoding="base64" compression="zlib">eNrtnNGugkAMRLlSG5KG///dq4kmhhBh3RZ26Xno44572EHNOHgbhuGWbP6cBj300EOvZz3j+oXrWaGecf0O0zOuH3rooYdetZ4m4J0fM67MVXklgZ/VmVcr96dBvGu+FWe9kv2Vro/283MmR/95633yPj1yf80ZvFqh9167tf8MWeScLHuVZHmsJPs+CS+8WXktcH9WqWecL7zwwgsvvPDCCy+8nfDqyXlsiWYN71YeGp3H/qIZ6ecWs9hS3i3vfWagU+V63cGrDrxklzn6sXLBz6NvevDCC29bvNYgr3G+zfAa9y+88MILL7yd82oi3neWNP/Y/evVz3Kh81UHXj2xH7uXt6TvLRXZbHQ/Vhw8Mzn6ObIfu9zbsmuqlbwazKs7ur10Y3Pky1f9fVCSPR8FL7zZeEvyOTuJ1zjf5nmN+xfeSr9wvvDCC28veeyRvGtZ05zMz9IBrx7AG9W3LeEdA/qssuN1avu244F+ngr9FZ3FiuP76dp/A2z1WWWx9l7Iq068meYfme4c5g==</data>
+ </layer>
+ <objectgroup id="2" name="objects">
+  <object id="1" name="start0" type="start" x="136" y="160" width="8" height="16"/>
+  <object id="2" name="walker" type="enemy" x="40" y="160" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="1"/>
+    <property name="range" type="int" value="0"/>
+   </properties>
+  </object>
+  <object id="3" name="floater" type="enemy" x="128" y="48" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="2"/>
+    <property name="range" type="int" value="4"/>
+   </properties>
+  </object>
+  <object id="4" name="start1" type="start" x="296" y="160" width="8" height="16"/>
+  <object id="5" name="bat" type="enemy" x="256" y="104" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="3"/>
+    <property name="range" type="int" value="5"/>
+   </properties>
+  </object>
+  <object id="6" name="start2" type="start" x="448" y="160" width="8" height="16"/>
+  <object id="7" name="walker" type="enemy" x="424" y="160" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="1"/>
+    <property name="range" type="int" value="0"/>
+   </properties>
+  </object>
+  <object id="8" name="start3" type="start" x="24" y="344" width="8" height="16"/>
+  <object id="9" name="bat" type="enemy" x="64" y="296" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="3"/>
+    <property name="range" type="int" value="5"/>
+   </properties>
+  </object>
+  <object id="10" name="start4" type="start" x="168" y="344" width="8" height="16"/>
+  <object id="11" name="walker" type="enemy" x="288" y="344" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="1"/>
+    <property name="range" type="int" value="0"/>
+   </properties>
+  </object>
+  <object id="12" name="start5" type="start" x="328" y="344" width="8" height="16"/>
+  <object id="13" name="floater" type="enemy" x="424" y="296" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="2"/>
+    <property name="range" type="int" value="4"/>
+   </properties>
+  </object>
+  <object id="14" name="start6" type="start" x="136" y="528" width="8" height="16"/>
+  <object id="15" name="start7" type="start" x="296" y="528" width="8" height="16"/>
+  <object id="16" name="walker" type="enemy" x="232" y="528" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="1"/>
+    <property name="range" type="int" value="0"/>
+   </properties>
+  </object>
+  <object id="17" name="start8" type="start" x="440" y="528" width="8" height="16"/>
+  <object id="18" name="bat" type="enemy" x="400" y="480" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="3"/>
+    <property name="range" type="int" value="6"/>
+   </properties>
+  </object>
+  <object id="19" name="start9" type="start" x="8" y="712" width="8" height="16"/>
+  <object id="20" name="walker" type="enemy" x="136" y="712" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="1"/>
+    <property name="range" type="int" value="0"/>
+   </properties>
+  </object>
+  <object id="21" name="start10" type="start" x="168" y="712" width="8" height="16"/>
+  <object id="22" name="floater" type="enemy" x="296" y="648" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="2"/>
+    <property name="range" type="int" value="4"/>
+   </properties>
+  </object>
+  <object id="23" name="start11" type="start" x="328" y="712" width="8" height="16"/>
+  <object id="24" name="walker" type="enemy" x="360" y="712" width="8" height="16">
+   <properties>
+    <property name="kind" type="int" value="1"/>
+    <property name="range" type="int" value="0"/>
+   </properties>
+  </object>
+ </objectgroup>
+</map>
