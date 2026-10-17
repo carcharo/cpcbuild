@@ -12,12 +12,599 @@
     "Other"
   ],
   "main": "./dist/extension.js",
-  "activationEvents": [],
+  "activationEvents": [
+    "workspaceContains:**/cpcbuild.json"
+  ],
   "contributes": {
     "commands": [
       {
-        "command": "cpcbuild.hello",
-        "title": "CPCBuild: Hello"
+        "command": "cpcbuild.newProject",
+        "title": "New Project",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.newSprite",
+        "title": "New Sprite",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.newTileset",
+        "title": "New Tileset",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.newPalette",
+        "title": "New Palette",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.newPlusSprite",
+        "title": "New Plus Sprite",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.importImage",
+        "title": "Import Image",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.copyImporterCommand",
+        "title": "Copy Importer Command",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.regenerateAssets",
+        "title": "Regenerate Assets",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.generateAssetFile",
+        "title": "Generate Asset File",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.insertAssetUse",
+        "title": "Insert Asset Use",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.build",
+        "title": "Build",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.buildAndRun",
+        "title": "Build and Run",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.run",
+        "title": "Run Last Build",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.selectTarget",
+        "title": "Select Target",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.selectEmulator",
+        "title": "Select Emulator",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.selectModel",
+        "title": "Select Model",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.runFile",
+        "title": "Run in Emulator",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.showBuildReport",
+        "title": "Show Build Report",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.tmx.generate",
+        "title": "Convert Tiled Map to BASIC",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.openInTiled",
+        "title": "Open in Tiled",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.music.convert",
+        "title": "Convert Music",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.music.play",
+        "title": "Play Music",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.music.stop",
+        "title": "Stop Music",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.music.openTracker",
+        "title": "Open in Arkos Tracker",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.symbols.refresh",
+        "title": "Refresh Symbols",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.watch.add",
+        "title": "Add Watch",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.watch.remove",
+        "title": "Remove Watch",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.memory.show",
+        "title": "Show Memory",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.debug.pause",
+        "title": "Debug: Pause",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.debug.resume",
+        "title": "Debug: Resume",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.debug.step",
+        "title": "Debug: Step",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.debug.toggleBreakpoint",
+        "title": "Debug: Toggle Breakpoint",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.lint.toggle",
+        "title": "Toggle Lint",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.docs.open",
+        "title": "Open Library Docs",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.checkEnvironment",
+        "title": "Check Environment",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.openSettings",
+        "title": "Open Settings",
+        "category": "CPCBuild"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "cpcbuild.runFile",
+          "when": "resourceExtname =~ /^\\.(dsk|cpr|bin)$/",
+          "group": "navigation@90"
+        },
+        {
+          "command": "cpcbuild.importImage",
+          "when": "resourceExtname =~ /^\\.(png|gif|bmp)$/",
+          "group": "navigation@90"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "cpcbuild.runFile",
+          "when": "false"
+        },
+        {
+          "command": "cpcbuild.copyImporterCommand",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "CPCBuild",
+      "properties": {
+        "cpcbuild.zxbc.command": {
+          "type": "array",
+          "default": [
+            "zxbc"
+          ],
+          "description": "How to start the compiler. For the Boriel fork run through poetry: [\"poetry\", \"run\", \"zxbc\"].",
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
+        "cpcbuild.zxbc.cwd": {
+          "type": "string",
+          "default": "",
+          "description": "Working directory for the compiler (the zxbasic checkout when using poetry). Empty = the project folder.",
+          "scope": "resource"
+        },
+        "cpcbuild.zxbc.args": {
+          "type": "array",
+          "default": [],
+          "description": "Extra arguments added to every zxbc call.",
+          "items": {
+            "type": "string"
+          },
+          "scope": "resource"
+        },
+        "cpcbuild.python.path": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python 3 for mkdsk.py, mkcpr.py and the Python image engine.",
+          "scope": "resource"
+        },
+        "cpcbuild.library.path": {
+          "type": "string",
+          "default": "",
+          "description": "The cpcbuild checkout: the folder containing lib/ and tools/. Empty = search upwards from the project, then the project's \"library\" field.",
+          "scope": "resource"
+        },
+        "cpcbuild.build.org": {
+          "type": "string",
+          "default": "",
+          "description": "Default --org for CPC targets (0x40, &4000 or decimal). Empty = the compiler's default (&0040). A target's own \"org\" wins.",
+          "scope": "resource"
+        },
+        "cpcbuild.build.outputDir": {
+          "type": "string",
+          "default": "build",
+          "description": "Folder (relative to the project) for .bin, .map, .dsk and .cpr files.",
+          "scope": "resource"
+        },
+        "cpcbuild.build.memoryLimits": {
+          "type": "object",
+          "default": {},
+          "description": "Extra reference lines for the build report: name to address, e.g. {\"my buffer\": \"0x7000\"}.",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number"
+            ]
+          },
+          "scope": "resource"
+        },
+        "cpcbuild.target.default": {
+          "type": "string",
+          "default": "",
+          "description": "Id of the target used by Build and Run (empty = the first target). Set by \"CPCBuild: Select Target\".",
+          "scope": "resource"
+        },
+        "cpcbuild.model": {
+          "type": "string",
+          "default": "6128",
+          "description": "Emulated model; when set explicitly it overrides each target's own model.",
+          "enum": [
+            "464",
+            "664",
+            "6128",
+            "plus"
+          ],
+          "scope": "resource"
+        },
+        "cpcbuild.run.emulator": {
+          "type": "string",
+          "default": "emu",
+          "description": "Where Run goes. \"emu\" needs the CPCBuild Emulator extension and falls back to an external emulator with a message.",
+          "enum": [
+            "emu",
+            "caprice32",
+            "cpcec",
+            "rvm",
+            "custom"
+          ],
+          "scope": "resource"
+        },
+        "cpcbuild.run.caprice32Path": {
+          "type": "string",
+          "default": "",
+          "description": "Caprice32 executable (empty = tools/caprice32/work/src/cap32 of the library, then the sibling caprice32 checkout).",
+          "scope": "resource"
+        },
+        "cpcbuild.run.cpcecPath": {
+          "type": "string",
+          "default": "",
+          "description": "CPCEC executable (empty = tools/cpcec/work/cpcec of the library).",
+          "scope": "resource"
+        },
+        "cpcbuild.run.rvmPath": {
+          "type": "string",
+          "default": "",
+          "description": "Retro Virtual Machine application (empty = look in /Applications).",
+          "scope": "resource"
+        },
+        "cpcbuild.run.customCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Command for \"custom\": words with ${dsk}, ${cpr}, ${bin}, ${model}. No shell is used.",
+          "scope": "resource"
+        },
+        "cpcbuild.run.autorunCommand": {
+          "type": "string",
+          "default": "run\"${name}",
+          "description": "Typed after boot for disc runs; ${name} is the AMSDOS name.",
+          "scope": "resource"
+        },
+        "cpcbuild.assets.engine": {
+          "type": "string",
+          "default": "builtin",
+          "description": "Image importer engine.",
+          "enum": [
+            "builtin",
+            "python"
+          ]
+        },
+        "cpcbuild.assets.generateOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Write the .bas when a Studio document is saved."
+        },
+        "cpcbuild.assets.regenerateBeforeBuild": {
+          "type": "boolean",
+          "default": true,
+          "description": "Rebuild stale generated files before a build."
+        },
+        "cpcbuild.assets.header": {
+          "type": "string",
+          "default": "img2cpc",
+          "description": "Header of generated files.",
+          "enum": [
+            "img2cpc",
+            "studio",
+            "none"
+          ]
+        },
+        "cpcbuild.editor.defaultZoom": {
+          "type": "number",
+          "default": 12,
+          "description": "Initial zoom of the pixel editors."
+        },
+        "cpcbuild.editor.showByteGrid": {
+          "type": "boolean",
+          "default": true,
+          "description": "Draw the byte-boundary grid in the pixel editors."
+        },
+        "cpcbuild.editor.pixelAspect": {
+          "type": "string",
+          "default": "square",
+          "description": "Pixel shape in the editors.",
+          "enum": [
+            "square",
+            "crt"
+          ]
+        },
+        "cpcbuild.lint.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Master switch for library lint."
+        },
+        "cpcbuild.lint.rules": {
+          "type": "object",
+          "default": {},
+          "description": "Rule id to off, hint, warning or error."
+        },
+        "cpcbuild.hover.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Library hover and signature help."
+        },
+        "cpcbuild.arkos.toolsPath": {
+          "type": "string",
+          "default": "",
+          "description": "Arkos command-line tools (default $AT3_TOOLS, then tools/arkos/work/bin)."
+        },
+        "cpcbuild.arkos.trackerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Arkos Tracker application for \"Open in Arkos Tracker\"."
+        },
+        "cpcbuild.arkos.psg": {
+          "type": "string",
+          "default": "cpc",
+          "description": "PSG clock for effect banks.",
+          "enum": [
+            "cpc",
+            "spectrum"
+          ]
+        },
+        "cpcbuild.tiled.path": {
+          "type": "string",
+          "default": "",
+          "description": "Tiled application for \"Open in Tiled\"."
+        },
+        "cpcbuild.emu.pollRateHz": {
+          "type": "number",
+          "default": 10,
+          "description": "Refresh rate of live emulator views."
+        },
+        "cpcbuild.keybindings.enable": {
+          "type": "boolean",
+          "default": false,
+          "description": "Opt in to the build and run key bindings."
+        }
+      }
+    },
+    "problemMatchers": [
+      {
+        "name": "zxbc",
+        "owner": "cpcbuild",
+        "source": "zxbc",
+        "severity": "error",
+        "fileLocation": [
+          "autoDetect",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(.+?):(\\d+): (error|warning): (?:\\[([EW]\\d+)\\] )?(.*)$",
+          "file": 1,
+          "line": 2,
+          "severity": 3,
+          "code": 4,
+          "message": 5
+        }
+      }
+    ],
+    "taskDefinitions": [
+      {
+        "type": "cpcbuild",
+        "required": [],
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Target id from cpcbuild.json (default: the selected target)."
+          },
+          "run": {
+            "type": "boolean",
+            "description": "Run in the emulator after a successful build.",
+            "default": false
+          },
+          "project": {
+            "type": "string",
+            "description": "Folder holding cpcbuild.json, absolute or relative to the workspace folder (default: the project of the active editor)."
+          }
+        }
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": "cpcbuild.json",
+        "url": "./schemas/cpcbuild.schema.json"
+      }
+    ],
+    "languages": [
+      {
+        "id": "cpcbuild-dsk",
+        "extensions": [
+          ".dsk"
+        ],
+        "aliases": [
+          "Amstrad disc image"
+        ],
+        "icon": {
+          "light": "./media/icons/dsk.svg",
+          "dark": "./media/icons/dsk.svg"
+        }
+      },
+      {
+        "id": "cpcbuild-cdt",
+        "extensions": [
+          ".cdt"
+        ],
+        "aliases": [
+          "Amstrad tape image"
+        ],
+        "icon": {
+          "light": "./media/icons/cdt.svg",
+          "dark": "./media/icons/cdt.svg"
+        }
+      },
+      {
+        "id": "cpcbuild-cpr",
+        "extensions": [
+          ".cpr"
+        ],
+        "aliases": [
+          "CPC Plus cartridge"
+        ],
+        "icon": {
+          "light": "./media/icons/cpr.svg",
+          "dark": "./media/icons/cpr.svg"
+        }
+      },
+      {
+        "id": "cpcbuild-sprite",
+        "extensions": [
+          ".cpcspr"
+        ],
+        "aliases": [
+          "CPCBuild sprite"
+        ],
+        "icon": {
+          "light": "./media/icons/sprite.svg",
+          "dark": "./media/icons/sprite.svg"
+        }
+      },
+      {
+        "id": "cpcbuild-tileset",
+        "extensions": [
+          ".cpctil"
+        ],
+        "aliases": [
+          "CPCBuild tile set"
+        ],
+        "icon": {
+          "light": "./media/icons/tile.svg",
+          "dark": "./media/icons/tile.svg"
+        }
+      },
+      {
+        "id": "cpcbuild-palette",
+        "extensions": [
+          ".cpcpal"
+        ],
+        "aliases": [
+          "CPCBuild palette"
+        ],
+        "icon": {
+          "light": "./media/icons/palette.svg",
+          "dark": "./media/icons/palette.svg"
+        }
+      },
+      {
+        "id": "cpcbuild-palette12",
+        "extensions": [
+          ".cpcpal12"
+        ],
+        "aliases": [
+          "CPCBuild Plus palette"
+        ],
+        "icon": {
+          "light": "./media/icons/palette.svg",
+          "dark": "./media/icons/palette.svg"
+        }
+      },
+      {
+        "id": "cpcbuild-importer",
+        "extensions": [
+          ".cpcimp"
+        ],
+        "aliases": [
+          "CPCBuild import recipe"
+        ],
+        "icon": {
+          "light": "./media/icons/importer.svg",
+          "dark": "./media/icons/importer.svg"
+        }
+      }
+    ],
+    "iconThemes": [
+      {
+        "id": "cpcbuild-file-icons",
+        "label": "CPCBuild File Icons",
+        "path": "./media/icon-theme.json"
       }
     ]
   },

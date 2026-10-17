@@ -1,0 +1,41 @@
+{
+  "iconDefinitions": {
+    "dsk": {
+      "iconPath": "./icons/dsk.svg"
+    },
+    "cdt": {
+      "iconPath": "./icons/cdt.svg"
+    },
+    "cpr": {
+      "iconPath": "./icons/cpr.svg"
+    },
+    "sprite": {
+      "iconPath": "./icons/sprite.svg"
+    },
+    "tile": {
+      "iconPath": "./icons/tile.svg"
+    },
+    "palette": {
+      "iconPath": "./icons/palette.svg"
+    },
+    "importer": {
+      "iconPath": "./icons/importer.svg"
+    },
+    "project": {
+      "iconPath": "./icons/project.svg"
+    }
+  },
+  "fileExtensions": {
+    "dsk": "dsk",
+    "cdt": "cdt",
+    "cpr": "cpr",
+    "cpcspr": "sprite",
+    "cpctil": "tile",
+    "cpcpal": "palette",
+    "cpcpal12": "palette",
+    "cpcimp": "importer"
+  },
+  "fileNames": {
+    "cpcbuild.json": "project"
+  }
+}
