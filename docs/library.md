@@ -1251,6 +1251,99 @@ started at `DmaAlign(@list(0))`). While DMA runs, nothing else may write the
 same AY registers (music player, BEEP, Play, AyWrite; in firmware mode no
 firmware sounds).
 
+### Sprite manager
+
+`lib/cpcplus/sprman.bas` (opt-in: `#include <cpcplus/sprman.bas>`, which
+includes `cpcplus.bas`) hands out the hardware sprite slots as objects come
+and go, and keeps an image cache so a picture that is still in a slot is not
+uploaded again. A game that scrolls a level allocates a sprite when an enemy
+comes into view and frees it when it leaves; uploads (about 2 ms each) are
+spread over frames with a budget. Slot numbers are the hardware sprite
+numbers (the lower number is in front); the manager owns a range, the other
+slots stay the program's.
+
+| Call | What it does |
+|---|---|
+| `SprMgrInit(first, count)` | the manager owns slots first..first+count-1 (cut at 15); forgets everything, hides them |
+| `SprAlloc(img)` | a slot for the 256-byte picture at `img`, or 255 (none free, or `img` = 0). A free slot that still holds `img` is reused with no upload; else the free slot with no picture, else the one freed longest ago, gets an upload queued. The sprite is hidden until it has its picture and a position |
+| `SprAllocPacked(img)` | the same for a 128-byte packed picture. The cache keys on address and packed/unpacked: the same address as the other kind is a miss |
+| `SprFree(slot)` | hides it; the slot keeps its picture as a cache entry (a slot freed before its upload was done holds nothing) |
+| `SprSetImage(slot, img)`, `SprSetImagePacked(slot, img)` | change the picture of an allocated slot: nothing if it holds `img` already, else an upload is queued; a sprite already showing keeps its old picture until the flush |
+| `SprMove(slot, x, y)` | position, clamped as `SpriteMove`; remembered, so a sprite waiting for its upload appears at its latest position |
+| `SprMag(slot, magx, magy)` | magnification 1, 2, 4 (default 1, 1; `SprAlloc` resets it; 0 hides) |
+| `SprFlush(maxUploads)` | does up to `maxUploads` queued uploads now (slot order), then shows those sprites that have a position; call once a frame, after `WaitVsync` |
+| `SprPending()`, `SprUploads()` | uploads queued; uploads done since `SprMgrInit` (a diagnostic) |
+
+A typical frame: `WaitVsync`, `SprFlush(1)` (one unpacked upload takes
+2.2-2.4 ms, see Cost), then `SprMove` for every live sprite.
+A slot number outside the manager's range, or not allocated, is ignored by
+every call. All calls go through the `cpcplus` ones, so they follow the same
+paging rules and do nothing without an ASIC; call them from the main program,
+not from a raster handler or frame hook. Data is 160 bytes of records plus 17
+of state in the program image (no heap). Linking the module adds 722 bytes to
+a program that already uses `SpriteMove`, `SpriteMag`, `SpriteHide`,
+`SpriteSetImage` and `SpriteSetImagePacked` (measured), and nothing to one
+that does not include it.
+
+Cost, measured on Caprice32 (CPCEC agrees within 20 us; bare-mode figures
+have a 20 us resolution), bare / firmware mode. Microseconds a call adds to
+an empty call of the same signature, except where marked:
+
+| Call | Cost |
+|---|---|
+| `SprMove`, sprite showing | 259 / 303 us (`SpriteMove` itself: 139 / 166) |
+| `SprMag`, sprite showing | 259 / 299 us |
+| `SprFlush`, nothing queued | 19 / 16 us |
+| `SprPending` | 0 / 6 us |
+| `SprFree` + `SprAlloc` of the same picture (cache hit), pool of one slot | 319 / 353 us for the pair |
+| the same pair, 16-slot pool with 15 in use (the scan covers all 16) | 1,039 / 1,163 us for the pair |
+| `SprAlloc` (miss, queued) + `SprFree` of it, 8 slots in use | 1,799 / 1,976 us for the pair |
+| `SprSetImage` + `SprFlush(1)` with an upload, per upload, ms including both calls | 2.2 / 2.4 ms (the bare `SpriteSetImage`: 1.8 / 2.0) |
+| `SprSetImagePacked` + `SprFlush(1)` with an upload, per upload, ms | 5.1 / 5.6 ms (the bare `SpriteSetImagePacked`: 4.7 / 5.2) |
+
+Measured with `Ticks()` over 1,000 calls (400 uploads for the last two rows).
+Multiplexing helpers (re-using slots further down the screen from raster
+interrupts) are not part of this module.
+
+### Palette cycling
+
+`lib/cpcplus/palcycle.bas` (opt-in: `#include <cpcplus/palcycle.bas>`) rotates
+a range of screen pens or sprite colours by one entry every few frames, for
+cheap animation (flames, water, flashing, conveyor belts). Up to four cycles
+run at once.
+
+| Call | What it does |
+|---|---|
+| `PalCycleSet(id, kind, first, count, table, period)` | cycle `id` (0-3). `kind` 0: screen pens, `first` = the first pen (0-15); `kind` 1: sprite colours, `first` = the first sprite colour (1-15, palette entry 16 + first). `table` = `count` 12-bit colours as an array of `UINTEGER` `&H0RGB` (the words of `SetPalette12`; kept by reference, it must stay in place). Every `period` frames (0 counts as 1) the colours rotate by one: after k steps entry `first + i` shows `table((i + k) mod count)`. The table is written at once. The range is cut to the palette; fewer than 2 colours does nothing |
+| `PalCycleDir(id, dir)` | 0 forward (default), 1 backward, 2 ping-pong (the offset runs 0 to count - 1 and back) |
+| `PalCycleStop(id)` | stops it; the colours stay as they are |
+| `PalCycleStep()` | call once a frame, after `WaitVsync`: every cycle that is due is rotated, one block write each |
+
+**The sprite palette is shared by all 16 sprites**: a cycled sprite colour
+changes in every sprite that uses it, so reserve the cycled indices for the
+parts that should cycle. A cycle owns its entries; two cycles over the same
+entries overwrite each other. In firmware mode the first pen write stops the
+firmware's ink refresh, as `SetPalette12` does. Not in this module: cycling
+different colours in different bands of the screen (it needs a raster
+interrupt per band, bare mode only; a handler would use the `PlusHandler*`
+entries) and sprite multiplexing helpers. The calls go through the `cpcplus`
+ones: call from the main program, not from a raster handler or frame hook.
+Data is 4 records of 8 bytes and a 32-byte buffer. Linking the module adds
+501 bytes to a program that already uses `SetPalette12Block` (measured).
+
+Cost, measured as above, bare / firmware mode, microseconds a call adds to an
+empty call of the same signature:
+
+| Call | Cost |
+|---|---|
+| `PalCycleStep`, no cycle set | 219 / 236 us |
+| `PalCycleStep`, one cycle set but not due | 219 / 253 us |
+| `PalCycleStep`, one cycle due, 4 colours | 779 / 876 us |
+| `PalCycleStep`, one cycle due, 15 colours | 1,399 / 1,559 us |
+| `PalCycleStep`, one cycle due, 16 colours | 1,459 / 1,619 us |
+| `PalCycleStep`, four cycles due (16 + 4 + 8 + 8 colours) | 3,599 / 3,999 us |
+| `PalCycleSet`, 8 colours (the call with its six arguments and the first write, total) | 1,059 / 1,176 us |
+
 ### Tools
 
 - `img2cpc.py --plus-sprite [--packed]` turns 16x16 cells of a PNG into
