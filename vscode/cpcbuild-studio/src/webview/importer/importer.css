@@ -1,0 +1,50 @@
+/* importer.css -- layout of the image importer (S4). */
+.imp { display: flex; flex-direction: column; min-height: 100vh; }
+.imp-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--cb-space-2) var(--cb-space-5); align-items: center; padding: var(--cb-space-2) var(--cb-gutter); border-bottom: 1px solid var(--vscode-panel-border); }
+.imp-src, .imp-out { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); min-width: 0; }
+.imp-body { display: grid; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); flex: 1; min-height: 0; }
+.imp-opts { border-right: 1px solid var(--vscode-panel-border); overflow-y: auto; }
+.imp-main { display: flex; flex-direction: column; gap: var(--cb-space-4); padding: var(--cb-space-3) var(--cb-gutter); min-width: 0; }
+.imp-h { font-weight: 600; margin-bottom: var(--cb-space-1); }
+.imp-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); margin-bottom: var(--cb-space-2); }
+.imp-panes { display: flex; flex-direction: column; gap: var(--cb-space-3); }
+.imp-both { flex-direction: row; align-items: flex-start; }
+.imp-both > .imp-pane { flex: 1 1 0; min-width: 0; }
+.imp-scroll { overflow: auto; max-height: 70vh; border: 1px solid var(--vscode-panel-border); border-radius: var(--cb-radius); background: var(--vscode-editor-background); }
+.imp-canvas { display: block; image-rendering: pixelated; }
+.imp-canvas.imp-pick { cursor: crosshair; }
+.imp-dim { opacity: 0.5; }
+.imp-row { display: flex; gap: var(--cb-space-2); align-items: flex-end; }
+.imp-row .cb-field { flex: 1; min-width: 0; }
+.imp-trans { display: flex; flex-wrap: wrap; gap: var(--cb-space-2); align-items: flex-end; }
+.imp-trans .cb-field { flex: 1 1 140px; }
+.imp-on { outline: 2px solid var(--vscode-focusBorder); }
+.imp-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--cb-space-2); }
+.imp-warn { display: flex; gap: var(--cb-space-1); color: var(--vscode-editorWarning-foreground); }
+.imp-note { padding: var(--cb-space-2) var(--cb-space-3); border-top: 1px solid var(--vscode-panel-border); }
+.imp-flag { font-family: var(--vscode-editor-font-family); }
+.imp-link { align-self: flex-start; }
+.imp-table { border-collapse: collapse; width: 100%; max-width: 640px; }
+.imp-table th, .imp-table td { text-align: left; padding: var(--cb-space-1) var(--cb-space-2); border-bottom: 1px solid var(--vscode-panel-border); position: relative; }
+.imp-table thead th { color: var(--vscode-descriptionForeground); font-weight: 600; }
+.imp-pen { display: inline-flex; gap: var(--cb-space-2); align-items: center; background: transparent; color: inherit; border: 1px solid transparent; border-radius: var(--cb-radius); font: inherit; cursor: pointer; padding: 0 var(--cb-space-1); }
+.imp-pen:hover { background: var(--vscode-list-hoverBackground); }
+.imp-pop { position: absolute; z-index: 10; display: grid; grid-template-columns: repeat(9, 28px); gap: 2px; padding: var(--cb-space-2); background: var(--vscode-menu-background, var(--vscode-editorWidget-background)); border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border)); border-radius: var(--cb-radius); box-shadow: 0 2px 8px var(--vscode-widget-shadow); }
+.imp-pop-item { padding: 1px; background: transparent; border: 1px solid transparent; cursor: pointer; }
+.imp-pop-item[aria-selected="true"] { outline: 2px solid var(--vscode-focusBorder); }
+.imp-dup { margin-left: var(--cb-space-1); color: var(--vscode-editorWarning-foreground); }
+.imp-cmd { display: flex; flex-direction: column; gap: var(--cb-space-2); }
+.imp-import { display: flex; flex-direction: column; gap: var(--cb-space-2); max-width: 720px; }
+.imp-import textarea { width: 100%; resize: vertical; }
+.imp-text summary { cursor: pointer; }
+.imp-pre { max-height: 240px; overflow: auto; }
+.imp-tabs { display: flex; border-bottom: 1px solid var(--vscode-panel-border); padding: 0 var(--cb-space-2); gap: var(--cb-space-1); }
+.imp-tab { background: transparent; color: var(--vscode-foreground); border: 0; border-bottom: 2px solid transparent; padding: var(--cb-space-2) var(--cb-space-3); font: inherit; cursor: pointer; }
+.imp-tab-on { border-bottom-color: var(--vscode-focusBorder); font-weight: 600; }
+.imp-tabpanel { padding: var(--cb-space-2); flex: 1; }
+.imp-pad { padding: var(--cb-space-3); }
+
+@media (max-width: 720px) {
+  .imp-head { padding: var(--cb-space-2); }
+  .imp-pop { grid-template-columns: repeat(6, 28px); }
+}

@@ -31,7 +31,10 @@ export function decodePng(bytes: Uint8Array): RgbaImage {
 /** Encodes RGBA pixels as a PNG (for previews and tests). */
 export function encodePng(img: RgbaImage): Uint8Array {
   const raw = img.data.buffer.slice(img.data.byteOffset, img.data.byteOffset + img.data.byteLength) as ArrayBuffer;
-  return new Uint8Array(UPNG.encode([raw], img.width, img.height, 0));
+  // forbidPlte (the 6th argument, missing from the typings): upng's palette path writes PNGs its own
+  // decoder cannot read back (no PLTE chunk) for small images with few colours.
+  const encode = UPNG.encode as unknown as (bufs: ArrayBuffer[], w: number, h: number, ps: number, dels?: number[], forbidPlte?: boolean) => ArrayBuffer;
+  return new Uint8Array(encode([raw], img.width, img.height, 0, undefined, true));
 }
 
 /** A blank (transparent) image. */

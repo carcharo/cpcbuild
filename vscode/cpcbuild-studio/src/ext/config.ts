@@ -25,6 +25,11 @@ export interface Settings {
   rvmPath: string;
   customCommand: string;
   autorunCommand: string;
+  /** Image importer engine (spec 4.4) and the header of generated files. */
+  assetsEngine: 'builtin' | 'python';
+  assetsHeader: 'img2cpc' | 'studio' | 'none';
+  generateOnSave: boolean;
+  regenerateBeforeBuild: boolean;
 }
 
 /** A resource scope only when the folder is inside a workspace folder (else the workspace-level settings apply). */
@@ -63,6 +68,10 @@ export function readSettings(projectDir?: string): Settings {
     rvmPath: c.get<string>('run.rvmPath') ?? '',
     customCommand: c.get<string>('run.customCommand') ?? '',
     autorunCommand: c.get<string>('run.autorunCommand') || 'run"${name}',
+    assetsEngine: c.get<string>('assets.engine') === 'python' ? 'python' : 'builtin',
+    assetsHeader: ((h) => (h === 'studio' || h === 'none' ? h : 'img2cpc'))(c.get<string>('assets.header')),
+    generateOnSave: c.get<boolean>('assets.generateOnSave', true),
+    regenerateBeforeBuild: c.get<boolean>('assets.regenerateBeforeBuild', true),
   };
 }
 

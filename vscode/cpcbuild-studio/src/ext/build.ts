@@ -1,12 +1,13 @@
 /**
  * build.ts -- the build pipeline for one target (spec 4.6, design section 3):
  * zxbc (with -M map) -> package (mkdsk.py / mkcpr.py / the compiler's own tap)
- * -> build report. Asset regeneration is a later step (no asset editors yet).
+ * -> build report. Stale generated assets (.cpcimp recipes) are regenerated first.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
 import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
+import { regenerateAll } from './assetsGen';
 import { absFrom, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { CancelToken, runTool, Sink } from './runTool';
 import type { EmuModel } from '../emuApi';
@@ -77,6 +78,20 @@ export async function buildTarget(
   const org = target.org ?? s.buildOrg;
   if (target.arch === 'cpc' && org !== undefined && org < MIN_ORG) {
     return done(), fail(res, `the origin ${hex4(org)} is below &0040, which the compiler refuses on the CPC. Set "cpcbuild.build.org" or the target's "org" to 0x40 or higher.`, sink);
+  }
+
+  // 0. stale generated assets (spec 2.3): recipes whose output is older than the image or the recipe
+  if (s.regenerateBeforeBuild && project.assets.length) {
+    const gen = await regenerateAll(
+      root,
+      project.assets,
+      { engine: s.assetsEngine, header: s.assetsHeader, pythonPath: s.pythonPath, library },
+      { onlyStale: true, sink, token },
+    );
+    const fresh = gen.filter((g) => g.ok && !g.skipped);
+    if (fresh.length) sink.line(`Regenerated ${fresh.length} asset recipe${fresh.length === 1 ? '' : 's'}.`);
+    const bad = gen.find((g) => !g.ok);
+    if (bad) return done(), fail(res, `asset ${bad.recipe}: ${bad.error}. Fix the recipe (open it in the importer) or turn off "cpcbuild.assets.regenerateBeforeBuild".`, sink);
   }
 
   const outDir = absFrom(root, s.outputDir);

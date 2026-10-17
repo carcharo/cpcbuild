@@ -2,14 +2,6 @@
 import * as vscode from 'vscode';
 
 export const STUB_COMMANDS: Record<string, string> = {
-  'cpcbuild.newSprite': 'The sprite editor',
-  'cpcbuild.newTileset': 'The tile editor',
-  'cpcbuild.newPlusSprite': 'The Plus sprite editor',
-  'cpcbuild.importImage': 'The image importer',
-  'cpcbuild.copyImporterCommand': 'Copying the importer command',
-  'cpcbuild.regenerateAssets': 'Regenerating assets',
-  'cpcbuild.generateAssetFile': 'Generating an asset file',
-  'cpcbuild.insertAssetUse': 'Inserting asset code',
   'cpcbuild.tmx.generate': 'Converting a .tmx map',
   'cpcbuild.openInTiled': 'Opening a map in Tiled',
   'cpcbuild.music.convert': 'Converting music',

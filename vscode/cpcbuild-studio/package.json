@@ -60,12 +60,14 @@
       {
         "command": "cpcbuild.generateAssetFile",
         "title": "Generate Asset File",
-        "category": "CPCBuild"
+        "category": "CPCBuild",
+        "icon": "$(run)"
       },
       {
         "command": "cpcbuild.insertAssetUse",
         "title": "Insert Asset Use",
-        "category": "CPCBuild"
+        "category": "CPCBuild",
+        "icon": "$(symbol-snippet)"
       },
       {
         "command": "cpcbuild.build",
@@ -216,6 +218,36 @@
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "cpcbuild.spriteEditor",
+        "displayName": "CPCBuild Sprite Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.cpcspr"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "cpcbuild.tileEditor",
+        "displayName": "CPCBuild Tile Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.cpctil"
+          }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "cpcbuild.importer",
+        "displayName": "CPCBuild Image Importer",
+        "selector": [
+          {
+            "filenamePattern": "*.cpcimp"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "menus": {
@@ -235,6 +267,26 @@
         {
           "command": "cpcbuild.openAsText",
           "when": "activeCustomEditorId == cpcbuild.paletteEditor",
+          "group": "navigation@90"
+        },
+        {
+          "command": "cpcbuild.openAsText",
+          "when": "activeCustomEditorId == cpcbuild.importer",
+          "group": "navigation@90"
+        },
+        {
+          "command": "cpcbuild.generateAssetFile",
+          "when": "activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor",
+          "group": "navigation@10"
+        },
+        {
+          "command": "cpcbuild.insertAssetUse",
+          "when": "activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor",
+          "group": "navigation@20"
+        },
+        {
+          "command": "cpcbuild.openAsText",
+          "when": "activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor",
           "group": "navigation@90"
         }
       ],

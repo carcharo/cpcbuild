@@ -111,13 +111,14 @@ export function NumberField(p: NumberFieldProps) {
   );
 }
 
-export function SelectField<T extends string | number>({ id, label, value, options, onChange, description }: { id: string; label: string; value: T; options: { value: T; label: string }[]; onChange(v: T): void; description?: string }) {
+export function SelectField<T extends string | number>({ id, label, value, options, onChange, description, disabled }: { id: string; label: string; value: T; options: { value: T; label: string }[]; onChange(v: T): void; description?: string; disabled?: boolean }) {
   return (
     <Field id={id} label={label} description={description}>
       <select
         id={id}
         class="cb-select"
         value={String(value)}
+        disabled={disabled}
         aria-describedby={description ? `${id}-desc` : undefined}
         onChange={(e) => {
           const raw = (e.target as HTMLSelectElement).value;
@@ -133,10 +134,10 @@ export function SelectField<T extends string | number>({ id, label, value, optio
   );
 }
 
-export function CheckField({ id, label, checked, onChange, description }: { id: string; label: string; checked: boolean; onChange(v: boolean): void; description?: string }) {
+export function CheckField({ id, label, checked, onChange, description, disabled }: { id: string; label: string; checked: boolean; onChange(v: boolean): void; description?: string; disabled?: boolean }) {
   return (
     <div class="cb-field cb-check">
-      <input id={id} type="checkbox" checked={checked} aria-describedby={description ? `${id}-desc` : undefined} onChange={(e) => onChange((e.target as HTMLInputElement).checked)} />
+      <input id={id} type="checkbox" checked={checked} disabled={disabled} aria-describedby={description ? `${id}-desc` : undefined} onChange={(e) => onChange((e.target as HTMLInputElement).checked)} />
       <label for={id}>{label}</label>
       {description && <div id={`${id}-desc`} class="cb-muted">{description}</div>}
     </div>

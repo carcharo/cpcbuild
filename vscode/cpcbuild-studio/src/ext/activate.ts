@@ -9,7 +9,10 @@ import { channelSink, getChannel, tee } from './channel';
 import { readSettings, resolveLibrary, resolveMkdsk } from './config';
 import { checkEnvironment, doctorCommand } from './doctor';
 import { newProjectCommand } from './newProject';
+import { ImporterEditorProvider, copyImporterCommandCommand, importImageCommand, regenerateAssetsCommand } from './importer';
 import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
+import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
+import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
 import { runInEmulator } from './run';
 import { runTool } from './runTool';
@@ -27,6 +30,11 @@ export interface StudioApi {
   emuEvents(): EmuEvent[];
   /** The palette editor's provider (documents, edit, undo: used by the extension-host tests). */
   palette: PaletteEditorProvider;
+  /** The image importer's provider (.cpcimp documents). */
+  importer: ImporterEditorProvider;
+  /** The sprite (.cpcspr) and tile (.cpctil) editors' providers. */
+  sprite: SpriteEditorProvider;
+  tile: SpriteEditorProvider;
 }
 
 async function configTarget(): Promise<vscode.ConfigurationTarget> {
@@ -194,6 +202,19 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   const palette = new PaletteEditorProvider(context);
   context.subscriptions.push(palette.register());
   reg('cpcbuild.newPalette', (args) => newPaletteCommand(args));
+  const importer = new ImporterEditorProvider(context);
+  context.subscriptions.push(importer.register());
+  reg('cpcbuild.importImage', (arg) => importImageCommand(arg));
+  reg('cpcbuild.regenerateAssets', (args) => regenerateAssetsCommand(args));
+  reg('cpcbuild.copyImporterCommand', () => copyImporterCommandCommand(importer));
+  const sprite = new SpriteEditorProvider(context, 'spr');
+  const tile = new SpriteEditorProvider(context, 'til');
+  context.subscriptions.push(sprite.register(), tile.register(), registerAssetGenerator((uri) => generateAssetFile({ sprite, tile }, uri)));
+  reg('cpcbuild.newSprite', (args) => newAssetCommand('sprite', args));
+  reg('cpcbuild.newTileset', (args) => newAssetCommand('tileset', args));
+  reg('cpcbuild.newPlusSprite', (args) => newAssetCommand('plus', args));
+  reg('cpcbuild.generateAssetFile', (uri) => generateAssetFileCommand(uri));
+  reg('cpcbuild.insertAssetUse', (uri) => insertAssetUse({ sprite, tile }, uri));
   reg('cpcbuild.openAsText', async (uri?: vscode.Uri) => {
     const target = uri ?? vscode.window.tabGroups.activeTabGroup.activeTab?.input;
     const u = target instanceof vscode.Uri ? target : (target as { uri?: vscode.Uri } | undefined)?.uri;
@@ -207,6 +228,9 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     lastBuild: () => state.lastBuild,
     emuEvents: () => state.emuEvents,
     palette,
+    importer,
+    sprite,
+    tile,
     async build(root, targetId) {
       const lp = loadProjectFile(path.join(root, PROJECT_FILE));
       if (!lp.project) throw new Error(`${lp.file}: ${lp.errors.map((e) => e.message).join('; ')}`);

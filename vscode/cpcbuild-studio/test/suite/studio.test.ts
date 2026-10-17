@@ -58,8 +58,8 @@ test('every contributed command is registered; Studio registers no .emu. command
 
 test('stubbed editor commands answer "coming soon"', async () => {
   await api();
-  const r = (await vscode.commands.executeCommand('cpcbuild.newSprite')) as { comingSoon: string };
-  assert.strictEqual(r.comingSoon, 'cpcbuild.newSprite');
+  const r = (await vscode.commands.executeCommand('cpcbuild.music.stop')) as { comingSoon: string };
+  assert.strictEqual(r.comingSoon, 'cpcbuild.music.stop');
 });
 
 test('lists build tasks for the targets', async () => {
