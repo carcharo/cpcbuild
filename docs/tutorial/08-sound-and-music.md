@@ -13,7 +13,7 @@ without the game code knowing anything about the sound chip.
 **Time:** about 30 minutes.
 
 **Before you start.** Chapter 7 is working. Copy these four files from `games/lamplighter/assets/`
-into your `src/assets/`:
+into your project's `assets/` folder:
 
 | File | Contains |
 |---|---|
@@ -214,7 +214,7 @@ END SUB
 You should hear the title tune on the title screen, a different tune when the game starts, a
 short blip when you jump, a chime when a lamp lights, a boom when the door opens, and a hit when you
 die. When the game ends the music stops.
-<!-- CHECK: that the emulator extension plays audio in a VS Code tab and that Click for sound is the button label (from the emulator README). Hearing is not something this draft could verify. -->
+<!-- CHECK (hearing, for the user's test session): the toolbar button is labelled "Click for sound" (confirmed in the emulator's screenshots) and disappears once audio runs; confirm you actually hear the tunes and effects in the tab. -->
 
 Test the switches: add `NOMUSIC` to the target's `defines`, rebuild: effects only. Then `NOSOUND`:
 silence, and a smaller program. The screen must look identical in all three (the finished game's
@@ -222,10 +222,11 @@ tests check pixel for pixel that the sound switches change no pixel of room 9).
 
 ## How it works
 
-**What sound costs.** In memory: the finished game is **26,814 bytes** on the 464 with sound and
-**22,400** built with `-D NOSOUND`: about 4.4 KB for the player, two tunes and the effects
-(both numbers measured with the finished game's `build_cpc.sh`; `DESIGN.md` gives 22,404 for the silent
-build at an earlier stage). In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**
+**What sound costs.** In memory: the finished game is **26,814 bytes** on the 464 with sound
+(`DESIGN.md` section 12) and **22,400** built with `-D NOSOUND` (measured by compiling the finished game
+with `build_cpc.sh`'s flags plus `-D NOSOUND`): about 4.4 KB for the player, two tunes and the effects.
+(`DESIGN.md` section 11 gives 22,404 for the game before the sound milestone: an earlier stage of the
+code, not a build with the sound compiled out.) In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**
 (`DESIGN.md`, "As built", section 12); the library's own figure is about 5 % (16 scan lines a frame).
 The 464 build had only about 8 % headroom before sound, so chapter 9 shows what had to be optimised to afford it.
 
@@ -242,18 +243,22 @@ playing (the comment on `PlatSfx` says so).
 ## Writing your own music
 
 The tutorial does not need you to, but if you want to: write a song in **Arkos Tracker 3**, save it as
-`.aks`, and run **CPCBuild: Convert Music** on it (**CPCBuild: Open in Arkos Tracker** opens the
-application; set `cpcbuild.arkos.trackerPath` and, for the converter, `cpcbuild.arkos.toolsPath`).
-That runs `tools/aks2bas.py`, the same tool as on the command line:
+`.aks`, and run **CPCBuild: Convert Music** on it (right-click the `.aks` in the Explorer, or run the command
+from the Command Palette with the song open; Studio also takes Vortex Tracker `.vt2` files, which is what
+the repository's own songs are). **CPCBuild: Open in Arkos Tracker** opens the application: set
+`cpcbuild.arkos.trackerPath`, and for the converter set `cpcbuild.arkos.toolsPath` to the folder with the
+Arkos command-line tools (**Check Environment** lists them as optional; its fix line is `sh tools/arkos/fetch.sh`
+in a cpcbuild checkout). That runs `tools/aks2bas.py`, the same tool as on the command line:
 
 ```sh
 python3 tools/aks2bas.py tune.aks tune.bas --name tune
 python3 tools/aks2bas.py --sfx sfx.aks sfx.bas --name sfx
 ```
 
-and you get a `.bas` like the ones you copied. **CPCBuild: Play Music** builds a tiny preview program around
-the real player and plays your song in the emulator tab: what you hear is what the library plays.
-<!-- CHECK: that Convert Music/Play Music work on .aks files from the Explorer context menu or Command Palette, and that the Arkos command-line tools are installed (cpcbuild.arkos.toolsPath; the doctor suggests `sh tools/arkos/fetch.sh`). The repo's own songs are .vt2 files. -->
+and you get a `.bas` like the ones you copied. **CPCBuild: Play Music** (also in the Explorer menu for `.aks`
+and `.vt2`) builds a tiny preview program around the real player and plays your song in the emulator tab:
+what you hear is what the library plays. **CPCBuild: Stop Music** ends it. The tutorial did not run these
+commands (they need the Arkos tools), so treat this paragraph as read from the Studio's source, not as tried.
 
 ## Try this
 

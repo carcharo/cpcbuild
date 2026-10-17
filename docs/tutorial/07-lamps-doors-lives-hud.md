@@ -424,7 +424,7 @@ END SUB
 
 ## Step 7: The title and the main loop
 
-Replace `src/main.bas`. It has the title screen, a game, and the loop that joins them:
+Replace `main.bas`. It has the title screen, a game, and the loop that joins them:
 
 ```basic
 ' main.bas -- Lamplighter: title, game loop, game over

@@ -12,8 +12,8 @@ down, and bats that flutter sideways. Touching one sends you back to where you e
 
 **Time:** about 50 minutes.
 
-**Before you start.** Chapter 5 is working. This chapter changes `src/game.bas` and the sprite part of
-`src/platform_cpc.bas`.
+**Before you start.** Chapter 5 is working. This chapter changes `game.bas` and the sprite part of
+`platform_cpc.bas`.
 
 ---
 
@@ -33,25 +33,25 @@ Enemies move 2 pixels every *second* step (more on that below), so they are half
 ## Step 2: Put them in the map
 
 Open `assets/tower.tmx` in Tiled (**CPCBuild: Open in Tiled**) and look at the object layer from chapter 3. Every
-enemy is an object of type `enemy` with two integer properties, `kind` (1, 2 or 3) and `range`
+enemy is an object of class `enemy` (the file stores it as `type="enemy"`) with two integer properties, `kind` (1, 2 or 3) and `range`
 (in cells; walkers ignore it, so it is 0).
 
 Room 9's walker is at room cell (17, 20). In the big map that is x = 17 x 8 = **136**,
 y = 3 x 184 + 20 x 8 = **712**. Find the object at those coordinates. To add a second one:
 
-1. Select the `objects` layer and insert a rectangle object (Tiled's rectangle tool).
-2. Give it **type** `enemy`, **width** 8, **height** 16, and position x = 72, y = 712 (cell (9, 20) of room 9).
-3. Add custom properties `kind` (int) = 1 and `range` (int) = 0.
-4. Save, run `split_rooms.py` as in chapter 3, build.
+1. Select the `objects` layer and insert a rectangle object (Tiled's **Insert Rectangle** tool, `R`).
+2. Give it **Class** `enemy`, **width** 8, **height** 16, and position x = 72, y = 712 (cell (9, 20) of room 9).
+3. Add custom properties `kind` (int) = 1 and `range` (int) = 0 (the `+` at the bottom of the Properties panel).
+4. Save, run `split_rooms.py` as in chapter 3 (it is a script, not a Studio command), build.
 
 The rules the splitter enforces: at most **four enemies** per room (the game has four enemy slots) and
 exactly one `start` object.
-<!-- CHECK: Tiled's menu and tool names for "insert rectangle object", "Class" vs "type" field, and "add custom property" in the Tiled version in use. -->
+<!-- CHECK (Tiled UI wording, from memory): Insert Rectangle (R), the Class field and the "+" for custom properties, as in chapter 3. -->
 
 ## Step 3: Per-enemy state
 
 The game keeps one array per field (the finished game does not use objects; "an enemy" is index `i`
-in all the arrays). Add to the top of `src/game.bas`:
+in all the arrays). Add to the top of `game.bas`:
 
 ```basic
 CONST F_ENEMY AS UBYTE = 10

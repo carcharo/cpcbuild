@@ -13,13 +13,15 @@
 **Time:** about 40 minutes. You do not need a Spectrum: any Spectrum emulator that loads `.tap` files will do.
 
 **Before you start.** Chapter 8 is working (the sound chapter: the Spectrum build uses the same four
-sound calls). Copy these files from `games/lamplighter/` into your project:
+sound calls). Copy these files from `games/lamplighter/` into your project, keeping the same folders:
 
 | From | To |
 |---|---|
 | `assets/zx/zx_tiles.png`, `assets/zx/zx_sprites.png` | `assets/zx/` |
-| `assets/zx/sfx_zx.bas` | `src/assets/zx/` |
-| `platform_zx.bas` | `src/platform_zx.bas` (replace the template's) |
+| `assets/zx/sfx_zx.bas` | `assets/zx/` |
+| `platform_zx.bas` | the project root (replace the template's) |
+
+(The two PNGs are drawn by the same `make_art.py` script as the CPC art, which stays outside Studio.)
 
 Most of this chapter is *reading* `platform_zx.bas`, which is 1,035 lines, a third of it assembly. You
 will not type it. You will see why it is written the way it is.
@@ -58,7 +60,7 @@ the **Spectrum** target. The recipes:
   "format": "cpcimp",
   "version": 1,
   "source": "assets/zx/zx_tiles.png",
-  "output": "src/assets/zx/zx_tiles.bas",
+  "output": "assets/zx/zx_tiles.bas",
   "target": "spectrum",
   "name": "zx_tiles"
 }
@@ -71,7 +73,7 @@ the **Spectrum** target. The recipes:
   "format": "cpcimp",
   "version": 1,
   "source": "assets/zx/zx_sprites.png",
-  "output": "src/assets/zx/zx_sprites.bas",
+  "output": "assets/zx/zx_sprites.bas",
   "target": "spectrum",
   "name": "zx_sprites",
   "zxSprite": true
@@ -81,21 +83,26 @@ the **Spectrum** target. The recipes:
 These are the finished game's two commands (`build_assets.sh`):
 
 ```
-python3 tools/img2cpc.py --spectrum --name zx_tiles assets/zx/zx_tiles.png -o src/assets/zx/zx_tiles.bas
-python3 tools/img2cpc.py --spectrum --zx-sprite --name zx_sprites assets/zx/zx_sprites.png -o src/assets/zx/zx_sprites.bas
+python3 tools/img2cpc.py --spectrum --name zx_tiles assets/zx/zx_tiles.png -o assets/zx/zx_tiles.bas
+python3 tools/img2cpc.py --spectrum --zx-sprite --name zx_sprites assets/zx/zx_sprites.png -o assets/zx/zx_sprites.bas
 ```
 
-Save, and Studio generates the `.bas` files. For the tiles the tool picks an ink and a paper per cell from the
+(In the importer, choose the **Spectrum** target button; the second recipe also ticks **Sprite data (one
+bit per opaque non-black pixel)**, which is `--zx-sprite`. The **Command** line at the top of the editor
+shows the command above.)
+
+Save each recipe, and Studio generates the `.bas` files. The Spectrum import runs on Studio's built-in
+engine like the others: you do not need Python for it (`cpcbuild.assets.engine` is `builtin` by default;
+the `python` engine would also need Pillow). For the tiles the tool picks an ink and a paper per cell from the
 colours it finds there and writes `zx_tiles` (8 bytes per cell) and `zx_tiles_attr` (one attribute byte per cell). For the
 sprites, `--zx-sprite` keeps only the shape (ink only), because the game sets the colour itself.
-<!-- CHECK: the Studio spec (4.4) says Spectrum output needs the Python engine; the Phase 8 "As built" notes say it is on the TypeScript engine too. If the importer asks for the Python engine, set cpcbuild.assets.engine to python (it also needs Pillow). -->
 
 Note the same recipe for the CPC and the Spectrum gives *different data from the same drawing*: that is
 the point of a pipeline from art to code. Your game logic never sees either.
 
 ## Step 3: Read the Spectrum layer
 
-Open `src/platform_zx.bas`. The first 50 lines are a plain-English comment explaining the design. Then
+Open `platform_zx.bas`. The first 50 lines are a plain-English comment explaining the design. Then
 read down to `PlatInit`. The layer implements the same calls as `platform_cpc.bas`, with the same meaning:
 
 | Call (what `game.bas` and `main.bas` use) | On the CPC | On the Spectrum |
@@ -154,38 +161,41 @@ The Shared template already has targets `zx128` and `zx48` (chapter 1). The fini
 (`build_zx.sh`) uses these settings, which you must match:
 
 ```json
-{ "id": "zx128", "arch": "zx48k", "main": "src/main.bas",
+{ "id": "zx128", "arch": "zx48k", "main": "main.bas",
   "defines": ["ZX128"], "org": 32768, "heap": 512, "package": "tap" },
-{ "id": "zx48", "arch": "zx48k", "main": "src/main.bas",
+{ "id": "zx48", "arch": "zx48k", "main": "main.bas",
   "defines": ["ZX48"], "org": 32768, "heap": 512, "package": "tap" }
 ```
 
-Change the template's `zx128` (`org` 31744, `heap` 256) to these. Three things changed from the
-template:
+Change the template's two Spectrum targets to these (`zx128` had `org` 31744 and `heap` 256; `zx48` had `heap`
+256). Three things changed from the template:
 
 - **`org` 32768** on both: the image has to end below `&F000`, where the sprite library keeps its data
   (`#define ZXSPR_BASE 0xF000` in the layer). The finished game's images are, from `DESIGN.md`, section 12: 48K
   32768 to 52666 (8,774 bytes below `&F000`), 128K 32768 to 57376 (4,064 bytes below). `build_zx.sh` checks
-  that and stops with a message if you go over; Studio's build report is made for CPC targets and does not check
-  this limit.
+  that and stops with a message if you go over. Studio does not check this limit: for a `tap` target its
+  "report" is a single line (`zx48.tap: 19992 bytes, origin 32768`), and the number includes the tape's
+  loader, about 94 bytes more than the image itself (the finished 48K tape is 19,992 bytes, `build_zx.sh`'s
+  image 32768 to 52666 is 19,898). The size-limit check is one of the things that stay outside Studio.
 - **`heap` 512**: the HUD makes small strings.
 - `ZX48` or `ZX128`: with neither, the layer takes `ZX128`.
 
-The compiler flags these produce are the finished script's: `--arch zx48k -f tap -B -a -D ZX48 -H 512 -S 32768
--I lib` (a tape with a BASIC loader that runs the program, heap 512, origin 32768).
-<!-- CHECK: that the "org" and "heap" fields in cpcbuild.json map to -S and -H for zx targets (the template writes org and heap for the zx targets; the mapping to compiler flags is inferred from build_zx.sh). -->
+The compiler flags Studio builds from these fields are (from `zxbcArgs` in Studio's `project.ts`): `--arch
+zx48k -f tap -B -a --org 32768 -H 512 -I <library> -D ZX48`. The finished script `build_zx.sh` runs the same
+with `-S 32768`; `-S` and `--org` are two names for the same option (`zxbc --help`). So `org` is `--org`,
+`heap` is `-H`, and `-f tap -B -a` makes a tape with a BASIC loader that runs the program.
 
 ## Build and run
 
-Select `zx48` (**CPCBuild: Select Target**) and run **CPCBuild: Build**. Then the same for `zx128`. Each produces a
-`.tap` in `build/`. Spectrum targets are build-only in Studio (no Spectrum emulator is bundled): load the
+Select `zx48` (**CPCBuild: Select Target**) and run **CPCBuild: Build**. Then the same for `zx128`. Each produces
+`build/zx48.tap` or `build/zx128.tap` (named after the target). Spectrum targets are build-only in Studio (no Spectrum emulator is bundled): load the
 tape in a Spectrum emulator of your own, or on a real machine, with `LOAD ""`. 48K targets the 48K model;
 `zx128` needs a 128K model for the AY music.
 
 You should see: the title (with `O P Q A OR KEMPSTON` under it), then the game: the same rooms, in
 Spectrum colours: red bricks, white ledges, a cyan player, magenta ghosts. The picture is the same on
 48K and 128K; the 128K has music and AY effects, the 48K has beeper blips and no music.
-<!-- CHECK: nothing in this chapter was run on a real Spectrum emulator by the draft's author; only the compile and the build were checked. The finished game's own tests ran the headless Spectrum builds: 66 logic checks, the playthrough, and 17 + 4 screenshot goldens on both models (DESIGN.md section 12); the .tap files themselves were not loaded by a test. -->
+<!-- CHECK (for the user's test session): load build/zx48.tap and build/zx128.tap in a Spectrum emulator and compare with the description above. Nothing here was run on a Spectrum emulator by the tutorial's author; the finished game's own tests ran the headless Spectrum builds (66 logic checks, the playthrough, and 17 + 4 screenshot goldens on both models, DESIGN.md section 12), but the .tap files themselves were not loaded by any test. -->
 
 The sprites flicker a little where the beam catches one: the Spectrum builds are single-buffered too.
 

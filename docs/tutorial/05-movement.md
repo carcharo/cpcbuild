@@ -14,9 +14,9 @@ or climbing off an edge.
 
 **Time:** about 60 minutes. This is the longest chapter: most of the game's rules are here.
 
-**Before you start.** Chapter 4 is working. This chapter changes `src/game.bas` (the movement
+**Before you start.** Chapter 4 is working. This chapter changes `game.bas` (the movement
 functions are copied from the finished game; the ones marked simplified are cut down) and adds
-one empty sub to `src/platform_cpc.bas`.
+one empty sub to `platform_cpc.bas`.
 
 ---
 
@@ -49,7 +49,7 @@ have no attributes: they are scenery.
 
 ## Step 2: Constants, tables and variables
 
-Replace `src/game.bas` piece by piece. First the top of the file:
+Replace `game.bas` piece by piece. First the top of the file:
 
 ```basic
 ' game.bas -- the game logic: no drawing, only calls into the platform layer.
@@ -112,8 +112,8 @@ of the body: the player is 8 pixels wide and 16 lines tall, so his head, middle 
 sprite on each side, so he fits through gaps a cell wide.
 
 **(simplified.)** The finished game writes `TileAttr` and `ColSolid` in Z80 assembly
-(`game.bas:81-134, 358-391`). In BASIC `TileAttr` costs about 2,500 T-states a call, and a step makes
-about 25 of them; chapter 9 shows the measurements and why the real file does it in assembly. The
+(`game.bas:81-134, 358-391`). In BASIC `TileAttr` costs about 2,500 T-states a call (`DESIGN.md` section 11 says 2,560), and a step makes
+many such calls; chapter 9 shows the measurements and why the real file does it in assembly. The
 BASIC version here is the same logic, a little slower: on a 464 it may make a step take
 longer than two frames at first. That is fine for learning.
 
@@ -452,7 +452,7 @@ LOOP UNTIL PlatQuit()
 walking frames 1 and 2, otherwise standing. `GameInit(9)` is the start of a game in the cellar.
 
 The platform layer needs the sound hook that `MovePlayer` calls, as an empty sub for now. Add
-to `src/platform_cpc.bas`, before `PlatText`:
+to `platform_cpc.bas`, before `PlatText`:
 
 ```basic
 ' Sound effects: chapter 8 fills this in.

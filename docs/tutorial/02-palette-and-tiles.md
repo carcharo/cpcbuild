@@ -12,13 +12,17 @@ with a single library call.
 
 **Time:** about 30 minutes.
 
-**Before you start.** You have the project from [chapter 1](01-new-project.md), with the `cpc464`
-target selected. Copy these files from `games/lamplighter/assets/` into your project:
+**Before you start.** You have the project from [chapter 1](01-new-project.md), flattened as step 5 there
+describes, with the `cpc464` target selected. Copy these files from `games/lamplighter/assets/` into your
+project's `assets/` folder:
 
-| From | To |
+| File | What it is |
 |---|---|
-| `lamp.pal` | `assets/lamp.cpcpal` (same text, new name) |
-| `tiles.png` | `assets/tiles.png` |
+| `lamp.cpcpal` | the 16 pens, as a text file the palette editor opens |
+| `tiles.png` | the 16 tiles, 128 x 8 pixels |
+
+(The finished game's art, palette and map were drawn by a Python script, `assets/make_art.py`. That
+script stays outside Studio: the tutorial hands you its finished files.)
 
 ---
 
@@ -33,7 +37,7 @@ You assign colours with the **firmware colour numbers**, 0 to 26: the same numbe
 BASIC's `INK` command (not the Gate Array's hardware codes). The library's table is in
 `docs/library.md`, section **Data formats**, subsection **Palette**.
 
-Lamplighter's 16 pens are in `lamp.pal`:
+Lamplighter's 16 pens are in `lamp.cpcpal`:
 
 ```
 # Lamplighter's 16 pens (firmware colours)
@@ -59,39 +63,43 @@ Pen 0 is black: the background of every room.
 
 ## Step 2: Open the palette in the palette editor
 
-In the Explorer, double-click `assets/lamp.cpcpal`. It opens in the **CPCBuild Palette Editor**
-instead of as text.
-<!-- CHECK: that double-click opens .cpcpal in the custom editor by default (the package.json registers the editor for *.cpcpal; whether it is the default or "option" priority is not confirmed). If not, right-click > Open With... > CPCBuild Palette Editor. -->
+In the Explorer, double-click `assets/lamp.cpcpal`. It opens in the **CPCBuild Palette Editor** instead of
+as text (the editor is the default for `.cpcpal` and `.cpcpal12` files; the tab's title bar has **Reopen as
+Text** if you want the raw file).
 
 You should see:
 
-- A strip of 16 pen slots at the top, labelled with their firmware colour number.
-- The 27 firmware colours as a grid, each with its number and name.
-- A mode switch (0, 1, 2, Plus). Choose **0**: the strip has 16 slots.
-- A **Copy as** menu.
+- A toolbar with **Mode 0**, **Mode 1** and **Mode 2** (three choices, set to Mode 0 here: 16 pens),
+  undo and redo, **Reset**, **Load from PNG** and a **Copy as** menu.
+- **Pens**: a strip of 16 swatches, `P0` to `P15`. Each shows the pen's firmware colour number and name
+  (`P5`, `24`, `bright yellow`).
+- **Firmware colours (pick one for pen 0)**: the 27 colours as a grid, each with its number and name.
+- A side panel with **Colour details** (colour, RGB, how many pens use it), an optional **Border colour**,
+  and **Copy as**.
 
 Click a pen in the strip, then a colour in the grid, and that pen takes the colour. Try it on pen 5
 (bright yellow, the lamp's glow). Make it something else, and look at the colour swatch. **Undo**
-(`Ctrl+Z`) puts it back, and so does **Reset**. Do not save a change you do not want: the game's
-art assumes these exact pens.
+(`Ctrl+Z`) puts it back, and so does **Reset** ("Reset to the last loaded palette"). Do not save a change you
+do not want: the game's art assumes these exact pens.
 
-Open the **Copy as** menu. It offers the palette as:
+Open the **Copy as** menu (or the **Copy as** panel on the right). It offers the palette as:
 
-- a **Boriel `DIM` plus `SetPalette`** snippet,
-- a **bare list** like `0,1,3,6,...` (that is what `lamp.pal` holds),
-- or **`SetInk` lines**.
+- a **Boriel DIM + SetPalette** snippet,
+- a **Bare list (--palette)** like `0,1,3,6,...` (that is what `lamp.cpcpal` holds),
+- or **SetInk lines**.
 
 You do not need any of them now: the importer in the next step writes the palette array for you. But
-the first one is exactly what the program ends up with:
+the first one is the same shape the program ends up with:
 
 ```basic
 DIM pal(15) AS UBYTE => {0, 1, 3, 6, 15, 24, 12, 26, 13, 11, 20, 9, 18, 16, 5, 2}
 SetPalette(@pal(0), 16)
 ```
 
-**Drawing your own palette instead.** Run **CPCBuild: New Palette**, choose a file name, and pick
-colours as above. A palette is just a list of 0 to 26 numbers, one per pen.
-<!-- CHECK: whether New Palette asks for a mode first like New Sprite does; the source of newAssetCommand covers sprite, tileset and Plus sprite only. -->
+**Drawing your own palette instead.** Run **CPCBuild: New Palette**. It asks one question, **Firmware
+palette** (`.cpcpal`: pens as firmware colours 0 to 26, modes 0, 1 and 2) or **Plus palette** (`.cpcpal12`:
+12-bit colours, chapter 11), then a Save dialog for the file name. The mode is not asked: you choose it
+with the toolbar in the editor. A `.cpcpal` file is just a list of 0 to 26 numbers, one per pen.
 
 ## Step 3: Bring the tiles in with Import Image
 
@@ -115,32 +123,41 @@ side by side. (One PNG pixel is one CPC pixel: no scaling.)
 Now convert the PNG into data your program can include.
 
 1. Run **CPCBuild: Import Image** and choose `assets/tiles.png`. (You can also right-click the PNG in
-   the Explorer.)
+   the Explorer: the entry is there because your folder has a `cpcbuild.json`.)
 2. Studio creates `assets/tiles.cpcimp`, a small file called a **recipe** (an `img2cpc.py`
-   command line, as JSON), and opens it in the **CPCBuild Image Importer**.
-3. Set the options on the left:
+   command line, as JSON), and opens it in the **CPCBuild Image Importer**. A new recipe starts with
+   Mode 1 and Sprite, so you will change those. It already points its output at `assets/tiles.bas`
+   (beside the recipe).
+3. The options are in the left column, in sections (in a narrow window the editor has tabs instead:
+   **Options**, **Preview**, **Mapping**, **Command**). Set:
 
-| Option | Value |
-|---|---|
-| Target | CPC |
-| Mode | 0 |
-| Name | `tiles` |
-| Kind | tiles |
-| Palette | palette file: `assets/lamp.cpcpal` |
-| Emit palette | on |
-| Output file | `src/assets/tiles.bas` |
+| Section | Option | Value |
+|---|---|---|
+| Target | (the four buttons) | **CPC** |
+| Target | mode buttons | **Mode 0** |
+| Target | Name | `tiles` (the default: the image's file name) |
+| Target | Output file | `assets/tiles.bas` |
+| Sprites and tiles | (two buttons) | **Tiles** (not Sprite) |
+| Colours | Palette: Automatic / Pens / File | **File** |
+| Colours | Palette file (.cpcpal) | `assets/lamp.cpcpal` (type it, or **Browse...**) |
+| Colours | Emit the palette (NAME_pal, NAME_PENS) | ticked |
 
-4. Look at the **Equivalent command** box at the bottom of the panel. It should read like this:
+   Under each option the editor prints the `img2cpc.py` flag it sets (`--mode 0`, `--tiles`,
+   `--palette-file F`...).
+4. Look at the **Command** line across the top of the editor (under the **Command** tab in a narrow
+   window, where it is headed **Equivalent command**). It should read like this:
 
 ```
-python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/tiles.png -o src/assets/tiles.bas
+python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/tiles.png -o assets/tiles.bas
 ```
 
-   That is the very command the finished game uses (`build_assets.sh`), with different paths. The
-   panel never hides the command line, so you always know what the tool is doing.
-5. **Save** (`Ctrl+S`). Studio writes `src/assets/tiles.bas`, because the setting
-   `cpcbuild.assets.generateOnSave` is on by default. (There is also a **Generate** button in the importer.)
-<!-- CHECK: names of the importer's controls (labels "Target", "Mode", "Name", "Kind", "Palette", "Emit palette", "Output file", the "Generate" button and the "Equivalent command" box) are from the UX design document, not a running build. -->
+   That is the very command the finished game's `build_assets.sh` runs for these tiles. The editor
+   never hides the command line, so you always know what the tool is doing. **Copy** puts it on the
+   clipboard.
+5. **Save** (`Ctrl+S`). Studio writes `assets/tiles.bas`, because the setting
+   `cpcbuild.assets.generateOnSave` is on by default. (The **Generate** button at the top right does
+   the same without saving; a line under the header says when the output is missing or out of date.)
+   If Studio is in Restricted Mode (chapter 1) nothing is written: trust the workspace first.
 
 The importer's pen mapping is strict: with a fixed palette every PNG pixel takes the nearest pen
 (by RGB distance), ties going to the lower pen. `make_art.py` drew the PNG with the exact RGB of
@@ -155,7 +172,7 @@ content, and run **CPCBuild: Regenerate Assets**:
   "format": "cpcimp",
   "version": 1,
   "source": "assets/tiles.png",
-  "output": "src/assets/tiles.bas",
+  "output": "assets/tiles.bas",
   "target": "cpc",
   "mode": 0,
   "name": "tiles",
@@ -165,10 +182,12 @@ content, and run **CPCBuild: Regenerate Assets**:
 }
 ```
 
-Open `src/assets/tiles.bas`. It starts with a comment saying where it came from and not to edit it:
+This is exactly the finished game's `games/lamplighter/assets/tiles.cpcimp`.
+
+Open `assets/tiles.bas`. It starts with a comment saying where it came from and not to edit it:
 
 ```basic
-' Generated by img2cpc.py --mode 0 --name tiles --tiles --palette-file ... -o ...
+' Generated by img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/tiles.png -o assets/tiles.bas
 ' Source: assets/tiles.png, 128x8 pixels, mode 0
 ' 16 tiles of 32 bytes
 ' Do not edit; regenerate with tools/build_assets.sh.
@@ -178,9 +197,10 @@ DIM tiles(511) AS UBYTE => { _
     ...
 ```
 
-(Header from `games/lamplighter/assets/tiles.bas:1-6`.) At the end are `tiles_COUNT` (16) and
+(Header from `games/lamplighter/assets/tiles.bas:1-4`; the tool writes the same text whichever way you
+generated the file, including the "regenerate with tools/build_assets.sh" line.) At the end are `tiles_COUNT` (16) and
 `DIM tiles_pal(15)` with `tiles_PENS` (16): the palette, written with the tiles because we asked for
-**Emit palette**. Never edit a generated file; change the PNG or the recipe and generate again.
+**Emit the palette**. Never edit a generated file; change the PNG or the recipe and generate again.
 
 Why 32 bytes a tile? In mode 0 one screen byte is **2 pixels**, so an 8-pixel-wide tile row is
 4 bytes, and a tile is 8 rows of 4 bytes. Mode 1 would be 16 bytes a tile, mode 2 eight (library:
@@ -188,27 +208,34 @@ Why 32 bytes a tile? In mode 0 one screen byte is **2 pixels**, so an 8-pixel-wi
 
 ### The other way: draw the tiles yourself
 
-You do not have to import. Run **CPCBuild: New Tileset**, choose **Mode 0**, and give the file a
-name such as `assets/mytiles.cpctil`. The **CPCBuild Tile Editor** opens with an empty tile sheet.
-<!-- CHECK: everything in this section about the tile editor's controls comes from the UX design (tool letters, "Show tile numbers", palette selector); nothing here was tried in a running Studio. -->
+You do not have to import. Run **CPCBuild: New Tileset**, choose **Mode 0** from the quick-pick, and give
+the file a name such as `assets/mytiles.cpctil` in the Save dialog. The **CPCBuild Tile Editor** opens with
+one empty tile.
 
-- Pick the palette: in the **Tileset** panel on the right, set **Palette** to a shared file and
-  choose `assets/lamp.cpcpal`.
-- Click a pen at the bottom for your left mouse button and another for the right button, then draw
-  with the pencil (`B`). Other tools: line `L`, rectangle `R`, ellipse `E`, flood fill `F`, colour
-  picker `I`. `Ctrl+Z` undoes.
-- The neighbours of the tile you are editing are shown dimmed so you can match edges.
-- **Add tile** appends a tile; the sheet shows each tile's number. The status line shows
-  "x 3,y 5 . byte 0 . pen 2" as you move the mouse, which is the pixel, the screen byte it lives in and
-  the pen.
-- Save. The tile set writes its own `.bas` (with the same arrays) to the **Output** path in the panel.
-  Set the output to `src/assets/tiles.bas`.
-- **Insert Asset Use** (**CPCBuild: Insert Asset Use**) writes the `#include` line and a starter call
-  into the code editor that is open.
+- **Pick the palette.** In the **Palette** section of the right-hand panel, change the drop-down from
+  **This document** to **Shared file...** and choose `assets/lamp.cpcpal`. The pens strip at the bottom now
+  shows Lamplighter's 16 pens, and the palette file is edited in the palette editor (the file name under
+  the drop-down opens it).
+- **Draw.** Click a pen at the bottom for your left mouse button (badge **L**) and another for the right
+  button (**R**), then draw with the pencil (`B`). The other tools, along the top row: line `L`, rectangle
+  `R`, ellipse `E`, flood fill `F`, replace colour `K`, picker `I` and select `S`. `Ctrl+Z` undoes. The
+  toolbar also has **Filled**, mirror **X** and **Y**, flip **H** and **V**, and **Shift**.
+- **Neighbours.** The editor shows your tile with its neighbours dimmed around it, so you can match
+  edges. The **8x8** and **16x16** buttons change the view.
+- **Add a tile.** The strip on the left lists the tiles; its **Add tile** button (the `+`, key `N`) appends
+  one, and **Duplicate tile** and **Delete tile** sit beside it. The **Tile set** panel has **Show tile
+  numbers**, and **Drop duplicate tiles** (the `--dedupe` option: it would change the numbering, so leave
+  it off for Lamplighter).
+- **Status line.** At the bottom: `x 3, y 5`, `byte 1`, `pen 2 = ...`, `tile 0 of 6`, `8x8 px = 4 bytes
+  wide`, `32 B/tile`: the pixel under the mouse, the screen byte it lives in, its pen, and the sizes.
+- **Output.** In the **Output** section set **Output file** to `assets/mytiles.bas` (a path relative to the
+  document). Save, or press **Generate** (in the title bar, or in that section): the file writes the same
+  arrays the importer writes. **CPCBuild: Insert Asset Use**, a button in the editor's title bar, writes the
+  `#include` line and a starter call into the code editor that is open.
 
-If you have a PNG but want to touch it up, use **Take image** in the editor to bring it into the
-current tile, and export the sheet back to PNG from the editor too.
-<!-- CHECK: exact labels "Take image" and the PNG export entry. -->
+If you have a PNG but want to touch it up, open the **...** menu in the toolbar: **Take a PNG into this
+frame...** (the file chooser's button says **Take image**) quantises a PNG into the selected tile with the
+document's palette, and **Export the sheet as PNG...** writes the whole sheet out.
 
 ## Step 4: Draw a room
 
@@ -216,7 +243,7 @@ A **room** is 20 x 23 tiles: the CPC's mode-0 screen is 20 x 25 cells of 8 x 8 p
 two rows are kept for the HUD. A **tile map** is simply one byte per cell: the tile number, row by
 row (library: **Data formats**, "Tile map").
 
-First, the platform layer. Replace `src/platform_cpc.bas` with:
+First, the platform layer. Replace `platform_cpc.bas` with:
 
 ```basic
 ' platform_cpc.bas -- the CPC side: screen, palette, tiles (mode 0).
@@ -250,7 +277,7 @@ END FUNCTION
 
 (Simplified from `platform_cpc.bas:110-145`; the real `PlatInit` also sets up text and sprites.)
 
-Then `src/game.bas`. For this chapter the room is built in code, so you can see exactly which cells
+Then `game.bas`. For this chapter the room is built in code, so you can see exactly which cells
 get which tile. Chapter 3 replaces this with the real map.
 
 ```basic
@@ -352,8 +379,10 @@ second (**Display**).
    you use?
 2. Open `lamp.cpcpal` in the palette editor, change pen 7 (the white of the ledge's top row) to
    another colour, save, and build again. Do you need to run the importer again? (The tiles store pen
-   *numbers*, not colours, but the generated `tiles.bas` also contains a copy of the palette.)
-<!-- CHECK: whether saving a palette file regenerates tiles.bas through the recipe (spec: "build runs stale-asset regeneration when an output is older than its source"; whether the palette file counts as a source is not stated). -->
+   *numbers*, not colours, but the generated `tiles.bas` also contains a copy of the palette.) Look in
+   the **CPCBuild** channel: the palette file is one of the inputs of the recipe, so when it is newer than
+   `tiles.bas` Studio regenerates the file before it compiles and prints `Regenerated 1 asset recipe.`
+   (Put the pen back afterwards, and build again.)
 3. Draw a tile 13 of your own in the tile editor (a gravestone? a crate?), import or generate, and
    put it in the room.
 4. In `PlatInit` change `SetBorder 0` to `SetBorder 26`. Which colour is the border?

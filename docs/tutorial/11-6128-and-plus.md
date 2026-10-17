@@ -68,12 +68,17 @@ build** (they gain only a line in `main.bas`). It adds two things:
 ## Step 3: What you need
 
 - **A library that has the sprite manager and palette cycling.** They are `lib/cpcplus/sprman.bas` and
-  `lib/cpcplus/palcycle.bas`. The library copy bundled in the Studio extension does **not** have them.
-  Set **`cpcbuild.library.path`** to a cpcbuild checkout (the `platformer` branch, or `main`) that does.
-  That is why chapter 1 suggested setting it early.
+  `lib/cpcplus/palcycle.bas`, and the library copy bundled in the Studio extension has both
+  (`cpcplus/sprman` and `cpcplus/palcycle` are in its `bundled/lib/`), so there is nothing to set. (If you
+  pointed `cpcbuild.library.path` at your own copy of the library, it must be one that has them: `main` or the
+  `platformer` branch.)
 - **Art.** Copy from `games/lamplighter/assets/plus/` into your `assets/plus/`: `plus_tiles.png`,
-  `plus_sprites.png`; and `pl_pens.bas` into `src/assets/plus/`.
-- **The Plus layer.** Copy `games/lamplighter/platform_plus.bas` into `src/`.
+  `plus_sprites.png`; and `pl_pens.bas`.
+- **The Plus layer.** Copy `games/lamplighter/platform_plus.bas` into your project folder, beside
+  `platform_cpc.bas`.
+
+(The Plus art is drawn by a second Python script, `make_plus_art.py`, which also writes `pl_pens.bas`. Both
+stay outside Studio: you are copying their finished output.)
 
 ## Step 4: The art
 
@@ -88,7 +93,7 @@ lamp at once. The recipe is the CPC tiles' recipe with the Plus PNG:
   "format": "cpcimp",
   "version": 1,
   "source": "assets/plus/plus_tiles.png",
-  "output": "src/assets/plus/tiles.bas",
+  "output": "assets/plus/tiles.bas",
   "target": "cpc",
   "mode": 0,
   "name": "tiles",
@@ -100,16 +105,16 @@ lamp at once. The recipe is the CPC tiles' recipe with the Plus PNG:
 
 The sprites are **16 x 16 hardware sprites**: each art pixel is 2 sprite pixels wide, and the sprite is
 magnified 2 x 1 (`SprMag(slot, 2, 1)`) so it covers the same 8 x 16 mode-0 pixels as the CPC build's. The
-importer's target is **Plus sprites**:
+importer's target button is **Plus sprites**:
 
-`assets/plus/sprites.cpcimp`:
+`assets/plus/lpsprites.cpcimp`:
 
 ```json
 {
   "format": "cpcimp",
   "version": 1,
   "source": "assets/plus/plus_sprites.png",
-  "output": "src/assets/plus/lpsprites.bas",
+  "output": "assets/plus/lpsprites.bas",
   "target": "plus-sprite",
   "name": "lpsprites"
 }
@@ -118,8 +123,8 @@ importer's target is **Plus sprites**:
 These are the finished game's two commands (`build_assets.sh`):
 
 ```
-python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/plus/plus_tiles.png -o src/assets/plus/tiles.bas
-python3 tools/img2cpc.py --plus-sprite --name lpsprites assets/plus/plus_sprites.png -o src/assets/plus/lpsprites.bas
+python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/plus/plus_tiles.png -o assets/plus/tiles.bas
+python3 tools/img2cpc.py --plus-sprite --name lpsprites assets/plus/plus_sprites.png -o assets/plus/lpsprites.bas
 ```
 
 A Plus sprite has at most 15 colours plus transparent; the sprite palette is the sheet's distinct colours in order
@@ -128,10 +133,12 @@ bytes: 3,072 bytes. (Compare 1,536 for the CPC's masked frames.)
 
 `pl_pens.bas` holds the 16 playfield pens as **12-bit colours** (two bytes a pen, the format
 `SetPalette12Block` wants) and `pl_flame`, the four flame colours: amber, yellow, red-orange, pale yellow. It
-was written by `make_plus_art.py`, not by an importer; copy it. To make 12-bit colours yourself, use **CPCBuild: New
-Palette** and a `.cpcpal12` file: the palette editor has a 12-bit mode with three 0-15 steppers per colour, and
-a **Copy as** menu that gives the `SetPalette12` lines or the byte array that `SetPalette12Block` expects.
-<!-- CHECK: the 12-bit palette editor and its copy-as options are from the UX design and spec 4.1; whether New Palette creates a .cpcpal12 on request is not confirmed. -->
+was written by `make_plus_art.py`, not by an importer (it has no recipe: the file is a 12-bit pen table with no
+PNG behind it); copy it. To make 12-bit colours yourself, run **CPCBuild: New Palette** and choose **Plus
+palette** (it makes a `.cpcpal12`). The palette editor then shows **Entries**: pens 0 to 15, the border
+(entry 16) and the 15 sprite colours (17 to 31), each as a three-digit hex colour (`F80`) with red, green and
+blue from 0 to 15 in the **Entry details** panel. Its **Copy as** menu gives either **SetPalette12 lines** or
+a **Byte array + SetPalette12Block**, the byte array that `SetPalette12Block` expects.
 
 ## Step 5: Teach the CPC layer about the Plus
 
@@ -179,7 +186,7 @@ And `main.bas` picks the Plus layer when `PLUS` is defined:
 
 ## Step 6: Read the Plus layer
 
-Open `src/platform_plus.bas` (198 lines). The trick at the top is how it reuses the CPC layer:
+Open `platform_plus.bas` (198 lines). The trick at the top is how it reuses the CPC layer:
 
 ```basic
 #define LAMP_PLUS
@@ -270,7 +277,7 @@ restarts a cycle at offset 0, so the layer calls `FlameStart` again after every 
 In `cpcbuild.json` add the Plus targets (these are the Studio **Plus cartridge** template's):
 
 ```json
-{ "id": "plus-cart", "arch": "cpc", "main": "src/main.bas", "model": "plus",
+{ "id": "plus-cart", "arch": "cpc", "main": "main.bas", "model": "plus",
   "defines": ["PLUS"], "bare": true, "ownFont": true, "package": "cpr" }
 ```
 
@@ -279,9 +286,23 @@ firmware font either: the game's text comes from its own `fontcpc.bas` anyway). 
 `tools/mkcpr.py`, which wraps the program in a cartridge image with a small boot stub that copies it to RAM at
 `&0040`. These are the finished game's `lamppluc` flags (`build_plus.sh`).
 
-Select `plus-cart` and run **CPCBuild: Build and Run**. The report says about 30.5 KB. The emulator tab starts a
-Plus and boots the `.cpr`; a cartridge boots by itself.
-<!-- CHECK: that Studio runs a .cpr in the emulator tab for model "plus" and that the sprite manager is found with cpcbuild.library.path set. This draft built the cartridge from these steps with the compiler and mkcpr.py (49,188 bytes, 3 pages) and ran it headless on CPCEC to the title screen; it did not run it through the Studio. -->
+Select `plus-cart` and run **CPCBuild: Build and Run**. The compiler flags are `--arch cpc --org 0x40 -D
+PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,658-byte
+program, the `lamppluc.bin` of `DESIGN.md` section 13), and then `mkcpr.py` wraps it as `build/plus-cart.cpr`
+(the finished game's cartridge is 49,188 bytes, 3 pages). The report is the one for a bare target, with its
+own reference lines:
+
+```
+Build report for plus-cart:
+  30658 bytes, &0040-&7802
+    over back screen / banks (double buffering) (&4000) by 14338 bytes
+    headroom below &B800: 16382 bytes  [bare limit]
+```
+
+(Worked out from the 30,658 bytes in the same way as in chapter 9: &0040 + 30,658 = &7802.) The emulator tab
+starts a Plus and boots the `.cpr` (Studio sends a `.cpr` to the Emulator extension, which always starts a
+Plus for a cartridge); a cartridge boots by itself.
+<!-- CHECK (for the user's test session): run plus-cart through Studio and the emulator tab, not only through the compiler and mkcpr.py as the tutorial's author did (that was run headless on CPCEC up to the title screen). Also confirm the report lines above. -->
 
 ## Build and run
 
@@ -305,17 +326,19 @@ The Plus program is **4.3 KB bigger**: it adds the Plus library, the sprite mana
 sprites, and drops the software sprite code and frames. But a step needs about a fifth fewer frames (340 against
 430) because nothing is erased and redrawn.
 
-If the build says it cannot find `cpcplus/sprman.bas`, `cpcbuild.library.path` points at a library without it: use a
-checkout of `platformer` or `main`. If the game says "LAMPLIGHTER PLUS needs a CPC Plus" you ran a
+If the build says it cannot find `cpcplus/sprman.bas`, `cpcbuild.library.path` points at a library without it: clear
+the setting (the bundled library has it) or use a checkout of `platformer` or `main`. If the game says "LAMPLIGHTER PLUS needs a CPC Plus" you ran a
 firmware build on a model other than `plus`; the cartridge target has no such check because it can only run on a Plus.
 
 ### What is not covered here
 
 The finished game also builds a **disc** for the Plus: `lampplus.dsk`, started with `RUN"PLUS`, where `PLUS.BIN`
-is Starfall's loader with the program's name changed (`build_plus.sh`). Studio's `dsk` packaging makes a disc
-that runs one binary with `run"NAME`; it does not make that loader. Whether a plain Studio disc build of the Plus
-program starts correctly on a Plus has not been checked for this tutorial: use the cartridge target.
-<!-- CHECK: the Studio "plus-dsk" template target versus the finished game's RUN"PLUS loader disc. -->
+is Starfall's loader with the program's name changed (`build_plus.sh`). That disc stays **outside Studio**:
+Studio's `dsk` packaging makes a plain disc that runs one binary with `run"NAME`, and the finished project's
+`lampplus` target is the cartridge only (`DESIGN.md` section 14). Whether a plain Studio disc build of the Plus
+program (a target with `PLUS` defined, not `bare`) starts correctly on a Plus has not been checked: use the
+cartridge target.
+<!-- CHECK (optional, for the user's test session): add a disc target for the Plus program and see whether it boots on a Plus model; the tutorial's author did not try it. -->
 
 ## How it works
 

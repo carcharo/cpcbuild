@@ -4,10 +4,11 @@ You are going to build a complete flip-screen platformer for the Amstrad CPC 464
 time, using Boriel BASIC and the CPCBuild tools in VS Code. At the end you will have a game you can
 play on a CPC 464 or 6128, a Spectrum 48K or 128K, and (optionally) a CPC Plus.
 
-> **Status: first draft.** The game and the library are finished and tested. The text below was
-> written from the game's source and the tools' documentation; places where the text could not
-> be checked against a running VS Code are marked in the Markdown source with HTML comments that start
-> with the word CHECK.
+> **Status: second draft.** The game and the library are finished and tested. The text was checked
+> against the real Studio and Emulator extensions' source, their command titles, menus and settings, and
+> screenshots of the running editors. Places that still need a pair of eyes or ears in a live VS Code session
+> (the sound, a Spectrum emulator, the Plus cartridge through Studio, Tiled's own screens) are marked in the
+> Markdown source with HTML comments that start with the word CHECK, each saying what to try.
 
 ## The game
 
@@ -35,7 +36,7 @@ Studio's workflow is inspired by NextBuild Studio, though it shares no code with
 | 1 | [A new project](01-new-project.md) | create a project from the template, build it, run it in the emulator tab | text bouncing on a CPC screen, and a Spectrum tape built from the same code |
 | 2 | [Palette and tiles](02-palette-and-tiles.md) | bring in 16 pens and 16 tiles, draw one room with `TileMap` | the first room, in colour |
 | 3 | [The tower](03-the-tower.md) | look at the 12-room map in Tiled and Studio's map viewer, cut it into rooms | all 12 rooms, flipping with two keys |
-| 4 | [The player sprite](04-the-player-sprite.md) | draw a masked sprite, erase it with `TileRestore`, draw in flyback order | the lamplighter walking about |
+| 4 | [The player sprite](04-the-player-sprite.md) | draw a masked sprite, erase it with `TileRestore`, draw right after the flyback | the lamplighter walking about |
 | 5 | [Movement](05-movement.md) | add gravity, a jump, one-way platforms and ladders | a player who falls, jumps and climbs between rooms |
 | 6 | [Enemies](06-enemies.md) | add walkers, floaters and bats | things that move and want to hurt you |
 | 7 | [Lamps, doors, lives and the HUD](07-lamps-doors-lives-hud.md) | make it a game: lamps, doors, lives, title, win and game over | the whole game, silent |
@@ -52,22 +53,39 @@ can be done in either order, or skipped.
 | You need | For | Check with |
 |---|---|---|
 | VS Code | everything | |
-| The **CPCBuild Studio** extension (`cpcbuild.cpcbuild-studio`) | editors, importer, build and run | the **CPCBuild** icon in the Activity Bar |
+| The **CPCBuild Studio** extension (`cpcbuild.cpcbuild-studio`) | editors, importer, build and run | the **CPCBuild** icon in the Activity Bar, once a folder with a `cpcbuild.json` is open |
 | The **CPCBuild Emulator** extension (`cpcbuild.cpcbuild-emu`) | running the game in an editor tab | **CPC Emulator: Open File...** in the Command Palette |
-| The Boriel BASIC compiler with the CPC backend: the `zxbasic` fork, branch `cpc-arch` (`https://github.com/carcharo/zxbasic`) | compiling | `poetry run zxbc --version` in that folder |
-| Python 3 | packaging the disc image | `python3 --version` |
-| A cpcbuild checkout | the finished game to compare with, the art files, the library | `games/lamplighter/` exists |
+| The Boriel BASIC compiler with the CPC backend: the `zxbasic` fork, branch `cpc-arch` (`https://github.com/carcharo/zxbasic`), installed so that `poetry run zxbc` works in its folder | compiling, and `mkdsk.py` (the disc packager, which is in this checkout and not in the extension) | `poetry run zxbc --version` in that folder |
+| Python 3 | `mkdsk.py` and `mkcpr.py`, and the scripts that stay outside Studio | `python3 --version` |
+| A cpcbuild checkout | the finished game to compare with, the art files, `split_rooms.py` (chapter 3) | `games/lamplighter/` exists |
 | [Tiled](https://www.mapeditor.org/) (chapter 3) | editing the tower map | **CPCBuild: Open in Tiled** |
 
-Tiled is optional: you can follow chapter 3 without editing, because the finished map is in the repo.
-Chapter 11 needs a cpcbuild checkout newer than the library copy bundled inside the Studio extension
-(the bundled copy lacks the Plus sprite manager and palette cycling; see that chapter), which is why
-chapter 1 suggests setting `cpcbuild.library.path` from the start.
+Tiled is optional: you can follow chapter 3 without editing, because the finished map is in the repo. The
+cpcbuild library (`lib/`) and the Python converters are bundled inside the Studio extension, including the
+Plus sprite manager and palette cycling that chapter 11 uses, so no setting is needed for them.
 
-Both extensions come as `.vsix` files that `make vsix` builds in the cpcbuild repository
-(`vscode/cpcbuild-studio/` and `vscode/cpcbuild-emu/`). Install each with the Command Palette
-command **Extensions: Install from VSIX...**.
-<!-- CHECK: how a hobbyist gets the two .vsix files today (Makefile "vsix" target builds them; no release page is mentioned in the sources). Replace this paragraph when there is a download. -->
+### Installing the two extensions today
+
+There is no download page or Marketplace entry yet, so you build the two `.vsix` files from a cpcbuild
+checkout (the `phase-8` branch or one that has merged it: the `vsix` target is in that branch's Makefile):
+
+```sh
+cd /path/to/cpcbuild
+make vsix
+```
+
+`make vsix` first builds the emulator's WebAssembly core (`make wasm`, which needs the emulator sources and
+ROMs from `make cpcec`, and an Emscripten SDK or `emcc` on your path), runs `npm ci` in both extension folders
+if they have no `node_modules`, and packages both. It needs Node.js 22 (the version of the repository's CI job) and npm. It produces two files:
+
+- `vscode/cpcbuild-studio/cpcbuild-studio-0.0.1.vsix`
+- `vscode/cpcbuild-emu/cpcbuild-emu-0.0.1.vsix`
+
+In VS Code open the Command Palette and run **Extensions: Install from VSIX...**, once for each file, then
+reload the window if VS Code asks. Next, get the compiler: clone the `zxbasic` fork, check out the `cpc-arch`
+branch and install it with Poetry (`poetry install` in that folder; the fork's own README has the details), and make sure `python3` is Python 3.
+Chapter 1 then points Studio at the compiler. (If someone hands you the two `.vsix` files ready-made, only
+the install step and the compiler remain.)
 
 ## How the chapters work
 
@@ -93,24 +111,25 @@ Conventions:
 
 ### Where your files go
 
-You will make one project folder, `lamplighter/`, like this:
+You will make one project folder, `lamplighter/`, laid out exactly like `games/lamplighter/` (a flat layout):
 
 ```
 lamplighter/
   cpcbuild.json              the project: targets and asset recipes
-  assets/                    your source art and recipes (PNG, palette, Tiled map, .cpcimp)
-  src/
-    main.bas                 ties the layers together
-    game.bas                 the rules: no drawing, no keys, no sound
-    platform_cpc.bas         everything CPC-specific: screen, sprites, keys, sound
-    platform_zx.bas          the Spectrum layer (chapter 10)
-    assets/                  generated .bas files (and copied ones: songs, font)
+  main.bas                   ties the layers together
+  game.bas                   the rules: no drawing, no keys, no sound
+  platform_cpc.bas           everything CPC-specific: screen, sprites, keys, sound
+  platform_zx.bas            the Spectrum layer (chapter 10)
+  platform_plus.bas          the Plus layer (chapter 11)
+  assets/                    art, recipes and generated .bas files, side by side
+    lamp.cpcpal  tiles.png  tiles.cpcimp  tiles.bas  ...
+    zx/  plus/
 ```
 
-The real game keeps its `.bas` files flat in `games/lamplighter/` with generated data in
-`games/lamplighter/assets/`. Putting your `src/` beside an `assets/` folder is the Studio's layout,
-so in this tutorial the generated files go to `src/assets/` and the source art stays in `assets/`.
-That way `#include "assets/tiles.bas"` reads the same in your code and in the finished game.
+The Studio's **New Project** template puts the `.bas` files in a `src/` folder instead; chapter 1, step 5
+moves them to the root. Everything after that has the same paths as the finished game, so
+`#include "assets/tiles.bas"` reads the same in your code and in `games/lamplighter/`. The generated
+`.bas` files sit in `assets/` next to their `.png` and `.cpcimp`, as in the finished game.
 
 ### The art and data files you copy
 
@@ -118,14 +137,42 @@ Lamplighter's pictures were made by a Python script (`games/lamplighter/assets/m
 files, so the tutorial starts from those PNGs rather than asking you to be an artist. You can also
 draw everything in the Studio's editors; each chapter says how.
 
-| Copy from `games/lamplighter/assets/` | Into | Used in |
+| Copy from `games/lamplighter/assets/` | Into (the same name) | Used in |
 |---|---|---|
-| `lamp.pal`, `tiles.png`, `sprites.png` | `assets/` (rename `lamp.pal` to `lamp.cpcpal`) | chapter 2, 4 |
+| `lamp.cpcpal`, `tiles.png`, `sprites.png` | `assets/` | chapters 2, 4 |
 | `tower.tmx` | `assets/` | chapter 3 |
-| `fontcpc.bas` | `src/assets/` | chapter 3 |
-| `title.bas`, `gamesong.bas`, `sfx.bas`, `quiet.bas` | `src/assets/` | chapter 8 |
-| `zx/zx_tiles.png`, `zx/zx_sprites.png`, `zx/sfx_zx.bas` | `assets/zx/`, `src/assets/zx/` | chapter 10 |
-| `plus/plus_tiles.png`, `plus/plus_sprites.png`, `plus/pl_pens.bas` | `assets/plus/`, `src/assets/plus/` | chapter 11 |
+| `fontcpc.bas` | `assets/` | chapter 3 |
+| `title.bas`, `gamesong.bas`, `sfx.bas`, `quiet.bas` | `assets/` | chapter 8 |
+| `zx/zx_tiles.png`, `zx/zx_sprites.png`, `zx/sfx_zx.bas` | `assets/zx/` | chapter 10 |
+| `plus/plus_tiles.png`, `plus/plus_sprites.png`, `plus/pl_pens.bas` | `assets/plus/` | chapter 11 |
+
+`lamp.cpcpal` is a plain text file (a list of 16 firmware colours); Studio's palette editor opens it.
+
+### What Studio does not do for this game
+
+Studio runs the build, the editors, the importer, the map viewer and the emulator. The finished game
+still uses a few things that Studio does not do; `games/lamplighter/DESIGN.md` section 14 lists them, and
+the tutorial says so in the chapter where each one comes up:
+
+- **Drawing the art.** `assets/make_art.py` draws the PNGs, `lamp.cpcpal` and `tower.tmx`;
+  `assets/make_plus_art.py` draws the Plus PNGs and writes `plus/pl_pens.bas` (a 12-bit pen table that has
+  no recipe). The tutorial hands you the finished files (chapters 2, 3, 10, 11).
+- **Splitting the map into rooms.** `assets/split_rooms.py` cuts `tower.tmx` into `rooms.bas`. Studio only
+  converts a whole tile layer; the split is a small Python command you run yourself (chapter 3).
+- **Packaging a disc.** Studio's `dsk` packaging needs `mkdsk.py` from your `zxbasic` checkout (set
+  `cpcbuild.zxbc.cwd`): it is AGPL-licensed with the compiler, so it is not in the extension.
+- **The Plus loader disc.** `lampplus.dsk`, started with `RUN"PLUS`, comes from `build_plus.sh`; Studio's
+  Plus target makes the cartridge only (chapter 11).
+- **Size-limit checks.** `build_cpc.sh` stops if the program ends above `&8B60`, and `build_zx.sh` if the
+  Spectrum image ends above `&F000`. Studio prints a report for CPC targets and a one-line size for tapes,
+  but does not stop the build (chapters 9 and 10).
+- **Tests.** The logic checks, the playthrough, the screenshot goldens and the benchmark are scripts and
+  Makefile targets in the cpcbuild repository (`make test-lamp`, `make test-lamp-plus`, chapter 9).
+
+Two Studio rules to know. First, Studio only acts in a folder that contains a `cpcbuild.json`: its
+right-click menu entries (Import Image, Convert Tiled Map to BASIC, Run in Emulator, Convert and Play Music...)
+appear only there. Second, a folder you cloned or opened for the first time is in VS Code's Restricted Mode,
+where Build, Run and asset generation refuse until you trust the workspace (chapter 1).
 
 ### If something does not build
 
@@ -137,5 +184,5 @@ draw everything in the Studio's editors; each chapter says how.
 ## What the tutorial does not do
 
 It does not write music (it reuses Starfall's songs; chapter 8 says where to go if you want your own), and it
-does not use Studio's debugging views (symbols, registers, memory, breakpoints), which are worth exploring once
-the game runs.
+does not use Studio's debugging views (symbols, registers, memory, breakpoints) beyond a description in chapter 9;
+they are worth exploring once the game runs.

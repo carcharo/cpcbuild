@@ -14,25 +14,30 @@ steps a second on a 464 with music.
 **Time:** about 45 minutes. Every number in this chapter is either measured in front of you or
 labelled with the file it was measured in (mostly `DESIGN.md`, sections 11 and 12 "As built").
 
-**Before you start.** Chapter 8 is working. Keep your own `src/` safe: copy it to a folder outside the
-project (say `mine/`). Parts of this chapter use the finished game's files.
+**Before you start.** Chapter 8 is working. Keep your own code safe: copy `main.bas`, `game.bas` and
+`platform_cpc.bas` to a folder outside the project (say `mine/`). Parts of this chapter use the finished
+game's files.
 
 ---
 
 ## Step 1: Read the build report
 
 Run **CPCBuild: Build** with the `cpc464` target. At the end of the **CPCBuild** output channel is
-the build report. For the finished game it reads:
+the build report. The report is plain text (a graphical report with a memory bar was planned and is not
+built). For the finished game, whose size is 26,814 bytes (`DESIGN.md` section 12; the finished game's
+`build_cpc.sh` prints the same size), it reads:
 
 ```
 Build report for cpc464:
   26814 bytes, &0040-&68FE
-  over back screen / banks (double buffering) (&4000) by 10494 bytes
-  headroom below &8B60: 8802 bytes  [firmware heap start]
+    over back screen / banks (double buffering) (&4000) by 10494 bytes
+    headroom below &8B60: 8802 bytes  [firmware heap start]
 ```
-<!-- CHECK: the exact layout and indentation of the report lines in the output channel. The wording is from vscode/cpcbuild-studio/src/core/map.ts (formatReport); the values are computed from the finished game's 26,814 bytes. The design describes a webview "build report" card with a memory bar; the built version prints text in the output channel. Run CPCBuild: Show Build Report to print it again. -->
 
-Your own build will be a few hundred bytes different. The lines mean:
+(The layout is `formatReport` in Studio's `map.ts`, checked against a screenshot of a real run; the
+numbers are worked out from the 26,814 bytes: &0040 + 26,814 = &68FE, and &68FE - &4000 = 10,494.) Run
+**CPCBuild: Show Build Report** to print the last one again. Your own build will be a few hundred bytes
+different. The lines mean:
 
 - **`26814 bytes, &0040-&68FE`**: the program's size and address range. Studio reads the start from the `.map`
   file the compiler writes next to the program (the label `.core.__START_PROGRAM`) and adds the size.
@@ -43,10 +48,14 @@ Your own build will be a few hundred bytes different. The lines mean:
 - **`over back screen / banks (double buffering) (&4000)`**: a reference line, not an error. A program that
   uses double buffering or the 6128's banks must stay below `&4000` because it reserves `&4000-&7FFF`.
   Lamplighter is single-buffered and keeps no banks, so it is "over" that line by design, and says so in lower case.
-  A real limit that is exceeded would say `OVER` in capitals and the build would fail.
+  A real limit that is exceeded says `OVER` in capitals. The build still finishes: Studio *reports* the
+  limit, it does not stop the build. (The finished game's `build_cpc.sh` does stop, with a message, if the
+  program ends above `&8B60`; that check is one of the things that stay outside Studio.)
 
 You can add your own reference lines with the setting `cpcbuild.build.memoryLimits`, for
-example `{ "my buffer": "0x7000" }`.
+example `{ "my buffer": "0x7000" }`: each becomes another `headroom below` (or `OVER`) line. (A `bare`
+target, chapter 11, gets different reference lines: `bare program loaded by RUN"` at `&A67B` for a disc,
+and `bare limit` at `&B800`.)
 
 ### Where the bytes went
 
@@ -72,9 +81,14 @@ your head: the program's code comes first, the data arrays after. The library's 
 1,216. Add those up for the five calls Lamplighter uses and you have about 4.5 KB of library; the rest
 is your code and data.
 
-Studio also has views you can use once the emulator is running: the **CPCBuild** icon in the Activity Bar
-opens **Symbols** (the map's labels and their live values), **Registers** and **Breakpoints**.
-<!-- CHECK: the debugging views (Symbols, Registers, Breakpoints, memory view, status bar "CPC paused at ...") are listed in the Phase 8 "As built" notes; this draft did not use them. Their exact behaviour is not described here on purpose. -->
+Studio also has views you can use once the emulator is running; this tutorial does not need them, but they
+are worth a look. The **CPCBuild** icon in the Activity Bar opens three: **Symbols** (the map's labels,
+grouped, with their addresses and, for variables, live values), **Registers** (the Z80's registers when the
+program is stopped; its toolbar has Pause, Resume, Step, Step Over, Step Out and **Show Memory**) and
+**Breakpoints** (a breakpoint is set on a symbol, with an offset). **CPCBuild: Show Memory** opens a
+read-only hex view of 512 bytes with the changed bytes marked. While a program is stopped the status bar
+says `CPC paused at PutSprite` (a symbol and offset); while it runs it says `CPC running`. These come from
+the Phase 8 "As built" notes in `docs/phase8-design.md`. A watch list and memory writes are not built yet.
 
 ## Step 2: Think in frames
 
@@ -107,11 +121,11 @@ two added in code), with no keys needed, then prints one line and stops. The tar
 500 frames for 250 steps.
 
 To run it you need the finished `main.bas`, `game.bas` and `platform_cpc.bas` (they have the benchmark hooks that
-your chapter 8 versions lack). Copy them from `games/lamplighter/` into your `src/` (replace yours; you saved
-a copy). Then add a target to `cpcbuild.json`, beside `cpc464`:
+your chapter 8 versions lack). Copy them from `games/lamplighter/` into your project folder (replace yours; you
+saved a copy). Then add a target to `cpcbuild.json`, beside `cpc464`:
 
 ```json
-{ "id": "bench464", "arch": "cpc", "main": "src/main.bas", "model": "464",
+{ "id": "bench464", "arch": "cpc", "main": "main.bas", "model": "464",
   "defines": ["CPC464", "BENCH"], "package": "dsk", "disc": "LAMPLIGH" }
 ```
 
@@ -122,9 +136,9 @@ it plays the script, which takes about ten seconds at 25 steps a second, and the
 INFO steps=250 frames=500 per second=25.0 late=2 longest=3
 ```
 
-(The line is from the finished game's `main.bas:119`; the numbers here are illustrative. The finished
+(The line is printed by the finished game's `main.bas:119`; the numbers here are illustrative. The finished
 game's own measurement, `DESIGN.md` section 12: **25.0 steps a second, 499 frames**, with music.)
-<!-- CHECK: the benchmark prints with PRINT in mode 0 (20 columns): the line wraps over several rows on screen. Confirm it is readable in the emulator tab, and that the program ends (END) leaving the text on screen. -->
+<!-- CHECK (for the user's test session): the line is printed with PRINT in mode 0, which has 20 columns, so it wraps over several rows; confirm it is readable in the emulator tab and not scrolled away when the program ends. If it is hard to read, the test harness reads the same line from the emulator's console (games/lamplighter/tests/bench.sh). -->
 
 How to read it:
 
@@ -166,7 +180,8 @@ takes another 6 %. `DESIGN.md` records the changes that fixed it: for the first,
 asm"; for the music, the other three. They are all in the finished files you just copied.
 
 1. **`TileAttr` in assembly.** The BASIC function you wrote in chapter 5 costs about **2,560
-   T-states** a call. A step makes about 25 of them. In assembly it is **560** (section 11). Look at
+   T-states** a call (`DESIGN.md` section 11), and a step makes many of them: the player's probes, the lamp and
+   spike test, every walking enemy. In assembly it is **560** (section 11). Look at
    it in `game.bas:81-134`. It is Z80 code inside `ASM ... END ASM`, and it does exactly what the BASIC
    did: row times 20 plus column (as shifts and adds: 4 + 1 = 5, then times 4), plus the room's address, read
    the tile, `AND 15`, look it up in `TA_TAB` (the attribute table, which now lives in the assembly as a
@@ -182,7 +197,7 @@ asm"; for the music, the other three. They are all in the finished files you jus
    add hl, hl              ; 20 cy
    ```
 
-   (`game.bas:111-118`.) `ix+5` and `ix+7` are the arguments, read from the stack frame: Boriel passes
+   (`game.bas:110-120`.) `ix+5` and `ix+7` are the arguments, read from the stack frame: Boriel passes
    them there, and an assembly routine reads them itself (library, **Using the library**: assembly
    routines "read their arguments from the stack frame and return in registers").
 2. **`ColSolid` and `WalkOK` in assembly** (they were about 10,000 T-states a call; `game.bas:358-391` and
@@ -198,21 +213,24 @@ asm"; for the music, the other three. They are all in the finished files you jus
 before sound, 430 after, with the music's 6 % included.
 
 > **The lesson.** Measure first, then change one thing. Almost all of this game is plain BASIC; a few
-> hot spots (called 25 times a step) are in assembly. The library's own advice
+> hot spots (called many times a step) are in assembly. The library's own advice
 > (**Performance tips**): per-call overhead dominates, array indexing costs a few hundred T-states,
 > gate (firmware) calls cost about 220 T-states more than the routine.
 
 ## Step 5: Tests (if you have the repository)
 
-The finished game is tested, and the same checks run for the Spectrum and Plus builds:
+The finished game is tested, and the same checks run for the Spectrum and Plus builds. **None of this is
+part of Studio**: the tests, the goldens and the size checks are scripts and Makefile targets in the
+cpcbuild repository, and you run them from a terminal there:
 
 ```
-make test-lamp        # 66 logic checks and 17 screenshot goldens, 464 and 6128, 48K and 128K
+make test-lamp        # 66 logic checks; 17 screenshot goldens on each CPC model, 17 + 4 on each Spectrum model
 make reach-lamp       # about a minute: every lamp reachable, the tower finishable
 games/lamplighter/tests/bench.sh      # the benchmark, all builds, headless
+make test-lamp-plus   # the Plus builds on Caprice32 and CPCEC, about 3 minutes (DESIGN.md section 13)
 ```
 
-(From `DESIGN.md`, sections 8, 11 and 12. These need the repository's own tools and a built headless
+(From `DESIGN.md`, sections 8 and 11 to 13. These need the repository's own tools and a built headless
 emulator: `make chips`.) A **golden** is a saved screenshot of a known state; the test builds the game,
 runs it to that state and compares pictures pixel for pixel. That is how the sound switches were checked
 to change no pixel (chapter 8).

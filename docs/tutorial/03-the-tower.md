@@ -12,15 +12,15 @@ inspected in Studio's map viewer, cut into rooms by a small script, and flipped 
 
 **Time:** about 40 minutes.
 
-**Before you start.** Chapter 2 is working. Copy into your project:
+**Before you start.** Chapter 2 is working. Copy these two files from `games/lamplighter/assets/` into
+your project's `assets/` folder:
 
-| From `games/lamplighter/assets/` | To |
-|---|---|
-| `tower.tmx` | `assets/tower.tmx` |
-| `fontcpc.bas` | `src/assets/fontcpc.bas` |
+- `tower.tmx`, the map;
+- `fontcpc.bas`, the game's font (a ready-made `.bas`: nothing to import).
 
 `tower.tmx` refers to its tileset image as `tiles.png`, so keep it in the same folder as the map
-(you copied `tiles.png` to `assets/` in chapter 2).
+(you copied `tiles.png` to `assets/` in chapter 2). You also need a checkout of the cpcbuild repository
+for step 5, which runs one of its scripts.
 
 ---
 
@@ -49,14 +49,27 @@ chapter 5.)
 ## Step 2: Open the map in Studio's viewer
 
 In the Explorer, right-click `assets/tower.tmx` and choose **Open With...** then **CPCBuild Map
-Viewer**. (The viewer is never the default, so Tiled and a text view still work normally.)
-<!-- CHECK: the viewer is registered with priority "option" (not default) per the design; confirm the Open With label is "CPCBuild Map Viewer" (package.json displayName) and that it shows in the right-click menu for .tmx. -->
+Viewer**. (The viewer is registered as an option, never the default, so a double-click still opens the
+file as text, and Tiled still works normally.)
 
-You should see the whole tower as one picture, 60 x 92 tiles, drawn from `tiles.png`. Zoom with the
-toolbar. Hover over or click a cell and the side panel shows its map position (x, y), its Tiled
-`gid` and the **tile number** the game will see. Click a tile in the tile strip and every cell using
-it lights up: handy for finding all the lamps (tile 5).
-<!-- CHECK: panel names and controls (Layer select, zoom, grid, numbers overlay, CPC preview, tileset strip, cell inspector) are from the UX design; the "as built" notes say tile picking and three tile sources (Tiled image, CPC preview, a matching .cpctil) exist. -->
+You should see the whole tower as one picture, 60 x 92 tiles, drawn from `tiles.png`. The viewer is
+read-only. Its parts:
+
+- **Toolbar.** Zoom out, Zoom in and **Fit**; the overlays **Grid** (`G`), **Tile numbers** (`N`),
+  **Object markers** and **Room** (a frame the size of a screen of cells: it starts at 20 x 25, the whole mode-0
+  screen, and has presets and two boxes; type 20 x 23 to see one Lamplighter room, the HUD rows left out); and a **Tile colours** menu: **Tiled image**
+  (the picture Tiled uses), **CPC preview, mode 0/1/2** (the picture as the CPC will show it), or a
+  matching `.cpctil` tile set if there is one.
+- **Layer**, **firstgid** and **empty**: which tile layer to show, the gid of tile number 0 (empty means
+  the tileset's own first gid) and the tile number written for empty cells. Lamplighter's defaults are
+  right.
+- **Tileset** and **Cell** panels on the right. Hover over or click a cell (or move with the arrow keys)
+  and **Cell (x, y)** shows its Tiled `gid` and the **tile number** the game will see, with **Copy tile
+  number** and **Copy DoTile8 call**. Click a tile in the **Tileset** strip, or type a number into
+  **Highlight tile number**, and every cell using it lights up: handy for finding all the lamps (tile 5).
+  An **Objects** list names every object of the map and where it is.
+- **Buttons along the bottom.** **Array name** and **Generate .bas** (step 4), **Insert TileMap call**,
+  **Open in Tiled** and **Open as text**.
 
 Two numbers to know. Tiled counts tiles from 1 (`gid`), the game from 0 (tile number): the tile
 number is the `gid` minus the tileset's first gid, which is 1 here. And an empty cell becomes tile 0,
@@ -64,8 +77,11 @@ the background.
 
 ## Step 3: Look at the map in Tiled
 
-Run **CPCBuild: Open in Tiled** (or the button in the viewer). It opens `tower.tmx` in the Tiled
-application. If Studio cannot find Tiled, set `cpcbuild.tiled.path` to the application.
+Run **CPCBuild: Open in Tiled** (or use the **Open in Tiled** button in the viewer or in the editor's
+title bar; the viewer's button is greyed out when Studio cannot find Tiled). It opens `tower.tmx` in the Tiled
+application. If Studio cannot find Tiled, set `cpcbuild.tiled.path` to the application. (The Tiled
+screens below are from Tiled 1.9 or later, where the old "Type" field is called **Class**; the file itself
+still stores it as `type`.)
 
 In Tiled you will find:
 
@@ -73,9 +89,9 @@ In Tiled you will find:
   (`tiles.png`, 16 tiles). This is the picture of the tower. Pick a tile in the Tilesets panel and
   paint with the stamp brush.
 - **An object layer called `objects`.** Each object is a small rectangle, 8 x 16 pixels (the size of
-  the player), with a **type** that tells the game what it is:
+  the player), with a **Class** (stored in the file as `type`) that tells the game what it is:
 
-| Type | Custom properties | Meaning |
+| Class (`type`) | Custom properties | Meaning |
 |---|---|---|
 | `start` | none | where the player appears in this room, top left of the sprite. Exactly one per room |
 | `enemy` | `kind` (int): 1 walker, 2 floater, 3 bat; `range` (int): how far in cells | an enemy that starts here. At most 4 per room |
@@ -83,7 +99,7 @@ In Tiled you will find:
 - **Map properties**, with one custom property `names`: the 12 room names, comma separated, in room
   order.
 
-<!-- CHECK: Tiled's current UI calls an object's type "Class"; the .tmx attribute is still type="start"/"enemy". Check the wording against the Tiled version you use (the map was saved by Tiled 1.10.2). -->
+<!-- CHECK (Tiled UI wording, from memory not from a running Tiled): in the Tiled you use, select an object and confirm the Properties panel calls the field "Class" and that custom properties are added with the "+" button at the bottom of the panel. The map was saved by Tiled 1.10.2; 1.11.2 is installed on the authoring machine. -->
 
 A worked example. Room 9 starts at cell (1, 20) of its room, which is pixel (8, 160) inside the room.
 Room 9 is in column 0 of row 3, so in the big map its pixel position is x = 0 x 160 + 8 = **8** and
@@ -103,13 +119,15 @@ Some notes for when you edit the map yourself:
 ## Step 4: Convert the whole map
 
 Studio can turn a tile layer into a Boriel array in one click: with the map viewer (or the `.tmx`
-text) active, run **CPCBuild: Convert Tiled Map to BASIC**. If the map has more than one tile layer
-it asks which one; Lamplighter has one (`tiles`). A message says which file it wrote, with an
-**Open** button.
-<!-- CHECK: the default output name and folder of the conversion (the command reports "wrote <output>"; the name option defaults per tools/tmx2bas.py: the file stem?). -->
+text) active, run **CPCBuild: Convert Tiled Map to BASIC** (it is also a button in the editor's title
+bar), or press **Generate .bas** in the viewer. If the map has more than one tile layer the command asks
+which one; Lamplighter has one (`tiles`). The output goes beside the map, with the map's file name and
+`.bas`, so here `assets/tower.bas`, with the array named after the file (`tower`). A message says
+`CPCBuild: wrote assets/tower.bas`, with an **Open** button. (The **Array name** box in the viewer
+changes the name.)
 
 Open the file. It holds the whole map as one array, 60 x 92 = 5,520 bytes, one tile number per cell,
-row by row, plus its width and height in tiles (`level_W` and `level_H` for a map called `level`).
+row by row, plus its width and height in tiles (`tower_W` and `tower_H`).
 This is the tool `tools/tmx2bas.py` (library docs: **Asset pipeline**, "tmx2bas.py: Tiled maps to
 tile maps"). A game with one screen-sized map could stop here:
 
@@ -127,25 +145,26 @@ Lamplighter cannot, for three reasons:
 3. It needs the objects (start cells, enemies) and the room names, which are not tile data at all.
 
 So the finished game uses one more small tool, `split_rooms.py`. You do not need to keep the
-converted file; delete it.
+converted file; delete `assets/tower.bas`.
 
 ## Step 5: Cut the map into rooms
 
-`split_rooms.py` lives in the cpcbuild repository, in `games/lamplighter/assets/`. It reads the
-`.tmx`, uses `tmx2bas.py` to get the tile layer, and writes one file with everything the game needs.
-It imports `tools/tmx2bas.py` from its own place in the repository, so run it *from the
-repository*, giving it the paths of your project's files:
+This step is **not a Studio feature**. Splitting the big map into rooms is a small Python script in the
+cpcbuild repository, `games/lamplighter/assets/split_rooms.py`; Studio's map tools stop at the one-click
+conversion above. The script reads the `.tmx`, uses `tools/tmx2bas.py` to get the tile layer, and writes one
+file with everything the game needs. It finds `tmx2bas.py` relative to its own place in the repository, so
+run the script from the repository's copy, in your project folder, giving it your project's paths:
 
 ```sh
-python3 games/lamplighter/assets/split_rooms.py \
-    /path/to/lamplighter/assets/tower.tmx \
-    -o /path/to/lamplighter/src/assets/rooms.bas
+cd /path/to/lamplighter
+python3 /path/to/cpcbuild/games/lamplighter/assets/split_rooms.py assets/tower.tmx -o assets/rooms.bas
 ```
 
-(Run from the cpcbuild checkout. Studio does not run this step for you yet: only the one-click map
-conversion above is built in.)
+(No Python on your machine, or no checkout? Copy the finished `games/lamplighter/assets/rooms.bas`
+instead; it is the output of exactly this command. You will only need to run the script if you edit the
+map.)
 
-Open `src/assets/rooms.bas`. The header comment says how the file is laid out:
+Open `assets/rooms.bas`. The header comment says how the file is laid out:
 
 ```basic
 ' Generated by split_rooms.py (tower.tmx); do not edit, regenerate with build_assets.sh.
@@ -173,11 +192,13 @@ DIM rooms(5519) AS UBYTE => { _
 (From the docstring of `split_rooms.py:11-16`.) The script also stops with a message if a room has
 more than four enemies or not exactly one start, so a mistake in Tiled cannot reach the game.
 
-To rebuild the file after editing the map in Tiled: save in Tiled, run the command again, build.
+To rebuild the file after editing the map in Tiled: save in Tiled, run the command again, build. Studio's
+**Regenerate Assets** and its automatic regeneration before a build know nothing about this file: they
+only run `.cpcimp` recipes.
 
 ## Step 6: Draw the rooms and flip between them
 
-Now use the rooms. Replace `src/platform_cpc.bas`:
+Now use the rooms. Replace `platform_cpc.bas`:
 
 ```basic
 ' platform_cpc.bas -- the CPC side: screen, palette, tiles, text, keys (mode 0).
@@ -239,7 +260,7 @@ END FUNCTION
 (`PlatRoom` and `PlatInit` are simplified from `platform_cpc.bas:110-145`; `PlatInput` is
 `platform_cpc.bas:284-295` unchanged.)
 
-And `src/game.bas`:
+And `game.bas`:
 
 ```basic
 ' game.bas -- the game logic: no drawing, only calls into the platform layer.
@@ -296,8 +317,8 @@ lantern), ladders, spikes, windows, and doors (orange blocks) on most rooms.
 For comparison, the finished game's room 9 is [this picture](../../games/lamplighter/tests/golden/464/room09.png)
 (the golden test image, with the player, HUD and enemy of later chapters).
 
-If the build stops with `Undeclared function "RoomName"` or similar, check that `rooms.bas` was
-generated into `src/assets/`. If the room is full of wrong tiles, the map and `tiles.png` disagree:
+If the build stops with `Undeclared function "RoomName"` or similar, check that `rooms.bas` is in
+`assets/`. If the room is full of wrong tiles, the map and `tiles.png` disagree:
 re-run both conversions.
 
 ## How it works
