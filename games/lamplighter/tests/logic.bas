@@ -3,6 +3,7 @@ REM scripted input. Runs on any build: it uses the null layer
 REM (platform_null.bas) and prints "PASS name" / "FAIL name ..." lines and
 REM DONE, the convention of tests/conformance.
 
+#include "say.bas"
 #include "platform_null.bas"
 #include "../game.bas"
 
@@ -10,17 +11,17 @@ DIM i, k, n, lo, hi, st AS UBYTE
 
 SUB Check(name AS STRING, ok AS UBYTE)
   IF ok <> 0 THEN
-    PRINT "PASS "; name
+    Say("PASS " + name)
   ELSE
-    PRINT "FAIL "; name
+    Say("FAIL " + name)
   END IF
 END SUB
 
 SUB CheckEq(name AS STRING, got AS LONG, want AS LONG)
   IF got = want THEN
-    PRINT "PASS "; name
+    Say("PASS " + name)
   ELSE
-    PRINT "FAIL "; name; " got="; got; " want="; want
+    Say("FAIL " + name + " got=" + STR$(got) + " want=" + STR$(want))
   END IF
 END SUB
 
@@ -268,4 +269,4 @@ Put(9, 3, 20)
 st = GameStep(0)
 CheckEq("won", st, S_WON)
 
-PRINT "DONE"
+AllDone()

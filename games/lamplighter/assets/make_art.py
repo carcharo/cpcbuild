@@ -18,6 +18,14 @@ one):
                 tile layer "tiles" and object layer "objects" (start cells
                 and enemies), room names as the map property "names".
                 Room r is at grid column r % 3, row r // 3 (row 0 at the top).
+  zx/zx_tiles.png    128x8  the tiles in Spectrum colours (ZX_COLOUR below:
+                        what img2cpc.py --spectrum then picks per cell as ink
+                        and paper), same tile numbers
+  zx/zx_sprites.png  96x16  the sprite frames as white silhouettes on
+                        transparent (img2cpc.py --spectrum --zx-sprite: ink
+                        only, drawn by OR; the colour comes from the program's
+                        attributes); frame f is cells f (top) and f + 12
+                        (bottom) in the converted data
   font.bas      none: the CPC build reuses Starfall's 5x7 font (fontcpc.bas)
 
 The tower's rooms are described in ROOMS below with a few commands each
@@ -187,6 +195,48 @@ def tiles_image():
         for y, row in enumerate(rows):
             for x, ch in enumerate(row):
                 img.putpixel((8 * t + x, y), rgb_of(ch))
+    return img
+
+
+# The same art for the Spectrum: art character -> (Spectrum colour 0-7 =
+# G*4 + R*2 + B, bright). One brightness per tile keeps the per-cell
+# BRIGHT bit honest; dim pens stay dim (normal, not bright).
+ZX_COLOUR = {
+    "K": (0, 0), "d": (1, 0), "r": (2, 1), "R": (2, 1), "O": (6, 1),
+    "Y": (6, 1), "y": (6, 0), "W": (7, 1), "g": (7, 0), "B": (1, 1),
+    "C": (5, 1), "G": (4, 0), "L": (4, 1), "P": (3, 1), "M": (3, 1),
+    "N": (1, 1),
+}
+
+
+# per tile: characters drawn in another colour on the Spectrum (a cell has one
+# ink, so the lit lamp is all yellow; the window's panes are blue)
+ZX_TILE_CHARS = {6: {"g": "Y", "W": "Y", "y": "Y"}, 10: {"B": "d", "C": "d"}}
+
+
+def zx_rgb(ch):
+    idx, br = ZX_COLOUR[ch]
+    lv = 255 if br else 215
+    return (lv if idx & 2 else 0, lv if idx & 4 else 0, lv if idx & 1 else 0)
+
+
+def zx_tiles_image():
+    img = Image.new("RGB", (8 * len(TILES), 8))
+    for t, rows in enumerate(TILES):
+        for y, row in enumerate(rows):
+            for x, ch in enumerate(row):
+                ch = ZX_TILE_CHARS.get(t, {}).get(ch, ch)
+                img.putpixel((8 * t + x, y), zx_rgb(ch))
+    return img
+
+
+def zx_sprites_image(fr):
+    img = Image.new("RGBA", (8 * len(fr), 16), (0, 0, 0, 0))
+    for f, rows in enumerate(fr):
+        for y, row in enumerate(rows):
+            for x, ch in enumerate(row):
+                if ch not in ".K":
+                    img.putpixel((8 * f + x, y), (255, 255, 255, 255))
     return img
 
 
@@ -458,6 +508,9 @@ def main():
     tiles_image().save(out / "tiles.png")
     sprites_image(frames()).save(out / "sprites.png")
     (out / "tower.tmx").write_text(tmx(tower()))
+    (out / "zx").mkdir(exist_ok=True)
+    zx_tiles_image().save(out / "zx" / "zx_tiles.png")
+    zx_sprites_image(frames()).save(out / "zx" / "zx_sprites.png")
 
 
 if __name__ == "__main__":

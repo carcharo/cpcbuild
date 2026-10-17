@@ -9,7 +9,8 @@
 '   PlatSprite(slot, frame, x, y)     sprite slot 0 (player), 1-4 (enemies);
 '                                     x in pixels, y in lines; frame 255 = hidden
 '   PlatHud(lit, total, lives, room)  the HUD rows, where they changed
-'   PlatSfx(n)                        1 jump, 2 lamp, 3 death
+'   PlatSfx(n)                        1 jump, 2 lamp, 3 death, 4 door opens
+'   (the music is the platform layer's and main.bas's business: PlatMusic)
 '
 ' Units: x in mode-0 pixels 0-159 (the player is 8 wide, moves 2 at a time),
 ' y in lines 0-183 (16 tall). A room is 20 x 23 cells of 8 x 8 (DESIGN.md).
@@ -60,13 +61,13 @@ DIM gLit, gTotal, gRoomLamps, gRoomLit AS UBYTE
 DIM pX, pY, pAir, pJt, pClimb, pFace, pAnim, pMove AS UBYTE
 DIM entX, entY, startC, startR AS UBYTE
 ' enemies: kind (1 walker, 2 floater, 3 bat), position, direction (1 = right
-' or down), counter, start x, start y, range in pixels
+' or down), start x, start y, range in pixels (eTick counts the steps)
 DIM nEn AS UBYTE
 DIM eK(3) AS UBYTE
 DIM eX(3) AS UBYTE
 DIM eY(3) AS UBYTE
 DIM eD(3) AS UBYTE
-DIM eT(3) AS UBYTE
+DIM eTick AS UBYTE      ' steps since the enemies were put on their start squares
 DIM eM(3) AS UBYTE      ' moved (or new) since GameDraw handed it over
 DIM eX0(3) AS UBYTE
 DIM eY0(3) AS UBYTE
@@ -82,6 +83,30 @@ FUNCTION TileAttr(cx AS UBYTE, cy AS UBYTE) AS UBYTE
   jp TA_GO
 TA_TAB:                   ; the attributes of tiles 0-15 (assets/tiles.png)
   defb 0, 1, 2, 4, 8, 16, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0
+CELL_ATTR:                ; B = column, C = row -> A = the cell's attributes (keeps BC)
+  ld a, c
+  ld l, a
+  ld h, 0
+  ld e, a
+  ld d, 0
+  add hl, hl
+  add hl, hl
+  add hl, de
+  add hl, hl
+  add hl, hl
+  ld e, b
+  ld d, 0
+  add hl, de
+  ld de, _cur.__DATA__
+  add hl, de
+  ld a, (hl)
+  and 15
+  ld e, a
+  ld d, 0
+  ld hl, TA_TAB
+  add hl, de
+  ld a, (hl)
+  ret
 TA_GO:
   ld a, (ix+7)            ; cy
   ld l, a
@@ -105,6 +130,81 @@ TA_GO:
   ld hl, TA_TAB
   add hl, de
   ld a, (hl)
+  END ASM
+END FUNCTION
+
+' The lamps and the spikes the player is on, in one call: the attributes of
+' cells l..r of the three rows the body is probed on (y, y+8, y+15), OR'd,
+' masked with 16 (lamp: any of the rows) and 8 (hazard: the lower two rows
+' only). Touch's common case is "nothing", and this answers it in a single
+' call instead of ~6 TileAttr calls and their loops.
+FUNCTION TouchAttr(l AS UBYTE, r AS UBYTE, y AS UBYTE) AS UBYTE
+  ASM
+  jp TOUCH_GO
+TOUCH_ROW:                ; A = row; returns A = the attributes of cells l..r OR'd
+  ld l, a
+  ld h, 0
+  ld e, a
+  ld d, 0
+  add hl, hl
+  add hl, hl
+  add hl, de
+  add hl, hl
+  add hl, hl              ; 20 row
+  ld de, _cur.__DATA__
+  add hl, de
+  ld e, (ix+5)            ; l
+  ld d, 0
+  add hl, de              ; the cell (l, row)
+  ld a, (ix+7)            ; r
+  sub (ix+5)
+  inc a
+  ld b, a                 ; cells to read
+  ld c, 0
+TOUCH_CELL:
+  ld a, (hl)
+  and 15
+  push hl
+  ld e, a
+  ld d, 0
+  ld hl, TA_TAB
+  add hl, de
+  ld a, (hl)
+  or c
+  ld c, a
+  pop hl
+  inc hl
+  djnz TOUCH_CELL
+  ld a, c
+  ret
+TOUCH_GO:
+  ld a, (ix+9)            ; y
+  srl a
+  srl a
+  srl a
+  call TOUCH_ROW
+  and 16                  ; the top row: lamps only
+  ld d, a
+  ld a, (ix+9)
+  add a, 8
+  srl a
+  srl a
+  srl a
+  push de
+  call TOUCH_ROW
+  pop de
+  or d
+  ld d, a
+  ld a, (ix+9)
+  add a, 15
+  srl a
+  srl a
+  srl a
+  push de
+  call TOUCH_ROW
+  pop de
+  or d
+  and 24
   END ASM
 END FUNCTION
 
@@ -157,12 +257,12 @@ END SUB
 ' Puts the enemies on their start squares, hides the unused slots.
 SUB ResetEnemies()
   DIM i AS UBYTE
+  eTick = 0
   FOR i = 0 TO 3
     IF i < nEn THEN
       eX(i) = eX0(i)
       eY(i) = eY0(i)
       eD(i) = 1
-      eT(i) = 0
       eM(i) = 1
     ELSE
       PlatSprite(i + 1, 255, 0, 0)
@@ -232,6 +332,7 @@ SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
       IF cur(i) = T_DOOR THEN
         cur(i) = T_OPEN
         PlatTile(CAST(UBYTE, i MOD ROOM_W), CAST(UBYTE, i / ROOM_W), T_OPEN)
+        PlatSfx(4)
       END IF
     NEXT i
   END IF
@@ -255,10 +356,38 @@ END SUB
 
 ' Solid cell in column c over the body's rows (y, y+8, y+15)?
 FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
-  IF (TileAttr(c, y >> 3) BAND 1) <> 0 THEN RETURN 1
-  IF (TileAttr(c, (y + 8) >> 3) BAND 1) <> 0 THEN RETURN 1
-  IF (TileAttr(c, (y + 15) >> 3) BAND 1) <> 0 THEN RETURN 1
-  RETURN 0
+  ASM
+  ld b, (ix+5)            ; the column
+  ld a, (ix+7)            ; y
+  srl a
+  srl a
+  srl a
+  ld c, a
+  call CELL_ATTR
+  and 1
+  jr nz, CS_YES
+  ld a, (ix+7)
+  add a, 8
+  srl a
+  srl a
+  srl a
+  ld c, a
+  call CELL_ATTR
+  and 1
+  jr nz, CS_YES
+  ld a, (ix+7)
+  add a, 15
+  srl a
+  srl a
+  srl a
+  ld c, a
+  call CELL_ATTR
+  and 1
+  jr CS_DONE
+CS_YES:
+  ld a, 1
+CS_DONE:
+  END ASM
 END FUNCTION
 
 ' The attributes of the cells under the two hit box columns at line y
@@ -450,84 +579,142 @@ END SUB
 ' direction dir (1 right)? No wall in its way, ground under the leading
 ' edge, no spikes there.
 FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
-  DIM c AS UBYTE
-  IF dir = 1 THEN c = (x + 7) >> 3 ELSE c = x >> 3
-  IF ColSolid(c, y) <> 0 THEN RETURN 0
-  IF (TileAttr(c, (y + 16) >> 3) BAND 3) = 0 THEN RETURN 0
-  IF (TileAttr(c, (y + 15) >> 3) BAND 8) <> 0 THEN RETURN 0
-  RETURN 1
+  ASM
+  ld a, (ix+9)            ; dir
+  cp 1
+  ld a, (ix+5)            ; x
+  jr nz, WK_COL
+  add a, 7                ; going right: the right edge
+WK_COL:
+  srl a
+  srl a
+  srl a
+  ld b, a                 ; the column in front
+  ld a, (ix+7)            ; y
+  srl a
+  srl a
+  srl a
+  ld c, a
+  call CELL_ATTR
+  and 1
+  jr nz, WK_NO            ; a wall (rows y, y+8, y+15)
+  ld a, (ix+7)
+  add a, 8
+  srl a
+  srl a
+  srl a
+  ld c, a
+  call CELL_ATTR
+  and 1
+  jr nz, WK_NO
+  ld a, (ix+7)
+  add a, 15
+  srl a
+  srl a
+  srl a
+  ld c, a
+  call CELL_ATTR
+  and 1
+  jr nz, WK_NO
+  call CELL_ATTR          ; (row y+15 again: the spikes)
+  and 8
+  jr nz, WK_NO
+  ld a, (ix+7)
+  add a, 16
+  srl a
+  srl a
+  srl a
+  ld c, a
+  call CELL_ATTR          ; the ground under it
+  and 3
+  jr z, WK_NO
+  ld a, 1
+  jr WK_DONE
+WK_NO:
+  xor a
+WK_DONE:
+  END ASM
 END FUNCTION
 
-' Enemies move two pixels every second step, half of them on each step
-' (so the drawing of a step is the player and at most two enemies, which a
-' 464 can do at 25 steps a second).
+' Enemies move two pixels every second step, half of them on each step: enemy
+' i on the steps where eTick and i are both even or both odd (so the drawing
+' of a step is the player and at most two enemies, which a 464 can do at 25
+' steps a second). Only those are visited: the others cost nothing.
 SUB MoveEnemies()
-  DIM i, k, nx AS UBYTE
+  DIM i, k, x, y, d AS UBYTE
   IF nEn = 0 THEN RETURN
-  FOR i = 0 TO nEn - 1
-    eT(i) = eT(i) + 1
-    eM(i) = 0
-    IF ((eT(i) + i) BAND 1) = 0 THEN
-      eM(i) = 1
-      k = eK(i)
-      IF k = 1 THEN
-        IF eD(i) = 1 THEN
-          IF eX(i) >= 152 THEN
-            eD(i) = 0
-          ELSE
-            nx = eX(i) + 2
-            IF WalkOK(nx, eY(i), 1) = 0 THEN eD(i) = 0 ELSE eX(i) = nx
-          END IF
+  eTick = eTick + 1
+  i = eTick BAND 1
+  DO WHILE i < nEn
+    eM(i) = 1
+    k = eK(i)
+    x = eX(i)
+    d = eD(i)
+    IF k = 1 THEN
+      IF d = 1 THEN
+        IF x >= 152 THEN
+          eD(i) = 0
         ELSE
-          IF eX(i) < 2 THEN
-            eD(i) = 1
-          ELSE
-            nx = eX(i) - 2
-            IF WalkOK(nx, eY(i), 0) = 0 THEN eD(i) = 1 ELSE eX(i) = nx
-          END IF
-        END IF
-      ELSEIF k = 2 THEN
-        IF eD(i) = 1 THEN
-          eY(i) = eY(i) + 2
-          IF eY(i) >= eY0(i) + eR(i) THEN eD(i) = 0
-        ELSE
-          eY(i) = eY(i) - 2
-          IF eY(i) <= eY0(i) THEN eD(i) = 1
+          x = x + 2
+          IF WalkOK(x, eY(i), 1) = 0 THEN eD(i) = 0 ELSE eX(i) = x
         END IF
       ELSE
-        IF eD(i) = 1 THEN
-          eX(i) = eX(i) + 2
-          IF eX(i) >= eX0(i) + eR(i) THEN eD(i) = 0
+        IF x < 2 THEN
+          eD(i) = 1
         ELSE
-          eX(i) = eX(i) - 2
-          IF eX(i) <= eX0(i) THEN eD(i) = 1
+          x = x - 2
+          IF WalkOK(x, eY(i), 0) = 0 THEN eD(i) = 1 ELSE eX(i) = x
         END IF
-        eY(i) = eY0(i) + batTab((eT(i) >> 1) BAND 31) - 8
       END IF
+    ELSEIF k = 2 THEN
+      y = eY(i)
+      IF d = 1 THEN
+        y = y + 2
+        eY(i) = y
+        IF y >= eY0(i) + eR(i) THEN eD(i) = 0
+      ELSE
+        y = y - 2
+        eY(i) = y
+        IF y <= eY0(i) THEN eD(i) = 1
+      END IF
+    ELSE
+      IF d = 1 THEN
+        x = x + 2
+        eX(i) = x
+        IF x >= eX0(i) + eR(i) THEN eD(i) = 0
+      ELSE
+        x = x - 2
+        eX(i) = x
+        IF x <= eX0(i) THEN eD(i) = 1
+      END IF
+      eY(i) = eY0(i) + batTab((eTick >> 1) BAND 31) - 8
     END IF
-  NEXT i
+    i = i + 2
+  LOOP
 END SUB
 
 ' Lamps, spikes and enemies against the player; returns 1 on a hit.
 FUNCTION Touch() AS UBYTE
-  DIM k, c, l, r, row, t, hit, ex, ey AS UBYTE
+  DIM k, c, l, r, row, t, hit, ex, ey, a AS UBYTE
   l = (pX + 1) >> 3
   r = (pX + 6) >> 3
   hit = 0
-  FOR k = 0 TO 2
-    IF k = 0 THEN
-      row = pY >> 3
-    ELSEIF k = 1 THEN
-      row = (pY + 8) >> 3
-    ELSE
-      row = (pY + 15) >> 3
-    END IF
-    FOR c = l TO r
-      t = TileAttr(c, row)
-      IF (t BAND 16) <> 0 THEN LightLamp(c, row)
-      IF k > 0 AND (t BAND 8) <> 0 THEN hit = 1
-    NEXT c
-  NEXT k
+  a = TouchAttr(l, r, pY)
+  IF (a BAND 8) <> 0 THEN hit = 1
+  IF (a BAND 16) <> 0 THEN
+    FOR k = 0 TO 2
+      IF k = 0 THEN
+        row = pY >> 3
+      ELSEIF k = 1 THEN
+        row = (pY + 8) >> 3
+      ELSE
+        row = (pY + 15) >> 3
+      END IF
+      FOR c = l TO r
+        IF (TileAttr(c, row) BAND 16) <> 0 THEN LightLamp(c, row)
+      NEXT c
+    NEXT k
+  END IF
   IF nEn = 0 THEN RETURN hit
   FOR k = 0 TO nEn - 1
     ex = eX(k)
@@ -565,7 +752,7 @@ SUB GameDraw()
   END IF
   FOR i = 0 TO nEn - 1
     IF eM(i) <> 0 THEN
-      PlatSprite(i + 1, F_ENEMY + ((eT(i) >> 2) BAND 1), eX(i), eY(i))
+      PlatSprite(i + 1, F_ENEMY + ((eTick >> 2) BAND 1), eX(i), eY(i))
       eM(i) = 0
     END IF
   NEXT i

@@ -2,10 +2,12 @@
 ' platform_cpc.bas -- Lamplighter's portable layer for the Amstrad CPC
 ' (--arch cpc --org 0x40), mode 0
 '
-' Build switches (profiling: -D NOPACE no frame wait, -D NOFLUSH no drawing): -D CPC464 / -D CPC6128 (the same code: firmware builds,
+' Build switches: -D CPC464 / -D CPC6128 (the same code: firmware builds,
 ' single-buffered); -D NOGAMEMODE (keep the firmware's interrupt handler
-' while playing); -D SHOT=n and -D BENCH are handled by main.bas through
-' PlatShot and PlatEnd.
+' while playing); -D NOMUSIC (effects only), -D NOSFX (music only), -D
+' NOSOUND (silent); profiling: -D NOPACE no frame wait, -D NOFLUSH no
+' drawing. -D SHOT=n and -D BENCH are handled by main.bas through PlatShot
+' and PlatEnd.
 '
 ' Screen (mode 0, 20 x 25 tile cells of 4 x 8 bytes): the room is cells
 ' 0-19 x 0-22 (lines 0-183), the HUD rows 23 and 24. A sprite is 4 bytes
@@ -48,6 +50,32 @@
 #include "assets/sprites.bas"
 #include "assets/fontcpc.bas"
 
+#ifdef NOSOUND
+#ifndef NOMUSIC
+#define NOMUSIC
+#endif
+#ifndef NOSFX
+#define NOSFX
+#endif
+#endif
+
+' Starfall's tunes and effects (lib/music, Arkos Tracker 3). The player runs
+' on the frame hook, whatever the game does; the songs and the effects bank
+' live in main RAM on both models (a few hundred bytes). Effects only sound
+' while a song plays: -D NOMUSIC plays an empty one.
+#ifndef NOSOUND
+#include <music/music.bas>
+#ifndef NOMUSIC
+#include "assets/title.bas"
+#include "assets/gamesong.bas"
+#else
+#include "assets/quiet.bas"
+#endif
+#ifndef NOSFX
+#include "assets/sfx.bas"
+#endif
+#endif
+
 #ifdef SHOT
 #include "../../tests/screens/lib/shot.bas"
 #endif
@@ -67,6 +95,10 @@ DIM dMask AS UBYTE       ' bit s: slot s moved or changed since it was drawn
 DIM vMask AS UBYTE       ' bit s: slot s is to be shown
 DIM sForce AS UBYTE
 DIM fT AS UINTEGER                       ' Frames() at the start of this step
+DIM curTune AS UBYTE                     ' the music playing: 0 none, 1 title, 2 game
+' PlatSfx(n) -> Starfall's effect: 1 jump = its shot, 2 lamp = its wave, 3 death
+' = its hit, 4 door = its boom
+DIM sfxMap(4) AS UBYTE => {0, 1, 4, 3, 2}
 DIM hLit, hTot, hLives, hRoom AS UBYTE
 
 SUB PlatInit()
@@ -84,6 +116,9 @@ SUB PlatInit()
   NEXT i
   sForce = 0
   hLit = 255
+#ifndef NOSFX
+  SfxInit(@sf_sfx)
+#endif
 END SUB
 
 ' Draws a room: the screen is blanked (all pens black) while the tiles go
@@ -108,6 +143,11 @@ END SUB
 SUB PlatTile(cx AS UBYTE, cy AS UBYTE, t AS UBYTE)
   DoTile8(cx, cy, t)
   sForce = 1
+END SUB
+
+' A tile at cell (cx, cy), outside the game's map (the title's lamps).
+SUB PlatTileRaw(cx AS UBYTE, cy AS UBYTE, t AS UBYTE)
+  DoTile8(cx, cy, t)
 END SUB
 
 ' Sprite slot s shows frame f at pixel x, line y at the next flush.
@@ -269,7 +309,35 @@ SUB PlatPlaying(flag AS UBYTE)
 #endif
 END SUB
 
+' 0 off, 1 the title's tune, 2 the game's.
+SUB PlatMusic(tune AS UBYTE)
+#ifndef NOSOUND
+  IF tune = curTune THEN RETURN
+  curTune = tune
+  IF tune = 0 THEN
+    MusicStop()
+  ELSEIF tune = 1 THEN
+#ifndef NOMUSIC
+    MusicInit(@sf_title, 0)
+#else
+    MusicInit(@bounce_quiet, 0)
+#endif
+  ELSE
+#ifndef NOMUSIC
+    MusicInit(@sf_game, 0)
+#else
+    MusicInit(@bounce_quiet, 0)
+#endif
+  END IF
+#endif
+END SUB
+
+' Effects: 1 jump, 2 lamp lit, 3 death, 4 door opens (they replace one
+' still playing; heard while a tune plays).
 SUB PlatSfx(n AS UBYTE)
+#ifndef NOSFX
+  IF curTune <> 0 THEN SfxPlay(sfxMap(n), 0, 0)
+#endif
 END SUB
 
 ' Back to the firmware's world, for text output (main.bas under -D BENCH or
@@ -277,6 +345,9 @@ END SUB
 #ifdef TESTSW
 SUB PlatEnd()
   GameMode(0)
+#ifndef NOSOUND
+  MusicStop()
+#endif
 END SUB
 #endif
 

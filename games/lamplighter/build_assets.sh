@@ -14,3 +14,10 @@ python3 $A/make_art.py
 $I --mode 0 --name tiles --tiles --palette-file $A/lamp.pal $A/tiles.png -o $A/tiles.bas
 $I --mode 0 --name sprites --sprite --masked --frame 8x16 --palette-file $A/lamp.pal --no-palette $A/sprites.png -o $A/sprites.bas
 python3 $A/split_rooms.py $A/tower.tmx -o $A/rooms.bas
+
+# Spectrum: tiles as 1 bit + an attribute per cell (img2cpc picks ink and
+# paper per cell), sprites as ink-only silhouettes (colour comes from the
+# program: the player and the ghosts have an attribute each)
+mkdir -p $A/zx
+$I --spectrum --name zx_tiles $A/zx/zx_tiles.png -o $A/zx/zx_tiles.bas
+$I --spectrum --zx-sprite --name zx_sprites $A/zx/zx_sprites.png -o $A/zx/zx_sprites.bas

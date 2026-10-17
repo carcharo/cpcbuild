@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-lamp test-plus test-cpcec cpcec cap32 chips assets bench ci clean
+.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-lamp reach-lamp test-plus test-cpcec cpcec cap32 chips assets bench ci clean
 
 PYTHON := python3
 ZXBASIC := ../zxbasic
@@ -52,8 +52,11 @@ test-games: chips ## Starfall: logic tests and screenshot goldens for all four b
 	$(PYTHON) games/shooter/tests/run.py
 	$(PYTHON) games/shooter/tests/zx/run.py
 
-test-lamp: chips ## Lamplighter: logic tests and screenshot goldens for the 464 and 6128 builds on chips
+test-lamp: chips ## Lamplighter: logic tests, whole-tower playthrough and screenshot goldens for the 464, 6128, Spectrum 48K and 128K builds on chips
 	$(PYTHON) games/lamplighter/tests/run.py
+
+reach-lamp: ## Lamplighter: the reachability model over the map (about a minute): every lamp and door reachable in order, the recorded playthrough up to date
+	$(PYTHON) games/lamplighter/tests/reach.py --check
 
 test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conformance (firmware and --bare), screenshots (firmware and --bare)
 	$(PYTHON) tests/plus/run.py

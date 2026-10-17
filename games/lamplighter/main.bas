@@ -9,7 +9,9 @@
 ' Test switches: -D START_ROOM=n (start in room n at its start cell instead
 ' of the cellar, 9), -D SHOT=n (a screenshot after n logic steps, then END),
 ' -D SHOT_LIT (with SHOT: the room's lamps lit first, the door open), -D
-' SHOT_CLIMB (the player halfway up room 10's ladder), -D SHOT_TITLE (the
+' SHOT_CLIMB (the player halfway up room 10's ladder), -D SHOT_WALK (the
+' player walks right from the start and jumps after 8 steps: sprites moving,
+' a lamp lit on the way), -D SHOT_TITLE (the
 ' title screen, after a second), -D BENCH (250 logic steps of a scripted game with four enemies, then the
 ' step rate). Platform extras used by those: PlatEnd() and PlatShot(name).
 ' ----------------------------------------------------------------
@@ -34,7 +36,11 @@ CONST FIRST_ROOM AS UBYTE = 9
 #endif
 
 #include once "assets/rooms.bas"
+#ifdef __CPC__
 #include "platform_cpc.bas"
+#else
+#include "platform_zx.bas"
+#endif
 #include "game.bas"
 
 #ifdef SHOT
@@ -46,6 +52,7 @@ DIM benchN AS UINTEGER
 DIM benchLast AS UINTEGER
 DIM benchLate AS UINTEGER      ' steps that took more than two frames
 DIM benchMax AS UINTEGER       ' the longest step, in frames
+DIM benchAt(15) AS UINTEGER    ' -D BENCHLOG: the first late steps (number, frames)
 #endif
 
 #ifdef SHOT
@@ -74,6 +81,9 @@ SUB Tick()
   IF shotN = SHOT THEN
     PlatShot("room")
     PlatEnd()
+#ifdef __ZX48K__
+    TEND()
+#endif
     END
   END IF
 #endif
@@ -85,7 +95,15 @@ SUB Tick()
   ELSE
     d = PlatFrames() - benchLast
     benchLast = PlatFrames()
-    IF d > 2 THEN benchLate = benchLate + 1
+    IF d > 2 THEN
+#ifdef BENCHLOG
+      IF benchLate < 8 THEN
+        benchAt(benchLate * 2) = benchN
+        benchAt(benchLate * 2 + 1) = d
+      END IF
+#endif
+      benchLate = benchLate + 1
+    END IF
     IF d > benchMax THEN benchMax = d
   END IF
   benchN = benchN + 1
@@ -93,7 +111,23 @@ SUB Tick()
     t = PlatFrames() - benchT
     PlatEnd()
     r = 62500 / (t >> 1)
+#ifdef __CPC__
     PRINT "INFO steps="; benchN - 1; " frames="; t; " per second="; r / 10; "."; r - (r / 10) * 10; " late="; benchLate; " longest="; benchMax
+#else
+    TLN("INFO steps=" + STR$(benchN - 1) + " frames=" + STR$(t) + " per second=" + STR$(r / 10) + "." + STR$(r - (r / 10) * 10) + " late=" + STR$(benchLate) + " longest=" + STR$(benchMax))
+#endif
+#ifdef BENCHLOG
+    FOR t = 0 TO 7
+#ifdef __CPC__
+      IF t < benchLate THEN PRINT "LATE step "; benchAt(t * 2); " frames "; benchAt(t * 2 + 1)
+#else
+      IF t < benchLate THEN TLN("LATE step " + STR$(benchAt(t * 2)) + " frames " + STR$(benchAt(t * 2 + 1)))
+#endif
+    NEXT t
+#endif
+#ifdef __ZX48K__
+    TEND()
+#endif
     END
   END IF
 #endif
@@ -121,13 +155,18 @@ SUB TitleScreen()
   DIM released, f AS UBYTE
   DIM idle AS UINTEGER
   PlatClear()
+  PlatMusic(1)
   PlatText(4, 3, "LAMPLIGHTER")
   PlatText(1, 7, "LIGHT EVERY LAMP IN")
   PlatText(3, 9, "THE DARK TOWER")
-  DoTile8(8, 12, T_LIT)
-  DoTile8(11, 12, T_LAMP)
+  PlatTileRaw(8, 12, T_LIT)
+  PlatTileRaw(11, 12, T_LAMP)
   PlatText(5, 17, "PRESS FIRE")
+#ifdef __CPC__
   PlatText(1, 20, "O P Q A OR CURSORS")
+#else
+  PlatText(1, 20, "O P Q A OR KEMPSTON")
+#endif
   PlatText(1, 22, "SPACE JUMPS")
   released = 0
   idle = 0
@@ -142,6 +181,9 @@ SUB TitleScreen()
     IF idle = 50 THEN
       PlatShot("room")
       PlatEnd()
+#ifdef __ZX48K__
+      TEND()
+#endif
       END
     END IF
 #endif
@@ -153,6 +195,7 @@ END SUB
 SUB RunGame()
   DIM ov AS UBYTE
   PlatClear()
+  PlatMusic(2)
   PlatPlaying(1)
   GameInit(FIRST_ROOM)
 #ifdef SHOT
@@ -175,6 +218,11 @@ SUB RunGame()
   ov = 0
   DO
     inp = PlatInput()
+#ifdef SHOT_WALK
+    ' walking right from the start, a jump after 8 steps
+    inp = I_RIGHT
+    IF shotN = 8 THEN inp = I_RIGHT BOR I_FIRE
+#endif
 #ifdef BENCH
     inp = BenchInput(benchN)
     gLives = 3
@@ -199,6 +247,7 @@ SUB RunGame()
     END IF
   LOOP
   PlatPlaying(0)
+  PlatMusic(0)
 END SUB
 
 PlatInit()
