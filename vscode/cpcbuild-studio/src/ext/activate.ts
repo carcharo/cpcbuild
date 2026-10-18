@@ -53,6 +53,8 @@ export interface StudioApi {
   trust: typeof trustTestApi;
   /** runInEmulator with explicit settings (tests: no prompts, no real emulator). */
   runIn: typeof runInEmulator;
+  /** discToRun with a stubbable quick pick (extension-host tests). */
+  disc: typeof discTestApi;
 }
 
 async function configTarget(): Promise<vscode.ConfigurationTarget> {
@@ -88,6 +90,11 @@ async function runTask(run: boolean): Promise<void> {
  * The program to RUN from a .dsk: the disc name of the project target that builds this file, else the
  * disc's own catalogue (one .BIN or .BAS runs; several ask). Undefined = nothing to run (already told).
  */
+/** Test hooks for discToRun: `pick` answers the "which program" quick pick without showing it. */
+export const discTestApi: { pick?: (candidates: string[]) => Promise<string | undefined>; discToRun: typeof discToRun } = {
+  discToRun: (file, s) => discToRun(file, s),
+};
+
 async function discToRun(file: string, s: ReturnType<typeof readSettings>): Promise<{ name: string; model: RunInfo['model'] } | undefined> {
   for (const lp of await findProjects()) {
     if (!lp.project) continue;
@@ -104,7 +111,7 @@ async function discToRun(file: string, s: ReturnType<typeof readSettings>): Prom
   const c = runFromCatalogue(img);
   if (c.kind === 'one') return { name: c.name, model: s.model };
   if (c.kind === 'many') {
-    const pick = await vscode.window.showQuickPick(c.candidates, { title: 'CPCBuild: which program to run from this disc?' });
+    const pick = await (discTestApi.pick ?? ((cs: string[]) => vscode.window.showQuickPick(cs, { title: 'CPCBuild: which program to run from this disc?' })))(c.candidates);
     return pick ? { name: pick, model: s.model } : undefined;
   }
   void vscode.window.showInformationMessage(
@@ -301,6 +308,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     debug: debugApi,
     emuMissing: emuMissingTestApi,
     runIn: runInEmulator,
+    disc: discTestApi,
     lintRuns: (uri) => lint.runs(uri),
     trust: trustTestApi,
     palette,

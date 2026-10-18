@@ -11,7 +11,7 @@ export const ZX_NOT_SET =
 
 /** The emulator's arguments with ${file} replaced by the .tap path. */
 export function zxArgs(s: ZxSettings, file: string): string[] {
-  return s.zxEmulatorArgs.map((a) => a.replace(/\$\{file\}/g, file));
+  return s.zxEmulatorArgs.map((a) => a.split('${file}').join(file));
 }
 
 export interface ZxOutcome {

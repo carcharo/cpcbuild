@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { placeTip, tipText } from './tooltip';
+import { anchorLive, placeTip, tipText } from './tooltip';
 
 describe('tooltips', () => {
   it('text: the label, plus the shortcut or (disabled) the reason', () => {
@@ -20,5 +20,14 @@ describe('tooltips', () => {
   });
   it('placement: above the button when there is no room below', () => {
     expect(placeTip({ left: 100, top: 280, width: 20, height: 20 }, tip, view).top).toBe(252);
+  });
+});
+
+describe('anchorLive', () => {
+  it('is true only for an anchor still in the document', () => {
+    expect(anchorLive({ isConnected: true })).toBe(true);
+    expect(anchorLive({ isConnected: false })).toBe(false);
+    expect(anchorLive(null)).toBe(false);
+    expect(anchorLive(undefined)).toBe(false);
   });
 });

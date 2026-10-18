@@ -28,3 +28,8 @@ export function placeTip(anchor: Box, tip: { width: number; height: number }, vi
   const top = below + tip.height + edge <= view.height ? below : Math.max(edge, anchor.top - gap - tip.height);
   return { left, top };
 }
+
+/** A tooltip may only show for (and stay with) an anchor that is still in the document. */
+export function anchorLive(anchor: { isConnected: boolean } | null | undefined): boolean {
+  return !!anchor && anchor.isConnected;
+}

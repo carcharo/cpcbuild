@@ -6,7 +6,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import type { StudioDocument } from '../../src/ext/customEditor';
 import type { SpriteEditorProvider } from '../../src/ext/spriteEditor';
 import { encodePng, newImage, setPixel } from '../../src/core/image';
-import { newSprite, serialiseSprite, type SpriteState } from '../../src/core/spriteDoc';
+import { newSprite, resolvePalette, serialiseSprite, type SpriteState } from '../../src/core/spriteDoc';
 import { exportAsset } from '../../src/core/spriteExport';
 import { test, waitFor } from './harness';
 
@@ -306,4 +306,28 @@ test('sprite: the editors are contributed as the default for .cpcspr and .cpctil
   assert.deepStrictEqual(by('cpcbuild.tileEditor').selector, [{ filenamePattern: '*.cpctil' }]);
   const cmds = pkg.contributes.menus['editor/title'].map((m: { command: string }) => m.command);
   assert.ok(cmds.includes('cpcbuild.generateAssetFile') && cmds.includes('cpcbuild.insertAssetUse'));
+});
+
+test('sprite: saving the palette file while the sprite is open regenerates with the NEW pens', async () => {
+  put('fresh.cpcpal', '0, 26, 6, 18\n');
+  const s = sprite('fresh', { palette: { file: 'fresh.cpcpal' }, w: 4, h: 1 });
+  s.items = [[[0, 1, 2, 3]]];
+  const uri = put('fresh.cpcspr', serialiseSprite(s));
+  fs.rmSync(path.join(ws, 'sprites', 'fresh.bas'), { force: true });
+  const { a, p, doc } = await openSpr(uri);
+  await waitFor('palette loaded', () => viewOf(p, doc).pens?.join() === '0,26,6,18');
+  // open the palette in its editor, change a pen and save through the editor's save path (no wait for the file watcher)
+  const palUri = vscode.Uri.file(path.join(ws, 'sprites', 'fresh.cpcpal'));
+  await vscode.commands.executeCommand('vscode.openWith', palUri, 'cpcbuild.paletteEditor');
+  const pdoc = await waitFor('palette document', () => a.palette.documents.get(palUri.toString()));
+  await waitFor('palette webview ready', () => pdoc.readyCount > 0);
+  a.palette.commit(pdoc, { op: 'setEntry', index: 1, value: 13 });
+  await a.palette.saveCustomDocument(pdoc);
+  const bas = (): string => (fs.existsSync(path.join(ws, 'sprites', 'fresh.bas')) ? read('fresh.bas') : '');
+  const expected = exportAsset(doc.state, { source: 'fresh.cpcspr', palette: resolvePalette(doc.state, '0, 13, 6, 18\n') }).text;
+  const old = exportAsset(doc.state, { source: 'fresh.cpcspr', palette: resolvePalette(doc.state, '0, 26, 6, 18\n') }).text;
+  assert.notStrictEqual(expected, old, 'the pens matter to the output');
+  assert.ok(bas().length > 0, 'regenerated at save time');
+  assert.strictEqual(bas().replace(/\r/g, ''), expected.replace(/\r/g, ''), 'the generated file has the new pens');
+  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 });

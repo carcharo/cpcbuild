@@ -11,7 +11,7 @@ import { argvToRecipe, newRecipe, serialiseRecipe, type Recipe } from '../core/c
 import { committed } from '../core/testcorpus';
 import { REPO, scratchDir } from '../core/testutil';
 import { newSprite, serialiseSprite } from '../core/spriteDoc';
-import { findRecipes, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
+import { assetFailure, findRecipes, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
 
 const GLOBS = ['assets/**/*.cpcimp'];
 const settings = (over: Partial<GenSettings> = {}): GenSettings => ({ engine: 'builtin', header: 'img2cpc', pythonPath: 'python3', library: REPO, ...over });
@@ -245,5 +245,39 @@ describe('sprite and tile documents in the build pass', () => {
     expect(out.map((x) => x.ok)).toEqual([false, false]);
     expect(out.find((x) => x.recipe.endsWith('ball.cpcspr'))?.error).toMatch(/pens\.cpcpal could not be read/);
     expect(out.find((x) => x.recipe.endsWith('bad.cpcspr'))?.error).toMatch(/bad\.cpcspr/);
+  });
+});
+
+describe('assetFailure (what a failed regenerate means for the build)', () => {
+  const base = { ok: false, written: [], error: 'boom' };
+  it('a recipe failure is fatal and points at the importer', () => {
+    const f = assetFailure({ ...base, recipe: 'a/x.cpcimp' });
+    expect(f.fatal).toBe(true);
+    expect(f.message).toContain('open it in the importer');
+  });
+  it('a document failure with an existing output only warns, with its own wording', () => {
+    const f = assetFailure({ ...base, recipe: 's/x.cpcspr', doc: true, outputExists: true });
+    expect(f.fatal).toBe(false);
+    expect(f.message).toContain('sprite editor');
+    expect(f.message).not.toContain('importer');
+  });
+  it('a document failure with no output is fatal', () => {
+    const f = assetFailure({ ...base, recipe: 's/x.cpctil', doc: true, outputExists: false });
+    expect(f.fatal).toBe(true);
+    expect(f.message).toContain('sprite editor');
+    expect(f.message).toContain('does not exist');
+  });
+  it('regenerateAll marks failed documents with doc and outputExists', async () => {
+    const r = scratchDir('assetsgen-fail-');
+    const s = newSprite('spr', { name: 'ball', mode: 1, w: 4, h: 1, masked: false, palette: { file: 'bad.cpcpal' } });
+    fs.mkdirSync(path.join(r, 'sprites'), { recursive: true });
+    fs.writeFileSync(path.join(r, 'sprites/ball.cpcspr'), serialiseSprite(s));
+    fs.writeFileSync(path.join(r, 'sprites/bad.cpcpal'), '0, 99\n');
+    const settings = { engine: 'ts', header: 'img2cpc', pythonPath: 'python3', library: undefined } as unknown as GenSettings;
+    let res = (await regenerateAll(r, ['sprites/*.cpcspr'], settings))[0];
+    expect(res).toMatchObject({ ok: false, doc: true, outputExists: false });
+    fs.writeFileSync(path.join(r, 'sprites/ball.bas'), 'old');
+    res = (await regenerateAll(r, ['sprites/*.cpcspr'], settings))[0];
+    expect(res).toMatchObject({ ok: false, doc: true, outputExists: true });
   });
 });

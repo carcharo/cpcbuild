@@ -7,7 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
 import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
-import { regenerateAll } from './assetsGen';
+import { assetFailure, regenerateAll } from './assetsGen';
 import { absFrom, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { CancelToken, runTool, Sink } from './runTool';
 import { compilerHint, runZxbc } from './zxbcCommand';
@@ -92,8 +92,11 @@ export async function buildTarget(
     );
     const fresh = gen.filter((g) => g.ok && !g.skipped);
     if (fresh.length) sink.line(`Regenerated ${fresh.length} asset recipe${fresh.length === 1 ? '' : 's'}.`);
-    const bad = gen.find((g) => !g.ok);
-    if (bad) return done(), fail(res, `asset ${bad.recipe}: ${bad.error}. Fix the recipe (open it in the importer) or turn off "cpcbuild.assets.regenerateBeforeBuild".`, sink);
+    for (const g of gen.filter((x) => !x.ok)) {
+      const f = assetFailure(g);
+      if (f.fatal) return done(), fail(res, f.message, sink);
+      sink.line(`Warning: ${f.message}`, true);
+    }
   }
 
   const outDir = absFrom(root, s.outputDir);

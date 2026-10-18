@@ -244,8 +244,8 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
     if (!projectRootOf(doc.uri.fsPath)) throw new Error(`${path.basename(doc.uri.fsPath)} is ${NOT_IN_PROJECT}`);
     const a = this.auxOf(doc);
     this.syncPalette(doc, a);
-    // a palette file may still be loading: wait for it
-    for (let i = 0; i < 50 && !a.palLoaded; i++) await new Promise((r) => setTimeout(r, 20));
+    // the cache is refreshed by an async watcher, so a palette saved a moment ago may not be in it yet: re-read it now
+    if (a.palPath !== undefined) await this.loadPalette(doc, a, a.palPath);
     const s = doc.state;
     const pal = this.palette(doc, a);
     if (pal.loading) throw new Error('the palette file is still loading; try again');

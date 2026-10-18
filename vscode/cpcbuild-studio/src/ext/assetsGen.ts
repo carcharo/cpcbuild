@@ -43,6 +43,20 @@ export interface GenResult {
   /** The tool's message (prefix "img2cpc: " for converter errors). */
   error?: string;
   written: string[];
+  /** The entry is a sprite / tile document (not an importer recipe). */
+  doc?: boolean;
+  /** For a failed document: its (first) output file already exists, so the build can go on with it. */
+  outputExists?: boolean;
+}
+
+/** What a failed regenerate means for the build: documents with an existing output only warn. */
+export function assetFailure(g: GenResult): { fatal: boolean; message: string } {
+  const why = g.error ?? 'failed';
+  if (!g.doc) return { fatal: true, message: `asset ${g.recipe}: ${why}. Fix the recipe (open it in the importer) or turn off "cpcbuild.assets.regenerateBeforeBuild".` };
+  const fix = 'Fix the sprite/tile document or its palette file (open it in the sprite editor)';
+  return g.outputExists
+    ? { fatal: false, message: `asset ${g.recipe}: ${why}. ${fix}; the build uses the existing output.` }
+    : { fatal: true, message: `asset ${g.recipe}: ${why}, and its output does not exist yet. ${fix} or turn off "cpcbuild.assets.regenerateBeforeBuild".` };
 }
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', '.vscode-test']);
@@ -361,7 +375,7 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
     try {
       state = readSpriteDoc(root, docRel);
     } catch (e) {
-      const res = { recipe: docRel, ok: false, written: [], error: `${docRel}: ${describeError(e)}` };
+      const res = { recipe: docRel, ok: false, written: [], error: `${docRel}: ${describeError(e)}`, doc: true, outputExists: false };
       o.sink?.line(res.error, true);
       results.push(res);
       continue;
@@ -371,6 +385,14 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
       continue;
     }
     const res = generateSpriteDoc(root, docRel, state, s.header);
+    res.doc = true;
+    if (!res.ok) {
+      try {
+        res.outputExists = mtime(spriteOutputs(root, docRel, state)[0]) >= 0;
+      } catch {
+        res.outputExists = false;
+      }
+    }
     if (res.ok) o.sink?.line(`${docRel} -> ${res.written.join(', ')}`);
     else o.sink?.line(`${docRel}: ${res.error}`, true);
     results.push(res);

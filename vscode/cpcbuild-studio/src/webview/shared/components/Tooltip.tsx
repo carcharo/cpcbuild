@@ -4,7 +4,7 @@
  * once on keyboard focus, hides on leave, blur, click and Escape, and the button gets aria-describedby while it is shown.
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { placeTip, TIP_DELAY } from '../tooltip';
+import { anchorLive, placeTip, TIP_DELAY } from '../tooltip';
 
 interface Shown {
   id: string;
@@ -26,16 +26,22 @@ export function useTooltip() {
     setShown(undefined);
     setPos(undefined);
   };
-  useEffect(() => clear, []);
+  useEffect(() => clear, []); // also stops a pending show when the owner unmounts
   useEffect(() => {
     if (!shown) return;
     const esc = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') hide();
     };
+    // the anchor was removed or replaced by a re-render while the tip is up: drop the tip
+    const mo = new MutationObserver(() => {
+      if (!anchorLive(shown.anchor)) hide();
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
     document.addEventListener('keydown', esc, true);
     window.addEventListener('scroll', hide, true);
     window.addEventListener('blur', hide);
     return () => {
+      mo.disconnect();
       document.removeEventListener('keydown', esc, true);
       window.removeEventListener('scroll', hide, true);
       window.removeEventListener('blur', hide);
@@ -44,6 +50,7 @@ export function useTooltip() {
   // measured after it renders (hidden until placed), so it can be kept inside the viewport
   useLayoutEffect(() => {
     if (!shown || !el.current) return;
+    if (!anchorLive(shown.anchor)) return hide();
     const a = shown.anchor.getBoundingClientRect();
     const t = el.current.getBoundingClientRect();
     setPos(placeTip({ left: a.left, top: a.top, width: a.width, height: a.height }, { width: t.width, height: t.height }, { width: document.documentElement.clientWidth, height: document.documentElement.clientHeight }));
@@ -51,7 +58,9 @@ export function useTooltip() {
 
   const show = (id: string, text: string, anchor: HTMLElement, delay: number): void => {
     clear();
-    const go = (): void => setShown({ id, text, anchor });
+    const go = (): void => {
+      if (anchorLive(anchor)) setShown({ id, text, anchor });
+    };
     if (delay > 0) timer.current = window.setTimeout(go, delay);
     else go();
   };
@@ -61,6 +70,8 @@ export function useTooltip() {
       onMouseEnter: (e: MouseEvent) => show(id, text, e.currentTarget as HTMLElement, TIP_DELAY),
       onMouseLeave: hide,
       onMouseDown: hide,
+      onPointerDown: hide,
+      onClick: hide,
       onFocusIn: (e: FocusEvent) => {
         const t = e.currentTarget as HTMLElement;
         if (t.matches(':focus-visible')) show(id, text, t, 0);

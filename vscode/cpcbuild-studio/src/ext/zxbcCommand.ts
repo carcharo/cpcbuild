@@ -32,7 +32,7 @@ export function findPoetry(o: PoetryEnv = {}): string | undefined {
   const home = o.home ?? os.homedir();
   const win = (o.platform ?? process.platform) === 'win32';
   const exists = o.exists ?? isFile;
-  const names = win ? ['poetry.exe', 'poetry.cmd', 'poetry.bat'] : ['poetry'];
+  const names = win ? ['poetry.exe'] : ['poetry'];
   const pathKey = Object.keys(env).find((k) => k.toUpperCase() === 'PATH');
   const dirs = (pathKey ? env[pathKey] ?? '' : '').split(win ? ';' : ':').filter(Boolean);
   const cands: string[] = [];
@@ -69,7 +69,7 @@ export interface ZxbcRun extends ToolResult {
 /** Runs the compiler (or `--version`): the configured command, then `poetry run zxbc` if the default was not found. */
 export async function runZxbc(command: readonly string[], args: readonly string[], opts: ToolOptions & { cwd: string }, poetry: PoetryEnv = {}): Promise<ZxbcRun> {
   const first = await runTool(command, args, opts);
-  if (!first.error || !/was not found/.test(first.error)) return { ...first, used: [...command], fellBack: false };
+  if (!first.error || !first.notFound) return { ...first, used: [...command], fellBack: false };
   const fb = poetryFallback(command, opts.cwd, poetry);
   if (!fb) return { ...first, used: [...command], fellBack: false };
   opts.sink?.line(`zxbc was not found; using ${fb.join(' ')} (zxbc.cwd holds a pyproject.toml).`);
@@ -82,5 +82,5 @@ export function compilerHint(spawnError: string, cmd: readonly string[] = DEFAUL
   const poetry = isDefaultZxbc(cmd) ? findPoetry(o) : undefined;
   const value = poetry ? [poetry, 'run', 'zxbc'] : ['poetry', 'run', 'zxbc'];
   const needCwd = !cwd || !(o.exists ?? isFile)(path.join(cwd, 'pyproject.toml'));
-  return `${spawnError}. Set "cpcbuild.zxbc.command" to ${settingText(value)} (for the fork${poetry ? '' : '; poetry was not found on PATH or in ~/.local/bin'}) and ${needCwd ? '"cpcbuild.zxbc.cwd" to your zxbasic checkout' : 'keep "cpcbuild.zxbc.cwd" on your zxbasic checkout'}, then run "CPCBuild: Check Environment".`;
+  return `${spawnError}. Set "cpcbuild.zxbc.command" to ${settingText(value)} (for the fork${poetry ? '' : `; poetry was not found on PATH or in ${(o.platform ?? process.platform) === 'win32' ? '%APPDATA%\\Python\\Scripts' : '~/.local/bin'}`}) and ${needCwd ? '"cpcbuild.zxbc.cwd" to your zxbasic checkout' : 'keep "cpcbuild.zxbc.cwd" on your zxbasic checkout'}, then run "CPCBuild: Check Environment".`;
 }

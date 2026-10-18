@@ -8,6 +8,9 @@ describe('Spectrum run', () => {
   it('puts the .tap into ${file}', () => {
     expect(zxArgs({ zxEmulator: 'fuse', zxEmulatorArgs: ['--tape', '${file}'] }, '/p/build/x.tap')).toEqual(['--tape', '/p/build/x.tap']);
   });
+  it('inserts a path with $-patterns literally', () => {
+    expect(zxArgs({ zxEmulator: 'fuse', zxEmulatorArgs: ['--tape=${file}', '${file}'] }, "/p/a$&b$'c$$d.tap")).toEqual(["--tape=/p/a$&b$'c$$d.tap", "/p/a$&b$'c$$d.tap"]);
+  });
   it('says what to set when no emulator is configured', async () => {
     const r = await runInZxEmulator({ zxEmulator: '', zxEmulatorArgs: ['${file}'] }, '/p/x.tap', sink);
     expect(r).toEqual({ ok: false, message: ZX_NOT_SET });
