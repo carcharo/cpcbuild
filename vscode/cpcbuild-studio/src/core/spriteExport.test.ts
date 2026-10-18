@@ -11,7 +11,7 @@ import { normPath } from './img2cpc';
 import { MAXPENS, PPB, type Mode } from './pixels';
 import { py, rng, scratchDir } from './testutil';
 import { blankGrid, newSprite, parseSprite, resolvePalette, serialiseSprite, type Grid, type SpriteState } from './spriteDoc';
-import { assetSnippets, equivalentArgs, equivalentCommand, exportAsset, ExportError, gridFromImage, renderSheet } from './spriteExport';
+import { assetSnippets, equivalentArgs, equivalentCommand, exportAsset, ExportError, gridFromImage, mergeNote, quantiseImage, renderSheet } from './spriteExport';
 
 const dir = scratchDir('c3b-export-');
 
@@ -202,6 +202,18 @@ describe('export details', () => {
     s.items = [[[0, 1, 2, 3], [3, 2, 1, -1]]];
     const back = gridFromImage(s, renderSheet(s));
     expect(back).toEqual(s.items[0]);
+  });
+  it('counts the colours that merged onto one pen', () => {
+    const s = newSprite('spr', { name: 'm', mode: 1, masked: false, w: 3, h: 1, palette: { pens: [0, 26, 6, 18] } });
+    const img = { width: 3, height: 1, data: Uint8Array.from([0, 0, 120, 255, 0, 0, 130, 255, 255, 255, 255, 255]) } as never;
+    const q = quantiseImage(s, img);
+    expect(q.colours).toBe(3);
+    expect(q.pens).toBeLessThan(3);
+    expect(mergeNote(q)).toBe(`3 colours in the image became ${q.pens} pen${q.pens === 1 ? '' : 's'} (nearest match); add pens or use the image's palette.`);
+    expect(mergeNote({ colours: 2, pens: 2 })).toBeUndefined();
+    // transparent pixels are not colours
+    const t = { width: 2, height: 1, data: Uint8Array.from([5, 5, 5, 0, 255, 255, 255, 255]) } as never;
+    expect(quantiseImage(s, t)).toMatchObject({ colours: 1, pens: 1, rows: [[-1, 1]] });
   });
   it('snippets', () => {
     const m = newSprite('spr', { name: 'hero', mode: 1, masked: true });

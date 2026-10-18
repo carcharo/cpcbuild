@@ -22,6 +22,7 @@ import {
   snippets,
 } from '../core/paletteDoc';
 import type { LoadPngResult, PaletteView } from '../shared/protocol';
+import { getChannel } from './channel';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
 
 export const PALETTE_VIEW_TYPE = 'cpcbuild.paletteEditor';
@@ -33,6 +34,17 @@ export class PaletteEditorProvider extends StudioEditorProvider<PaletteState, Pa
 
   /** Test hook: answers the "Load from PNG" file dialog without showing it. */
   pngOverride?: vscode.Uri;
+
+  /** Called after a save (wired in activate): regenerates the sprite / tile documents that share this palette file. */
+  onSaved?: (uri: vscode.Uri) => Promise<unknown>;
+
+  protected async afterSave(doc: StudioDocument<PaletteState>): Promise<void> {
+    try {
+      await this.onSaved?.(doc.uri);
+    } catch (e) {
+      getChannel().appendLine(`${this.title}: ${doc.uri.fsPath}: regenerating the sprites that use it failed: ${(e as Error).message}`);
+    }
+  }
 
   parse(text: string, uri: vscode.Uri): PaletteState {
     return parsePalette(text, kindForFile(uri.path));

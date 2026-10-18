@@ -1,6 +1,8 @@
 /** <cb-toolbar> (UX 2.1) and the small menu it uses (UX 2.7). One tab stop (roving tabindex); arrows, Home/End move; Esc calls onEscape. */
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { tipText } from '../tooltip';
 import { Icon } from './Icon';
+import { useTooltip } from './Tooltip';
 
 export interface MenuItem {
   id: string;
@@ -35,16 +37,14 @@ export interface ToolbarGroup {
   radio?: boolean;
 }
 
-function tip(i: Common): string {
-  const extra = i.disabled && i.why ? i.why : i.shortcut;
-  return extra ? `${i.label} (${extra})` : i.label;
-}
+const tip = tipText;
 
 export function Toolbar({ label, groups, onEscape }: { label: string; groups: ToolbarGroup[]; onEscape?: () => void }) {
   const items = groups.flatMap((g) => g.items);
   const checked = items.find((i) => i.kind === 'radio' && i.checked);
   const [active, setActive] = useState<string>(checked?.id ?? items[0]?.id ?? '');
   const root = useRef<HTMLDivElement>(null);
+  const tt = useTooltip();
   const focusId = (id: string): void => {
     setActive(id);
     root.current?.querySelector<HTMLElement>(`[data-tb="${CSS.escape(id)}"]`)?.focus();
@@ -63,7 +63,7 @@ export function Toolbar({ label, groups, onEscape }: { label: string; groups: To
       {groups.map((g) => (
         <div key={g.label} class="cb-tb-group" role={g.radio ? 'radiogroup' : 'group'} aria-label={g.label}>
           {g.items.map((it) => {
-            const common = { 'data-tb': it.id, tabIndex: it.id === active ? 0 : -1, title: tip(it), onFocus: () => setActive(it.id) };
+            const common = { 'data-tb': it.id, tabIndex: it.id === active ? 0 : -1, ...tt.props(it.id, tip(it)), onFocus: () => setActive(it.id) };
             const body = (
               <>
                 {it.icon && <Icon name={it.icon} />}
@@ -94,6 +94,7 @@ export function Toolbar({ label, groups, onEscape }: { label: string; groups: To
           })}
         </div>
       ))}
+      {tt.node}
     </div>
   );
 }

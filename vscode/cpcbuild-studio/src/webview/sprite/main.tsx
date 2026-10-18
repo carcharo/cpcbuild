@@ -774,7 +774,7 @@ function SpriteApp({ client, settings, view }: Host) {
               ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: `Copy as ${s.label}`, icon: 'copy', onActivate: () => void copyText(s.text, s.label) })),
               { id: 'c-cmd', label: 'Copy the img2cpc.py command', icon: 'copy', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
             ] : []),
-            { id: 'takepng', label: 'Take a PNG into this frame...', icon: 'file-media', onActivate: () => void ask('importPng', { baseVersion: version.current, item: cur }).then((r) => r && (r.taken ? say('info', r.message ?? 'Image taken.', 'png') : undefined)) },
+            { id: 'takepng', label: `Import PNG into this ${tiles ? 'tile' : 'frame'}...`, icon: 'file-media', onActivate: () => void ask('importPng', { baseVersion: version.current, item: cur }).then((r) => r && (r.taken ? say(r.message?.includes('became') ? 'warning' : 'info', r.message ?? 'PNG imported.', 'png') : undefined)) },
             { id: 'savepng', label: 'Export the sheet as PNG...', icon: 'save-as', onActivate: () => void ask('exportPng', {}).then((r) => r?.saved && say('info', `Saved ${r.file}`, 'png')) },
             { id: 'help', label: 'Keyboard shortcuts', shortcut: '?', onActivate: () => setHelp(true) },
             { id: 'text', label: 'Open as text', icon: 'go-to-file', onActivate: () => void client.request('openAsText', {}) },

@@ -12,9 +12,10 @@ import {
   analyse, applySpriteOp, newSprite, nameFromStem, parseSprite, resolvePalette, rowsOf, serialiseSprite,
   type DocType, type ResolvedPalette, type SpriteOp, type SpriteState,
 } from '../core/spriteDoc';
-import { assetSnippets, equivalentCommand, exportAsset, gridFromImage, renderSheet, type HeaderStyle } from '../core/spriteExport';
+import { assetSnippets, equivalentCommand, exportAsset, mergeNote, quantiseImage, renderSheet, type HeaderStyle } from '../core/spriteExport';
 import type { SpriteRequests, SpriteView, GenerateResult } from '../shared/spriteProtocol';
 import { insideRootFrom } from '../core/paths';
+import { findSpriteDocs, readSpriteDoc, spritePaletteFile } from './assetsGen';
 import { getChannel } from './channel';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
 import { NOT_IN_PROJECT, projectRootOf, viewRootOf } from './importer';
@@ -386,16 +387,19 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
 
   private async importPng(doc: Doc, a: SpriteRequests['importPng']['args']): Promise<SpriteRequests['importPng']['result']> {
     this.guard(doc, a.baseVersion);
+    const what = doc.state.type === 'til' ? 'tile' : 'frame';
     const picked =
       this.pngOverride ??
-      (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { Images: ['png'] }, openLabel: 'Take image', title: 'Take a PNG into this frame (quantised with the document palette)' }))?.[0];
+      (await vscode.window.showOpenDialog({ canSelectMany: false, filters: { Images: ['png'] }, openLabel: 'Import PNG', title: `Import PNG into this ${what} (quantised with the document palette)` }))?.[0];
     if (!picked) return { taken: false };
     const img = decodePng(await vscode.workspace.fs.readFile(picked));
     const s = doc.state;
-    const rows = gridFromImage(s, img, this.palette(doc, this.auxOf(doc)));
-    this.commit(doc, { op: 'setItem', item: a.item, rows, label: 'Take image' });
+    const q = quantiseImage(s, img, this.palette(doc, this.auxOf(doc)));
+    this.commit(doc, { op: 'setItem', item: a.item, rows: q.rows, label: 'Import PNG' });
     const fits = img.width === s.w && img.height === s.h;
-    return { taken: true, message: fits ? undefined : `${path.basename(picked.fsPath)} is ${img.width}x${img.height}; the ${s.type === 'til' ? 'tile' : 'frame'} is ${s.w}x${s.h}, so it was ${img.width > s.w || img.height > s.h ? 'cropped' : 'padded'}.` };
+    const size = fits ? undefined : `${path.basename(picked.fsPath)} is ${img.width}x${img.height}; the ${what} is ${s.w}x${s.h}, so it was ${img.width > s.w || img.height > s.h ? 'cropped' : 'padded'}.`;
+    const message = [size, mergeNote(q)].filter(Boolean).join(' ');
+    return { taken: true, message: message || undefined };
   }
 
   private async exportPng(doc: Doc): Promise<SpriteRequests['exportPng']['result']> {
@@ -426,17 +430,45 @@ export function docFor(ed: SpriteEditors, uri: vscode.Uri): { provider: SpriteEd
 
 const SPRITE_FILE = /\.(cpcspr|cpctil)$/i;
 
-/** The sprite / tile file shown by the active tab, or the given one. */
-export function activeAssetUri(uri?: vscode.Uri): vscode.Uri | undefined {
-  if (uri && SPRITE_FILE.test(uri.path)) return uri;
-  const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+function tabAsset(tab: vscode.Tab | undefined): vscode.Uri | undefined {
+  const input = tab?.input;
   const u = input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputText ? input.uri : undefined;
   return u && SPRITE_FILE.test(u.path) ? u : undefined;
 }
 
+/** The sprite / tile files shown by the active tab of each visible editor group, the active group first, without duplicates. */
+export function visibleAssetUris(): vscode.Uri[] {
+  const groups = vscode.window.tabGroups;
+  const ordered = [groups.activeTabGroup, ...groups.all.filter((g) => g !== groups.activeTabGroup && g.viewColumn !== groups.activeTabGroup.viewColumn)];
+  const seen = new Set<string>();
+  const out: vscode.Uri[] = [];
+  for (const g of ordered) {
+    const u = tabAsset(g.activeTab);
+    if (u && !seen.has(u.toString())) {
+      seen.add(u.toString());
+      out.push(u);
+    }
+  }
+  return out;
+}
+
+/** The sprite / tile file shown by the active tab, or the given one; else the one in another visible group (several: ask). */
+export async function activeAssetUri(uri?: vscode.Uri): Promise<vscode.Uri | undefined> {
+  if (uri && SPRITE_FILE.test(uri.path)) return uri;
+  const own = tabAsset(vscode.window.tabGroups.activeTabGroup.activeTab);
+  if (own) return own;
+  const seen = visibleAssetUris();
+  if (seen.length <= 1) return seen[0];
+  const pick = await vscode.window.showQuickPick(
+    seen.map((u) => ({ label: path.posix.basename(u.path), description: vscode.workspace.asRelativePath(u), uri: u })),
+    { title: 'CPCBuild: which sprite or tile set?' },
+  );
+  return pick?.uri;
+}
+
 /** Generates the .bas of a sprite / tile file (open in an editor, or read from disk). Returns undefined for other files. */
 export async function generateAssetFile(ed: SpriteEditors, uri?: vscode.Uri): Promise<GenerateResult | undefined> {
-  const target = activeAssetUri(uri);
+  const target = await activeAssetUri(uri);
   if (!target) return undefined;
   let open = docFor(ed, target);
   if (!open) {
@@ -452,9 +484,30 @@ export async function generateAssetFile(ed: SpriteEditors, uri?: vscode.Uri): Pr
   return open.provider.generateAndReport(open.doc);
 }
 
+/**
+ * A palette file was saved: regenerates the sprite / tile documents of its project that share it (their
+ * pens changed), when generate-on-save is on. Open editors refresh; documents not open are generated from disk.
+ */
+export async function regenerateForPalette(ed: SpriteEditors, palette: vscode.Uri): Promise<string[]> {
+  const root = projectRootOf(palette.fsPath);
+  if (!root || !isTrusted() || !vscode.workspace.getConfiguration('cpcbuild.assets', palette).get<boolean>('generateOnSave', true)) return [];
+  const done: string[] = [];
+  for (const docRel of findSpriteDocs(root, ['**/*.cpcspr', '**/*.cpctil'])) {
+    try {
+      const pal = spritePaletteFile(root, docRel, readSpriteDoc(root, docRel));
+      if (!pal || path.resolve(pal) !== path.resolve(palette.fsPath)) continue;
+    } catch {
+      continue; // a broken document is reported when it is generated itself
+    }
+    const r = await generateAssetFile(ed, vscode.Uri.file(path.join(root, docRel)));
+    if (r?.ok) done.push(docRel);
+  }
+  return done;
+}
+
 /** CPCBuild: Insert Asset Use -- writes the include and call lines for the open document into the code editor. */
 export async function insertAssetUse(ed: SpriteEditors, uri?: vscode.Uri): Promise<string | undefined> {
-  const target = activeAssetUri(uri);
+  const target = await activeAssetUri(uri);
   if (!target) {
     void vscode.window.showInformationMessage('CPCBuild: open a sprite or tile set (.cpcspr, .cpctil) first.');
     return undefined;

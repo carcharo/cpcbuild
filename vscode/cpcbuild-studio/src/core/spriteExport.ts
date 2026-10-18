@@ -156,23 +156,52 @@ export function renderSheet(s: SpriteState, palette: ResolvedPalette = resolvePa
   return img;
 }
 
-/** Quantises an image into a pen grid by the document's palette (nearest colour; alpha < 128 = transparent). */
-export function gridFromImage(s: SpriteState, img: RgbaImage, palette: ResolvedPalette = resolvePalette(s)): number[][] {
+/** The result of quantising an image: the pen grid, and how many distinct opaque colours it had against how many pens they landed on. */
+export interface Quantised {
+  rows: number[][];
+  colours: number;
+  pens: number;
+}
+
+/** Quantises an image into a pen grid by the document's palette (nearest colour; alpha < 128 = transparent), counting the colours that merged. */
+export function quantiseImage(s: SpriteState, img: RgbaImage, palette: ResolvedPalette = resolvePalette(s)): Quantised {
   const rgb = paletteRgb(s, palette);
   const list: RGB[] = [];
   const idx: number[] = [];
   rgb.forEach((c, i) => { if (c) { list.push(c); idx.push(i); } });
   if (!list.length) throw new ExportError('the palette has no colours to match the image to');
+  const seen = new Map<number, number>(); // 0xRRGGBB -> pen
   const rows: number[][] = [];
   for (let y = 0; y < img.height; y++) {
     const row: number[] = [];
     for (let x = 0; x < img.width; x++) {
       const i = (y * img.width + x) * 4;
-      row.push(img.data[i + 3] < 128 ? -1 : idx[nearest([img.data[i], img.data[i + 1], img.data[i + 2]], list)]);
+      if (img.data[i + 3] < 128) {
+        row.push(-1);
+        continue;
+      }
+      const key = (img.data[i] << 16) | (img.data[i + 1] << 8) | img.data[i + 2];
+      let pen = seen.get(key);
+      if (pen === undefined) {
+        pen = idx[nearest([img.data[i], img.data[i + 1], img.data[i + 2]], list)];
+        seen.set(key, pen);
+      }
+      row.push(pen);
     }
     rows.push(row);
   }
-  return rows;
+  return { rows, colours: seen.size, pens: new Set(seen.values()).size };
+}
+
+/** Quantises an image into a pen grid by the document's palette (nearest colour; alpha < 128 = transparent). */
+export function gridFromImage(s: SpriteState, img: RgbaImage, palette: ResolvedPalette = resolvePalette(s)): number[][] {
+  return quantiseImage(s, img, palette).rows;
+}
+
+/** The note for an import that merged colours ("3 colours in the image became 2 pens ..."), or undefined when none merged. */
+export function mergeNote(q: Pick<Quantised, 'colours' | 'pens'>): string | undefined {
+  if (q.colours <= q.pens) return undefined;
+  return `${q.colours} colours in the image became ${q.pens} pen${q.pens === 1 ? '' : 's'} (nearest match); add pens or use the image's palette.`;
 }
 
 // ------------------------------------------------------- snippets

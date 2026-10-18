@@ -10,7 +10,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { argvToRecipe, newRecipe, serialiseRecipe, type Recipe } from '../core/cpcimp';
 import { committed } from '../core/testcorpus';
 import { REPO, scratchDir } from '../core/testutil';
-import { findRecipes, generate, generateFile, isStale, regenerateAll, type GenSettings } from './assetsGen';
+import { newSprite, serialiseSprite } from '../core/spriteDoc';
+import { findRecipes, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
 
 const GLOBS = ['assets/**/*.cpcimp'];
 const settings = (over: Partial<GenSettings> = {}): GenSettings => ({ engine: 'builtin', header: 'img2cpc', pythonPath: 'python3', library: REPO, ...over });
@@ -164,5 +165,85 @@ describe('path containment (recipe-supplied paths)', () => {
     expect(fs.existsSync(path.join(root, '..', 'evil.bas'))).toBe(false);
     fs.rmSync(path.join(root, 'escape'));
     fs.rmSync(outside, { recursive: true, force: true });
+  });
+});
+
+describe('sprite and tile documents in the build pass', () => {
+  const dir = (): string => scratchDir('assetsgen-spr-');
+  const write = (r: string, rel: string, text: string): void => {
+    fs.mkdirSync(path.dirname(path.join(r, rel)), { recursive: true });
+    fs.writeFileSync(path.join(r, rel), text);
+  };
+  const touch = (r: string, rel: string, ageSec: number): void => {
+    const d = new Date(Date.now() - ageSec * 1000);
+    fs.utimesSync(path.join(r, rel), d, d);
+  };
+  const setup = (r: string): void => {
+    const s = newSprite('spr', { name: 'ball', mode: 1, w: 4, h: 1, masked: false, palette: { file: 'pens.cpcpal' } });
+    s.items = [[[0, 1, 2, 3]]];
+    write(r, 'sprites/ball.cpcspr', serialiseSprite(s));
+    write(r, 'sprites/pens.cpcpal', '1\n24\n20\n6\n');
+  };
+
+  it('finds .cpcspr and .cpctil by the globs', () => {
+    const r = dir();
+    setup(r);
+    write(r, 'sprites/tiles.cpctil', serialiseSprite(newSprite('til', { name: 'tiles', mode: 0 })));
+    expect(findSpriteDocs(r, ['sprites/**/*.cpcspr'])).toEqual(['sprites/ball.cpcspr']);
+    expect(findSpriteDocs(r, ['sprites/**/*.cpcspr', 'sprites/*.cpctil'])).toEqual(['sprites/ball.cpcspr', 'sprites/tiles.cpctil']);
+    expect(findSpriteDocs(r, ['assets/**/*.cpcimp'])).toEqual([]);
+  });
+
+  it('generates a missing output without an editor, then skips it while fresh', async () => {
+    const r = dir();
+    setup(r);
+    const g = ['sprites/*.cpcspr'];
+    const first = await regenerateAll(r, g, settings(), { onlyStale: true });
+    expect(first.map((x) => [x.recipe, x.ok, x.skipped])).toEqual([['sprites/ball.cpcspr', true, undefined]]);
+    expect(fs.readFileSync(path.join(r, 'sprites/ball.bas'), 'utf8')).toContain('ball');
+    for (const f of ['sprites/ball.cpcspr', 'sprites/pens.cpcpal']) touch(r, f, 60);
+    touch(r, 'sprites/ball.bas', 30);
+    expect((await regenerateAll(r, g, settings(), { onlyStale: true }))[0].skipped).toBe(true);
+  });
+
+  it('a newer shared palette file makes the output stale and the pens change', async () => {
+    const r = dir();
+    setup(r);
+    const g = ['sprites/*.cpcspr'];
+    await regenerateAll(r, g, settings());
+    const before = fs.readFileSync(path.join(r, 'sprites/ball.bas'), 'utf8');
+    for (const f of ['sprites/ball.cpcspr', 'sprites/pens.cpcpal']) touch(r, f, 60);
+    touch(r, 'sprites/ball.bas', 30);
+    expect(isSpriteStale(r, 'sprites/ball.cpcspr', readSpriteDoc(r, 'sprites/ball.cpcspr'))).toBe(false);
+    write(r, 'sprites/pens.cpcpal', '1\n24\n20\n9\n'); // pen 3 changed, mtime now
+    expect(isSpriteStale(r, 'sprites/ball.cpcspr', readSpriteDoc(r, 'sprites/ball.cpcspr'))).toBe(true);
+    const out = await regenerateAll(r, g, settings(), { onlyStale: true });
+    expect(out[0].skipped).toBeUndefined();
+    expect(out[0].ok).toBe(true);
+    expect(fs.readFileSync(path.join(r, 'sprites/ball.bas'), 'utf8')).not.toBe(before);
+  });
+
+  it('a newer document is stale; an inline palette has no palette file to watch', () => {
+    const r = dir();
+    const s = newSprite('spr', { name: 'in', mode: 1, w: 4, h: 1, masked: false });
+    write(r, 'in.cpcspr', serialiseSprite(s));
+    expect(isSpriteStale(r, 'in.cpcspr', s)).toBe(true); // no output yet
+    write(r, 'in.bas', 'x');
+    touch(r, 'in.cpcspr', 60);
+    touch(r, 'in.bas', 30);
+    expect(isSpriteStale(r, 'in.cpcspr', s)).toBe(false);
+    touch(r, 'in.cpcspr', 0);
+    expect(isSpriteStale(r, 'in.cpcspr', s)).toBe(true);
+  });
+
+  it('reports a missing palette file and a broken document, and goes on', async () => {
+    const r = dir();
+    setup(r);
+    fs.rmSync(path.join(r, 'sprites/pens.cpcpal'));
+    write(r, 'sprites/bad.cpcspr', '{"format":');
+    const out = await regenerateAll(r, ['sprites/*.cpcspr'], settings());
+    expect(out.map((x) => x.ok)).toEqual([false, false]);
+    expect(out.find((x) => x.recipe.endsWith('ball.cpcspr'))?.error).toMatch(/pens\.cpcpal could not be read/);
+    expect(out.find((x) => x.recipe.endsWith('bad.cpcspr'))?.error).toMatch(/bad\.cpcspr/);
   });
 });

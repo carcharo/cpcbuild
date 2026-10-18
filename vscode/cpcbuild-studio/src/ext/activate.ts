@@ -12,7 +12,7 @@ import { newProjectCommand } from './newProject';
 import { ImporterEditorProvider, copyImporterCommandCommand, importImageCommand, regenerateAssetsCommand } from './importer';
 import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
-import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand } from './spriteEditor';
+import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand, regenerateForPalette } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
 import { runInEmulator, setStorageDir } from './run';
 import { runTool } from './runTool';
@@ -239,6 +239,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   const sprite = new SpriteEditorProvider(context, 'spr');
   const tile = new SpriteEditorProvider(context, 'til');
   context.subscriptions.push(sprite.register(), tile.register(), registerAssetGenerator((uri) => generateAssetFile({ sprite, tile }, uri)));
+  palette.onSaved = (uri) => regenerateForPalette({ sprite, tile }, uri);
   reg('cpcbuild.newSprite', (args) => newAssetCommand('sprite', args));
   reg('cpcbuild.newTileset', (args) => newAssetCommand('tileset', args));
   reg('cpcbuild.newPlusSprite', (args) => newAssetCommand('plus', args));

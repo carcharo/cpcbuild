@@ -19,7 +19,9 @@ import {
   toolMessage, type HeaderMode, type Recipe,
 } from '../core/cpcimp';
 import { globBase, matchesAny } from '../core/glob';
-import { insideRoot, PathEscapeError } from '../core/paths';
+import { insideRoot, insideRootFrom, PathEscapeError } from '../core/paths';
+import { parseSprite, resolvePalette, type DocType, type SpriteState } from '../core/spriteDoc';
+import { exportAsset } from '../core/spriteExport';
 import { runTool, type CancelToken, type Sink } from './runTool';
 
 export type AssetEngine = 'builtin' | 'python';
@@ -47,9 +49,9 @@ const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', '.vscode-test'
 
 const rel = (root: string, abs: string): string => path.relative(root, abs).split(path.sep).join('/');
 
-/** Every `.cpcimp` matched by the project's asset globs, relative to the root, sorted. */
-export function findRecipes(root: string, globs: readonly string[]): string[] {
-  const cpcimp = globs.filter((g) => g.endsWith('.cpcimp'));
+/** Every file with the extension matched by the project's asset globs, relative to the root, sorted. */
+function findByExt(root: string, globs: readonly string[], ext: RegExp): string[] {
+  const mine = globs.filter((g) => ext.test(g));
   const found = new Set<string>();
   const walk = (dir: string): void => {
     let entries: fs.Dirent[];
@@ -62,11 +64,21 @@ export function findRecipes(root: string, globs: readonly string[]): string[] {
       const abs = path.join(dir, e.name);
       if (e.isDirectory()) {
         if (!SKIP_DIRS.has(e.name)) walk(abs);
-      } else if (e.name.endsWith('.cpcimp') && matchesAny(cpcimp, rel(root, abs))) found.add(rel(root, abs));
+      } else if (ext.test(e.name) && matchesAny(mine, rel(root, abs))) found.add(rel(root, abs));
     }
   };
-  for (const base of new Set(cpcimp.map(globBase))) walk(path.join(root, base));
+  for (const base of new Set(mine.map(globBase))) walk(path.join(root, base));
   return [...found].sort();
+}
+
+/** Every `.cpcimp` matched by the project's asset globs, relative to the root, sorted. */
+export function findRecipes(root: string, globs: readonly string[]): string[] {
+  return findByExt(root, globs, /\.cpcimp$/);
+}
+
+/** Every sprite / tile document (`.cpcspr`, `.cpctil`) matched by the project's asset globs, relative to the root, sorted. */
+export function findSpriteDocs(root: string, globs: readonly string[]): string[] {
+  return findByExt(root, globs, /\.(cpcspr|cpctil)$/);
 }
 
 const mtime = (p: string): number => {
@@ -84,6 +96,77 @@ export function isStale(root: string, recipeRel: string, r: Recipe): boolean {
   const oldestOut = Math.min(...outs);
   const newestIn = Math.max(mtime(path.resolve(root, recipeRel)), ...inputsOf(r).map((i) => mtime(path.resolve(root, i))));
   return newestIn > oldestOut;
+}
+
+// ---------------------------------------------------------------- sprite / tile documents
+
+const docType = (docRel: string): DocType => (/\.cpcspr$/i.test(docRel) ? 'spr' : 'til');
+
+/** The files a sprite / tile document writes (the .bas, or the .bin and the .pal beside it), as absolute paths. */
+function spriteOutputs(root: string, docRel: string, s: SpriteState): string[] {
+  const out = insideRootFrom(root, path.dirname(path.resolve(root, docRel)), s.output);
+  return s.kind === 'plus' && s.plusFormat === 'bin' ? [out, out.replace(/\.[^./\\]*$/, '') + '.pal'] : [out];
+}
+
+/** The shared palette file of a document, as an absolute path (undefined: an inline palette, or a path outside the project). */
+export function spritePaletteFile(root: string, docRel: string, s: SpriteState): string | undefined {
+  if (!('file' in s.palette)) return undefined;
+  try {
+    return insideRootFrom(root, path.dirname(path.resolve(root, docRel)), s.palette.file);
+  } catch {
+    return undefined;
+  }
+}
+
+/** An output missing, or older than the document or its shared palette file (a palette edited elsewhere changes the pens). */
+export function isSpriteStale(root: string, docRel: string, s: SpriteState): boolean {
+  let outs: number[];
+  try {
+    outs = spriteOutputs(root, docRel, s).map(mtime);
+  } catch {
+    return true; // the generate pass reports the bad path
+  }
+  if (outs.some((t) => t < 0)) return true;
+  const pal = spritePaletteFile(root, docRel, s);
+  return Math.max(mtime(path.resolve(root, docRel)), pal ? mtime(pal) : -1) > Math.min(...outs);
+}
+
+/** Reads and parses a sprite / tile document. */
+export function readSpriteDoc(root: string, docRel: string): SpriteState {
+  const abs = path.resolve(root, docRel);
+  return parseSprite(fs.readFileSync(abs, 'utf8'), docType(docRel), path.basename(abs).replace(/\.[^.]*$/, ''));
+}
+
+/** Generates the output of a sprite / tile document straight from disk (no editor needed), like the editor's Generate. */
+export function generateSpriteDoc(root: string, docRel: string, s: SpriteState, header: HeaderMode): GenResult {
+  const res: GenResult = { recipe: docRel, ok: false, written: [] };
+  try {
+    const palFile = spritePaletteFile(root, docRel, s);
+    let palette = resolvePalette(s);
+    if ('file' in s.palette) {
+      let text: string | undefined;
+      try {
+        text = palFile ? fs.readFileSync(palFile, 'utf8') : undefined;
+      } catch {
+        // resolvePalette says the file could not be read
+      }
+      palette = resolvePalette(s, text);
+    }
+    if (palette.problem) throw new Error(palette.problem);
+    const ex = exportAsset(s, { source: path.basename(docRel), header, palette });
+    const [out, pal] = spriteOutputs(root, docRel, s);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, ex.bin ?? ex.text);
+    res.written.push(rel(root, out));
+    if (ex.bin && ex.palBin) {
+      fs.writeFileSync(pal, ex.palBin);
+      res.written.push(rel(root, pal));
+    }
+    res.ok = true;
+  } catch (e) {
+    res.error = describeError(e);
+  }
+  return res;
 }
 
 // ---------------------------------------------------------------- io
@@ -270,6 +353,27 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
     else o.sink?.line(`${recipeRel}: ${res.error}`, true);
     results.push(res);
     if (o.token?.isCancellationRequested) break;
+  }
+  // sprite and tile documents the globs list: written from the document and its shared palette file, editor open or not
+  for (const docRel of findSpriteDocs(root, globs)) {
+    if (o.token?.isCancellationRequested) break;
+    let state: SpriteState;
+    try {
+      state = readSpriteDoc(root, docRel);
+    } catch (e) {
+      const res = { recipe: docRel, ok: false, written: [], error: `${docRel}: ${describeError(e)}` };
+      o.sink?.line(res.error, true);
+      results.push(res);
+      continue;
+    }
+    if (o.onlyStale && !isSpriteStale(root, docRel, state)) {
+      results.push({ recipe: docRel, ok: true, skipped: true, written: [] });
+      continue;
+    }
+    const res = generateSpriteDoc(root, docRel, state, s.header);
+    if (res.ok) o.sink?.line(`${docRel} -> ${res.written.join(', ')}`);
+    else o.sink?.line(`${docRel}: ${res.error}`, true);
+    results.push(res);
   }
   return results;
 }

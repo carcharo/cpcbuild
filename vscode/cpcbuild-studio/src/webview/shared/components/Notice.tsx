@@ -1,6 +1,7 @@
 /** Notices, empty states and error states (UX 2.6). */
 import type { ComponentChildren } from 'preact';
 import { Icon } from './Icon';
+import { useTooltip } from './Tooltip';
 
 export interface NoticeAction {
   label: string;
@@ -11,6 +12,7 @@ export interface NoticeAction {
 const ICON = { info: 'info', warning: 'warning', error: 'error' } as const;
 
 export function Notice({ severity, children, actions, onDismiss }: { severity: 'info' | 'warning' | 'error'; children: ComponentChildren; actions?: NoticeAction[]; onDismiss?: () => void }) {
+  const tt = useTooltip();
   return (
     <div class={`cb-notice cb-notice-${severity}`} role={severity === 'info' ? 'status' : 'alert'}>
       <Icon name={ICON[severity]} />
@@ -22,11 +24,12 @@ export function Notice({ severity, children, actions, onDismiss }: { severity: '
           </button>
         ))}
         {onDismiss && (
-          <button type="button" class="cb-icon-btn" aria-label="Dismiss" title="Dismiss" onClick={onDismiss}>
+          <button type="button" class="cb-icon-btn" aria-label="Dismiss" {...tt.props('dismiss', 'Dismiss')} onClick={onDismiss}>
             <Icon name="close" />
           </button>
         )}
       </div>
+      {tt.node}
     </div>
   );
 }

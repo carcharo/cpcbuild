@@ -233,9 +233,9 @@ one empty tile.
   arrays the importer writes. **CPCBuild: Insert Asset Use**, a button in the editor's title bar, writes the
   `#include` line and a starter call into the code editor that is open.
 
-If you have a PNG but want to touch it up, open the **...** menu in the toolbar: **Take a PNG into this
-frame...** (the file chooser's button says **Take image**) quantises a PNG into the selected tile with the
-document's palette, and **Export the sheet as PNG...** writes the whole sheet out.
+If you have a PNG but want to touch it up, open the **...** menu in the toolbar: **Import PNG into this
+tile...** quantises a PNG into the selected tile with the document's palette (if several colours of the
+image land on one pen, it says so), and **Export the sheet as PNG...** writes the whole sheet out.
 
 ## Step 4: Draw a room
 
