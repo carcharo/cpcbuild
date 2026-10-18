@@ -1,0 +1,14 @@
+{
+  "format": "cpcimp",
+  "version": 1,
+  "source": "assets/plus/plus_tiles.png",
+  "output": "assets/plus/tiles.bas",
+  "target": "cpc",
+  "mode": 0,
+  "name": "tiles",
+  "kind": "tiles",
+  "palette": {
+    "file": "assets/lamp.cpcpal"
+  },
+  "emitPalette": true
+}

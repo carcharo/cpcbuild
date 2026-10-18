@@ -1,0 +1,9 @@
+{
+  "format": "cpcimp",
+  "version": 1,
+  "source": "assets/zx/zx_sprites.png",
+  "output": "assets/zx/zx_sprites.bas",
+  "target": "spectrum",
+  "name": "zx_sprites",
+  "zxSprite": true
+}

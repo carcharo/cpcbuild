@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "name": "lamplighter",
+  "library": "../../",
+  "targets": [
+    { "id": "lamp464", "arch": "cpc", "main": "main.bas", "model": "464",
+      "defines": ["CPC464"], "package": "dsk", "disc": "LAMPLIGH" },
+    { "id": "lamp6128", "arch": "cpc", "main": "main.bas", "model": "6128",
+      "defines": ["CPC6128"], "package": "dsk", "disc": "LAMPLIGH" },
+    { "id": "lampplus", "arch": "cpc", "main": "main.bas", "model": "plus",
+      "defines": ["PLUS"], "bare": true, "ownFont": true, "package": "cpr" },
+    { "id": "zx48", "arch": "zx48k", "main": "main.bas",
+      "defines": ["ZX48"], "org": 32768, "heap": 512, "package": "tap" },
+    { "id": "zx128", "arch": "zx48k", "main": "main.bas",
+      "defines": ["ZX128"], "org": 32768, "heap": 512, "package": "tap" }
+  ],
+  "assets": ["assets/**/*.cpcimp", "assets/**/*.cpcpal"]
+}

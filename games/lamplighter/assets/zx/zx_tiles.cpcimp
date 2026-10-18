@@ -1,0 +1,8 @@
+{
+  "format": "cpcimp",
+  "version": 1,
+  "source": "assets/zx/zx_tiles.png",
+  "output": "assets/zx/zx_tiles.bas",
+  "target": "spectrum",
+  "name": "zx_tiles"
+}
