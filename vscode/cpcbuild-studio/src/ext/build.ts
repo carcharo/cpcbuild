@@ -10,6 +10,7 @@ import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
 import { regenerateAll } from './assetsGen';
 import { absFrom, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { CancelToken, runTool, Sink } from './runTool';
+import { compilerHint, runZxbc } from './zxbcCommand';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 import type { EmuModel } from '../emuApi';
 
@@ -49,10 +50,6 @@ const fail = (r: BuildResult, message: string, sink: Sink): BuildResult => {
   sink.line(`Build failed: ${message}`, true);
   return r;
 };
-
-export function compilerHint(spawnError: string): string {
-  return `${spawnError}. Set "cpcbuild.zxbc.command" (for the fork: ["poetry","run","zxbc"]) and "cpcbuild.zxbc.cwd" (your zxbasic checkout), then run "CPCBuild: Check Environment".`;
-}
 
 export async function buildTarget(
   root: string,
@@ -112,9 +109,10 @@ export async function buildTarget(
   // 1. compile
   const args = zxbcArgs(target, { libraryDir: library, main, out, map, defaultOrg: s.buildOrg, extra: s.zxbcArgs });
   const zxCwd = s.zxbcCwd ? absFrom(root, s.zxbcCwd) : root;
-  const cr = await runTool(s.zxbcCommand, args, { cwd: zxCwd, token, sink });
+  const cr = await runZxbc(s.zxbcCommand, args, { cwd: zxCwd, token, sink });
   if (cr.cancelled) return done(), fail(res, 'cancelled.', sink);
-  if (cr.error) return done(), fail(res, compilerHint(cr.error), sink);
+  if (cr.error) return done(), fail(res, compilerHint(cr.error, s.zxbcCommand, zxCwd), sink);
+  sink.line(`Compiler: ${cr.used.join(' ')}${cr.fellBack ? ' (fallback)' : ''}`);
   if (cr.code !== 0 || !fs.existsSync(out)) {
     return done(), fail(res, `zxbc exited with ${cr.code} (the errors above are in the Problems panel). Fix them and build again.`, sink);
   }
