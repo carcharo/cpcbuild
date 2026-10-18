@@ -27,6 +27,10 @@ FOR p = 1 TO 15
   FillRect((p - 1) * 5, 20, 5, 100, p)
 NEXT p
 SetInk(0, 0)
+' pens 14 and 15 are flashing inks by default under the firmware: fixed here, so the
+' chips goldens (no ASIC: the cycles do nothing) are the same with and without firmware
+SetInk(14, 1)
+SetInk(15, 11)
 SetPalette12(0, $0000)
 SetBorder12($0222)
 PRINT AT 0, 1; "PALETTE CYCLING"
