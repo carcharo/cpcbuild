@@ -3,6 +3,8 @@
  * file name -> content. Pure TypeScript; the extension writes them to disk.
  */
 import { deriveDiscStem } from './project';
+import { parseSprite, resolvePalette } from './spriteDoc';
+import { exportAsset } from './spriteExport';
 
 export type TemplateId = 'firmware' | 'baremetal' | 'plus' | 'shared';
 
@@ -37,21 +39,17 @@ const FIRMWARE_MAIN = `' main.bas -- a small CPCBuild program for the firmware: 
 #include <cpc.bas>
 #include <cpcbuild.bas>
 
-' Pens 0-3 as firmware colours (docs/library.md, Palette): black, bright
-' white, bright red, bright green.
-DIM pal(3) AS UBYTE = {0, 26, 6, 18}
-
-' A sprite 2 bytes wide (8 pixels in mode 1) and 8 lines high. assets/ball.cpcspr
-' is the same picture as a Studio document: double-click it in the
-' Explorer to open the CPCBuild Sprite Editor. See docs/library.md.
-DIM ball(15) AS UBYTE = { _
-  $FF, $FF, $8F, $1F, $8F, $1F, $8F, $1F, _
-  $8F, $1F, $8F, $1F, $8F, $1F, $FF, $FF }
+' The ball and its four pens come from the Studio documents in assets/:
+' ball.cpcspr (the picture) and pens.cpcpal (firmware colours of pens 0-3:
+' black, bright white, bright red, bright green). ball.bas is generated from
+' them. Double-click ball.cpcspr to open the CPCBuild Sprite Editor; edit it or
+' the palette and build again: the program changes with them.
+#include "../assets/ball.bas"      ' ball(), ball_W, ball_H, ball_pal(), ball_PENS
 
 DIM x, y, dx, dy AS UBYTE
 
 Mode 1
-SetPalette(@pal(0), 4)
+SetPalette(@ball_pal(0), ball_PENS)
 SetBorder 0
 ScreenInit()      ' always call ScreenInit() after Mode
 CLS
@@ -63,14 +61,14 @@ dx = 1
 dy = 2
 DO
   WaitRetrace(1)
-  FillRect(x, y, 2, 8, 0)           ' erase the old picture (x in bytes, y in lines)
+  FillRect(x, y, ball_W, ball_H, 0)  ' erase the old picture (x in bytes, y in lines)
   IF x >= 77 THEN dx = 255          ' 255 = -1 in a UBYTE: adding it wraps
   IF x <= 1 THEN dx = 1
   IF y >= 190 THEN dy = 254
   IF y <= 20 THEN dy = 2
   x = x + dx
   y = y + dy
-  PutSprite(x, y, 2, 8, @ball(0))
+  PutSprite(x, y, ball_W, ball_H, @ball(0))
   ScanKeys()
 LOOP UNTIL KeyDown(KEY_ESC)
 END
@@ -93,25 +91,11 @@ const PLUS_MAIN = `' main.bas -- a CPC Plus program: two hardware sprites and a 
 #include <cpcbuild.bas>
 #include <cpcplus/cpcplus.bas>
 
-' A 16x16 hardware sprite is 128 bytes packed: two pixels a byte, the left
-' one in the high nibble, 0 = transparent, 1-15 = sprite colour.
-' assets/sprite.cpcspr and assets/colours.cpcpal12 hold the same data as Studio
-' documents. Here the picture is drawn at start-up: a frame in colour 1
-' around a centre in colour 2.
-DIM spr(127) AS UBYTE
-
-SUB MakeSprite()
-  DIM r, c, v AS UBYTE
-  FOR r = 0 TO 15
-    FOR c = 0 TO 7
-      v = $22
-      IF r = 0 OR r = 15 THEN v = $11
-      IF c = 0 THEN v = (v BAND $0F) BOR $10
-      IF c = 7 THEN v = (v BAND $F0) BOR $01
-      spr(r * 8 + c) = v
-    NEXT c
-  NEXT r
-END SUB
+' The 16x16 picture and its sprite colours come from the Studio documents in
+' assets/: sprite.cpcspr (the picture, packed two pixels a byte) and
+' colours.cpcpal12 (sprite colours 1-15). sprite.bas is generated from them.
+' Edit either in Studio and build again: the program changes with them.
+#include "../assets/sprite.bas"    ' sprite(), sprite_pal()
 
 DIM x0, y0, x1, y1, d0, d1 AS INTEGER
 
@@ -131,11 +115,9 @@ SetPalette12(0, $0008)
 SetPalette12(1, $0FFF)
 SetBorder12($0008)
 SpritesHideAll()
-SpriteColour(1, $0F80)
-SpriteColour(2, $00F8)
-MakeSprite()
-SpriteSetImagePacked(0, @spr(0))
-SpriteSetImagePacked(1, @spr(0))
+SpritePalette(@sprite_pal(0))
+SpriteSetImagePacked(0, @sprite(0))
+SpriteSetImagePacked(1, @sprite(0))
 SpriteMag(0, 2, 2)                  ' sprite 0 twice the size
 SpriteMag(1, 1, 1)
 PRINT AT 1, 1; "HELLO FROM CPCBUILD (PLUS)"
@@ -243,14 +225,28 @@ const CPC_SPR = {
   format: 'cpcspr', version: 1, kind: 'cpc', mode: 1, name: 'ball', frame: { w: 8, h: 8 }, masked: false,
   palette: { file: 'pens.cpcpal' },
   frames: [['33333333', '32222223', '32222223', '32222223', '32222223', '32222223', '32222223', '33333333']],
-  output: 'ball.bas', emitPalette: false,
+  output: 'ball.bas', emitPalette: true,
 };
+const PLUS_PAL = '# sprite colours 1-15 (12-bit R G B hex triples)\nF80, 08F\n';
 const PLUS_SPR = {
   format: 'cpcspr', version: 1, kind: 'plus', name: 'sprite', frame: { w: 16, h: 16 },
   palette: { file: 'colours.cpcpal12' },
   frames: [['1111111111111111', ...Array.from({ length: 14 }, () => '1222222222222221'), '1111111111111111']],
   output: 'sprite.bas', packed: true,
 };
+
+/** The generated include of the ball document, byte for byte what Generate (or the build) writes with default settings. */
+export function ballBas(): string {
+  const doc = json(CPC_SPR);
+  return exportAsset(parseSprite(doc, 'spr', 'ball'), { source: 'ball.cpcspr', palette: resolvePalette(parseSprite(doc, 'spr', 'ball'), CPC_PAL) }).text;
+}
+
+/** The generated include of the Plus sprite document. */
+export function plusSpriteBas(): string {
+  const doc = json(PLUS_SPR);
+  const s = parseSprite(doc, 'spr', 'sprite');
+  return exportAsset(s, { source: 'sprite.cpcspr', palette: resolvePalette(s, PLUS_PAL) }).text;
+}
 
 function readme(title: string, lines: string[]): string {
   return `# ${title}\n\nA CPCBuild Studio project. Three things to try:\n\n${lines.map((l, i) => `${i + 1}. ${l}`).join('\n')}\n\n` +
@@ -278,6 +274,7 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
       files['src/main.bas'] = FIRMWARE_MAIN;
       files['assets/pens.cpcpal'] = CPC_PAL;
       files['assets/ball.cpcspr'] = json(CPC_SPR);
+      files['assets/ball.bas'] = ballBas();
       common(name, [
         'Run **CPCBuild: Build and Run** (the status bar shows the target).',
         'Switch target with **CPCBuild: Select Target** (`cpc464` is the same program on a 464).',
@@ -294,6 +291,7 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
       files['src/main.bas'] = BARE_NOTES + FIRMWARE_MAIN;
       files['assets/pens.cpcpal'] = CPC_PAL;
       files['assets/ball.cpcspr'] = json(CPC_SPR);
+      files['assets/ball.bas'] = ballBas();
       common(name, [
         'Run **CPCBuild: Build and Run**: the target is built with `-D CPC_BAREMETAL`.',
         'Read the comment at the top of `src/main.bas` for what a bare program cannot call.',
@@ -311,8 +309,9 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
         assets: ['assets/**/*.cpcimp', 'assets/**/*.cpcspr', 'assets/**/*.cpcpal12'],
       });
       files['src/main.bas'] = PLUS_MAIN;
-      files['assets/colours.cpcpal12'] = '# sprite colours 1-15 (12-bit R G B hex triples)\nF80, 08F\n';
+      files['assets/colours.cpcpal12'] = PLUS_PAL;
       files['assets/sprite.cpcspr'] = json(PLUS_SPR);
+      files['assets/sprite.bas'] = plusSpriteBas();
       common(name, [
         'Build target `plus-cart` and run the `.cpr` in an emulator set to the Plus model.',
         `Build target \`plus-dsk\` for the disc version (\`run"${disc}\`).`,
