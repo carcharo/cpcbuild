@@ -90,6 +90,7 @@ CONST NSLOT AS UBYTE = 5
 DIM bitOf(4) AS UBYTE => {1, 2, 4, 8, 16}
 
 DIM blankPal(459) AS UBYTE            ' zeros: the blank palette (16) and the title's map (460)
+#ifndef LAMP_PLUS     ' (software sprites; the Plus layer has hardware ones)
 DIM roomAddr AS UINTEGER
 DIM sNF(4) AS UBYTE      ' to be drawn (frame 255: none)
 DIM sNX(4) AS UBYTE
@@ -100,6 +101,7 @@ DIM sOY(4) AS UBYTE
 DIM dMask AS UBYTE       ' bit s: slot s moved or changed since it was drawn
 DIM vMask AS UBYTE       ' bit s: slot s is to be shown
 DIM sForce AS UBYTE
+#endif
 DIM fT AS UINTEGER                       ' Frames() at the start of this step
 DIM curTune AS UBYTE                     ' the music playing: 0 none, 1 title, 2 game
 ' PlatSfx(n) -> the bank's effect: 1 jump = "shot", 2 lamp = "wave", 3 death
@@ -108,7 +110,9 @@ DIM sfxMap(4) AS UBYTE => {0, 1, 4, 3, 2}
 DIM hLit, hTot, hLives, hRoom AS UBYTE
 
 SUB PlatInit()
+#ifndef LAMP_PLUS
   DIM i AS UBYTE
+#endif
   Mode 0
   SetPalette(@tiles_pal(0), tiles_PENS)
   SetBorder 0
@@ -116,17 +120,20 @@ SUB PlatInit()
   SetTileSet(@tiles(0))
   TextFont(@font(0), font_FIRST, 7, font_FIRST + font_COUNT - 1)
   TextPen(7, 0)
+#ifndef LAMP_PLUS
   FOR i = 0 TO 4
     sNF(i) = 255
     sOF(i) = 255
   NEXT i
   sForce = 0
+#endif
   hLit = 255
 #ifndef NOSFX
   SfxInit(@sf_sfx)
 #endif
 END SUB
 
+#ifndef LAMP_PLUS     ' (the Plus layer draws rooms and cells itself)
 ' Draws a room: the screen is blanked (all pens black) while the tiles go
 ' down, then the palette is restored. Sprites are forgotten (not erased: the
 ' room has just been drawn over them) and all drawn again by the next flush.
@@ -150,6 +157,7 @@ SUB PlatTile(cx AS UBYTE, cy AS UBYTE, t AS UBYTE)
   DoTile8(cx, cy, t)
   sForce = 1
 END SUB
+#endif
 
 ' A tile at cell (cx, cy), outside the game's map (the title's lamps).
 SUB PlatTileRaw(cx AS UBYTE, cy AS UBYTE, t AS UBYTE)
@@ -266,8 +274,11 @@ END SUB
 
 ' Blanks the whole screen and forgets the sprites and the HUD.
 SUB PlatClear()
+#ifndef LAMP_PLUS
   DIM i AS UBYTE
+#endif
   ClearScreen(0)
+#ifndef LAMP_PLUS
   roomAddr = @blankPal(0)
   FOR i = 0 TO 4
     sNF(i) = 255
@@ -276,6 +287,7 @@ SUB PlatClear()
   sForce = 0
   dMask = 0
   vMask = 0
+#endif
   hLit = 255
 END SUB
 
@@ -294,9 +306,11 @@ FUNCTION PlatInput() AS UBYTE
   RETURN r
 END FUNCTION
 
+#ifdef TESTSW      ' (the step counter of main.bas's bench; nothing else asks)
 FUNCTION PlatFrames() AS UINTEGER
   RETURN CAST(UINTEGER, Frames())
 END FUNCTION
+#endif
 
 ' End of a step: wait until two frames have passed since the last one (25
 ' steps a second), then draw what GameDraw handed over.

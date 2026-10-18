@@ -115,7 +115,6 @@ END SUB
 ' The sprites are not on the screen's memory, so nothing is forgotten but the
 ' slots (freed: hidden at once; the cache gives them their pictures back).
 SUB PlatRoom(addr AS UINTEGER)
-  roomAddr = addr
   SetPalette12Block(@pBlack(0), 0, 16)
   TileMap(addr, 0, 0, 20, 23)
   SetPalette12Block(@pl_pens(0), 0, 16)
