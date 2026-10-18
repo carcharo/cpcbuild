@@ -3,9 +3,17 @@
 movement (MovePlayer, MoveX, MoveY, ClimbStep, Ground, Touch) over the rooms of
 assets/rooms.bas (generated from tower.tmx), searched exhaustively.
 
-Enemies are ignored (they only cost a life: the player respawns). Spikes are
-forbidden (a step that touches them is not a move). Lamps are touched, never
-"lit" in the model; a room's doors count as open once all its lamps are reached.
+The search itself ignores enemies (they only cost a life: the player
+respawns) and forbids spikes (a step that touches them is not a move). Lamps
+are touched, never "lit" in the model; a room's doors count as open once all
+its lamps are reached.
+
+Enemies are covered by a static check instead (enemy_check): the whole area
+each enemy can sweep (MoveEnemies ported: a walker's platform span, a
+floater's vertical range, a bat's horizontal range plus its sine wobble) must
+not overlap a door cell, the two cells next to an exit (the doorway's two
+columns inward, or a ladder's two end cells) or the room's start cell. So the
+first room can always be left without timing a pass through an enemy.
 
   reach.py             check: every lamp reachable, every exit usable in the
                        intended order, the tower completable; exit 1 if not
@@ -400,6 +408,121 @@ def analyse(verbose=True):
     return ok, seq, log
 
 
+# ---- enemies (static) ---------------------------------------------------
+
+BATTAB = [8, 10, 11, 12, 14, 15, 15, 16, 16, 16, 15, 15, 14, 12, 11, 10,
+          8, 6, 5, 4, 2, 1, 1, 0, 0, 0, 1, 1, 2, 4, 5, 6]
+
+
+def load_enemies():
+    txt = ROOMS_BAS.read_text()
+    m = re.search(r"DIM robj\(\d+\) AS UBYTE => \{(.*?)\}", txt, re.S)
+    robj = [int(v, 16) for v in re.findall(r"\$([0-9A-Fa-f]{2})", m.group(1))]
+    m = re.search(r"DIM roff\(\d+\) AS UINTEGER => \{(.*?)\}", txt, re.S)
+    roff = [int(v) for v in re.findall(r"\d+", m.group(1))]
+    en = {}
+    for r in range(12):
+        o = roff[r]
+        en[r] = []
+        while robj[o] != 0:
+            if robj[o] == 2:
+                en[r].append((robj[o + 1], robj[o + 2] * 8, robj[o + 3] * 8, robj[o + 4] * 8))
+            o += 5
+    return en
+
+
+def envelope(room, kind, x0, y0, rng, doors_open):
+    """Pixel boxes (x0, y0, x1, y1), x1/y1 exclusive, the 8 x 16 sprite sweeps
+    (MoveEnemies in game.bas, every position it can reach from its start)."""
+    if kind == 2:                               # floater: y0 .. y0 + range
+        return (x0, y0, x0 + 8, y0 + rng + 16)
+    if kind == 3:                               # bat: x0 .. x0 + range, y0 - 8 .. y0 + 8
+        lo = min(BATTAB) - 8
+        hi = max(BATTAB) - 8
+        return (x0, y0 + lo, x0 + rng + 8, y0 + hi + 16)
+    g = World([doors_open] * 12).grid(room)     # walker: WalkOK, turning at walls/gaps
+
+    def ta(c, row):
+        return g[row * RW + c]
+
+    def walk_ok(x, y, d):
+        c = (x + 7) >> 3 if d == 1 else x >> 3
+        if any(ta(c, (y + k) >> 3) & 1 for k in (0, 8, 15)):
+            return False
+        if ta(c, (y + 15) >> 3) & 8:
+            return False
+        return bool(ta(c, (y + 16) >> 3) & 3)
+
+    x, d = x0, 1
+    xs, seen = {x}, set()
+    while (x, d) not in seen:
+        seen.add((x, d))
+        if d == 1:
+            if x >= 152:
+                d = 0
+            else:
+                if walk_ok(x + 2, y0, 1):
+                    x += 2
+                else:
+                    d = 0
+        else:
+            if x < 2:
+                d = 1
+            elif walk_ok(x - 2, y0, 0):
+                x -= 2
+            else:
+                d = 1
+        xs.add(x)
+    return (min(xs), y0, max(xs) + 8, y0 + 16)
+
+
+def sensitive_cells(room):
+    """name -> (col, row) cells an enemy must stay clear of."""
+    t = ROOMS[room]
+    cells = {}
+    for i, v in enumerate(t):
+        if v == T_DOOR:
+            cells[(i % RW, i // RW)] = "door"
+    for side, doorway, inward in (("left", 0, (1, 2)), ("right", RW - 1, (RW - 2, RW - 3))):
+        if t[20 * RW + doorway] != 1:                       # not brick: an exit this side
+            for row in (20, 21):
+                for c in (doorway,) + inward:
+                    cells.setdefault((c, row), f"{side} exit")
+    for c in range(RW):
+        if t[c] in (3, 12):                                 # ladder through the ceiling
+            for row in (0, 1):
+                cells.setdefault((c, row), "ceiling ladder")
+        if t[(RH - 1) * RW + c] in (3, 12):                 # ladder top in the floor
+            for row in (RH - 2, RH - 1):
+                cells.setdefault((c, row), "floor ladder")
+    sx, sy = START[room]
+    for row in (sy // 8, sy // 8 + 1):
+        cells.setdefault((sx // 8, row), "start")
+    return cells
+
+
+def enemy_check():
+    """The static enemy check; returns (ok, log lines)."""
+    log, ok = [], True
+    for room, ens in load_enemies().items():
+        cells = sensitive_cells(room)
+        for kind, x0, y0, rng in ens:
+            name = {1: "walker", 2: "floater", 3: "bat"}[kind]
+            hits = set()
+            for doors_open in (False, True):
+                bx0, by0, bx1, by1 = envelope(room, kind, x0, y0, rng, doors_open)
+                for (c, row), what in cells.items():
+                    if bx0 < c * 8 + 8 and c * 8 < bx1 and by0 < row * 8 + 8 and row * 8 < by1:
+                        hits.add((what, c, row))
+            if hits:
+                ok = False
+                log.append(f"room {room}: {name} at ({x0 // 8},{y0 // 8}) sweeps "
+                           + ", ".join(f"{w} cell {c},{r}" for w, c, r in sorted(hits)))
+    if ok:
+        log.append("enemies: no patrol touches a door, an exit approach or a start cell")
+    return ok, log
+
+
 def rle(seq):
     out = []
     for i in seq:
@@ -427,6 +550,9 @@ def main():
     ap.add_argument("--check", action="store_true")
     args = ap.parse_args()
     ok, seq, log = analyse()
+    eok, elog = enemy_check()
+    ok = ok and eok
+    log += elog
     print("\n".join(log))
     if args.check and ok:
         import tempfile
