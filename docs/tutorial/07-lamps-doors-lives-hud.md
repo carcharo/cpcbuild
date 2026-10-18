@@ -567,4 +567,4 @@ the call. The HUD draws only what changed so a step in which nothing changes cos
 
 A silent but complete game: title, 12 rooms, 28 lamps, enemies, lives, win and game over. Your
 build is about 22 KB (22,227 bytes when this chapter's code was checked; the finished game built with
-`-D NOSOUND` is 22,400, and `DESIGN.md` recorded 22,404 at the same stage). Next: [Chapter 8, Sound and music](08-sound-and-music.md).
+`-D NOSOUND` is 22,313, and `DESIGN.md` recorded 22,404 at the same stage). Next: [Chapter 8, Sound and music](08-sound-and-music.md).
