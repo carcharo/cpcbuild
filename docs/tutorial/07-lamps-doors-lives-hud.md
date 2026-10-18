@@ -143,7 +143,11 @@ END SUB
 
 ```
 
-(`game.bas:211-255`.) Now `LoadRoom` does the whole job:
+(The finished `LoadRoom`, `game.bas:361-400`, is a little different: it hands the block copy and the
+lamp and door scan to two routines, `CopyRoom` and `ScanRoom`. The loops above are their plain BASIC
+logic, and the finished file has them as BASIC under `#ifdef LAMP_BASIC` (`game.bas:261-266` and
+`284-299`), next to the faster assembly ones the game uses by default (`game.bas:268-276` and
+`301-356`; chapter 9).) Now `LoadRoom` does the whole job:
 
 1. Copies the room into `cur`.
 2. **Scans for lamps.** Every cell holding tile 5 (`T_LAMP`) is a lamp. Lamps are numbered 0, 1, 2 in
@@ -234,13 +238,13 @@ END SUB
 - `Die` takes a life and plays the death sound (`PlatSfx(3)`); at zero lives the state is `S_OVER`;
   otherwise it puts the player back where he entered, and resets the enemies.
 
-(`game.bas:292-355`, unchanged.)
+(`game.bas:457-497`, unchanged.)
 
 ## Step 5: Touching things
 
 ```basic
 ' Lamps, spikes and enemies against the player; returns 1 on a hit.
-' (simplified: the game's checks the tiles in one assembly call, TouchAttr)
+' (the game's checks the tiles in one call, TouchAttr)
 FUNCTION Touch() AS UBYTE
   DIM k, c, l, r, row, hit, ex, ey, a AS UBYTE
   l = (pX + 1) >> 3
@@ -306,8 +310,11 @@ END SUB
 
 - `Touch` probes the body at lines `y`, `y + 8` and `y + 15` (as in chapter 5), and for every cell
   under the hit box (`l` to `r`): a lamp tile lights it, and spikes (hazard) hurt only if they are in the
-  lower two rows. Then the enemies, as in chapter 6. **(simplified:** the finished game does the
-  tile part in a single assembly call, `TouchAttr`, `game.bas:141-209` and `697-725`.)
+  lower two rows. Then the enemies, as in chapter 6. The finished game does the
+  tile part in a single call, `TouchAttr`, which ORs the attributes of the cells in the same way. Its
+  plain BASIC version is under `#ifdef LAMP_BASIC` (`game.bas:163-182`), next to the faster
+  assembly one the game uses by default (`game.bas:184-252`, chapter 9); `Touch` itself is
+  `game.bas:862-890`.
 - `GameStep` now returns the state and does nothing once the game is over.
 - `GameDraw` also calls `PlatHud` with the numbers to show.
 

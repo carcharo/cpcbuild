@@ -87,7 +87,7 @@ DIM eY0(3) AS UBYTE
 DIM eR(3) AS UBYTE
 ```
 
-(`game.bas:63-74`.) Note the separate `DIM` lines: `DIM a(3), b(3) AS UBYTE` does not parse in the
+(`game.bas:77-86`.) Note the separate `DIM` lines: `DIM a(3), b(3) AS UBYTE` does not parse in the
 compiler this game was written against (`DESIGN.md`, "As built").
 
 `eX0`, `eY0`, `eR` are where an enemy starts, in pixels, and its range in pixels; `eX`, `eY` where it
@@ -181,7 +181,7 @@ END SUB
 
 - `LoadRoom` reads the object list `robj` (chapter 3) for room `id`: a type 1 record is the start
   cell; a type 2 record is an enemy: kind, start cell and range in cells, which are multiplied by 8
-  (`<< 3`) to pixels. **(simplified:** `game.bas:213-255` also finds the room's lamps, chapter 7.)
+  (`<< 3`) to pixels. **(simplified:** `LoadRoom` in `game.bas:361-400` also finds the room's lamps, chapter 7.)
 - `ResetEnemies` puts every enemy back on its start square and hides the unused slots (frame 255: "no
   sprite", chapter 4). Slots 1 to 4 belong to the enemies.
 - `Die` is the *whole* of the punishment in this chapter: back to where you entered, enemies reset.
@@ -192,7 +192,7 @@ END SUB
 ```basic
 ' Can a walker stand with its left edge at x, y, having just stepped in
 ' direction dir (1 right)? No wall in its way, ground under the leading
-' edge, no spikes there. (simplified: the game's is assembly)
+' edge, no spikes there.
 FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
   DIM c AS UBYTE
   IF dir = 1 THEN c = (x + 7) >> 3 ELSE c = x >> 3
@@ -260,8 +260,9 @@ SUB MoveEnemies()
 END SUB
 ```
 
-(`WalkOK` is **simplified**: the finished game's is assembly, `game.bas:581-637`, with exactly this logic.
-`MoveEnemies` is `game.bas:639-694` unchanged.)
+(The finished `game.bas` has this exact `WalkOK` under `#ifdef LAMP_BASIC` (`game.bas:736-743`), next to
+the faster assembly one that the game uses by default (`game.bas:745-801`, chapter 9), so you can
+compare them line by line. `MoveEnemies` is `game.bas:808-859` unchanged.)
 
 Read `MoveEnemies` from the top.
 

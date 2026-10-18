@@ -9,7 +9,7 @@ steps a second on a 464 with music.
 - How to read Studio's build report and the compiler's `.map` file.
 - What the 464's memory budget is, and what Lamplighter uses.
 - How to benchmark a game with a scripted run (`-D BENCH`) and read its output.
-- Where the time goes in a step, and the four changes that made the difference.
+- Where the time goes in a step, and how to measure the plain BASIC and assembly versions of the hot routines yourself.
 
 **Time:** about 45 minutes. Every number in this chapter is either measured in front of you or
 labelled with the file it was measured in (mostly `DESIGN.md`, sections 11 and 12 "As built").
@@ -24,30 +24,30 @@ game's files.
 
 Run **CPCBuild: Build** with the `cpc464` target. At the end of the **CPCBuild** output channel is
 the build report. The report is plain text (a graphical report with a memory bar was planned and is not
-built). For the finished game, whose size is 26,814 bytes (`DESIGN.md` section 12; the finished game's
+built). For the finished game, whose size is 26,727 bytes (`DESIGN.md` section 12; the finished game's
 `build_cpc.sh` prints the same size), it reads:
 
 ```
 Build report for cpc464:
-  26814 bytes, &0040-&68FE
-    over back screen / banks (double buffering) (&4000) by 10494 bytes
-    headroom below &8B60: 8802 bytes  [firmware heap start]
+  26727 bytes, &0040-&68A7
+    passes &4000 by 10407 bytes (only matters if you use a back screen or banks)
+    headroom below &8B60: 8889 bytes  [firmware heap start]
 ```
 
 (The layout is `formatReport` in Studio's `map.ts`, checked against a screenshot of a real run; the
-numbers are worked out from the 26,814 bytes: &0040 + 26,814 = &68FE, and &68FE - &4000 = 10,494.) Run
+numbers are worked out from the 26,727 bytes: &0040 + 26,727 = &68A7, and &68A7 - &4000 = 10,407.) Run
 **CPCBuild: Show Build Report** to print the last one again. Your own build will be a few hundred bytes
 different. The lines mean:
 
-- **`26814 bytes, &0040-&68FE`**: the program's size and address range. Studio reads the start from the `.map`
+- **`26727 bytes, &0040-&68A7`**: the program's size and address range. Studio reads the start from the `.map`
   file the compiler writes next to the program (the label `.core.__START_PROGRAM`) and adds the size.
   A CPC program loads at `&0040` by default (library: **Program origin**).
 - **`headroom below &8B60`**: the firmware's heap starts at `&8B60`; the program must end below it.
-  From `&0040` that leaves about 34.8 KB (library: **Program origin**). Lamplighter ends at `&68FE`
-  and has **8,802 bytes spare**: room to add rooms.
-- **`over back screen / banks (double buffering) (&4000)`**: a reference line, not an error. A program that
+  From `&0040` that leaves about 34.8 KB (library: **Program origin**). Lamplighter ends at `&68A7`
+  and has **8,889 bytes spare**: room to add rooms.
+- **`passes &4000 by 10407 bytes`**: a reference line, not an error. A program that
   uses double buffering or the 6128's banks must stay below `&4000` because it reserves `&4000-&7FFF`.
-  Lamplighter is single-buffered and keeps no banks, so it is "over" that line by design, and says so in lower case.
+  Lamplighter is single-buffered and keeps no banks, so it passes that line by design, and the line says it only matters if you use a back screen or banks.
   A real limit that is exceeded says `OVER` in capitals. The build still finishes: Studio *reports* the
   limit, it does not stop the build. (The finished game's `build_cpc.sh` does stop, with a message, if the
   program ends above `&8B60`; that check is one of the things that stay outside Studio.)
@@ -71,7 +71,7 @@ and `bare limit` at `&B800`.)
 | Music and effects | about 3,000 to 4,000 |
 | Font | 0 to 800 |
 
-The design's total was 25,000 to 29,000 bytes; the finished game is 26,814 (22,400 without sound), inside it.
+The design's total was 25,000 to 29,000 bytes; the finished game is 26,727 (22,313 without sound, built with `-D NOSOUND`), inside it.
 (The 1,536 and 5,520 are exact: you saw them in the generated files' array sizes.)
 
 To see for yourself, open `build/<name>.map`. It is a list of `address: label` lines. Sort it by address in
@@ -137,7 +137,7 @@ INFO steps=250 frames=500 per second=25.0 late=2 longest=3
 ```
 
 (The line is printed by the finished game's `main.bas:119`; the numbers here are illustrative. The finished
-game's own measurement, `DESIGN.md` section 12: **25.0 steps a second, 499 frames**, with music.)
+game's own measurement on a 464, with music: `INFO steps=250 frames=499 per second=25.1 late=3 longest=3`.)
 <!-- CHECK (for the user's test session): the line is printed with PRINT in mode 0, which has 20 columns, so it wraps over several rows; confirm it is readable in the emulator tab and not scrolled away when the program ends. If it is hard to read, the test harness reads the same line from the emulator's console (games/lamplighter/tests/bench.sh). -->
 
 How to read it:
@@ -156,11 +156,12 @@ off. Add `NOPACE` to the target's defines. Now the steps run as fast as they can
 | Build (464, unpaced; frames for 250 steps) | Frames | Headroom |
 |---|---|---|
 | silent, at the end of the game's first milestone (`DESIGN.md` section 11) | 460 | about 8 % |
-| after the speed-ups of this chapter, silent (section 12) | 405 | about 19 % |
-| same, with music | 430 | about 14 % |
+| the finished game, silent (`NOPACE` and `NOSOUND`) | 403 | about 19 % |
+| the finished game, with music (`NOPACE`) | 428 | about 14 % |
 
-(Headroom = (500 minus frames) / 500.) And paced, with music, the finished game gets **25.0 steps a second (499
-frames)**; with game mode switched off (`NOGAMEMODE`) it gets **24.9 (503)**. So game mode is what
+(Headroom = (500 minus frames) / 500. The first row is history; the other two are measured on the finished game.)
+And paced, with music, the finished game gets **25.1 steps a second (499 frames, 3 late steps)**; with game mode
+switched off (`NOGAMEMODE`) it gets **24.9 (502 frames, 27 late steps)**. So game mode is what
 makes the room for music: the library says the same (**Frame hook and game mode**: music and effects
 at 25.0 in game mode, 20.0 in normal mode, in the bounce demo).
 
@@ -171,49 +172,85 @@ Two more switches are useful for finding where time goes:
 | `NOPACE` | no frame wait: measure raw speed |
 | `NOFLUSH` | no drawing: measure the logic alone |
 
-Run once with `NOPACE`, once with `NOPACE` and `NOFLUSH`: the difference is the cost of drawing.
+Run once with `NOPACE`, once with `NOPACE` and `NOFLUSH`: the difference is the cost of drawing. With music, the finished game takes 428 frames with drawing and 199 without, so drawing costs 428 - 199 = 229 frames of the 428: a little over half a step.
 
 ## Step 4: What made it fast
 
-The BASIC versions of chapters 5 to 7 are too slow for a 464 at 25 steps a second, and the music
-takes another 6 %. `DESIGN.md` records the changes that fixed it: for the first, "needed: `TileAttr` in
-asm"; for the music, the other three. They are all in the finished files you just copied.
+The BASIC versions of chapters 5 to 7 are too slow for a 464 at 25 steps a second. The finished
+`game.bas` has six hot routines written twice: `TileAttr`, `TouchAttr`, `ColSolid`, `WalkOK`,
+`CopyRoom` and `ScanRoom`. Each is `#ifdef LAMP_BASIC` plain BASIC (the versions you wrote in chapters 5
+to 7, or close to them) `#else` Z80 assembly `#endif`. The default build uses the assembly. Here you
+build both and measure the difference.
 
-1. **`TileAttr` in assembly.** The BASIC function you wrote in chapter 5 costs about **2,560
-   T-states** a call (`DESIGN.md` section 11), and a step makes many of them: the player's probes, the lamp and
-   spike test, every walking enemy. In assembly it is **560** (section 11). Look at
-   it in `game.bas:81-134`. It is Z80 code inside `ASM ... END ASM`, and it does exactly what the BASIC
-   did: row times 20 plus column (as shifts and adds: 4 + 1 = 5, then times 4), plus the room's address, read
-   the tile, `AND 15`, look it up in `TA_TAB` (the attribute table, which now lives in the assembly as a
-   `defb` line).
+1. Open `cpcbuild.json` and add `LAMP_BASIC` to the `defines` of the `bench464` target:
 
-   ```
-   ld a, (ix+7)            ; cy
-   ...
-   add hl, hl
-   add hl, hl              ; 4 cy
-   add hl, de              ; 5 cy
-   add hl, hl
-   add hl, hl              ; 20 cy
+   ```json
+   "defines": ["CPC464", "BENCH", "LAMP_BASIC"]
    ```
 
-   (`game.bas:110-120`.) `ix+5` and `ix+7` are the arguments, read from the stack frame: Boriel passes
-   them there, and an assembly routine reads them itself (library, **Using the library**: assembly
-   routines "read their arguments from the stack frame and return in registers").
-2. **`ColSolid` and `WalkOK` in assembly** (they were about 10,000 T-states a call; `game.bas:358-391` and
-   `581-637`). They share the cell-lookup code in `TileAttr`'s assembly through a label, `CELL_ATTR`.
-3. **One call instead of six for lamps and spikes.** `TouchAttr` (`game.bas:141-209`) ORs the attributes of
-   all cells under the hit box over the three rows and answers the common case, "nothing here", in one call.
-   The BASIC `Touch` you wrote in chapter 7 made about six `TileAttr` calls and loops for the same answer.
-4. **Visit only the enemies that move.** Chapter 6's `eTick` trick. Before, every enemy was visited every
-   step: about **33,000 T-states**.
+2. Run **CPCBuild: Build and Run**. The line is:
 
-`DESIGN.md` adds the first milestone's own list: "enemies move every second step (half per step)" and
-"overlap redraw only for a still player" (chapter 6). The result, from the table above: 460 frames
-before sound, 430 after, with the music's 6 % included.
+   ```
+   INFO steps=250 frames=549 per second=22.8 late=46 longest=4
+   ```
+
+   Paced, plain BASIC manages 22.8 steps a second, with 46 late steps. Add `NOPACE` as well and it
+   takes 548 frames for 250 steps. That is over the 500-frame budget, so **the game cannot hold 25
+   steps a second in plain BASIC**. The build report says 26,927 bytes: 200 more than the assembly build's
+   26,727.
+3. Remove `LAMP_BASIC` again and run the bench. It is back to
+   `INFO steps=250 frames=499 per second=25.1 late=3 longest=3`.
+
+Both builds play the same game; `make test-lamp` (next step) checks that. Only the time differs. Here is
+what each routine costs a call, measured on the chips emulator for the 464, net of an empty call (give or take
+about 80 T-states):
+
+| Routine | Plain BASIC (T-states) | Assembly (T-states) |
+|---|---|---|
+| `TileAttr` | 2,560 | 320 |
+| `ColSolid` | 8,800 | 1,100 |
+| `WalkOK` | 15,200 | 1,900 |
+| `TouchAttr` | 56,600 | 3,800 |
+| `CopyRoom` | 511,000 | 13,200 |
+| `ScanRoom` | 471,000 | 27,000 |
+
+Read it from the top. `TileAttr` is the bottom of everything: `ColSolid`, `WalkOK` and `TouchAttr` call it,
+and a step makes many such calls: the player's probes, the lamp and spike
+test, every walking enemy. Look at the assembly in `game.bas:102-155`. It does exactly what the BASIC did:
+row times 20 plus column (as shifts and adds: 4 + 1 = 5, then times 4), plus the room's address, read the
+tile, `AND 15`, look it up in `TA_TAB` (the attribute table, which lives in the assembly as a `defb` line).
+
+```
+ld a, (ix+7)            ; cy
+...
+add hl, hl
+add hl, hl              ; 4 cy
+add hl, de              ; 5 cy
+add hl, hl
+add hl, hl              ; 20 cy
+```
+
+(`game.bas:132-141`.) `ix+5` and `ix+7` are the arguments, read from the stack frame: Boriel passes them
+there, and an assembly routine reads them itself (library, **Using the library**: assembly routines "read
+their arguments from the stack frame and return in registers"). `ColSolid` and `WalkOK` share this
+cell-lookup code through a label, `CELL_ATTR`. `TouchAttr` ORs the attributes of all cells under the hit
+box over the three rows and answers the common case, "nothing here", in one call.
+
+`CopyRoom` and `ScanRoom` are the two big ones, but they run only when a room loads. They are
+different from the others: they do not speed up a step, they remove a pause. The play-test found a
+1.7-second wait before the first room (`GameInit` counted the lamps by scanning the tower in BASIC) and a short
+pause when a lamp was lit. With the block copy (`LDIR`) and the one-pass scan, and the lamp total
+written into the data at build time, `GameInit` went from 89 to 9 frames, a room change from 25 to 9 frames
+and `LightLamp` from 7 to 0 (`DESIGN.md` section 15).
+
+The first milestone also needed two changes of design, which the build you measured already has, and which
+are not in assembly: enemies move every second step, half of them on each step (chapter 6's `eTick`; before,
+every enemy was visited every step, about **33,000 T-states**), and only a still player's overlap is
+redrawn (`DESIGN.md` section 11). Music costs the rest: from 403 to 428 frames.
 
 > **The lesson.** Measure first, then change one thing. Almost all of this game is plain BASIC; a few
-> hot spots (called many times a step) are in assembly. The library's own advice
+> hot spots (called many times a step) are in assembly, and the `LAMP_BASIC` switch lets you check the
+> difference rather than take it on trust. The library's own advice
 > (**Performance tips**): per-call overhead dominates, array indexing costs a few hundred T-states,
 > gate (firmware) calls cost about 220 T-states more than the routine.
 
@@ -224,16 +261,17 @@ part of Studio**: the tests, the goldens and the size checks are scripts and Mak
 cpcbuild repository, and you run them from a terminal there:
 
 ```
-make test-lamp        # 66 logic checks; 17 screenshot goldens on each CPC model, 17 + 4 on each Spectrum model
-make reach-lamp       # about a minute: every lamp reachable, the tower finishable
+make test-lamp        # logic checks and the whole-tower playthrough on every build, again with LAMP_BASIC on the 464 and 48K; screenshot goldens, two of them with LAMP_BASIC (88 tests in the latest run)
+make reach-lamp       # about a minute: every lamp reachable, the tower finishable, and enemy patrols clear of doors, exits and entries
 games/lamplighter/tests/bench.sh      # the benchmark, all builds, headless
-make test-lamp-plus   # the Plus builds on Caprice32 and CPCEC, about 3 minutes (DESIGN.md section 13)
+make test-lamp-plus   # the Plus builds on Caprice32 and CPCEC, about 3 minutes (84 tests in the latest run; DESIGN.md section 13)
 ```
 
-(From `DESIGN.md`, sections 8 and 11 to 13. These need the repository's own tools and a built headless
+(From `DESIGN.md`, sections 8 and 11 to 15, and `games/lamplighter/tests/run.py`. These need the repository's own tools and a built headless
 emulator: `make chips`.) A **golden** is a saved screenshot of a known state; the test builds the game,
 runs it to that state and compares pictures pixel for pixel. That is how the sound switches were checked
-to change no pixel (chapter 8).
+to change no pixel (chapter 8), and how the `LAMP_BASIC` build is checked to draw the same pictures as the
+assembly one.
 
 ## Try this
 
@@ -241,7 +279,8 @@ to change no pixel (chapter 8).
 2. Time `TileAttr` alone. In a scratch program that includes your chapter 5 `game.bas` pieces, call the
    BASIC `TileAttr` 1,000 times in a loop and note `Frames()` before and after. Predict the answer first:
    at about 2,560 T-states a call, and 80,000 to a frame, how many frames? Then do the same with the
-   assembly `TileAttr` (560 T-states) from the finished file. Were your predictions close?
+   assembly `TileAttr` (320 T-states, net of the call overhead) from the finished file. The loop and the call add
+   their own cost, so expect more than the net figures. Were your predictions close?
 3. Add `NOGAMEMODE` to the defines. How many frames, paced and unpaced?
 4. Add `NOSOUND`, then `NOMUSIC`, then `NOSFX`. Which part of the sound costs the most time? The most bytes?
 5. Add a memory limit line in settings (`cpcbuild.build.memoryLimits`) at `0x6000` and read the report.
