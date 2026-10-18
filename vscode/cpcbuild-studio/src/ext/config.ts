@@ -22,6 +22,9 @@ export interface Settings {
   cpcecPath: string;
   rvmPath: string;
   customCommand: string;
+  /** External Spectrum emulator for .tap targets (empty = none) and its arguments (${file} = the .tap). */
+  zxEmulator: string;
+  zxEmulatorArgs: string[];
   autorunCommand: string;
   /** Image importer engine (spec 4.4) and the header of generated files. */
   assetsEngine: 'builtin' | 'python';
@@ -70,6 +73,8 @@ export function readSettings(projectDir?: string): Settings {
     cpcecPath: c.get<string>('run.cpcecPath') ?? '',
     rvmPath: c.get<string>('run.rvmPath') ?? '',
     customCommand: c.get<string>('run.customCommand') ?? '',
+    zxEmulator: c.get<string>('run.zxEmulator') ?? '',
+    zxEmulatorArgs: c.get<string[]>('run.zxEmulatorArgs') ?? ['${file}'],
     autorunCommand: c.get<string>('run.autorunCommand') || 'run"${name}',
     assetsEngine: c.get<string>('assets.engine') === 'python' ? 'python' : 'builtin',
     assetsHeader: ((h) => (h === 'studio' || h === 'none' ? h : 'img2cpc'))(c.get<string>('assets.header')),
