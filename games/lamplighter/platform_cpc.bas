@@ -65,7 +65,7 @@
 #endif
 #endif
 
-' Starfall's tunes and effects (lib/music, Arkos Tracker 3). The player runs
+' The demo tunes and effects (lib/music, Arkos Tracker 3). The player runs
 ' on the frame hook, whatever the game does; the songs and the effects bank
 ' live in main RAM on both models (a few hundred bytes). Effects only sound
 ' while a song plays: -D NOMUSIC plays an empty one.
@@ -102,8 +102,8 @@ DIM vMask AS UBYTE       ' bit s: slot s is to be shown
 DIM sForce AS UBYTE
 DIM fT AS UINTEGER                       ' Frames() at the start of this step
 DIM curTune AS UBYTE                     ' the music playing: 0 none, 1 title, 2 game
-' PlatSfx(n) -> Starfall's effect: 1 jump = its shot, 2 lamp = its wave, 3 death
-' = its hit, 4 door = its boom
+' PlatSfx(n) -> the bank's effect: 1 jump = "shot", 2 lamp = "wave", 3 death
+' = "hit", 4 door = "boom"
 DIM sfxMap(4) AS UBYTE => {0, 1, 4, 3, 2}
 DIM hLit, hTot, hLives, hRoom AS UBYTE
 

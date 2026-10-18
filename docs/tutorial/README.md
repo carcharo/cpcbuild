@@ -180,9 +180,3 @@ where Build, Run and asset generation refuse until you trust the workspace (chap
 2. Open **View > Output** and choose **CPCBuild** in the drop-down: the compiler's messages are there.
 3. Open the **Problems** panel: compiler errors and warnings appear there with file and line.
 4. Compare your file with the finished one in `games/lamplighter/`.
-
-## What the tutorial does not do
-
-It does not write music (it reuses Starfall's songs; chapter 8 says where to go if you want your own), and it
-does not use Studio's debugging views (symbols, registers, memory, breakpoints) beyond a description in chapter 9;
-they are worth exploring once the game runs.

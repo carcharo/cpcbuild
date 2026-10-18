@@ -22,8 +22,9 @@ into your project's `assets/` folder:
 | `sfx.bas` | the effects bank, array `sf_sfx` |
 | `quiet.bas` | an empty song, array `bounce_quiet` (used when you build with music off but effects on) |
 
-They are Starfall's songs (Lamplighter's sister game), converted for Boriel BASIC; each file's
-header says it was "converted by tools/aks2bas.py" and not to edit it.
+They are demo music written for CPCBuild (our own, not copied from any other game), so you can use them
+freely; they were made in a tracker and converted for Boriel BASIC. Each file's header says it was
+"converted by tools/aks2bas.py" and not to edit it.
 
 ---
 
@@ -68,7 +69,7 @@ the finished game's own.
 #endif
 #endif
 
-' Starfall's tunes and effects (lib/music, Arkos Tracker 3). The player runs
+' The demo tunes and effects (lib/music, Arkos Tracker 3). The player runs
 ' on the frame hook, whatever the game does; the songs and the effects bank
 ' live in main RAM on both models (a few hundred bytes). Effects only sound
 ' while a song plays: -D NOMUSIC plays an empty one.
@@ -103,13 +104,13 @@ In `platform_cpc.bas` add these variables after the `hLit` line:
 
 ```basic
 DIM curTune AS UBYTE                     ' the music playing: 0 none, 1 title, 2 game
-' PlatSfx(n) -> Starfall's effect: 1 jump = its shot, 2 lamp = its wave, 3 death
-' = its hit, 4 door = its boom
+' PlatSfx(n) -> the bank's effect: 1 jump = "shot", 2 lamp = "wave", 3 death
+' = "hit", 4 door = "boom"
 DIM sfxMap(4) AS UBYTE => {0, 1, 4, 3, 2}
 ```
 
 `sfxMap` translates the game's four effect numbers into the effects bank's numbering
-(the game's 1 is the bank's 1: Starfall's "shot", used as the jump; the game's 2 is the bank's 4, "wave", for a lamp;
+(the game's 1 is the bank's 1: "shot", used as the jump; the game's 2 is the bank's 4, "wave", for a lamp;
 3 is "hit", for death; 4 is "boom", for a door opening). This is the only place that knows the
 bank's order, so a new bank means changing one table.
 
