@@ -76,9 +76,9 @@ describe('memoryReport', () => {
     expect(hex4(0x40)).toBe('&0040');
   });
   it('words an info line as information, not an error', () => {
-    const r = memoryReport(parseMap(fx('mode1text.map')), 15679, { bare: false, pkg: 'dsk' });
+    const r = memoryReport(parseMap(fx('mode1text.map')), 20000, { bare: false, pkg: 'dsk' });
     const t = formatReport(r).join('\n');
-    expect(t).toContain('passes &4000 by 641 bytes (only matters if you use a back screen or banks)');
+    expect(t).toContain('passes &4000 by 3616 bytes (only matters if you use a back screen or banks)');
     expect(t).not.toMatch(/over back screen/i);
   });
 });
