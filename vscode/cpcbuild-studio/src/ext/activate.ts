@@ -14,6 +14,7 @@ import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
 import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand, regenerateForPalette } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
+import { runFromCatalogue, targetForDsk } from './dskRun';
 import { runInEmulator, setStorageDir } from './run';
 import { runTool } from './runTool';
 import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
@@ -83,6 +84,35 @@ async function runTask(run: boolean): Promise<void> {
   await vscode.tasks.executeTask(createTask(def, wf ?? vscode.TaskScope.Workspace, `${run ? 'build and run' : 'build'} ${pt.targetId}`));
 }
 
+/**
+ * The program to RUN from a .dsk: the disc name of the project target that builds this file, else the
+ * disc's own catalogue (one .BIN or .BAS runs; several ask). Undefined = nothing to run (already told).
+ */
+async function discToRun(file: string, s: ReturnType<typeof readSettings>): Promise<{ name: string; model: RunInfo['model'] } | undefined> {
+  for (const lp of await findProjects()) {
+    if (!lp.project) continue;
+    const t = targetForDsk(lp.root, readSettings(lp.root).outputDir, lp.project.targets, file);
+    if (t) return { name: t.disc, model: s.modelOverride ?? t.model };
+  }
+  let img: Uint8Array;
+  try {
+    img = fs.readFileSync(file);
+  } catch (e) {
+    void vscode.window.showErrorMessage(`CPCBuild: cannot read ${file}: ${(e as Error).message}`);
+    return undefined;
+  }
+  const c = runFromCatalogue(img);
+  if (c.kind === 'one') return { name: c.name, model: s.model };
+  if (c.kind === 'many') {
+    const pick = await vscode.window.showQuickPick(c.candidates, { title: 'CPCBuild: which program to run from this disc?' });
+    return pick ? { name: pick, model: s.model } : undefined;
+  }
+  void vscode.window.showInformationMessage(
+    c.kind === 'none' ? 'CPCBuild: the disc has no .BIN or .BAS program to run.' : `CPCBuild: ${path.basename(file)} is not a readable CPC disc image.`,
+  );
+  return undefined;
+}
+
 /** Explorer "Run in emulator" on a .dsk, .cpr or .bin. */
 async function runFile(uri?: vscode.Uri): Promise<void> {
   const file = uri?.fsPath ?? vscode.window.activeTextEditor?.document.uri.fsPath;
@@ -95,7 +125,11 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
   const sink = tee(channelSink);
   getChannel().show(true);
   let run: RunInfo;
-  if (ext === '.dsk') run = { file, kind: 'dsk', name: deriveDiscStem(path.basename(file, ext)), model: s.model };
+  if (ext === '.dsk') {
+    const found = await discToRun(file, s);
+    if (!found) return;
+    run = { file, kind: 'dsk', name: found.name, model: found.model };
+  }
   else if (ext === '.cpr') run = { file, kind: 'cpr', model: 'plus' };
   else if (ext === '.bin') {
     // package first (the emulator never gets a raw .bin): origin from the map beside it, else &0040

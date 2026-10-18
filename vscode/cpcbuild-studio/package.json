@@ -333,7 +333,7 @@
       "explorer/context": [
         {
           "command": "cpcbuild.runFile",
-          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|cpr|bin)$/",
+          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|bin)$/",
           "group": "navigation@90"
         },
         {

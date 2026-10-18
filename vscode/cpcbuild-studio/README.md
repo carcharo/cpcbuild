@@ -11,7 +11,9 @@ contains no code from it.
 
 - **The Boriel BASIC compiler with the CPC backend**: the zxbasic fork (branch `cpc-arch`,
   `https://github.com/carcharo/zxbasic`), installed so that `zxbc --arch cpc` works. Set `cpcbuild.zxbc.command`
-  and `cpcbuild.zxbc.cwd` if you start it through Poetry (`["poetry", "run", "zxbc"]`). The same checkout holds
+  and `cpcbuild.zxbc.cwd` if you start it through Poetry (`["poetry", "run", "zxbc"]`). With the default command
+  and a `pyproject.toml` in `cpcbuild.zxbc.cwd`, Studio uses `poetry run zxbc` by itself when `zxbc` is not found
+  (poetry on `PATH`, else `~/.local/bin/poetry`, or under `%APPDATA%` on Windows). The same checkout holds
   `tools/cpc/mkdsk.py`, which packages a `.dsk`. Point `cpcbuild.zxbc.cwd` at it. (`mkdsk.py` is licensed AGPL-3.0
   with the compiler, so it is not part of this extension.)
 - **Python 3**, for `mkdsk.py`, `mkcpr.py` (Plus cartridges) and the optional Python image engine (which also
@@ -21,6 +23,9 @@ contains no code from it.
 - Optional: the **CPCBuild Emulator** extension (`cpcbuild.cpcbuild-emu`) to run in an editor tab and debug;
   Caprice32, CPCEC or Retro Virtual Machine as external emulators; the Arkos Tracker command-line tools for music;
   Tiled for maps.
+
+Right-click on a `.dsk` in a project: **Run in Emulator** types `RUN"` with the disc name from `cpcbuild.json` when
+the disc is a target's output, else with the only `.BIN` or `.BAS` in the disc's catalogue (it asks when there are several).
 
 Run **CPCBuild: Check Environment** to see what is found and what to set.
 
@@ -47,6 +52,8 @@ Everything is under `cpcbuild.*`; **CPCBuild: Open Settings** lists them. The ma
 | `cpcbuild.python.path` | Python 3 |
 | `cpcbuild.library.path` | A cpcbuild checkout (empty: search upwards, then the bundled copy) |
 | `cpcbuild.run.emulator` | `emu`, `caprice32`, `cpcec`, `rvm` or `custom` |
+| `cpcbuild.run.zxEmulator`, `cpcbuild.run.zxEmulatorArgs` | An external Spectrum emulator (Fuse, ZEsarUX, ...) that Build and Run starts on the `.tap` of a `zx48k` target; `${file}` is the `.tap` |
+| `cpcbuild.target.default` | Target used when none was chosen; **CPCBuild: Select Target** remembers its choice per project in the workspace state, not in settings |
 | `cpcbuild.assets.engine`, `cpcbuild.assets.generateOnSave` | Importer engine (built in or Python); write the `.bas` when a document is saved |
 | `cpcbuild.lint.enable`, `cpcbuild.lint.rules` | Library lint |
 
