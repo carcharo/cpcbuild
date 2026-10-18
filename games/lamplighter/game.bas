@@ -56,6 +56,11 @@ DIM bitTab(7) AS UBYTE => {1, 2, 4, 8, 16, 32, 64, 128}
 
 DIM cur(459) AS UBYTE                 ' the current room's tiles
 DIM litMask(11) AS UBYTE              ' lit lamps of each room, one bit per lamp
+' the current room's lamp and door cells (cell indices, in cell order; at
+' most 8 of each, split_rooms.py checks), found once by LoadRoom
+DIM nLamp, nDoor AS UBYTE
+DIM lampCell(7) AS UINTEGER
+DIM doorCell(7) AS UINTEGER
 DIM gState, gLives, pRoom AS UBYTE
 DIM gLit, gTotal, gRoomLamps, gRoomLit AS UBYTE
 DIM pX, pY, pAir, pJt, pClimb, pFace, pAnim, pMove AS UBYTE
@@ -208,32 +213,101 @@ TOUCH_GO:
   END ASM
 END FUNCTION
 
+' cur = the 460 bytes at src (a room of rooms), a block copy (BASIC took 460
+' iterations). The address comes from BASIC: an array used only from inline
+' asm is dropped.
+SUB CopyRoom(src AS UINTEGER)
+  ASM
+  ld l, (ix+4)
+  ld h, (ix+5)            ; src
+  ld de, _cur.__DATA__
+  ld bc, 460              ; ROOM_SIZE
+  ldir
+  END ASM
+END SUB
+
+' Lists the lamp cells (tile 5) and the door cells (tile 7) of cur, in cell
+' order, into lampCell/doorCell with their counts (CPIR over the room).
+SUB ScanRoom()
+  ASM
+  xor a
+  ld (_nLamp), a
+  ld (_nDoor), a
+  ld hl, _cur.__DATA__
+  ld bc, 460
+  ld de, _lampCell.__DATA__
+  ld a, 5                 ; T_LAMP
+SR_LAMP:
+  cpir
+  jr nz, SR_LAMPS_DONE
+  call SR_STORE
+  ld a, (_nLamp)
+  inc a
+  ld (_nLamp), a
+  ld a, b
+  or c
+  ld a, 5
+  jr nz, SR_LAMP
+SR_LAMPS_DONE:
+  ld hl, _cur.__DATA__
+  ld bc, 460
+  ld de, _doorCell.__DATA__
+  ld a, 7                 ; T_DOOR
+SR_DOOR:
+  cpir
+  jr nz, SR_END
+  call SR_STORE
+  ld a, (_nDoor)
+  inc a
+  ld (_nDoor), a
+  ld a, b
+  or c
+  ld a, 7
+  jr nz, SR_DOOR
+  jr SR_END
+SR_STORE:                 ; HL just past a match, DE the list's next entry
+  push hl
+  push bc
+  dec hl
+  ld bc, _cur.__DATA__
+  or a
+  sbc hl, bc              ; the cell index
+  ex de, hl
+  ld (hl), e
+  inc hl
+  ld (hl), d
+  inc hl
+  ex de, hl               ; DE the next entry again
+  pop bc
+  pop hl
+  ret
+SR_END:
+  END ASM
+END SUB
+
 ' Reads room id into cur (lit lamps and open doors applied), its start cell
 ' and its enemies.
 SUB LoadRoom(id AS UBYTE)
-  DIM base, i, o AS UINTEGER
+  DIM o AS UINTEGER
   DIM n, t AS UBYTE
-  base = CAST(UINTEGER, id) * ROOM_SIZE
-  FOR i = 0 TO ROOM_SIZE - 1
-    cur(i) = rooms(base + i)
-  NEXT i
-  n = 0
-  gRoomLamps = 0
+  CopyRoom(@rooms(0) + CAST(UINTEGER, id) * ROOM_SIZE)
+  ScanRoom()
+  gRoomLamps = nLamp
   gRoomLit = 0
-  FOR i = 0 TO ROOM_SIZE - 1
-    IF cur(i) = T_LAMP THEN
-      IF (litMask(id) BAND bitTab(n)) <> 0 THEN
-        cur(i) = T_LIT
-        gRoomLit = gRoomLit + 1
-      END IF
-      n = n + 1
-      gRoomLamps = gRoomLamps + 1
+  n = 0
+  DO WHILE n < nLamp
+    IF (litMask(id) BAND bitTab(n)) <> 0 THEN
+      cur(lampCell(n)) = T_LIT
+      gRoomLit = gRoomLit + 1
     END IF
-  NEXT i
+    n = n + 1
+  LOOP
   IF gRoomLit = gRoomLamps THEN
-    FOR i = 0 TO ROOM_SIZE - 1
-      IF cur(i) = T_DOOR THEN cur(i) = T_OPEN
-    NEXT i
+    n = 0
+    DO WHILE n < nDoor
+      cur(doorCell(n)) = T_OPEN
+      n = n + 1
+    LOOP
   END IF
   nEn = 0
   o = roff(id)
@@ -290,15 +364,11 @@ END SUB
 
 ' A game starting in `room` (9: the cellar) with all lamps unlit.
 SUB GameInit(room AS UBYTE)
-  DIM i AS UINTEGER
   DIM n AS UBYTE
   FOR n = 0 TO 11
     litMask(n) = 0
   NEXT n
-  gTotal = 0
-  FOR i = 0 TO 12 * ROOM_SIZE - 1
-    IF rooms(i) = T_LAMP THEN gTotal = gTotal + 1
-  NEXT i
+  gTotal = LAMPS_TOTAL
   gLit = 0
   gLives = 3
   gState = S_PLAY
@@ -314,13 +384,13 @@ END SUB
 ' Lamp at cell (cx, cy) is touched: light it, remember it, open the doors
 ' when the room is done.
 SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
-  DIM idx, i AS UINTEGER
-  DIM n AS UBYTE
+  DIM idx AS UINTEGER
+  DIM n, i AS UBYTE
   idx = CAST(UINTEGER, cy) * ROOM_W + cx
   n = 0
-  FOR i = 0 TO idx - 1
-    IF cur(i) = T_LAMP OR cur(i) = T_LIT THEN n = n + 1
-  NEXT i
+  DO WHILE lampCell(n) <> idx AND n < nLamp
+    n = n + 1
+  LOOP
   cur(idx) = T_LIT
   litMask(pRoom) = litMask(pRoom) BOR bitTab(n)
   gRoomLit = gRoomLit + 1
@@ -328,13 +398,14 @@ SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
   PlatTile(cx, cy, T_LIT)
   PlatSfx(2)
   IF gRoomLit = gRoomLamps THEN
-    FOR i = 0 TO ROOM_SIZE - 1
-      IF cur(i) = T_DOOR THEN
-        cur(i) = T_OPEN
-        PlatTile(CAST(UBYTE, i MOD ROOM_W), CAST(UBYTE, i / ROOM_W), T_OPEN)
-        PlatSfx(4)
-      END IF
-    NEXT i
+    i = 0
+    DO WHILE i < nDoor
+      idx = doorCell(i)
+      cur(idx) = T_OPEN
+      PlatTile(CAST(UBYTE, idx MOD ROOM_W), CAST(UBYTE, idx / ROOM_W), T_OPEN)
+      PlatSfx(4)
+      i = i + 1
+    LOOP
   END IF
   IF gLit = gTotal THEN gState = S_WON
 END SUB
