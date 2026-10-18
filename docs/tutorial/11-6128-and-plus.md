@@ -333,7 +333,7 @@ firmware build on a model other than `plus`; the cartridge target has no such ch
 ### What is not covered here
 
 The finished game also builds a **disc** for the Plus: `lampplus.dsk`, started with `RUN"PLUS`, where `PLUS.BIN`
-is Starfall's loader with the program's name changed (`build_plus.sh`). That disc stays **outside Studio**:
+is a small loader that starts the program (`build_plus.sh` makes it). That disc stays **outside Studio**:
 Studio's `dsk` packaging makes a plain disc that runs one binary with `run"NAME`, and the finished project's
 `lampplus` target is the cartridge only (`DESIGN.md` section 14). Whether a plain Studio disc build of the Plus
 program (a target with `PLUS` defined, not `bare`) starts correctly on a Plus has not been checked: use the
