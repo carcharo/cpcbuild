@@ -193,6 +193,8 @@ test('music: Convert Music writes the include the repo script writes (Starfall t
 
 test('music: Convert Music says how to get the tools when they are missing', async () => {
   if (process.env.AT3_TOOLS) return console.log('       (skipped: $AT3_TOOLS is set)');
+  // a missing setting falls back to <library>/tools/arkos/work/bin, which a checkout has after sh tools/arkos/fetch.sh
+  if (fs.existsSync(path.join(REPO, 'tools/arkos/work/bin/SongToAkg'))) return console.log('       (skipped: the library checkout has the Arkos tools)');
   copyIn('games/shooter/assets/title.vt2', 'music/title.vt2');
   const r = (await vscode.commands.executeCommand('cpcbuild.music.convert', { uri: path.join(ws, 'music/title.vt2'), toolsPath: '/nonexistent/arkos', quiet: true })) as { ok: boolean; error?: string };
   assert.strictEqual(r.ok, false);
