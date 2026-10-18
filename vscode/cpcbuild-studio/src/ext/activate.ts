@@ -16,7 +16,7 @@ import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetComman
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
 import { runInEmulator, setStorageDir } from './run';
 import { runTool } from './runTool';
-import { recordEmuEvent, state } from './state';
+import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
 import { requireTrust, trustTestApi } from './trust';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
 import { registerStubs } from './stubs';
@@ -144,6 +144,7 @@ async function showReport(): Promise<void> {
 
 export function activate(context: vscode.ExtensionContext): StudioApi {
   setStorageDir(context.globalStorageUri.fsPath);
+  setTargetStore(context.workspaceState);
   setBundledLibrary(vscode.Uri.joinPath(context.extensionUri, 'bundled').fsPath);
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-project');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
@@ -200,7 +201,10 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
       pt.lp.project.targets.map((t) => ({ label: t.id, description: `${t.arch}, ${t.package}${t.bare ? ', bare' : ''}`, picked: t.id === pt.targetId })),
       { title: 'CPCBuild: target for Build and Run' },
     );
-    if (pick) await vscode.workspace.getConfiguration('cpcbuild').update('target.default', pick.label, await configTarget());
+    if (pick) {
+      await chooseTarget(pt.lp.root, pick.label);
+      void refresh();
+    }
   });
   reg('cpcbuild.selectEmulator', async () => {
     const items = [

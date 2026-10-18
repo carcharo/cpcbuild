@@ -577,7 +577,7 @@
         "cpcbuild.target.default": {
           "type": "string",
           "default": "",
-          "description": "Id of the target used by Build and Run (empty = the first target). Set by \"CPCBuild: Select Target\".",
+          "description": "Id of the target used by Build and Run when none was chosen with \"CPCBuild: Select Target\" (empty = the first target). Select Target remembers its choice per project in the workspace state, not in this setting.",
           "scope": "resource"
         },
         "cpcbuild.model": {

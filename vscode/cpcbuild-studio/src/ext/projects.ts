@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { Issue, parseProject, Project, Target } from '../core/project';
+import { chosenTarget } from './state';
 
 export interface LoadedProject {
   /** Folder holding cpcbuild.json. */
@@ -41,9 +42,11 @@ export function pickProject(projects: LoadedProject[]): LoadedProject | undefine
   return projects[0];
 }
 
+/** The chosen target (Select Target, kept in workspaceState), else the `cpcbuild.target.default` setting, else the first. */
 export function selectedTarget(p: LoadedProject, targetDefault: string): Target | undefined {
   const ts = p.project?.targets ?? [];
-  return ts.find((t) => t.id === targetDefault) ?? ts[0];
+  const chosen = chosenTarget(p.root);
+  return ts.find((t) => t.id === chosen) ?? ts.find((t) => t.id === targetDefault) ?? ts[0];
 }
 
 /** Rough position of a JSON path in the text, for a diagnostic squiggle. */
