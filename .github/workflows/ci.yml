@@ -5,7 +5,7 @@ name: CI
 #   chips          make unit test-chips   (firmware conformance 6128/464 + screens)
 #   bare-disc      make test-bare-disc    (bare-metal disc start + screens)
 #   bare-cold      make test-bare-cold    (cold start, no firmware + screens)
-#   zx-games       make test-zx test-games
+#   zx-games       make test-zx test-games test-lamp reach-lamp
 #   plus           build patched Caprice32 (tools/caprice32) at the pinned commit, make test-plus
 #                  (6128 Plus: smoke tests, conformance firmware + bare, screens), then
 #                  build CPCEC (tools/cpcec: pinned commit + our patch) and make test-cpcec
@@ -175,12 +175,12 @@ jobs:
       - uses: ./cpcbuild/.github/actions/setup
         with:
           chips: 'true'
-      - name: make test-zx test-games
+      - name: make test-zx test-games test-lamp reach-lamp
         working-directory: cpcbuild
         env:
           ZXBASIC: ${{ github.workspace }}/zxbasic
           CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
-        run: make test-zx test-games
+        run: make test-zx test-games test-lamp reach-lamp
       - name: Upload screen-test diffs
         if: failure()
         uses: actions/upload-artifact@v7

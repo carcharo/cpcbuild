@@ -126,7 +126,7 @@ assets: ## Build assets
 bench: ## Run benchmark
 	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
 
-ci: unit test-chips test-bare test-zx test-games ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, zx, games (no Caprice32: the Plus tests, test-plus, have their own CI job)
+ci: unit test-chips test-bare test-zx test-games test-lamp reach-lamp ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, zx, games, Lamplighter (no Caprice32: the Plus tests, test-plus, have their own CI job)
 
 clean: ## Clean build artifacts
 	rm -f tools/chipsrun/chipsrun
