@@ -41,8 +41,8 @@ suggests exactly that as an optional extra).
 
 Lamplighter does not do this, and the reason is worth knowing. The library's rule: **any program that uses
 the bank calls reserves `&4000-&7FFF`, and the compiler refuses to run code that reaches it**
-(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&68FE`, which
-crosses `&4000`. To use banks it would have to be rebuilt to fit below `&4000` (about 16 KB, against 26.8 KB now)
+(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&68A7`, which
+crosses `&4000`. To use banks it would have to be rebuilt to fit below `&4000` (about 16 KB, against 26.7 KB now)
 or to live above `&8000`. The finished game keeps its songs and levels in main RAM, which is why the 464 and
 6128 builds are one program.
 
