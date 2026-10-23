@@ -208,7 +208,7 @@ file with about a dozen calls. The Plus layer in chapter 11 is another.
 
 **Speed.** On the Spectrum the game holds **25.0 steps a second** on both models in the benchmark (chapter 9's
 bench: 250 steps; `DESIGN.md`, section 12). The unpaced figures (frames for 250 steps, 500 is the budget) are **283 on the
-48K and 295 on the 128K**: (the 464 build with music measured 428 in chapter 9; the library's notes say the 128K's
+48K and 295 on the 128K**: (the 464 build with music measured 431 in chapter 9; the library's notes say the 128K's
 music player costs about 0.2 frame a step). To run the bench for the
 Spectrum you need the repository's headless runner: `games/lamplighter/tests/bench.sh` does it for both models.
 

@@ -319,12 +319,12 @@ What the numbers say (`DESIGN.md`, section 13, on Caprice32 and CPCEC; the finis
 |---|---|---|
 | program size | 26,749 bytes | 30,505 bytes (disc), 30,056 (cartridge) |
 | paced speed | 25.0 steps a second | 25.1 (498-499 frames) |
-| unpaced, frames for 250 steps (500 is the budget) | 428 | 335 to 339 |
+| unpaced, frames for 250 steps (500 is the budget) | 431 | 335 to 339 |
 | headroom | about 14 % | about 32 to 33 % |
 
 The Plus program is **3.8 KB bigger**: it adds the Plus library, the sprite manager, palette cycling and 3 KB of
 sprites, and drops the software sprite code and frames. But a step needs about a fifth fewer frames (339 against
-428) because nothing is erased and redrawn.
+431) because nothing is erased and redrawn.
 
 If the build says it cannot find `cpcplus/sprman.bas`, `cpcbuild.library.path` points at a library without it: clear
 the setting (the bundled library has it) or use a checkout of `platformer` or `main`. If the game says "LAMPLIGHTER PLUS needs a CPC Plus" you ran a

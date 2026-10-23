@@ -137,7 +137,7 @@ INFO steps=250 frames=500 per second=25.0 late=2 longest=3
 ```
 
 (The line is printed by the finished game's `main.bas:119`; the numbers here are illustrative. The finished
-game's own measurement on a 464, with music: `INFO steps=250 frames=499 per second=25.1 late=3 longest=3`.)
+game's own measurement on a 464, with music: `INFO steps=250 frames=499 per second=25.1 late=9 longest=3`.)
 <!-- CHECK (for the user's test session): the line is printed with PRINT in mode 0, which has 20 columns, so it wraps over several rows; confirm it is readable in the emulator tab and not scrolled away when the program ends. If it is hard to read, the test harness reads the same line from the emulator's console (games/lamplighter/tests/bench.sh). -->
 
 How to read it:
@@ -156,12 +156,12 @@ off. Add `NOPACE` to the target's defines. Now the steps run as fast as they can
 | Build (464, unpaced; frames for 250 steps) | Frames | Headroom |
 |---|---|---|
 | silent, at the end of the game's first milestone (`DESIGN.md` section 11) | 460 | about 8 % |
-| the finished game, silent (`NOPACE` and `NOSOUND`) | 403 | about 19 % |
-| the finished game, with music (`NOPACE`) | 428 | about 14 % |
+| the finished game, silent (`NOPACE` and `NOSOUND`) | 406 | about 19 % |
+| the finished game, with music (`NOPACE`) | 431 | about 14 % |
 
 (Headroom = (500 minus frames) / 500. The first row is history; the other two are measured on the finished game.)
-And paced, with music, the finished game gets **25.1 steps a second (499 frames, 3 late steps)**; with game mode
-switched off (`NOGAMEMODE`) it gets **24.9 (502 frames, 27 late steps)**. So game mode is what
+And paced, with music, the finished game gets **25.1 steps a second (499 frames, 9 late steps)**; with game mode
+switched off (`NOGAMEMODE`) it gets **24.9 (502 frames, 15 late steps)**. So game mode is what
 makes the room for music: the library says the same (**Frame hook and game mode**: music and effects
 at 25.0 in game mode, 20.0 in normal mode, in the bounce demo).
 
@@ -172,7 +172,7 @@ Two more switches are useful for finding where time goes:
 | `NOPACE` | no frame wait: measure raw speed |
 | `NOFLUSH` | no drawing: measure the logic alone |
 
-Run once with `NOPACE`, once with `NOPACE` and `NOFLUSH`: the difference is the cost of drawing. With music, the finished game takes 428 frames with drawing and 199 without, so drawing costs 428 - 199 = 229 frames of the 428: a little over half a step.
+Run once with `NOPACE`, once with `NOPACE` and `NOFLUSH`: the difference is the cost of drawing. With music, the finished game takes 431 frames with drawing and 199 without, so drawing costs 431 - 199 = 232 frames of the 431: a little over half a step.
 
 ## Step 4: What made it fast
 
@@ -191,15 +191,15 @@ build both and measure the difference.
 2. Run **CPCBuild: Build and Run**. The line is:
 
    ```
-   INFO steps=250 frames=549 per second=22.8 late=46 longest=4
+   INFO steps=250 frames=552 per second=22.6 late=51 longest=4
    ```
 
-   Paced, plain BASIC manages 22.8 steps a second, with 46 late steps. Add `NOPACE` as well and it
-   takes 548 frames for 250 steps. That is over the 500-frame budget, so **the game cannot hold 25
+   Paced, plain BASIC manages 22.6 steps a second, with 51 late steps. Add `NOPACE` as well and it
+   takes 551 frames for 250 steps. That is over the 500-frame budget, so **the game cannot hold 25
    steps a second in plain BASIC**. The build report says 26,949 bytes: 200 more than the assembly build's
    26,749.
 3. Remove `LAMP_BASIC` again and run the bench. It is back to
-   `INFO steps=250 frames=499 per second=25.1 late=3 longest=3`.
+   `INFO steps=250 frames=499 per second=25.1 late=9 longest=3`.
 
 Both builds play the same game; `make test-lamp` (next step) checks that. Only the time differs. Here is
 what each routine costs a call, measured on the chips emulator for the 464, net of an empty call (give or take
@@ -246,7 +246,7 @@ and `LightLamp` from 7 to 0 (`DESIGN.md` section 15).
 The first milestone also needed two changes of design, which the build you measured already has, and which
 are not in assembly: enemies move every second step, half of them on each step (chapter 6's `eTick`; before,
 every enemy was visited every step, about **33,000 T-states**), and only a still player's overlap is
-redrawn (`DESIGN.md` section 11). Music costs the rest: from 403 to 428 frames.
+redrawn (`DESIGN.md` section 11). Music costs the rest: from 406 to 431 frames.
 
 > **The lesson.** Measure first, then change one thing. Almost all of this game is plain BASIC; a few
 > hot spots (called many times a step) are in assembly, and the `LAMP_BASIC` switch lets you check the
