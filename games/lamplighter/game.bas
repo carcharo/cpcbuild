@@ -15,6 +15,12 @@
 ' Units: x in mode-0 pixels 0-159 (the player is 8 wide, moves 2 at a time),
 ' y in lines 0-183 (16 tall). A room is 20 x 23 cells of 8 x 8 (DESIGN.md).
 ' The hit box is x+1..x+6 across; rows y, y+8 and y+15 are probed.
+'
+' The hot routines (TileAttr, TouchAttr, ColSolid, WalkOK, CopyRoom, ScanRoom)
+' exist twice: in Z80 assembly (the default, chapter 9 of the tutorial says
+' why) and in plain BASIC, the versions the tutorial has you write (chapters
+' 5-7). Build with -D LAMP_BASIC to get the plain BASIC ones: the game plays
+' the same, only slower.
 ' ----------------------------------------------------------------
 
 #ifndef __LAMP_GAME__
@@ -41,7 +47,8 @@ CONST T_LIT AS UBYTE = 6
 CONST T_DOOR AS UBYTE = 7
 CONST T_OPEN AS UBYTE = 8
 ' attribute bits: 1 solid, 2 one-way platform, 4 ladder, 8 hazard, 16 lamp;
-' the table (TA_TAB, indexed by tile number) is in TileAttr's assembly below
+' the table (TA_TAB in the assembly, taTab in the BASIC version, indexed by tile
+' number) is with TileAttr below
 
 ' sprite frames: 0-3 right (stand, walk, walk, jump), 4-7 left, 8-9 climb,
 ' 10-11 enemy
@@ -56,6 +63,11 @@ DIM bitTab(7) AS UBYTE => {1, 2, 4, 8, 16, 32, 64, 128}
 
 DIM cur(459) AS UBYTE                 ' the current room's tiles
 DIM litMask(11) AS UBYTE              ' lit lamps of each room, one bit per lamp
+' the current room's lamp and door cells (cell indices, in cell order; at
+' most 8 of each, split_rooms.py checks), found once by LoadRoom
+DIM nLamp, nDoor AS UBYTE
+DIM lampCell(7) AS UINTEGER
+DIM doorCell(7) AS UINTEGER
 DIM gState, gLives, pRoom AS UBYTE
 DIM gLit, gTotal, gRoomLamps, gRoomLit AS UBYTE
 DIM pX, pY, pAir, pJt, pClimb, pFace, pAnim, pMove AS UBYTE
@@ -78,6 +90,15 @@ DIM eR(3) AS UBYTE
 ' The attributes of cell (cx, cy) of the room: TA_TAB(cur(cy * 20 + cx) AND 15).
 ' Assembly, because the BASIC line is 2,500 T-states a call and a step makes
 ' ~25 of them (docs/library.md, Performance tips).
+#ifdef LAMP_BASIC
+' The plain BASIC version of the assembly below (-D LAMP_BASIC; chapter 5):
+' about 2,560 T-states a call against 320 (measured on chips, 464, net of the empty call).
+DIM taTab(15) AS UBYTE => {0, 1, 2, 4, 8, 16, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0}
+
+FUNCTION TileAttr(cx AS UBYTE, cy AS UBYTE) AS UBYTE
+  RETURN taTab(cur(CAST(UINTEGER, cy) * ROOM_W + cx) BAND 15)
+END FUNCTION
+#else
 FUNCTION TileAttr(cx AS UBYTE, cy AS UBYTE) AS UBYTE
   ASM
   jp TA_GO
@@ -132,12 +153,34 @@ TA_GO:
   ld a, (hl)
   END ASM
 END FUNCTION
+#endif
 
 ' The lamps and the spikes the player is on, in one call: the attributes of
 ' cells l..r of the three rows the body is probed on (y, y+8, y+15), OR'd,
 ' masked with 16 (lamp: any of the rows) and 8 (hazard: the lower two rows
 ' only). Touch's common case is "nothing", and this answers it in a single
 ' call instead of ~6 TileAttr calls and their loops.
+#ifdef LAMP_BASIC
+' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 56,600
+' T-states a call against 3,800. TouchRow ORs the attributes of cells
+' l..r of one row (l <= r).
+FUNCTION TouchRow(l AS UBYTE, r AS UBYTE, row AS UBYTE) AS UBYTE
+  DIM c, a AS UBYTE
+  a = 0
+  FOR c = l TO r
+    a = a BOR TileAttr(c, row)
+  NEXT c
+  RETURN a
+END FUNCTION
+
+FUNCTION TouchAttr(l AS UBYTE, r AS UBYTE, y AS UBYTE) AS UBYTE
+  DIM a AS UBYTE
+  a = TouchRow(l, r, y >> 3) BAND 16          ' the top row: lamps only
+  a = a BOR TouchRow(l, r, (y + 8) >> 3)
+  a = a BOR TouchRow(l, r, (y + 15) >> 3)
+  RETURN a BAND 24
+END FUNCTION
+#else
 FUNCTION TouchAttr(l AS UBYTE, r AS UBYTE, y AS UBYTE) AS UBYTE
   ASM
   jp TOUCH_GO
@@ -207,33 +250,135 @@ TOUCH_GO:
   and 24
   END ASM
 END FUNCTION
+#endif
+
+' cur = the 460 bytes at src (a room of rooms), a block copy (BASIC took 460
+' iterations). The address comes from BASIC: an array used only from inline
+' asm is dropped.
+#ifdef LAMP_BASIC
+' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 511,000
+' T-states against 13,200.
+SUB CopyRoom(src AS UINTEGER)
+  DIM i AS UINTEGER
+  FOR i = 0 TO ROOM_SIZE - 1
+    cur(i) = PEEK(src + i)
+  NEXT i
+END SUB
+#else
+SUB CopyRoom(src AS UINTEGER)
+  ASM
+  ld l, (ix+4)
+  ld h, (ix+5)            ; src
+  ld de, _cur.__DATA__
+  ld bc, 460              ; ROOM_SIZE
+  ldir
+  END ASM
+END SUB
+#endif
+
+' Lists the lamp cells (tile 5) and the door cells (tile 7) of cur, in cell
+' order, into lampCell/doorCell with their counts (CPIR over the room).
+#ifdef LAMP_BASIC
+' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 471,000
+' T-states against 27,000.
+SUB ScanRoom()
+  DIM i AS UINTEGER
+  DIM t AS UBYTE
+  nLamp = 0
+  nDoor = 0
+  FOR i = 0 TO ROOM_SIZE - 1
+    t = cur(i)
+    IF t = T_LAMP THEN
+      lampCell(nLamp) = i
+      nLamp = nLamp + 1
+    ELSEIF t = T_DOOR THEN
+      doorCell(nDoor) = i
+      nDoor = nDoor + 1
+    END IF
+  NEXT i
+END SUB
+#else
+SUB ScanRoom()
+  ASM
+  xor a
+  ld (_nLamp), a
+  ld (_nDoor), a
+  ld hl, _cur.__DATA__
+  ld bc, 460
+  ld de, _lampCell.__DATA__
+  ld a, 5                 ; T_LAMP
+SR_LAMP:
+  cpir
+  jr nz, SR_LAMPS_DONE
+  call SR_STORE
+  ld a, (_nLamp)
+  inc a
+  ld (_nLamp), a
+  ld a, b
+  or c
+  ld a, 5
+  jr nz, SR_LAMP
+SR_LAMPS_DONE:
+  ld hl, _cur.__DATA__
+  ld bc, 460
+  ld de, _doorCell.__DATA__
+  ld a, 7                 ; T_DOOR
+SR_DOOR:
+  cpir
+  jr nz, SR_END
+  call SR_STORE
+  ld a, (_nDoor)
+  inc a
+  ld (_nDoor), a
+  ld a, b
+  or c
+  ld a, 7
+  jr nz, SR_DOOR
+  jr SR_END
+SR_STORE:                 ; HL just past a match, DE the list's next entry
+  push hl
+  push bc
+  dec hl
+  ld bc, _cur.__DATA__
+  or a
+  sbc hl, bc              ; the cell index
+  ex de, hl
+  ld (hl), e
+  inc hl
+  ld (hl), d
+  inc hl
+  ex de, hl               ; DE the next entry again
+  pop bc
+  pop hl
+  ret
+SR_END:
+  END ASM
+END SUB
+#endif
 
 ' Reads room id into cur (lit lamps and open doors applied), its start cell
 ' and its enemies.
 SUB LoadRoom(id AS UBYTE)
-  DIM base, i, o AS UINTEGER
+  DIM o AS UINTEGER
   DIM n, t AS UBYTE
-  base = CAST(UINTEGER, id) * ROOM_SIZE
-  FOR i = 0 TO ROOM_SIZE - 1
-    cur(i) = rooms(base + i)
-  NEXT i
-  n = 0
-  gRoomLamps = 0
+  CopyRoom(@rooms(0) + CAST(UINTEGER, id) * ROOM_SIZE)
+  ScanRoom()
+  gRoomLamps = nLamp
   gRoomLit = 0
-  FOR i = 0 TO ROOM_SIZE - 1
-    IF cur(i) = T_LAMP THEN
-      IF (litMask(id) BAND bitTab(n)) <> 0 THEN
-        cur(i) = T_LIT
-        gRoomLit = gRoomLit + 1
-      END IF
-      n = n + 1
-      gRoomLamps = gRoomLamps + 1
+  n = 0
+  DO WHILE n < nLamp
+    IF (litMask(id) BAND bitTab(n)) <> 0 THEN
+      cur(lampCell(n)) = T_LIT
+      gRoomLit = gRoomLit + 1
     END IF
-  NEXT i
+    n = n + 1
+  LOOP
   IF gRoomLit = gRoomLamps THEN
-    FOR i = 0 TO ROOM_SIZE - 1
-      IF cur(i) = T_DOOR THEN cur(i) = T_OPEN
-    NEXT i
+    n = 0
+    DO WHILE n < nDoor
+      cur(doorCell(n)) = T_OPEN
+      n = n + 1
+    LOOP
   END IF
   nEn = 0
   o = roff(id)
@@ -290,15 +435,11 @@ END SUB
 
 ' A game starting in `room` (9: the cellar) with all lamps unlit.
 SUB GameInit(room AS UBYTE)
-  DIM i AS UINTEGER
   DIM n AS UBYTE
   FOR n = 0 TO 11
     litMask(n) = 0
   NEXT n
-  gTotal = 0
-  FOR i = 0 TO 12 * ROOM_SIZE - 1
-    IF rooms(i) = T_LAMP THEN gTotal = gTotal + 1
-  NEXT i
+  gTotal = LAMPS_TOTAL
   gLit = 0
   gLives = 3
   gState = S_PLAY
@@ -314,13 +455,13 @@ END SUB
 ' Lamp at cell (cx, cy) is touched: light it, remember it, open the doors
 ' when the room is done.
 SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
-  DIM idx, i AS UINTEGER
-  DIM n AS UBYTE
+  DIM idx AS UINTEGER
+  DIM n, i AS UBYTE
   idx = CAST(UINTEGER, cy) * ROOM_W + cx
   n = 0
-  FOR i = 0 TO idx - 1
-    IF cur(i) = T_LAMP OR cur(i) = T_LIT THEN n = n + 1
-  NEXT i
+  DO WHILE lampCell(n) <> idx AND n < nLamp
+    n = n + 1
+  LOOP
   cur(idx) = T_LIT
   litMask(pRoom) = litMask(pRoom) BOR bitTab(n)
   gRoomLit = gRoomLit + 1
@@ -328,13 +469,14 @@ SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
   PlatTile(cx, cy, T_LIT)
   PlatSfx(2)
   IF gRoomLit = gRoomLamps THEN
-    FOR i = 0 TO ROOM_SIZE - 1
-      IF cur(i) = T_DOOR THEN
-        cur(i) = T_OPEN
-        PlatTile(CAST(UBYTE, i MOD ROOM_W), CAST(UBYTE, i / ROOM_W), T_OPEN)
-        PlatSfx(4)
-      END IF
-    NEXT i
+    i = 0
+    DO WHILE i < nDoor
+      idx = doorCell(i)
+      cur(idx) = T_OPEN
+      PlatTile(CAST(UBYTE, idx MOD ROOM_W), CAST(UBYTE, idx / ROOM_W), T_OPEN)
+      PlatSfx(4)
+      i = i + 1
+    LOOP
   END IF
   IF gLit = gTotal THEN gState = S_WON
 END SUB
@@ -355,6 +497,15 @@ SUB Die()
 END SUB
 
 ' Solid cell in column c over the body's rows (y, y+8, y+15)?
+#ifdef LAMP_BASIC
+' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 8,800
+' T-states a call against 1,100.
+FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
+  IF (TileAttr(c, y >> 3) BAND 1) <> 0 THEN RETURN 1
+  IF (TileAttr(c, (y + 8) >> 3) BAND 1) <> 0 THEN RETURN 1
+  RETURN TileAttr(c, (y + 15) >> 3) BAND 1
+END FUNCTION
+#else
 FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
   ASM
   ld b, (ix+5)            ; the column
@@ -389,6 +540,7 @@ CS_YES:
 CS_DONE:
   END ASM
 END FUNCTION
+#endif
 
 ' The attributes of the cells under the two hit box columns at line y
 FUNCTION RowAttr(y AS UBYTE) AS UBYTE
@@ -578,6 +730,18 @@ END SUB
 ' Can a walker stand with its left edge at x, y, having just stepped in
 ' direction dir (1 right)? No wall in its way, ground under the leading
 ' edge, no spikes there.
+#ifdef LAMP_BASIC
+' The plain BASIC version of the assembly below (-D LAMP_BASIC; chapter 6):
+' about 15,200 T-states a call against 1,900.
+FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
+  DIM c AS UBYTE
+  IF dir = 1 THEN c = (x + 7) >> 3 ELSE c = x >> 3
+  IF ColSolid(c, y) <> 0 THEN RETURN 0
+  IF (TileAttr(c, (y + 15) >> 3) BAND 8) <> 0 THEN RETURN 0
+  IF (TileAttr(c, (y + 16) >> 3) BAND 3) = 0 THEN RETURN 0
+  RETURN 1
+END FUNCTION
+#else
 FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
   ASM
   ld a, (ix+9)            ; dir
@@ -635,6 +799,7 @@ WK_NO:
 WK_DONE:
   END ASM
 END FUNCTION
+#endif
 
 ' Enemies move two pixels every second step, half of them on each step: enemy
 ' i on the steps where eTick and i are both even or both odd (so the drawing

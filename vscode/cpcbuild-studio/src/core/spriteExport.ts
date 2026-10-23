@@ -9,7 +9,7 @@ import { newImage, setPixel, type RgbaImage } from './image';
 import { buildPalette, fmtArray, fmtAsm, fmtConst, makeHeader, penBody, shellQuote, type Options } from './img2cpc';
 import { asicEntry, fwRgb, nearest, parseRgb12List, rgb12To8, type RGB } from './palette';
 import type { PenGrid } from './pixels';
-import { analyse, MAX_PLUS_COLOURS, resolvePalette, type Grid, type ResolvedPalette, type SpriteState } from './spriteDoc';
+import { analyse, MAX_PLUS_COLOURS, resolvePalette, TILE_SIZE, type Grid, type ResolvedPalette, type SpriteState } from './spriteDoc';
 
 export type HeaderStyle = 'img2cpc' | 'studio' | 'none';
 
@@ -52,6 +52,7 @@ export function equivalentArgs(s: SpriteState, image: string, palette: ResolvedP
   }
   a.push('--mode', String(s.mode), '--name', s.name, s.type === 'til' ? '--tiles' : '--sprite');
   if (s.type === 'til') {
+    if (s.w !== TILE_SIZE) a.push('--tile-width', String(s.w));
     if (s.dedupe) a.push('--dedupe');
   } else {
     if (s.items.length > 1) a.push('--frame', `${s.w}x${s.h}`);
@@ -99,7 +100,7 @@ export function exportAsset(s: SpriteState, ctx: ExportContext): ExportResult {
   try {
     if (s.kind === 'plus') return exportPlus(s, palette, argv, style, ctx, sheet);
     const pens = buildPalette([], s.mode, palette.pens, undefined); // the tool's checks on a fixed palette
-    const o: Options = { name: s.name, mode: s.mode, tiles: s.type === 'til', dedupe: s.dedupe, masked: s.masked, noPalette: !s.emitPalette };
+    const o: Options = { name: s.name, mode: s.mode, tiles: s.type === 'til', tileWidth: s.type === 'til' && s.w !== TILE_SIZE ? s.w : undefined, dedupe: s.dedupe, masked: s.masked, noPalette: !s.emitPalette };
     if (s.type === 'spr' && n > 1) o.frame = `${s.w}x${s.h}`;
     const body = penBody(sheetGrid(s.items, s.w, s.h), sheet.w, sheet.h, pens, o);
     return { text: head(style, "'", argv, ctx, sheet.w, sheet.h, `mode ${s.mode}`, body.desc) + body.body, argv, sheet };
@@ -156,23 +157,52 @@ export function renderSheet(s: SpriteState, palette: ResolvedPalette = resolvePa
   return img;
 }
 
-/** Quantises an image into a pen grid by the document's palette (nearest colour; alpha < 128 = transparent). */
-export function gridFromImage(s: SpriteState, img: RgbaImage, palette: ResolvedPalette = resolvePalette(s)): number[][] {
+/** The result of quantising an image: the pen grid, and how many distinct opaque colours it had against how many pens they landed on. */
+export interface Quantised {
+  rows: number[][];
+  colours: number;
+  pens: number;
+}
+
+/** Quantises an image into a pen grid by the document's palette (nearest colour; alpha < 128 = transparent), counting the colours that merged. */
+export function quantiseImage(s: SpriteState, img: RgbaImage, palette: ResolvedPalette = resolvePalette(s)): Quantised {
   const rgb = paletteRgb(s, palette);
   const list: RGB[] = [];
   const idx: number[] = [];
   rgb.forEach((c, i) => { if (c) { list.push(c); idx.push(i); } });
   if (!list.length) throw new ExportError('the palette has no colours to match the image to');
+  const seen = new Map<number, number>(); // 0xRRGGBB -> pen
   const rows: number[][] = [];
   for (let y = 0; y < img.height; y++) {
     const row: number[] = [];
     for (let x = 0; x < img.width; x++) {
       const i = (y * img.width + x) * 4;
-      row.push(img.data[i + 3] < 128 ? -1 : idx[nearest([img.data[i], img.data[i + 1], img.data[i + 2]], list)]);
+      if (img.data[i + 3] < 128) {
+        row.push(-1);
+        continue;
+      }
+      const key = (img.data[i] << 16) | (img.data[i + 1] << 8) | img.data[i + 2];
+      let pen = seen.get(key);
+      if (pen === undefined) {
+        pen = idx[nearest([img.data[i], img.data[i + 1], img.data[i + 2]], list)];
+        seen.set(key, pen);
+      }
+      row.push(pen);
     }
     rows.push(row);
   }
-  return rows;
+  return { rows, colours: seen.size, pens: new Set(seen.values()).size };
+}
+
+/** Quantises an image into a pen grid by the document's palette (nearest colour; alpha < 128 = transparent). */
+export function gridFromImage(s: SpriteState, img: RgbaImage, palette: ResolvedPalette = resolvePalette(s)): number[][] {
+  return quantiseImage(s, img, palette).rows;
+}
+
+/** The note for an import that merged colours ("3 colours in the image became 2 pens ..."), or undefined when none merged. */
+export function mergeNote(q: Pick<Quantised, 'colours' | 'pens'>): string | undefined {
+  if (q.colours <= q.pens) return undefined;
+  return `${q.colours} colours in the image became ${q.pens} pen${q.pens === 1 ? '' : 's'} (nearest match); add pens or use the image's palette.`;
 }
 
 // ------------------------------------------------------- snippets
@@ -194,7 +224,7 @@ export function assetSnippets(s: SpriteState, rel: string, data?: string): Asset
       text: `SpriteSetImage${s.packed ? 'Packed' : ''}(0, @${n}(0))\n`,
     });
   } else if (s.type === 'til') {
-    out.push({ id: 'use', label: 'SetTileSet + DoTile8', text: `SetTileSet(@${n}(0))\nDoTile8(x, y, 0)\n` });
+    out.push({ id: 'use', label: s.w !== TILE_SIZE ? 'SetTileSet + SetTileWidth + DoTile8' : 'SetTileSet + DoTile8', text: `SetTileSet(@${n}(0))\n${s.w !== TILE_SIZE ? `SetTileWidth(${n}_TILEW)\n` : ''}DoTile8(x, y, 0)\n` });
   } else {
     const pal = s.emitPalette ? `SetPalette(@${n}_pal(0), ${n}_PENS)\n` : '';
     out.push({

@@ -6,7 +6,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import type { StudioDocument } from '../../src/ext/customEditor';
 import type { SpriteEditorProvider } from '../../src/ext/spriteEditor';
 import { encodePng, newImage, setPixel } from '../../src/core/image';
-import { newSprite, serialiseSprite, type SpriteState } from '../../src/core/spriteDoc';
+import { newSprite, resolvePalette, serialiseSprite, type SpriteState } from '../../src/core/spriteDoc';
 import { exportAsset } from '../../src/core/spriteExport';
 import { test, waitFor } from './harness';
 
@@ -262,6 +262,42 @@ test('sprite: Insert Asset Use writes the include and call lines into the code e
   await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 });
 
+test('sprite: Insert Asset Use from the Command Palette finds the sprite open in the other editor group', async () => {
+  const s = sprite('ball3');
+  s.output = 'ball3.bas';
+  const uri = put('ball3.cpcspr', serialiseSprite(s));
+  const code = put('main3.bas', "' code\n");
+  await openSpr(uri);
+  // the cursor is in the code editor (active group), the sprite editor in the neighbouring group
+  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(code), { viewColumn: vscode.ViewColumn.Two });
+  const active = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+  assert.ok(active instanceof vscode.TabInputText, 'the active tab is the code file');
+  const text = (await vscode.commands.executeCommand('cpcbuild.insertAssetUse')) as string | undefined;
+  assert.ok(text?.includes('#include "ball3.bas"'), 'the include of the sprite in the other group');
+  await vscode.commands.executeCommand('workbench.action.files.revert');
+  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+});
+
+test('sprite: saving a palette file regenerates the sprite documents that share it, open or not', async () => {
+  const pal = put('team2.cpcpal', '0, 26, 6, 18\n');
+  const s = sprite('shared2', { palette: { file: 'team2.cpcpal' } });
+  s.emitPalette = true;
+  s.output = 'shared2.bas';
+  put('shared2.cpcspr', serialiseSprite(s));
+  fs.rmSync(path.join(ws, 'sprites', 'shared2.bas'), { force: true });
+  const a = await api();
+  await vscode.commands.executeCommand('vscode.openWith', pal, 'cpcbuild.paletteEditor');
+  const pdoc = await waitFor('palette document', () => a.palette.documents.get(pal.toString()));
+  await waitFor('palette webview ready', () => pdoc.readyCount > 0);
+  a.palette.commit(pdoc, { op: 'setEntry', index: 1, value: 13 });
+  await a.palette.saveCustomDocument(pdoc);
+  const before = await waitFor('the .bas written from the palette', () => fs.existsSync(path.join(ws, 'sprites', 'shared2.bas')) && read('shared2.bas'));
+  a.palette.commit(pdoc, { op: 'setEntry', index: 2, value: 9 });
+  await a.palette.saveCustomDocument(pdoc);
+  await waitFor('the .bas follows the palette', () => read('shared2.bas') !== before);
+  await closeClean();
+});
+
 test('sprite: the editors are contributed as the default for .cpcspr and .cpctil, with title actions', async () => {
   const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
   const by = (vt: string) => pkg.contributes.customEditors.find((c: { viewType: string }) => c.viewType === vt);
@@ -270,4 +306,28 @@ test('sprite: the editors are contributed as the default for .cpcspr and .cpctil
   assert.deepStrictEqual(by('cpcbuild.tileEditor').selector, [{ filenamePattern: '*.cpctil' }]);
   const cmds = pkg.contributes.menus['editor/title'].map((m: { command: string }) => m.command);
   assert.ok(cmds.includes('cpcbuild.generateAssetFile') && cmds.includes('cpcbuild.insertAssetUse'));
+});
+
+test('sprite: saving the palette file while the sprite is open regenerates with the NEW pens', async () => {
+  put('fresh.cpcpal', '0, 26, 6, 18\n');
+  const s = sprite('fresh', { palette: { file: 'fresh.cpcpal' }, w: 4, h: 1 });
+  s.items = [[[0, 1, 2, 3]]];
+  const uri = put('fresh.cpcspr', serialiseSprite(s));
+  fs.rmSync(path.join(ws, 'sprites', 'fresh.bas'), { force: true });
+  const { a, p, doc } = await openSpr(uri);
+  await waitFor('palette loaded', () => viewOf(p, doc).pens?.join() === '0,26,6,18');
+  // open the palette in its editor, change a pen and save through the editor's save path (no wait for the file watcher)
+  const palUri = vscode.Uri.file(path.join(ws, 'sprites', 'fresh.cpcpal'));
+  await vscode.commands.executeCommand('vscode.openWith', palUri, 'cpcbuild.paletteEditor');
+  const pdoc = await waitFor('palette document', () => a.palette.documents.get(palUri.toString()));
+  await waitFor('palette webview ready', () => pdoc.readyCount > 0);
+  a.palette.commit(pdoc, { op: 'setEntry', index: 1, value: 13 });
+  await a.palette.saveCustomDocument(pdoc);
+  const bas = (): string => (fs.existsSync(path.join(ws, 'sprites', 'fresh.bas')) ? read('fresh.bas') : '');
+  const expected = exportAsset(doc.state, { source: 'fresh.cpcspr', palette: resolvePalette(doc.state, '0, 13, 6, 18\n') }).text;
+  const old = exportAsset(doc.state, { source: 'fresh.cpcspr', palette: resolvePalette(doc.state, '0, 26, 6, 18\n') }).text;
+  assert.notStrictEqual(expected, old, 'the pens matter to the output');
+  assert.ok(bas().length > 0, 'regenerated at save time');
+  assert.strictEqual(bas().replace(/\r/g, ''), expected.replace(/\r/g, ''), 'the generated file has the new pens');
+  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
 });

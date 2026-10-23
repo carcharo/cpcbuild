@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { absFrom, fileExists, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { findCap32, findCpcec, findRvm } from './run';
 import { runTool, Sink } from './runTool';
+import { compilerHint, runZxbc } from './zxbcCommand';
 import { findArkosTools } from './arkos';
 import { findTiled } from './tmxViewer';
 import { isTrusted, restrictedText } from './trust';
@@ -40,12 +41,12 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   const trusted = isTrusted();
   const cwd = s.zxbcCwd ? absFrom(base, s.zxbcCwd) : base;
   if (trusted) {
-    const z = await runTool(s.zxbcCommand, ['--version'], { cwd, quiet: true });
+    const z = await runZxbc(s.zxbcCommand, ['--version'], { cwd, quiet: true });
     const zOut = (z.stdout + z.stderr).trim().split('\n')[0];
     add({
       id: 'zxbc', label: 'zxbc (Boriel BASIC compiler, cpc arch)', ok: z.code === 0,
-      detail: z.code === 0 ? `${s.zxbcCommand.join(' ')}: ${zOut}` : z.error ?? `exited ${z.code}: ${zOut}`,
-      fix: 'Set "cpcbuild.zxbc.command" (the fork: ["poetry","run","zxbc"]) and "cpcbuild.zxbc.cwd" (your zxbasic checkout, branch cpc-arch).',
+      detail: z.code === 0 ? `${z.used.join(' ')}${z.fellBack ? ' (fallback: the default "zxbc" was not found)' : ''}: ${zOut}` : z.error ?? `exited ${z.code}: ${zOut}`,
+      fix: compilerHint('zxbc could not be run', s.zxbcCommand, cwd),
     });
     const py = await runTool([s.pythonPath], ['--version'], { quiet: true });
     const pyOut = (py.stdout + py.stderr).trim();

@@ -218,3 +218,24 @@ test('debug: toggling a breakpoint with a null argument does not throw', async (
   const r = (await p) as { applied: boolean };
   assert.strictEqual(r.applied, false);
 });
+
+test('run: a disc with several programs asks which one (quick pick stubbed), and cancelling runs nothing', async () => {
+  const a = await api();
+  const { mkDsk } = await import('../../src/core/dskFixture');
+  const { readSettings } = await import('../../src/ext/config');
+  const dsk = path.join(ws, 'many-' + Date.now() + '.dsk');
+  fs.writeFileSync(dsk, mkDsk({ base: 0xc1, dirTrack: 0, files: ['GAME.BIN', 'MENU.BAS'] }));
+  const s = readSettings(ws);
+  const asked: string[][] = [];
+  try {
+    a.disc.pick = async (cs) => (asked.push(cs), 'MENU.BAS');
+    const got = await a.disc.discToRun(dsk, s);
+    assert.deepStrictEqual(asked, [['GAME.BIN', 'MENU.BAS']]);
+    assert.strictEqual(got?.name, 'MENU.BAS');
+    a.disc.pick = async () => undefined;
+    assert.strictEqual(await a.disc.discToRun(dsk, s), undefined);
+  } finally {
+    a.disc.pick = undefined;
+    fs.rmSync(dsk, { force: true });
+  }
+});

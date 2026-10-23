@@ -15,6 +15,7 @@ import { py, REPO, rng, scratchDir } from './testutil';
 const io: CliIo = {
   readFile: (p) => new Uint8Array(fs.readFileSync(path.resolve(REPO, p))),
   readText: (p) => fs.readFileSync(path.resolve(REPO, p), 'utf8'),
+  exists: (p) => fs.existsSync(path.resolve(REPO, p)),
 };
 
 /** Runs both on the same argv (cwd = repo root) and compares stdout; returns the text. */
@@ -24,6 +25,23 @@ function same(argv: string[]): string {
   const t = runCli(argv, io);
   expect(t.stdout).toBe(p.stdout);
   return p.stdout;
+}
+
+/** Both fail with the same message: img2cpc.py prints `img2cpc: <msg>` (or argparse's `error: <msg>`), the port throws <msg>. */
+function sameError(argv: string[]): string {
+  const p = py('img2cpc.py', argv);
+  expect(p.ok).toBe(false);
+  let msg = '';
+  try {
+    runCli(argv, io);
+  } catch (e) {
+    expect(e).toBeInstanceOf(Img2cpcError);
+    msg = (e as Error).message;
+  }
+  expect(msg).not.toBe('');
+  const last = p.stderr.trim().split('\n').pop()!;
+  expect([`img2cpc: ${msg}`, `img2cpc.py: error: ${msg}`]).toContain(last);
+  return msg;
 }
 
 const A = 'examples/assets';
@@ -132,6 +150,12 @@ describe('img2cpc.ts vs tools/img2cpc.py: synthetic images', () => {
       fs.writeFileSync(p, encodePng(img));
       return ['--mode', '0', '--tiles', '--dedupe', p];
     }],
+    ['tiles mode 0 width 4', () => ['--mode', '0', '--tiles', '--tile-width', '4', makePng('tw4.png', 16, 16, 60, fwOnly, 0)]],
+    ['tiles mode 0 width 2 dedupe', () => ['--mode', '0', '--tiles', '--tile-width', '2', '--dedupe', makePng('tw2.png', 8, 16, 61, fwOnly.slice(0, 2), 0)]],
+    ['tiles mode 0 width 8 explicit', () => ['--mode', '0', '--tiles', '--tile-width', '8', makePng('tw8.png', 16, 8, 62, fwOnly, 0)]],
+    ['tiles mode 1 width 4 and 16', () => ['--mode', '1', '--tiles', '--tile-width', '4', makePng('tw14.png', 16, 8, 63, fwOnly.slice(0, 4), 0)]],
+    ['tiles mode 1 width 16 dedupe', () => ['--mode', '1', '--tiles', '--tile-width', '16', '--dedupe', makePng('tw116.png', 32, 16, 64, fwOnly.slice(0, 2), 0)]],
+    ['tiles mode 2 width 32', () => ['--mode', '2', '--tiles', '--tile-width', '32', makePng('tw232.png', 64, 8, 65, [[0, 0, 0]], 0)]],
     ['name from stem', () => ['--mode', '0', makePng('1 weird-name.v2.png', 8, 8, 15, fwOnly)]],
     ['--no-palette', () => ['--mode', '1', '--no-palette', makePng('np.png', 8, 8, 16, fwOnly.slice(0, 3))]],
     ['spectrum picture', () => ['--spectrum', makePng('zx.png', 24, 16, 17, [[0, 0, 0], [215, 0, 0], [0, 255, 0], [255, 255, 255], [0, 0, 215]], 0.1)]],
@@ -189,6 +213,13 @@ describe('img2cpc.ts vs tools/img2cpc.py: errors', () => {
     ['bad palette entry', () => ['--mode', '1', '--palette', '0,27', makePng('e8.png', 8, 8, 48, fwOnly)]],
     ['too many tiles', () => ['--mode', '2', '--tiles', makePng('e9.png', 8, 8 * 257, 49, [[0, 0, 0], [255, 255, 255]], 0)]],
     ['no mode', () => [makePng('e10.png', 8, 8, 50, fwOnly)]],
+    ['--tile-width without --tiles', () => ['--mode', '1', '--tile-width', '4', makePng('e12.png', 8, 8, 52, fwOnly)]],
+    ['tile width 3', () => ['--mode', '1', '--tiles', '--tile-width', '3', makePng('e13.png', 12, 8, 53, fwOnly.slice(0, 2))]],
+    ['tile width 4 in mode 2', () => ['--mode', '2', '--tiles', '--tile-width', '4', makePng('e14.png', 16, 8, 54, [[0, 0, 0]])]],
+    ['tile width 16 in mode 0', () => ['--mode', '0', '--tiles', '--tile-width', '16', makePng('e15.png', 16, 8, 55, fwOnly)]],
+    ['tile width not an int', () => ['--mode', '1', '--tiles', '--tile-width', 'x', makePng('e16.png', 16, 8, 56, fwOnly.slice(0, 2))]],
+    ['tile image width not a multiple of the tile width', () => ['--mode', '0', '--tiles', '--tile-width', '4', makePng('e17.png', 10, 8, 57, fwOnly)]],
+    ['tile image height with a narrow tile', () => ['--mode', '0', '--tiles', '--tile-width', '4', makePng('e18.png', 8, 12, 58, fwOnly)]],
     ['--dedupe without --tiles', () => ['--mode', '1', '--dedupe', makePng('e11.png', 8, 8, 51, fwOnly)]],
   ];
   for (const [title, mk] of bad) {
@@ -198,4 +229,129 @@ describe('img2cpc.ts vs tools/img2cpc.py: errors', () => {
       expect(() => runCli(argv, io)).toThrow(Img2cpcError);
     });
   }
+});
+
+// ----------------------------------------------------------- sidecar and --check
+
+describe('img2cpc.ts vs tools/img2cpc.py: the sidecar', () => {
+  const dir = scratchDir('img2cpc-side-');
+  let n = 0;
+  /** A PNG with a sidecar beside it; returns the PNG path. */
+  function withSide(w: number, h: number, side: object | string, colours = fwOnly.slice(0, 4), transp = 0.15): string {
+    const stem = `s${n++}`;
+    const png = makePng(`${stem}.png`, w, h, 70 + n, colours, transp);
+    const png2 = path.join(dir, `${stem}.png`);
+    fs.copyFileSync(png, png2);
+    fs.writeFileSync(path.join(dir, `${stem}.cpcbuild.json`), typeof side === 'string' ? side : JSON.stringify({ format: 'cpcbuild-image', version: 1, ...side }));
+    return png2;
+  }
+  const hero = { kind: 'sprite', mode: 0, name: 'hero', frame: '8x8', masked: false, palette: [1, 24, 20, 6] };
+
+  it('sprite with tags needs no other options', () => {
+    const text = same([withSide(32, 16, { ...hero, tags: [{ name: 'walk', from: 0, to: 2 }, { name: 'idle-1 b', from: 3, to: 3 }] })]);
+    expect(text).toContain('CONST hero_WALK AS UBYTE = 0');
+    expect(text).toContain('CONST hero_IDLE_1_B_LEN AS UBYTE = 1');
+    expect(text.split('\n')[0]).toMatch(/\(settings from s\d+\.cpcbuild\.json\)$/);
+  });
+
+  it('masked sprite, and mode 1', () => {
+    same([withSide(32, 16, { kind: 'sprite', mode: 1, frame: '8x8', masked: true, palette: [0, 26, 6, 18], tags: [] })]);
+  });
+
+  it('tiles with tileWidth 4 (and 8, which adds nothing)', () => {
+    const text = same([withSide(16, 16, { kind: 'tiles', mode: 0, name: 'ground', tileWidth: 4, palette: [1, 24, 20, 6] })]);
+    expect(text).toContain('CONST ground_TILEW AS UBYTE = 2');
+    same([withSide(16, 16, { kind: 'tiles', mode: 0, tileWidth: 8 })]);
+  });
+
+  it('the command line wins over the sidecar', () => {
+    const p = withSide(32, 16, { ...hero, masked: true, tags: [{ name: 'a', from: 0, to: 1 }] });
+    same(['--mode', '1', '--name', 'x', '--frame', '16x8', p]);
+    same(['--palette', '1,24,20,6', '--name', 'y', p]);
+    same(['--palette-file', `${A}/bounce.pal`, p]);
+    same(['--tiles', p]);
+    same(['--no-sidecar', '--mode', '0', p]);
+    const t = withSide(16, 16, { kind: 'tiles', mode: 0, tileWidth: 4, palette: [1, 24, 20, 6] });
+    same(['--sprite', t]);
+    same(['--dedupe', t]);
+  });
+
+  it('spectrum and plus never read it', () => {
+    const p = withSide(16, 16, { ...hero, tags: [{ name: 'a', from: 9, to: 9 }] });
+    same(['--spectrum', p]);
+    same(['--plus-palette', p]);
+  });
+
+  it('bad sidecars give the same message', () => {
+    const cases: (object | string)[] = [
+      '{', '[1]', { format: 'other' }, { version: 2 }, { version: '1' }, { kind: 'map' }, { mode: 3 }, { mode: true }, { name: '' },
+      { frame: '16' }, { frame: 16 }, { masked: 'yes' }, { tileWidth: 0 }, { tileWidth: '8' }, { palette: [1, 27] }, { palette: '1,2' },
+      { tags: [{ name: 'a', from: 0 }] }, { tags: {} }, { tags: [{ name: 'x', from: 0, to: 4 }] }, { tags: [{ name: 'x', from: 3, to: 2 }] },
+      { tags: [{ name: 'a b', from: 0, to: 1 }, { name: 'a_b', from: 2, to: 3 }] }, { tags: [{ name: 'w', from: 0, to: 1 }] },
+      { tags: [{ name: 'x', from: 0, to: 1 }, { name: 'x len', from: 2, to: 3 }] },
+    ];
+    for (const c of cases) {
+      const p = withSide(32, 8, typeof c === 'string' ? c : { ...hero, ...c });
+      const msg = sameError([p]);
+      expect(msg).toContain('.cpcbuild.json: ');
+    }
+    const noVersion = withSide(32, 8, JSON.stringify({ format: 'cpcbuild-image', mode: 0 }));
+    sameError([noVersion]);
+  }, 30_000); // 24 runs of the Python tool: about 5 s, the default limit
+});
+
+describe('img2cpc.ts vs tools/img2cpc.py: --check', () => {
+  const dir = scratchDir('img2cpc-check-');
+  let n = 0;
+  const png = (w: number, h: number, colours: [number, number, number][], transp = 0): string => {
+    const p = path.join(dir, `c${n++}.png`);
+    fs.copyFileSync(makePng('chk.png', w, h, 90 + n, colours, transp), p);
+    return p;
+  };
+  const dark: [number, number, number][] = [[0, 0, 255], [127, 0, 0], [255, 0, 0], [0, 30, 0]];
+
+  it('sprite', () => {
+    const text = same(['--check', '--mode', '0', '--frame', '8x4', png(16, 8, dark)]);
+    expect(text).toMatch(/^check: .* 16x8 pixels, mode 0, sprite\n {2}frames: 4 of 8x4 pixels \(4 bytes x 4 lines, 16 bytes each\)\n {2}pens: /);
+    expect(text).toContain('  colours moved: ');
+    expect(text.endsWith('  total: 64 bytes\n  ok\n')).toBe(true);
+  });
+
+  it('transparent pixels, unmasked and masked', () => {
+    expect(same(['--check', '--mode', '1', png(16, 8, fwOnly.slice(0, 3), 0.3)])).toContain('  transparent pixels: ');
+    expect(same(['--check', '--mode', '1', '--masked', png(16, 8, fwOnly.slice(0, 3), 0.3)])).not.toContain('transparent');
+  });
+
+  it('tiles: repeats, dedupe, widths', () => {
+    const p = png(32, 16, [[255, 0, 0]], 0);
+    expect(same(['--check', '--mode', '0', '--tiles', '--tile-width', '4', p])).toContain('(--dedupe would drop them)');
+    expect(same(['--check', '--mode', '0', '--tiles', '--tile-width', '4', '--dedupe', p])).toContain(' dropped\n');
+    same(['--check', '--mode', '1', '--tiles', p]);
+    same(['--check', '--mode', '2', '--tiles', '--tile-width', '16', '--dedupe', png(32, 16, [[0, 0, 0], [255, 255, 255]], 0)]);
+    const one = png(16, 8, [[255, 0, 0]], 0);
+    expect(same(['--check', '--mode', '1', '--tiles', one])).toContain(', 1 repeat (--dedupe would drop it)\n');
+  });
+
+  it('with a sidecar', () => {
+    const p = png(32, 8, dark, 0.2);
+    fs.writeFileSync(p.replace(/\.png$/, '.cpcbuild.json'), JSON.stringify({ format: 'cpcbuild-image', version: 1, kind: 'sprite', mode: 0, frame: '8x8', palette: [2, 3, 6, 18] }));
+    const text = same(['--check', p]);
+    expect(text).toContain(`  sidecar: ${p.replace(/\.png$/, '.cpcbuild.json')}\n`);
+  });
+
+  it('writes nothing, even with --write-palette (the port returns no files)', () => {
+    const p = png(16, 8, fwOnly.slice(0, 3));
+    const argv = ['--check', '--mode', '1', '--write-palette', path.join(dir, 'w.pal'), p];
+    expect(runCli(argv, io).files).toEqual([]);
+    expect(py('img2cpc.py', argv).ok).toBe(true);
+    expect(fs.existsSync(path.join(dir, 'w.pal'))).toBe(false);
+  });
+
+  it('same errors as a conversion, and usage errors', () => {
+    sameError(['--check', '--mode', '1', png(16, 16, rand(41, 12))]);
+    sameError(['--check', '--mode', '0', png(9, 8, fwOnly)]);
+    expect(sameError(['--check', '--mode', '1', '-o', path.join(dir, 'x.bas'), png(8, 8, fwOnly)])).toBe('--check writes nothing; leave out -o');
+    sameError(['--check', '--spectrum', png(8, 8, fwOnly)]);
+    sameError(['--check', '--plus-sprite', png(16, 16, fwOnly)]);
+  });
 });

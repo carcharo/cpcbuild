@@ -2,6 +2,10 @@
 ' cpcbuild/tiles.bas -- 8x8 tiles drawn into screen memory (--arch cpc)
 '
 '   SetTileSet(addr)            the tile data is at addr
+'   SetTileWidth(bytes)         tiles are 1, 2 or 4 bytes wide from now on,
+'                               in any mode; 0 (or anything else): the
+'                               mode's width again (the default)
+'   TileWidth()                 the tile width in bytes in use now
 '   DoTile8(x, y, tile)         draw 8x8 tile number `tile` at tile cell
 '                               (x, y): byte column x * tile width, pixel
 '                               line y * 8 (cells off the screen: nothing)
@@ -24,10 +28,12 @@
 '                               rectangle touches. Erases a sprite in one
 '                               call: TileRestore(@map, 20, x, y, 4, 16)
 '
-' A tile is 8x8 pixels: 8 rows top first, each row's bytes left to
-' right: 8 bytes in mode 2, 16 in mode 1, 32 in mode 0. The tile width
-' in bytes is 1, 2 or 4 (mode 2, 1, 0), so a screen is 80/40/20 tile
-' cells wide and 25 high. Works with a hardware-scroll offset (see
+' A tile is W bytes x 8 lines: 8 rows top first, each row's bytes left
+' to right, 8 * W bytes per tile. By default W follows the mode (1, 2,
+' 4 in mode 2, 1, 0: 8x8 pixels), so a screen is 80/40/20 tile cells
+' wide and 25 high. SetTileWidth fixes W instead (it stays through mode
+' changes): 2 in mode 0 gives 4x8-pixel tiles, 40 x 25 cells. DoTile16
+' draws 2 x 2 tiles whatever W is. Works with a hardware-scroll offset (see
 ' cpcbuild/core.asm; call ScreenInit() after a mode change).
 ' No firmware calls: safe on the 464 and 6128.
 '
@@ -50,6 +56,52 @@ sub fastcall SetTileSet(addr as uinteger)
     ld (.core.CB_TILESET), hl
     end asm
 end sub
+
+sub fastcall SetTileWidth(bytes as ubyte)
+    #require "cpcbuild/core.asm"
+    asm
+    push namespace core
+    PROC
+    LOCAL __STW_SET
+    ld   b, a               ; CB_TILEW = 1 + log2 bytes (1, 2, 3), else 0
+    ld   a, 1
+    dec  b
+    jr   z, __STW_SET       ; 1 byte
+    inc  a
+    dec  b
+    jr   z, __STW_SET       ; 2 bytes
+    inc  a
+    dec  b
+    dec  b
+    jr   z, __STW_SET       ; 4 bytes
+    xor  a                  ; anything else: follow the mode
+__STW_SET:
+    ld   (CB_TILEW), a
+    ENDP
+    pop namespace
+    end asm
+end sub
+
+function fastcall TileWidth() as ubyte
+    #require "cpcbuild/tiledraw.asm"
+    asm
+    push namespace core
+    PROC
+    LOCAL __TW_L, __TW_D
+    call __CB_TXS           ; A = s
+    ld   b, a
+    inc  b
+    ld   a, 1
+__TW_L:
+    dec  b
+    jr   z, __TW_D
+    add  a, a
+    jr   __TW_L
+__TW_D:                     ; A = 1 << s
+    ENDP
+    pop namespace
+    end asm
+end function
 
 sub DoTile8(x as ubyte, y as ubyte, tile as ubyte)
     #require "cpcbuild/tile8.asm"

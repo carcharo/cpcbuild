@@ -8,6 +8,8 @@ import { findProjects, LoadedProject, pickProject, selectedTarget } from './proj
 import { runInEmulator } from './run';
 import { Sink } from './runTool';
 import { state } from './state';
+import { isTrusted, notifyUntrusted, restrictedText } from './trust';
+import { runInZxEmulator } from './zxRun';
 
 export const TASK_TYPE = 'cpcbuild';
 
@@ -62,6 +64,20 @@ export async function runLast(sink: Sink, library?: string | null): Promise<bool
   if (!b || !b.ok) {
     sink.line('Nothing to run: build a target first ("CPCBuild: Build").', true);
     return false;
+  }
+  if (!b.run && b.artifacts.tap) {
+    if (!isTrusted()) {
+      notifyUntrusted('Run in a Spectrum emulator');
+      sink.line(`Run failed: ${restrictedText('Running in a Spectrum emulator')}`, true);
+      return false;
+    }
+    const out = await runInZxEmulator(readSettings(b.root), b.artifacts.tap, sink);
+    if (!out.ok) {
+      sink.line(`Target ${b.targetId} built ${path.basename(b.artifacts.tap)}, but ${out.message}`, true);
+      return false;
+    }
+    sink.line(`Started ${path.basename(b.artifacts.tap)} in ${readSettings(b.root).zxEmulator}`);
+    return true;
   }
   if (!b.run) {
     sink.line(`Target ${b.targetId} has no disc or cartridge to run (Spectrum and raw .bin targets are build-only).`, true);
@@ -120,7 +136,7 @@ export class CpcbuildTaskProvider implements vscode.TaskProvider {
       for (const t of lp.project.targets) {
         const proj = rel === '' ? '.' : rel;
         tasks.push(createTask({ type: TASK_TYPE, target: t.id, ...(proj ? { project: proj } : {}) }, scope, `build ${t.id}`));
-        if (t.package === 'dsk' || t.package === 'cpr') {
+        if (t.package === 'dsk' || t.package === 'cpr' || t.package === 'tap') {
           tasks.push(createTask({ type: TASK_TYPE, target: t.id, run: true, ...(proj ? { project: proj } : {}) }, scope, `build and run ${t.id}`));
         }
       }

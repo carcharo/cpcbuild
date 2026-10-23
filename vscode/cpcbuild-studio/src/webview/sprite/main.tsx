@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { moveRect, background, type Grid, type Rect, type SpriteOp } from '../../core/spriteDoc';
 import { lineCells, type Pt } from '../../core/shapes';
-import { PPB } from '../../core/pixels';
+import { PPB, tileWidthsOf } from '../../core/pixels';
 import type { SpriteRequests, SpriteView } from '../../shared/spriteProtocol';
 import { startEditor, type EditorHost } from '../shared/bootstrap';
 import { createClient } from '../shared/client';
@@ -134,7 +134,7 @@ function Help({ onClose }: { onClose(): void }) {
     ['N, Shift+N', 'Add / duplicate frame (tile)'],
     ['G, Shift+G, Alt+G, A, O', 'Pixel grid, byte grid, tile grid, CPC aspect, onion skin'],
     ['= -, Z', 'Zoom in, out, fit'],
-    ['T, P, ?', 'Tile 8x8 / 16x16 view, play the preview, this help'],
+    ['T, P, ?', 'Tile / 2x2 tiles view, play the preview, this help'],
     ['Esc', 'Cancel the drag or the anchor, clear the selection'],
   ];
   return (
@@ -174,6 +174,7 @@ function SpriteApp({ client, settings, view }: Host) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [pendingMode, setPendingMode] = useState<{ mode: 0 | 1 | 2; text: string } | null>(null);
   const [pendingSize, setPendingSize] = useState<{ w: number; h: number; text: string } | null>(null);
+  const [pendingTw, setPendingTw] = useState<{ w: number; text: string } | null>(null);
   const [view16, setView16] = useState(false);
   const [t16, setT16] = useState(0);
   const [numbers, setNumbers] = useState(false);
@@ -219,7 +220,7 @@ function SpriteApp({ client, settings, view }: Host) {
   const top = topValue(v);
   const ppb = plus ? 1 : PPB[v.mode];
 
-  // the editing space: plain, the tile with neighbours, or the 16x16 view
+  // the editing space: plain, the tile with neighbours, or the 2x2 view
   const space: 'plain' | 'nb' | 't16' = tiles ? (view16 ? 't16' : 'nb') : 'plain';
   const lw = space === 't16' ? 2 * v.w : v.w;
   const lh = space === 't16' ? 2 * v.h : v.h;
@@ -238,7 +239,7 @@ function SpriteApp({ client, settings, view }: Host) {
     }
     if (space === 't16') return { width: compW, height: compH, rgba: tile16(disp, t16, v) };
     const nb = neighbourView(disp, cur, cols, v);
-    return { width: nb.size, height: nb.size, rgba: nb.rgba };
+    return { width: nb.width, height: nb.height, rgba: nb.rgba };
   }, [disp, thumbs, cur, onion, space, t16, cols, compW, compH, v.w, v.h, v.pens, v.colours]);
 
   // ------------------------------------------------------------ view
@@ -299,7 +300,7 @@ function SpriteApp({ client, settings, view }: Host) {
   const targetOf = (lx: number, ly: number): { item: number; x: number; y: number } | null => {
     if (lx < 0 || ly < 0 || lx >= lw || ly >= lh) return null;
     if (space === 't16') {
-      const t = tile16Target(t16, lx, ly, v.w);
+      const t = tile16Target(t16, lx, ly, v.w, v.h);
       return t.item < n ? t : null;
     }
     return { item: cur, x: lx, y: ly };
@@ -442,7 +443,7 @@ function SpriteApp({ client, settings, view }: Host) {
       case 'fill': void doFill(lx, ly, value); return;
       case 'replace': void doReplace(lx, ly, value, e.shift); return;
       case 'select': {
-        if (space === 't16') { say('info', 'Select works on one tile: switch to the 8x8 view.', 'sel-t16'); return; }
+        if (space === 't16') { say('info', 'Select works on one tile: switch to the single-tile view.', 'sel-t16'); return; }
         const inside = sel && insideRect(sel, lx, ly);
         gest.current = { tool, button, value, start: p, last: p, path: [], mode: inside ? 'move' : 'marquee', prevSel: sel, copy: e.ctrl, flags: { shift: e.shift, alt: e.alt } };
         if (!inside) setSel({ x: lx, y: ly, w: 1, h: 1 });
@@ -481,7 +482,7 @@ function SpriteApp({ client, settings, view }: Host) {
 
   // ---------------------------------------------------------- actions
   const fx = (name: string): boolean => {
-    if (space === 't16') { say('info', `${name} works on one tile: switch to the 8x8 view.`, 'fx-t16'); return false; }
+    if (space === 't16') { say('info', `${name} works on one tile: switch to the single-tile view.`, 'fx-t16'); return false; }
     return n > 0;
   };
   const flip = (h: boolean): void => { if (fx('Flip')) void send({ op: h ? 'flipH' : 'flipV', item: cur, rect: selRect() }); };
@@ -524,6 +525,13 @@ function SpriteApp({ client, settings, view }: Host) {
     if (!pendingMode) return;
     const err = await send({ op: 'setMode', mode: pendingMode.mode, force: true });
     if (!err) setPendingMode(null);
+  };
+  const chooseTileWidth = async (w: number, crop = false): Promise<void> => {
+    if (w === v.w) { setPendingTw(null); return; }
+    const err = await send({ op: 'setTileWidth', w, crop }, true);
+    if (err === undefined) { setPendingTw(null); return; }
+    if (err.startsWith('crop:')) setPendingTw({ w, text: err.slice(5).trim() });
+    else say('error', err, 'tw-error');
   };
   const resize = async (w: number, h: number, crop = false): Promise<void> => {
     let ww = w;
@@ -680,7 +688,7 @@ function SpriteApp({ client, settings, view }: Host) {
   const mk = (id: Tool): ToolbarItem => {
     const t = TOOLS.find((x) => x.id === id) as (typeof TOOLS)[number];
     const dis = id === 'select' && space === 't16';
-    return { kind: 'radio', id: `tool-${id}`, label: t.label, icon: t.icon, shortcut: dis ? 'not in the 16x16 view' : t.key, checked: tool === id, onActivate: () => setTool(id) };
+    return { kind: 'radio', id: `tool-${id}`, label: t.label, icon: t.icon, shortcut: dis ? 'not in the 2x2 view' : t.key, checked: tool === id, onActivate: () => setTool(id) };
   };
   const zoomItems = [...ZOOM_STEPS.filter((z) => Number.isInteger(z * aw)).map((z) => ({ id: `z${z}`, label: `${z}x`, checked: z === zoom, onActivate: () => setZoom(z) })), { id: 'zfit', label: 'Fit to window', shortcut: 'Z', onActivate: fit }];
   const snippetOf = (id: string) => v.snippets.find((s) => s.id === id);
@@ -740,8 +748,8 @@ function SpriteApp({ client, settings, view }: Host) {
       label: 'Tile view',
       radio: true,
       items: [
-        { kind: 'radio', id: 'v8', label: '8x8 view with neighbours', text: '8x8', checked: !view16, shortcut: 'T', onActivate: () => setView16(false) },
-        { kind: 'radio', id: 'v16', label: '16x16 view (tiles 4t to 4t+3)', text: '16x16', checked: view16, shortcut: 'T', onActivate: () => setView16(true) },
+        { kind: 'radio', id: 'v8', label: `${v.w}x${v.h} view with neighbours`, text: `${v.w}x${v.h}`, checked: !view16, shortcut: 'T', onActivate: () => setView16(false) },
+        { kind: 'radio', id: 'v16', label: '2x2 view (tiles 4t to 4t+3)', text: '2x2', checked: view16, shortcut: 'T', onActivate: () => setView16(true) },
       ],
     });
   groups.push(
@@ -774,7 +782,7 @@ function SpriteApp({ client, settings, view }: Host) {
               ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: `Copy as ${s.label}`, icon: 'copy', onActivate: () => void copyText(s.text, s.label) })),
               { id: 'c-cmd', label: 'Copy the img2cpc.py command', icon: 'copy', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
             ] : []),
-            { id: 'takepng', label: 'Take a PNG into this frame...', icon: 'file-media', onActivate: () => void ask('importPng', { baseVersion: version.current, item: cur }).then((r) => r && (r.taken ? say('info', r.message ?? 'Image taken.', 'png') : undefined)) },
+            { id: 'takepng', label: `Import PNG into this ${tiles ? 'tile' : 'frame'}...`, icon: 'file-media', onActivate: () => void ask('importPng', { baseVersion: version.current, item: cur }).then((r) => r && (r.taken ? say(r.message?.includes('became') ? 'warning' : 'info', r.message ?? 'PNG imported.', 'png') : undefined)) },
             { id: 'savepng', label: 'Export the sheet as PNG...', icon: 'save-as', onActivate: () => void ask('exportPng', {}).then((r) => r?.saved && say('info', `Saved ${r.file}`, 'png')) },
             { id: 'help', label: 'Keyboard shortcuts', shortcut: '?', onActivate: () => setHelp(true) },
             { id: 'text', label: 'Open as text', icon: 'go-to-file', onActivate: () => void client.request('openAsText', {}) },
@@ -789,6 +797,8 @@ function SpriteApp({ client, settings, view }: Host) {
   if (decoded.error) notices.push(<Notice key="dec" severity="error">{decoded.error}</Notice>);
   if (pendingMode)
     notices.push(<Notice key="pm" severity="warning" actions={[{ label: 'Convert', onClick: () => void convertMode() }, { label: 'Cancel', secondary: true, onClick: () => setPendingMode(null) }]}>{pendingMode.text}.</Notice>);
+  if (pendingTw)
+    notices.push(<Notice key="pt" severity="warning" actions={[{ label: 'Crop', onClick: () => void chooseTileWidth(pendingTw.w, true) }, { label: 'Cancel', secondary: true, onClick: () => setPendingTw(null) }]}>{pendingTw.text}.</Notice>);
   if (pendingSize)
     notices.push(<Notice key="ps" severity="warning" actions={[{ label: 'Crop', onClick: () => void resize(pendingSize.w, pendingSize.h, true) }, { label: 'Cancel', secondary: true, onClick: () => setPendingSize(null) }]}>{pendingSize.text}.</Notice>);
   if (v.paletteProblem) notices.push(<Notice key="pp" severity="error" actions={v.paletteFile ? [{ label: 'Open palette', onClick: () => void ask('openPalette', {}) }] : undefined}>{v.paletteProblem}</Notice>);
@@ -845,7 +855,7 @@ function SpriteApp({ client, settings, view }: Host) {
   ];
 
   const canvasLabel = tiles
-    ? `Tile ${cur} of ${n}, ${v.w} by ${v.h} pixels, mode ${v.mode}${view16 ? `, 16 by 16 view of tiles ${4 * t16} to ${4 * t16 + 3}` : ''}`
+    ? `Tile ${cur} of ${n}, ${v.w} by ${v.h} pixels, mode ${v.mode}${view16 ? `, 2 by 2 view of tiles ${4 * t16} to ${4 * t16 + 3}` : ''}`
     : `${plus ? 'Plus sprite' : 'Sprite'} ${v.name}, frame ${cur + 1} of ${n}, ${v.w} by ${v.h} pixels${plus ? '' : `, mode ${v.mode}`}`;
 
   const props = (
@@ -878,6 +888,11 @@ function SpriteApp({ client, settings, view }: Host) {
         {!plus && (
           <Field id="sp-mode" label="Mode">
             <Segmented label="Screen mode" value={v.mode} options={([0, 1, 2] as const).map((m) => ({ value: m, label: `${m}`, title: `Mode ${m}: ${[16, 4, 2][m]} pens, ${[2, 4, 8][m]} pixels per byte` }))} onChange={(m) => void chooseMode(m)} />
+          </Field>
+        )}
+        {tiles && (
+          <Field id="sp-tw" label="Tile width">
+            <Segmented label="Tile width" value={v.w} options={tileWidthsOf(v.mode).map((w) => ({ value: w, label: `${w} px (${w / ppb} B)`, title: `${w} x 8 pixels, ${w / ppb} byte${w === ppb ? '' : 's'} wide, ${8 * w / ppb} bytes per tile` }))} onChange={(w) => void chooseTileWidth(w)} />
           </Field>
         )}
         {!plus && !tiles && (
@@ -979,7 +994,7 @@ function SpriteApp({ client, settings, view }: Host) {
             <>
               {tiles && (
                 <div class="sp-t16-pick" hidden={!view16}>
-                  <label>16x16 tile <select class="cb-select" value={t16} onChange={(e) => setT16(Number((e.target as HTMLSelectElement).value))}>
+                  <label>2x2 tiles <select class="cb-select" value={t16} onChange={(e) => setT16(Number((e.target as HTMLSelectElement).value))}>
                     {Array.from({ length: Math.max(1, Math.ceil(n / 4)) }, (_, t) => <option key={t} value={t}>{t} (tiles {4 * t}-{4 * t + 3})</option>)}
                   </select></label>
                 </div>
@@ -989,7 +1004,7 @@ function SpriteApp({ client, settings, view }: Host) {
                   image={image}
                   zoom={zoom}
                   aw={aw}
-                  grid={{ pixel: gridPixel, byteEvery: !plus && gridByte ? byteGridEvery(v.mode) : 0, tileEvery: tiles ? 8 : gridTile ? 8 : undefined }}
+                  grid={{ pixel: gridPixel, byteEvery: !plus && gridByte ? byteGridEvery(v.mode) : 0, tileEvery: tiles ? v.w : gridTile ? 8 : undefined, tileEveryY: tiles ? v.h : undefined }}
                   selection={sel ? { ...sel, x: sel.x + off.x, y: sel.y + off.y } : null}
                   cursor={pt}
                   label={canvasLabel}

@@ -835,9 +835,11 @@ FUNCTION PlatInput() AS UBYTE
   RETURN r
 END FUNCTION
 
+#ifdef TESTSW      ' (the step counter of main.bas's bench; nothing else asks)
 FUNCTION PlatFrames() AS UINTEGER
   RETURN PEEK(UINTEGER, 23672)
 END FUNCTION
+#endif
 
 ' End of a step: wait until two frames have passed since the last (25 steps
 ' a second, a slow step is not made up for), then draw what GameDraw handed

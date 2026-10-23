@@ -15,6 +15,9 @@
  *                non-black pixel).
  *   plusSprite / plusPalette   CPC Plus 12-bit data; bas, asm or bin output.
  *
+ * Also ported: reading NAME.cpcbuild.json beside the image (`parseSidecar`, `sidecarLoader`;
+ * needs `CliIo.exists`) and `--check` (`Options.check`, `Result.report`).
+ *
  * Not ported: reading any image format but PNG (image.ts), and nothing of the
  * Python tool's behaviour otherwise. Errors are thrown as Img2cpcError (the
  * Python tool's SystemExit); the message has no "img2cpc: " prefix.
@@ -23,7 +26,7 @@ import { decodePng, type RgbaImage } from './image';
 import {
   asicEntry, dist2, FW_TABLE, nearest, nearestFw, parsePalList, parseRgb12List, rgb12, type RGB,
 } from './palette';
-import { MAXPENS, packBlock, PPB, type Mode, type PenGrid } from './pixels';
+import { MAXPENS, packBlock, PPB, tileWidthError, type Mode, type PenGrid } from './pixels';
 
 export class Img2cpcError extends Error {
   constructor(message: string) {
@@ -44,6 +47,8 @@ export interface Options {
   /** Screen mode (not needed for spectrum or plus output). */
   mode?: Mode;
   tiles?: boolean;
+  /** Tile width in pixels (--tile-width; default 8): PPB * 1, 2 or 4. */
+  tileWidth?: number;
   /** Sprite frame size in pixels, "WxH". */
   frame?: string;
   dedupe?: boolean;
@@ -64,6 +69,12 @@ export interface Options {
   plusPalette?: boolean;
   packed?: boolean;
   plusFormat?: PlusFormat;
+  /** --check: convert but report instead of writing (`Result.report`). */
+  check?: boolean;
+  /** The sidecar's sprite tags: emitted as NAME_<TAG> and NAME_<TAG>_LEN after NAME_SIZE. */
+  tags?: SidecarTag[];
+  /** The sidecar's path, for the messages about its tags. */
+  sidecarFile?: string;
 }
 
 /** What the header comment records. */
@@ -72,6 +83,8 @@ export interface HeaderInfo {
   argv: readonly string[];
   /** The source path as given. */
   source: string;
+  /** The path of the sidecar the settings came from, if any. */
+  sidecar?: string;
 }
 
 export interface Result {
@@ -84,6 +97,161 @@ export interface Result {
   pens?: number[];
   /** Mode-0/1/2 palette-file text for `pens` (what --write-palette writes). */
   paletteFile?: string;
+  /** --check: the report to print. */
+  report?: string;
+}
+
+// ---------------------------------------------------------------- sidecar
+
+export interface SidecarTag {
+  name: string;
+  from: number;
+  to: number;
+}
+
+/** The settings of a NAME.cpcbuild.json (the fields it has); `tags` is always present. */
+export interface Sidecar {
+  kind?: 'sprite' | 'tiles';
+  mode?: Mode;
+  name?: string;
+  frame?: string;
+  masked?: boolean;
+  tileWidth?: number;
+  /** Firmware colours, pen order. */
+  palette?: number[];
+  tags: SidecarTag[];
+}
+
+const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v);
+
+/** Reads a sidecar; `file` is the path the messages name. Anything wrong is an Img2cpcError. */
+export function parseSidecar(text: string, file: string): Sidecar {
+  const bad = (what: string): never => fail(`${file}: ${what}`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return bad('not valid JSON');
+  }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return bad('must hold one JSON object');
+  const r = raw as Record<string, unknown>;
+  if (r.format !== 'cpcbuild-image') bad('"format" must be "cpcbuild-image"');
+  if (r.version !== 1) bad('"version" must be 1');
+  const out: Sidecar = { tags: [] };
+  const field = (key: string, ok: (v: unknown) => boolean, what: string): boolean => {
+    if (!(key in r)) return false;
+    if (!ok(r[key])) bad(`"${key}" must be ${what}`);
+    return true;
+  };
+  if (field('kind', (v) => v === 'sprite' || v === 'tiles', '"sprite" or "tiles"')) out.kind = r.kind as Sidecar['kind'];
+  if (field('mode', (v) => v === 0 || v === 1 || v === 2, '0, 1 or 2')) out.mode = r.mode as Mode;
+  if (field('name', (v) => typeof v === 'string' && v !== '', 'a non-empty string')) out.name = r.name as string;
+  if (field('frame', (v) => typeof v === 'string' && /^[0-9]+x[0-9]+$/.test(v), 'a "WxH" string')) out.frame = r.frame as string;
+  if (field('masked', (v) => typeof v === 'boolean', 'true or false')) out.masked = r.masked as boolean;
+  if (field('tileWidth', (v) => isInt(v) && v >= 1, 'a whole number of pixels')) out.tileWidth = r.tileWidth as number;
+  if (field('palette', (v) => Array.isArray(v) && v.every((c) => isInt(c) && c >= 0 && c <= 26), 'a list of firmware colours 0-26')) {
+    out.palette = r.palette as number[];
+  }
+  const tagOk = (t: unknown): boolean => {
+    if (typeof t !== 'object' || t === null || Array.isArray(t)) return false;
+    const o = t as Record<string, unknown>;
+    return typeof o.name === 'string' && o.name !== '' && isInt(o.from) && isInt(o.to);
+  };
+  if (field('tags', (v) => Array.isArray(v) && v.every(tagOk), 'a list of {"name", "from", "to"}')) {
+    out.tags = (r.tags as SidecarTag[]).map((t) => ({ name: t.name, from: t.from, to: t.to }));
+  }
+  return out;
+}
+
+/** The sidecar beside an image: NAME.cpcbuild.json for NAME.ext, as Python's str(Path) prints it. */
+export function sidecarPath(image: string): string {
+  const slash = image.lastIndexOf('/');
+  const base = image.slice(slash + 1);
+  const dot = base.lastIndexOf('.');
+  return normPath(image.slice(0, slash + 1) + (dot > 0 ? base.slice(0, dot) : base) + '.cpcbuild.json');
+}
+
+/** Finds and reads the sidecar of an image (undefined when there is none). */
+export type SidecarLoader = (image: string) => { path: string; side: Sidecar } | undefined;
+
+/** A loader on injected file access; undefined when `io` cannot tell whether a file exists. */
+export function sidecarLoader(io: CliIo): SidecarLoader | undefined {
+  const exists = io.exists;
+  if (!exists) return undefined;
+  return (image) => {
+    const path = sidecarPath(image);
+    if (!exists(path)) return undefined;
+    return { path, side: parseSidecar(io.readText(path), path) };
+  };
+}
+
+/** NAME_<TAG> and NAME_<TAG>_LEN for the sidecar's tags. */
+function tagConsts(o: Options, nframes: number): [string, number][] {
+  const out: [string, number][] = [];
+  const taken = new Set(['W', 'H', 'FRAMES', 'SIZE', 'PENS', 'PAL'].map((s) => `${o.name.toUpperCase()}_${s}`));
+  for (const { name: tag, from, to } of o.tags ?? []) {
+    if (!(from >= 0 && from <= to && to < nframes)) {
+      fail(`${o.sidecarFile}: tag "${tag}" is frames ${from}-${to}, but the sheet has ${nframes} frames`);
+    }
+    const base = `${o.name}_` + tag.toUpperCase().replace(/[^A-Z0-9]/gu, '_');
+    for (const c of [[base, from], [base + '_LEN', to - from + 1]] as [string, number][]) {
+      if (taken.has(c[0].toUpperCase())) fail(`${o.sidecarFile}: tag "${tag}" makes ${c[0]}, which is already defined`);
+      taken.add(c[0].toUpperCase());
+      out.push(c);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- --check
+
+/** What --check reports; penBody fills the sizes, convertCpc the colours moved. */
+export interface CheckInfo {
+  tiles: boolean;
+  /** Firmware colour of each pen. */
+  pens: number[];
+  /** Opaque image colours that are not exactly the firmware colour of their pen, first appearance order. */
+  moved: [RGB, number][];
+  transparent: number;
+  /** Sprite: frames of fw x fh pixels. */
+  frames?: number;
+  fw?: number;
+  fh?: number;
+  /** Tiles: count of tw x 8 pixels, and repeated cells. */
+  count?: number;
+  tw?: number;
+  repeats?: number;
+  /** Bytes per frame / tile, and all data bytes. */
+  each: number;
+  total: number;
+}
+
+const hex2d = (n: number): string => n.toString(16).toUpperCase().padStart(2, '0');
+
+/** The text of --check (tools/img2cpc.py check_report). `image` and `sidecar` are paths as the tool prints them. */
+export function checkReport(image: string, w: number, h: number, o: Options, c: CheckInfo, sidecar: string | undefined): string {
+  const ppb = PPB[o.mode as Mode];
+  const lines = [`check: ${image} ${w}x${h} pixels, mode ${o.mode}, ${o.tiles ? 'tiles' : 'sprite'}`];
+  if (sidecar) lines.push(`  sidecar: ${sidecar}`);
+  if (o.tiles) {
+    let line = `  tiles: ${c.count} of ${c.tw}x8 pixels (${c.tw! / ppb} bytes wide, ${c.each} bytes each)`;
+    const n = c.repeats!;
+    if (n) {
+      const rep = `${n} repeat` + (n > 1 ? 's' : '');
+      line += o.dedupe ? `, ${rep} dropped` : `, ${rep} (--dedupe would drop ${n === 1 ? 'it' : 'them'})`;
+    }
+    lines.push(line);
+  } else {
+    lines.push(`  frames: ${c.frames} of ${c.fw}x${c.fh} pixels (${o.masked ? 'masked, ' : ''}${c.fw! / ppb} bytes x ${c.fh} lines, ${c.each} bytes each)`);
+  }
+  lines.push('  pens: ' + c.pens.map((fw, pen) => `${pen}=${fw}`).join(' '));
+  if (c.moved.length) {
+    lines.push(`  colours moved: ${c.moved.length}`);
+    for (const [[r, g, b], pen] of c.moved) lines.push(`    #${hex2d(r)}${hex2d(g)}${hex2d(b)} -> pen ${pen} (firmware ${c.pens[pen]})`);
+  }
+  if (c.transparent && !o.masked) lines.push(`  transparent pixels: ${c.transparent}`);
+  lines.push(`  total: ${c.total} bytes`, '  ok');
+  return lines.join('\n') + '\n';
 }
 
 // ---------------------------------------------------------------- image
@@ -354,6 +522,8 @@ export interface Body {
   body: string;
   desc: string;
   pens?: number[];
+  /** The figures --check reports (CPC modes). */
+  info?: CheckInfo;
 }
 
 function convertCpc(pix: Pix, w: number, h: number, o: Options): Body {
@@ -369,7 +539,18 @@ function convertCpc(pix: Pix, w: number, h: number, o: Options): Body {
     }
   }
   const pal = buildPalette(pix, mode, fixed, o.pen0);
-  return penBody(penGrid(pix, pal), w, h, pal, o);
+  const grid = penGrid(pix, pal);
+  const b = penBody(grid, w, h, pal, o);
+  if (o.check && b.info) {
+    // opaque colours that are not exactly their pen's firmware colour, in order of first appearance
+    const seen = new Map<string, [RGB, number]>();
+    pix.forEach((row, y) => row.forEach((p, x) => {
+      const pen = grid[y][x];
+      if (p && pen !== null && !seen.has(key(p))) seen.set(key(p), [p, pen]);
+    }));
+    b.info.moved = [...seen.values()].filter(([p, pen]) => key(p) !== key(FW_TABLE[pal[pen]]));
+  }
+  return b;
 }
 
 /**
@@ -382,15 +563,24 @@ export function penBody(grid: PenGrid, w: number, h: number, pal: number[], o: O
   const ppb = PPB[mode];
   const body: string[] = [];
   let desc: string;
+  const info: CheckInfo = {
+    tiles: !!o.tiles, pens: pal, moved: [], transparent: grid.reduce((n, r) => n + r.filter((p) => p === null).length, 0),
+    each: 0, total: 0,
+  };
   if (o.tiles) {
     if (o.masked) fail('--masked applies to sprites only');
-    if (w % 8 || h % 8) fail(`tile image size ${w}x${h} must be a multiple of 8`);
+    const tw = o.tileWidth ?? 8;
+    const twErr = tileWidthError(tw, mode);
+    if (twErr) fail(twErr);
+    if (tw === 8) {
+      if (w % 8 || h % 8) fail(`tile image size ${w}x${h} must be a multiple of 8`);
+    } else if (w % tw || h % 8) fail(`tile image size ${w}x${h} must be a multiple of ${tw}x8`);
     const tiles: number[][] = [];
     const index = new Map<string, number>();
     const cells: number[] = [];
     for (let ty = 0; ty < h; ty += 8) {
-      for (let tx = 0; tx < w; tx += 8) {
-        const t = packBlock(grid, tx, ty, 8, 8, mode, false);
+      for (let tx = 0; tx < w; tx += tw) {
+        const t = packBlock(grid, tx, ty, tw, 8, mode, false);
         const k = t.join(',');
         if (o.dedupe && index.has(k)) {
           cells.push(index.get(k)!);
@@ -402,14 +592,19 @@ export function penBody(grid: PenGrid, w: number, h: number, pal: number[], o: O
       }
     }
     if (tiles.length > 256) fail(`${tiles.length} tiles; tile numbers go up to 255`);
+    Object.assign(info, {
+      count: tiles.length, tw, each: tiles[0].length, total: tiles.reduce((n, t) => n + t.length, 0),
+      repeats: cells.length - new Set(tiles.map((t) => t.join(','))).size,
+    });
     body.push(fmtArray(o.name, tiles.flat()));
     body.push(fmtConst(o.name + '_COUNT', tiles.length));
+    if (tw !== 8) body.push(fmtConst(o.name + '_TILEW', tw / ppb));
     if (o.dedupe) {
       body.push(fmtArray(o.name + '_MAP', cells));
-      body.push(fmtConst(o.name + '_MAPW', w / 8));
+      body.push(fmtConst(o.name + '_MAPW', w / tw));
       body.push(fmtConst(o.name + '_MAPH', h / 8));
     }
-    desc = `${tiles.length} tiles of ${tiles[0].length} bytes`;
+    desc = `${tiles.length} tile${tiles.length === 1 ? '' : 's'} of ${tiles[0].length} bytes`;
   } else {
     let fw = w, fh = h;
     if (o.frame) {
@@ -430,23 +625,26 @@ export function penBody(grid: PenGrid, w: number, h: number, pal: number[], o: O
     body.push(fmtConst(o.name + '_H', fh));
     body.push(fmtConst(o.name + '_FRAMES', nframes));
     body.push(fmtConst(o.name + '_SIZE', size));
+    for (const [n, v] of tagConsts(o, nframes)) body.push(fmtConst(n, v));
+    Object.assign(info, { frames: nframes, fw, fh, each: size, total: data.length });
     desc = `${nframes} frame(s) of ${fw / ppb} bytes x ${fh} lines${o.masked ? ', masked' : ''}, ${size} bytes each`;
   }
   if (!o.noPalette) {
     body.push(fmtArray(o.name + '_pal', pal));
     body.push(fmtConst(o.name + '_PENS', pal.length));
   }
-  return { body: body.join('\n'), desc, pens: pal };
+  return { body: body.join('\n'), desc, pens: pal, info };
 }
 
 /** The comment block at the top of every generated file (what the Python tool writes). */
 export function makeHeader(cmt: string, header: HeaderInfo, w: number, h: number, modeTxt: string, desc: string): string {
-  const cmd = 'img2cpc.py ' + header.argv.map(shellQuote).join(' ');
+  const cmd = 'img2cpc.py ' + header.argv.map(shellQuote).join(' ')
+    + (header.sidecar ? ` (settings from ${header.sidecar.slice(header.sidecar.lastIndexOf('/') + 1)})` : '');
   return (
     `${cmt} Generated by ${cmd}\n` +
     `${cmt} Source: ${header.source}, ${w}x${h} pixels, ${modeTxt}\n` +
     `${cmt} ${desc}\n` +
-    `${cmt} Do not edit; regenerate with tools/build_assets.sh.\n\n`
+    `${cmt} Do not edit; regenerate it from the source image (command above).\n\n`
   );
 }
 
@@ -469,6 +667,7 @@ export function convert(img: RgbaImage, o: Options, header: HeaderInfo): Result 
   const w = img.width, h = img.height;
   let body: string, desc: string, modeTxt: string;
   let pens: number[] | undefined;
+  let info: CheckInfo | undefined;
 
   if (plus) {
     let fixed: RGB[] | undefined;
@@ -511,7 +710,7 @@ export function convert(img: RgbaImage, o: Options, header: HeaderInfo): Result 
     modeTxt = 'Spectrum';
   } else {
     if (o.mode === undefined) fail('--mode is required (or --spectrum, --plus-sprite, --plus-palette)');
-    ({ body, desc, pens } = convertCpc(pix, w, h, o));
+    ({ body, desc, pens, info } = convertCpc(pix, w, h, o));
     modeTxt = 'mode ' + o.mode;
   }
   const head = makeHeader(cmt, header, w, h, modeTxt, desc);
@@ -519,6 +718,7 @@ export function convert(img: RgbaImage, o: Options, header: HeaderInfo): Result 
     text: head + body,
     pens,
     paletteFile: pens && o.mode !== undefined ? paletteFileText(pens, o.mode) : undefined,
+    report: o.check && info ? checkReport(header.source, w, h, o, info, header.sidecar) : undefined,
   };
 }
 
@@ -531,15 +731,17 @@ export interface CliArgs {
   paletteFile?: string;
   writePalette?: string;
   options: Options;
+  /** The sidecar the settings came from (path as the tool prints it). */
+  sidecar?: string;
 }
 
 const VALUE_FLAGS = new Set([
   '--mode', '--name', '-o', '--output', '--frame', '--transparent', '--palette', '--palette-file',
-  '--pen0', '--write-palette', '--plus-format',
+  '--pen0', '--tile-width', '--write-palette', '--plus-format',
 ]);
 const BOOL_FLAGS = new Set([
   '--sprite', '--tiles', '--dedupe', '--masked', '--no-palette', '--plus-sprite', '--plus-palette',
-  '--packed', '--spectrum', '--zx-sprite',
+  '--packed', '--spectrum', '--zx-sprite', '--no-sidecar', '--check',
 ]);
 
 /** The file stem img2cpc.py names its arrays after (Path.stem, non-alphanumerics to "_"). */
@@ -559,7 +761,7 @@ export function normPath(p: string): string {
 }
 
 /** Parses img2cpc.py's command line; throws Img2cpcError on a usage error. */
-export function parseArgs(argv: readonly string[]): CliArgs {
+export function parseArgs(argv: readonly string[], loadSidecar?: SidecarLoader): CliArgs {
   const flags = new Map<string, string | true>();
   const positional: string[] = [];
   for (let i = 0; i < argv.length; i++) {
@@ -603,9 +805,38 @@ export function parseArgs(argv: readonly string[]): CliArgs {
   if (has('--sprite') && has('--tiles')) fail('argument --tiles: not allowed with argument --sprite');
   if (has('--plus-sprite') && has('--plus-palette')) fail('use --plus-sprite or --plus-palette, not both');
   if (plus && has('--spectrum')) fail('--plus-* and --spectrum are exclusive');
+  if (has('--check') && has('--output')) fail('--check writes nothing; leave out -o');
+  if (has('--check') && (plus || has('--spectrum'))) fail('--check is for CPC modes, not --spectrum or --plus-*');
   if (has('--packed') && !has('--plus-sprite')) fail('--packed needs --plus-sprite');
   if (plusFormat !== 'bas' && !plus) fail('--plus-format needs --plus-sprite or --plus-palette');
   if (plusFormat === 'bin' && !has('--output')) fail('--plus-format bin needs -o');
+  // the sidecar's settings are the defaults; the command line wins
+  let name = str('--name');
+  let tiles = has('--tiles');
+  let frame = str('--frame');
+  let masked = has('--masked');
+  let palette = str('--palette');
+  let sideTileWidth: number | undefined;
+  let tags: SidecarTag[] | undefined;
+  let sidecar: string | undefined;
+  if (loadSidecar && !plus && !has('--spectrum') && !has('--no-sidecar')) {
+    const found = loadSidecar(image);
+    if (found) {
+      sidecar = found.path;
+      const side = found.side;
+      if (mode === undefined && side.mode !== undefined) mode = side.mode;
+      if (name === undefined && side.name !== undefined) name = side.name;
+      if (!has('--sprite') && !has('--tiles') && side.kind === 'tiles') tiles = true;
+      if (palette === undefined && !has('--palette-file') && side.palette) palette = side.palette.join(',');
+      if (tiles) {
+        if (side.tileWidth !== undefined && side.tileWidth !== 8) sideTileWidth = side.tileWidth;
+      } else {
+        if (frame === undefined && side.frame !== undefined) frame = side.frame;
+        if (side.masked) masked = true;
+        tags = side.tags;
+      }
+    }
+  }
   if (!plus && !has('--spectrum') && mode === undefined) fail('--mode is required (or --spectrum, --plus-sprite, --plus-palette)');
   if (has('--zx-sprite') && !has('--spectrum')) fail('--zx-sprite needs --spectrum');
   let pen0: number | undefined;
@@ -616,8 +847,15 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     if (pen0 < 0 || pen0 > 26) fail('--pen0 must be a firmware colour 0-26');
   }
   if (has('--palette') && has('--palette-file')) fail('use --palette or --palette-file, not both');
-  if (has('--dedupe') && !has('--tiles')) fail('--dedupe needs --tiles');
-  if (has('--frame') && has('--tiles')) fail('--frame is for sprites');
+  if (has('--dedupe') && !tiles) fail('--dedupe needs --tiles');
+  if (frame && tiles) fail('--frame is for sprites');
+  let tileWidth: number | undefined;
+  if (has('--tile-width')) {
+    const t = str('--tile-width')!;
+    if (!/^\s*[+-]?\d+\s*$/.test(t)) fail(`argument --tile-width: invalid int value: '${t}'`);
+    if (!tiles) fail('--tile-width needs --tiles');
+    tileWidth = parseInt(t, 10);
+  } else tileWidth = sideTileWidth;
   let transparent: RGB | undefined;
   if (str('--transparent')) {
     const t = str('--transparent')!.replace(/^#+/, '');
@@ -625,14 +863,15 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     transparent = [parseInt(t.slice(0, 2), 16), parseInt(t.slice(2, 4), 16), parseInt(t.slice(4, 6), 16)];
   }
   const options: Options = {
-    name: str('--name') ?? defaultName(image),
+    name: name ?? defaultName(image),
     mode,
-    tiles: has('--tiles'),
-    frame: str('--frame'),
+    tiles,
+    tileWidth,
+    frame,
     dedupe: has('--dedupe'),
-    masked: has('--masked'),
+    masked,
     transparent,
-    palette: str('--palette'),
+    palette,
     pen0,
     noPalette: has('--no-palette'),
     spectrum: has('--spectrum'),
@@ -641,14 +880,19 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     plusPalette: has('--plus-palette'),
     packed: has('--packed'),
     plusFormat,
+    check: has('--check'),
+    tags,
+    sidecarFile: sidecar,
   };
-  return { image, output: str('--output'), paletteFile: str('--palette-file'), writePalette: str('--write-palette'), options };
+  return { image, sidecar, output: str('--output'), paletteFile: str('--palette-file'), writePalette: str('--write-palette'), options };
 }
 
 /** File access for `runCli`; paths are as given on the command line. */
 export interface CliIo {
   readFile(path: string): Uint8Array;
   readText(path: string): string;
+  /** Whether a file exists; without it no sidecar is looked for. */
+  exists?(path: string): boolean;
 }
 
 export interface CliResult {
@@ -660,12 +904,13 @@ export interface CliResult {
 
 /** Runs img2cpc.py's command line (`argv` without the program name) with injected file access. */
 export function runCli(argv: readonly string[], io: CliIo): CliResult {
-  const a = parseArgs(argv);
+  const a = parseArgs(argv, sidecarLoader(io));
   const o = a.options;
   if (a.paletteFile !== undefined) o.palette = io.readText(a.paletteFile);
   const img = decodePng(io.readFile(a.image));
-  const r = convert(img, o, { argv, source: normPath(a.image) });
+  const r = convert(img, o, { argv, source: normPath(a.image), sidecar: a.sidecar });
   const files: CliResult['files'] = [];
+  if (o.check) return { stdout: r.report, files };
   if (a.writePalette && r.paletteFile) files.push({ path: a.writePalette, data: r.paletteFile });
   if (o.plusFormat === 'bin') {
     files.push({ path: a.output!, data: r.bin! });

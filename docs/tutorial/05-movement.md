@@ -45,7 +45,7 @@ ladder top, is `6` = one-way platform plus ladder**: you can stand on the ledge 
 down the ladder under it. Tile 6 (lit lamp), 8 (open door), 9 (heart), 10 (window) and 11 (wall)
 have no attributes: they are scenery.
 
-(`game.bas:43-44, 85`, where the real table sits inside an assembly routine.)
+(`game.bas:49-50, 96`. In the default build the real table sits inside an assembly routine, `TA_TAB` at line 105; the `taTab` line at 96 is the BASIC version.)
 
 ## Step 2: Constants, tables and variables
 
@@ -111,11 +111,13 @@ of the body: the player is 8 pixels wide and 16 lines tall, so his head, middle 
 `y`, `y + 8` and `y + 15`. Across, his **hit box** is `x + 1` to `x + 6`, one pixel narrower than the
 sprite on each side, so he fits through gaps a cell wide.
 
-**(simplified.)** The finished game writes `TileAttr` and `ColSolid` in Z80 assembly
-(`game.bas:81-134, 358-391`). In BASIC `TileAttr` costs about 2,500 T-states a call (`DESIGN.md` section 11 says 2,560), and a step makes
-many such calls; chapter 9 shows the measurements and why the real file does it in assembly. The
-BASIC version here is the same logic, a little slower: on a 464 it may make a step take
-longer than two frames at first. That is fine for learning.
+The finished `game.bas` has exactly this plain BASIC version of `TileAttr` and `ColSolid`
+(`game.bas:94-100` and `500-507`, under `#ifdef LAMP_BASIC`), next to the faster Z80 assembly one
+the game uses by default (`game.bas:102-155` and `509-542`), so you can compare them line by line.
+In BASIC `TileAttr` costs about 2,560 T-states a call, and a step makes many such calls; chapter 9
+has you measure both and shows why the game uses the assembly. The BASIC version here is the same
+logic, a little slower: on a 464 it may make a step take longer than two frames at first. That is
+fine for learning.
 
 ## Step 4: Entering a room, and starting a game
 
@@ -460,7 +462,7 @@ SUB PlatSfx(n AS UBYTE)
 END SUB
 ```
 
-(`GameInit` and `EnterRoom` are simplified from `game.bas:274-312`; the finished game also resets enemies and lamps there.)
+(`GameInit` and `EnterRoom` are simplified from `game.bas:419-453`; the finished game also resets enemies and lamps there.)
 
 ## Build and run
 

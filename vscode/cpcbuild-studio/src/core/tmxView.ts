@@ -191,6 +191,12 @@ export function atlasFromPens(tiles: readonly (readonly (readonly number[])[])[]
   return { firstgid, tw, th, count, columns: Math.max(1, count), width, height: th, rgba };
 }
 
+/** Why a tile set of tw x th tiles does not fit a map of mapTw x mapTh cells (a .cpctil may have narrow tiles), or undefined when it does. */
+export function tileSizeNotice(tw: number, th: number, mapTw: number, mapTh: number): string | undefined {
+  if (tw === mapTw && th === mapTh) return undefined;
+  return `The tile set's tiles are ${tw}x${th} but the map's cells are ${mapTw}x${mapTh}; set the map's tile width and height to ${tw} and ${th} in Tiled so the tiles line up.`;
+}
+
 // ------------------------------------------------------------------ render
 
 function atlasFor(atlases: readonly Atlas[], gid: number): Atlas | undefined {

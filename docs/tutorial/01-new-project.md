@@ -48,7 +48,12 @@ Studio runs the Boriel compiler for you, and the CPC backend lives in the `zxbas
 | `cpcbuild.zxbc.command` | `["poetry", "run", "zxbc"]` |
 | `cpcbuild.zxbc.cwd` | the path of your `zxbasic` checkout (branch `cpc-arch`) |
 
-The first two are the ones Studio's own documentation gives for the Poetry setup. You do **not** need a
+The first two are the ones Studio's own documentation gives for the Poetry setup. If you leave
+`cpcbuild.zxbc.command` at its default (`zxbc`) and `cpcbuild.zxbc.cwd` is a Poetry project (it has a
+`pyproject.toml`), Studio falls back to `poetry run zxbc` by itself when it cannot find `zxbc`. It looks for
+`poetry` on your `PATH` and in `~/.local/bin`. If VS Code still cannot find it (VS Code started from the Dock
+may not see `~/.local/bin`), put the full path of `poetry` in the setting, for example
+`["/Users/you/.local/bin/poetry", "run", "zxbc"]`. You do **not** need a
 cpcbuild checkout for the library: Studio carries a copy of `lib/` and the Python converters inside the
 extension and uses it when nothing else is found (chapter 11's Plus library is in it too). The setting
 `cpcbuild.library.path` points Studio at a different copy; leave it empty for this tutorial.
@@ -189,7 +194,7 @@ Open `cpcbuild.json`. Studio treats any folder with this file as a project (Stud
     { "id": "zx48", "arch": "zx48k", "main": "src/main.bas",
       "defines": ["ZX48"], "org": 32768, "heap": 256, "package": "tap" }
   ],
-  "assets": ["assets/**/*.png"]
+  "assets": ["assets/**/*.cpcimp", "assets/**/*.cpcpal"]
 }
 ```
 
@@ -216,11 +221,11 @@ files at the project root and its generated data in `assets/`. We follow the fin
 
 From here on, every path in this tutorial is relative to the `lamplighter/` folder.
 
-**2. Change the `assets` line.** It lists the files Studio treats as asset sources. **CPCBuild: Regenerate
+**2. Check the `assets` line.** It lists the files Studio treats as asset sources. **CPCBuild: Regenerate
 Assets**, and the automatic "regenerate stale assets before a build", look only at the globs that end in
 `.cpcimp`: they find your import recipes (chapter 2) and rebuild the ones whose output is older than the
-image, the palette file or the recipe. The template's `assets/**/*.png` matches no recipe, so nothing would
-ever be regenerated. Use the finished game's line:
+image, the palette file or the recipe. The template already has the finished game's line, so there is
+nothing to change:
 
 ```json
   "assets": ["assets/**/*.cpcimp", "assets/**/*.cpcpal"]
@@ -307,6 +312,10 @@ comment lists them, `game.bas:1-18`); `main.bas` adds the calls of the main loop
 | `PlatSprite(slot, frame, x, y)` | slot 0 is the player, 1 to 4 the enemies |
 | `PlatHud(lit, total, lives, room)` | the two text rows at the bottom |
 | `PlatSfx(n)` | a sound effect |
+
+The finished `game.bas` also writes a few speed-critical routines in Z80 assembly (inside `ASM ... END ASM`).
+You will not need to write any assembly: the tutorial has you write those routines in plain BASIC, and
+chapter 9 explains the swap.
 
 ## Step 7: Change something
 

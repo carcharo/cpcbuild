@@ -113,7 +113,8 @@ export function formatReport(r: MemoryReport): string[] {
   for (const l of r.lines) {
     const label = `${l.name} (${hex4(l.limit)})`;
     if (l.headroom >= 0) out.push(`  headroom below ${hex4(l.limit)}: ${l.headroom} bytes  [${l.name}]`);
-    else out.push(`  ${l.kind === 'limit' ? 'OVER' : 'over'} ${label} by ${-l.headroom} bytes`);
+    else if (l.kind === 'limit') out.push(`  OVER ${label} by ${-l.headroom} bytes`);
+    else out.push(`  passes ${hex4(l.limit)} by ${-l.headroom} bytes (only matters if you use a back screen or banks)`);
   }
   return out;
 }

@@ -18,7 +18,7 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In Restricted Mode the palette, sprite, tile and map editors, the image importer and the symbol views open, but nothing that starts a program runs: Build, Run, Regenerate Assets and generate-on-save, Convert and Play Music, Open in Tiled and the tool checks of Check Environment. Settings that name programs or paths (compiler, Python, library, emulators, Arkos, Tiled) and the \"library\" field of cpcbuild.json are ignored until the workspace is trusted.",
+      "description": "In Restricted Mode the palette, sprite, tile and map editors, the image importer and the symbol views open, but nothing that starts a program runs: Build, Run, Regenerate Assets and generate-on-save, Convert and Play Music, Open in Tiled and the tool checks of Check Environment. Settings that name programs or paths (compiler, Python, library, emulators including the Spectrum one, Arkos, Tiled) and the \"library\" field of cpcbuild.json are ignored until the workspace is trusted.",
       "restrictedConfigurations": [
         "cpcbuild.zxbc.command",
         "cpcbuild.zxbc.cwd",
@@ -30,6 +30,8 @@
         "cpcbuild.run.cpcecPath",
         "cpcbuild.run.rvmPath",
         "cpcbuild.run.customCommand",
+        "cpcbuild.run.zxEmulator",
+        "cpcbuild.run.zxEmulatorArgs",
         "cpcbuild.run.autorunCommand",
         "cpcbuild.assets.engine",
         "cpcbuild.arkos.toolsPath",
@@ -331,7 +333,7 @@
       "explorer/context": [
         {
           "command": "cpcbuild.runFile",
-          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|cpr|bin)$/",
+          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|bin)$/",
           "group": "navigation@90"
         },
         {
@@ -577,7 +579,7 @@
         "cpcbuild.target.default": {
           "type": "string",
           "default": "",
-          "description": "Id of the target used by Build and Run (empty = the first target). Set by \"CPCBuild: Select Target\".",
+          "description": "Id of the target used by Build and Run when none was chosen with \"CPCBuild: Select Target\" (empty = the first target). Select Target remembers its choice per project in the workspace state, not in this setting.",
           "scope": "resource"
         },
         "cpcbuild.model": {
@@ -627,6 +629,23 @@
           "type": "string",
           "default": "",
           "description": "Command for \"custom\": words with ${dsk}, ${cpr}, ${bin}, ${model}. No shell is used.",
+          "scope": "resource"
+        },
+        "cpcbuild.run.zxEmulator": {
+          "type": "string",
+          "default": "",
+          "description": "External Spectrum emulator (for example Fuse or ZEsarUX) that Build and Run starts on the .tap of a zx48k target. Empty = Spectrum targets are build-only.",
+          "scope": "resource"
+        },
+        "cpcbuild.run.zxEmulatorArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "${file}"
+          ],
+          "description": "Arguments for cpcbuild.run.zxEmulator; ${file} is the .tap path. No shell is used.",
           "scope": "resource"
         },
         "cpcbuild.run.autorunCommand": {

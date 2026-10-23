@@ -58,6 +58,13 @@ body.vscode-high-contrast-light .cb-btn, body.vscode-high-contrast-light .cb-ico
 .cb-tb-btn:active { background: var(--vscode-toolbar-activeBackground); }
 .cb-tb-btn.cb-on { background: var(--vscode-toolbar-activeBackground); border-bottom-color: var(--vscode-button-background); }
 .cb-tb-btn.cb-disabled { color: var(--vscode-disabledForeground); cursor: default; }
+.cb-tooltip {
+  position: fixed; z-index: 30; max-width: min(320px, calc(100vw - 8px)); padding: 2px 8px; pointer-events: none;
+  background: var(--vscode-editorHoverWidget-background); color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-editorHoverWidget-border); border-radius: var(--cb-radius);
+  font-family: var(--vscode-font-family); font-size: var(--vscode-font-size); line-height: 1.5; overflow-wrap: anywhere;
+  box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+}
 .cb-menu-wrap { position: relative; display: inline-block; }
 .cb-menu {
   position: absolute; z-index: 10; top: 100%; left: 0; min-width: 220px; margin-top: 2px; padding: var(--cb-space-1) 0;

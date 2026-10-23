@@ -7,9 +7,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
 import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
-import { regenerateAll } from './assetsGen';
+import { assetFailure, regenerateAll } from './assetsGen';
 import { absFrom, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { CancelToken, runTool, Sink } from './runTool';
+import { compilerHint, runZxbc } from './zxbcCommand';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 import type { EmuModel } from '../emuApi';
 
@@ -49,10 +50,6 @@ const fail = (r: BuildResult, message: string, sink: Sink): BuildResult => {
   sink.line(`Build failed: ${message}`, true);
   return r;
 };
-
-export function compilerHint(spawnError: string): string {
-  return `${spawnError}. Set "cpcbuild.zxbc.command" (for the fork: ["poetry","run","zxbc"]) and "cpcbuild.zxbc.cwd" (your zxbasic checkout), then run "CPCBuild: Check Environment".`;
-}
 
 export async function buildTarget(
   root: string,
@@ -95,8 +92,11 @@ export async function buildTarget(
     );
     const fresh = gen.filter((g) => g.ok && !g.skipped);
     if (fresh.length) sink.line(`Regenerated ${fresh.length} asset recipe${fresh.length === 1 ? '' : 's'}.`);
-    const bad = gen.find((g) => !g.ok);
-    if (bad) return done(), fail(res, `asset ${bad.recipe}: ${bad.error}. Fix the recipe (open it in the importer) or turn off "cpcbuild.assets.regenerateBeforeBuild".`, sink);
+    for (const g of gen.filter((x) => !x.ok)) {
+      const f = assetFailure(g);
+      if (f.fatal) return done(), fail(res, f.message, sink);
+      sink.line(`Warning: ${f.message}`, true);
+    }
   }
 
   const outDir = absFrom(root, s.outputDir);
@@ -112,9 +112,10 @@ export async function buildTarget(
   // 1. compile
   const args = zxbcArgs(target, { libraryDir: library, main, out, map, defaultOrg: s.buildOrg, extra: s.zxbcArgs });
   const zxCwd = s.zxbcCwd ? absFrom(root, s.zxbcCwd) : root;
-  const cr = await runTool(s.zxbcCommand, args, { cwd: zxCwd, token, sink });
+  const cr = await runZxbc(s.zxbcCommand, args, { cwd: zxCwd, token, sink });
   if (cr.cancelled) return done(), fail(res, 'cancelled.', sink);
-  if (cr.error) return done(), fail(res, compilerHint(cr.error), sink);
+  if (cr.error) return done(), fail(res, compilerHint(cr.error, s.zxbcCommand, zxCwd), sink);
+  sink.line(`Compiler: ${cr.used.join(' ')}${cr.fellBack ? ' (fallback)' : ''}`);
   if (cr.code !== 0 || !fs.existsSync(out)) {
     return done(), fail(res, `zxbc exited with ${cr.code} (the errors above are in the Problems panel). Fix them and build again.`, sink);
   }

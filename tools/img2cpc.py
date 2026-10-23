@@ -3,10 +3,11 @@
 DIM ... => {...} arrays and CONSTs) for the cpcbuild library.
 
     img2cpc.py --mode 0|1|2 [--name NAME] [-o out.bas] image.png
-               [--sprite [--frame WxH] | --tiles [--dedupe]] [--masked]
+               [--sprite [--frame WxH] | --tiles [--tile-width PX] [--dedupe]]
+               [--masked]
                [--transparent RRGGBB]
                [--palette 0,1,2,... | --palette-file F] [--pen0 N]
-               [--no-palette] [--write-palette F]
+               [--no-palette] [--write-palette F] [--no-sidecar] [--check]
     img2cpc.py --spectrum [--name NAME] [-o out.bas] image.png
     img2cpc.py --plus-sprite [--packed] [--palette RGB,RGB,...] [--plus-format bas|asm|bin]
                [--transparent RRGGBB] [--name NAME] [-o out] image.png
@@ -26,6 +27,11 @@ Kinds
             mode 0/1/2, for SetTileSet. Emits NAME, NAME_COUNT. --dedupe
             drops repeated tiles and also emits NAME_MAP (one tile number
             per source cell, for TileMap) with NAME_MAPW, NAME_MAPH.
+            --tile-width PX makes the tiles PX x 8 pixels: 1, 2 or 4 screen
+            bytes wide (PX = 2/4/8 in mode 0, 4/8/16 in mode 1, 8/16/32 in
+            mode 2; default 8), for SetTileWidth. The image must be a
+            multiple of PX x 8. Unless PX is 8 it also emits NAME_TILEW (the
+            tile width in bytes); NAME_MAPW is then image width / PX.
   --masked  (sprites) (mask, pixel) byte pairs for PutSpriteMasked; mask
             bit 1 keeps the background. A pixel is transparent if its alpha
             is below 128 or it is --transparent RRGGBB. In unmasked output
@@ -52,6 +58,25 @@ one), a set bit is ink, bit 7 is the leftmost pixel. NAME is the bitmap,
 one attribute byte (FLASH<<7 | BRIGHT<<6 | PAPER<<3 | INK) per cell, and
 NAME_COLS, NAME_ROWS the size in cells. Width and height must be
 multiples of 8.
+
+Sidecar
+  If NAME.cpcbuild.json sits beside NAME.png (the Aseprite extension's
+  Export for CPCBuild writes one) its settings are the defaults for a CPC
+  conversion: mode, kind (--sprite/--tiles), name, frame, masked, palette
+  (the pens, as --palette) and tileWidth (--tile-width, if not 8), so
+  `img2cpc.py hero.png` is enough and --mode is not required. Anything on
+  the command line wins; --palette-file overrides the sidecar palette.
+  Each of the sidecar's sprite tags also gives NAME_<TAG> (its first frame)
+  and NAME_<TAG>_LEN (its frame count), TAG being the tag name in capitals
+  with every character but A-Z and 0-9 turned into _. A sidecar that is not
+  valid is an error; --no-sidecar ignores it. The generated file's header
+  says when a sidecar was used. --spectrum and --plus-* never read one.
+
+--check does everything a conversion does (the same options, the sidecar
+too) but writes nothing: it prints what would be made (sizes, the pens
+used, image colours moved to another firmware colour, transparent pixels,
+repeated tiles, total data bytes) and exits 0, or gives the error the
+conversion would. CPC modes only; -o is an error.
 
 CPC Plus (ASIC) data, no --mode needed. Colours are 12-bit: 4 bits per
 channel, each 8-bit channel c quantised to round(c * 15 / 255) (so 0x11 * n
@@ -81,6 +106,8 @@ its palette RAM (&6400-&643F): byte 0 = red << 4 | blue, byte 1 = green
 from __future__ import annotations
 
 import argparse
+import json
+import re
 import shlex
 import sys
 from collections import Counter
@@ -455,6 +482,104 @@ def plus_convert(args, img: Image):
     return [(name + "_pal", plus_palette_data(img, fixed))], [], "16 pen colours, 32 bytes"
 
 
+# ---------------------------------------------------------------- sidecar
+
+
+def _is_int(v) -> bool:
+    return (isinstance(v, int) and not isinstance(v, bool)) or (isinstance(v, float) and v.is_integer())
+
+
+def _no_constant(c: str):
+    raise ValueError(c)
+
+
+def sidecar_path(image: Path) -> Path:
+    return image.with_name(image.stem + ".cpcbuild.json")
+
+
+def load_sidecar(path: Path) -> dict:
+    """The settings of a NAME.cpcbuild.json: a dict with the keys it has among
+    kind, mode, name, frame, masked, tile_width, palette, tags (a list of
+    (name, from, to), always present). Anything wrong is a SystemExit."""
+
+    def bad(what: str):
+        raise SystemExit(f"img2cpc: {path}: {what}")
+
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"), parse_constant=_no_constant)
+    except OSError:
+        bad("cannot be read")
+    except ValueError:
+        bad("not valid JSON")
+    if not isinstance(raw, dict):
+        bad("must hold one JSON object")
+    if raw.get("format") != "cpcbuild-image":
+        bad('"format" must be "cpcbuild-image"')
+    if not _is_int(raw.get("version")) or raw["version"] != 1:
+        bad('"version" must be 1')
+    out: dict = {"tags": []}
+
+    def field(key: str, ok, what: str, dest: str | None = None, conv=lambda v: v):
+        if key in raw:
+            if not ok(raw[key]):
+                bad(f'"{key}" must be {what}')
+            out[dest or key] = conv(raw[key])
+
+    field("kind", lambda v: v in ("sprite", "tiles") and isinstance(v, str), '"sprite" or "tiles"')
+    field("mode", lambda v: _is_int(v) and v in (0, 1, 2), "0, 1 or 2", conv=int)
+    field("name", lambda v: isinstance(v, str) and v != "", "a non-empty string")
+    field("frame", lambda v: isinstance(v, str) and re.fullmatch("[0-9]+x[0-9]+", v) is not None, 'a "WxH" string')
+    field("masked", lambda v: isinstance(v, bool), "true or false")
+    field("tileWidth", lambda v: _is_int(v) and v >= 1, "a whole number of pixels", "tile_width", int)
+    field("palette", lambda v: isinstance(v, list) and all(_is_int(c) and 0 <= c <= 26 for c in v),
+          "a list of firmware colours 0-26", conv=lambda v: [int(c) for c in v])
+    tag_ok = lambda v: (isinstance(v, dict) and isinstance(v.get("name"), str) and v["name"] != ""
+                        and _is_int(v.get("from")) and _is_int(v.get("to")))
+    field("tags", lambda v: isinstance(v, list) and all(tag_ok(t) for t in v),
+          'a list of {"name", "from", "to"}', conv=lambda v: [(t["name"], int(t["from"]), int(t["to"])) for t in v])
+    return out
+
+
+def apply_sidecar(args, side: dict) -> None:
+    """Makes the sidecar's settings the defaults of args (the command line wins)."""
+    if args.mode is None and "mode" in side:
+        args.mode = side["mode"]
+    if args.name is None and "name" in side:
+        args.name = side["name"]
+    if not args.sprite and not args.tiles and side.get("kind") == "tiles":
+        args.tiles = True
+    if args.palette is None and args.palette_file is None and "palette" in side:
+        args.palette = ",".join(map(str, side["palette"]))
+    if args.tiles:
+        if args.tile_width is None and side.get("tile_width", 8) != 8:
+            args.tile_width = side["tile_width"]
+    else:
+        if args.frame is None and "frame" in side:
+            args.frame = side["frame"]
+        if side.get("masked"):
+            args.masked = True
+        args.sidecar_tags = side["tags"]
+
+
+def tag_consts(args, name: str, nframes: int) -> list[tuple[str, int]]:
+    """NAME_<TAG> and NAME_<TAG>_LEN for the sidecar's tags."""
+    out: list[tuple[str, int]] = []
+    taken = {name.upper() + "_" + s for s in ("W", "H", "FRAMES", "SIZE", "PENS", "PAL")}
+    for tag, first, last in getattr(args, "sidecar_tags", []):
+        if not 0 <= first <= last < nframes:
+            raise SystemExit(
+                f'img2cpc: {args.sidecar_path}: tag "{tag}" is frames {first}-{last}, '
+                f"but the sheet has {nframes} frames"
+            )
+        const = f"{name}_" + re.sub("[^A-Z0-9]", "_", tag.upper())
+        for c in ((const, first), (const + "_LEN", last - first + 1)):
+            if c[0].upper() in taken:
+                raise SystemExit(f'img2cpc: {args.sidecar_path}: tag "{tag}" makes {c[0]}, which is already defined')
+            taken.add(c[0].upper())
+            out.append(c)
+    return out
+
+
 # ---------------------------------------------------------------- output
 
 
@@ -485,8 +610,20 @@ def parse_wxh(s: str) -> tuple[int, int]:
     return w, h
 
 
-def convert(args, img: Image) -> tuple[str, str]:
-    """Returns (body text, description of the sizes)."""
+def moved_colours(img: Image, grid, pal: list[int]) -> list[tuple[tuple[int, int, int], int]]:
+    """(image colour, pen) for each opaque colour, in order of first appearance,
+    that is not exactly the firmware colour of its pen."""
+    pens: dict = {}
+    for prow, grow in zip(img.pix, grid):
+        for p, pen in zip(prow, grow):
+            if p is not None and p not in pens:
+                pens[p] = pen
+    return [(p, pen) for p, pen in pens.items() if p != FW_TABLE[pal[pen]]]
+
+
+def convert(args, img: Image, info: dict | None = None) -> tuple[str, str]:
+    """Returns (body text, description of the sizes). A dict as `info` is
+    filled with the figures --check reports."""
     name = args.name
     body: list[str] = []
     if args.spectrum:
@@ -511,7 +648,9 @@ def convert(args, img: Image) -> tuple[str, str]:
         fixed = parse_pal_list(Path(args.palette_file).read_text())
     pal = build_palette(img, mode, fixed, args.pen0)
     grid = pen_grid(img, pal)
-    if args.write_palette:
+    if info is not None:
+        info.update(pens=pal, moved=moved_colours(img, grid, pal), transparent=sum(p is None for r in grid for p in r))
+    if args.write_palette and not args.check:
         Path(args.write_palette).write_text(
             f"# firmware colours for pens 0-{len(pal) - 1} (img2cpc, mode {mode})\n" + ", ".join(map(str, pal)) + "\n"
         )
@@ -519,13 +658,21 @@ def convert(args, img: Image) -> tuple[str, str]:
     if args.tiles:
         if args.masked:
             raise SystemExit("img2cpc: --masked applies to sprites only")
-        if img.w % 8 or img.h % 8:
-            raise SystemExit(f"img2cpc: tile image size {img.w}x{img.h} must be a multiple of 8")
+        tw = args.tile_width if args.tile_width is not None else 8
+        if tw not in (ppb, ppb * 2, ppb * 4):
+            raise SystemExit(
+                f"img2cpc: tile width {tw} must be {ppb}, {ppb * 2} or {ppb * 4} pixels in mode {mode} (1, 2 or 4 bytes)"
+            )
+        if tw == 8:
+            if img.w % 8 or img.h % 8:
+                raise SystemExit(f"img2cpc: tile image size {img.w}x{img.h} must be a multiple of 8")
+        elif img.w % tw or img.h % 8:
+            raise SystemExit(f"img2cpc: tile image size {img.w}x{img.h} must be a multiple of {tw}x8")
         tiles: list[list[int]] = []
         cells: list[int] = []
         for ty in range(0, img.h, 8):
-            for tx in range(0, img.w, 8):
-                t = pack_block(grid, tx, ty, 8, 8, mode, False)
+            for tx in range(0, img.w, tw):
+                t = pack_block(grid, tx, ty, tw, 8, mode, False)
                 if args.dedupe and t in tiles:
                     cells.append(tiles.index(t))
                 else:
@@ -533,13 +680,18 @@ def convert(args, img: Image) -> tuple[str, str]:
                     cells.append(len(tiles) - 1)
         if len(tiles) > 256:
             raise SystemExit(f"img2cpc: {len(tiles)} tiles; tile numbers go up to 255")
+        if info is not None:
+            info.update(count=len(tiles), tw=tw, each=len(tiles[0]), total=sum(map(len, tiles)),
+                        repeats=len(cells) - len({tuple(t) for t in tiles}))
         body.append(fmt_array(name, [b for t in tiles for b in t]))
         body.append(fmt_const(name + "_COUNT", len(tiles)))
+        if tw != 8:
+            body.append(fmt_const(name + "_TILEW", tw // ppb))
         if args.dedupe:
             body.append(fmt_array(name + "_MAP", cells))
-            body.append(fmt_const(name + "_MAPW", img.w // 8))
+            body.append(fmt_const(name + "_MAPW", img.w // tw))
             body.append(fmt_const(name + "_MAPH", img.h // 8))
-        desc = f"{len(tiles)} tiles of {len(tiles[0])} bytes"
+        desc = f"{len(tiles)} tile{'s' if len(tiles) != 1 else ''} of {len(tiles[0])} bytes"
     else:
         fw, fh = img.w, img.h
         if args.frame:
@@ -560,6 +712,10 @@ def convert(args, img: Image) -> tuple[str, str]:
         body.append(fmt_const(name + "_H", fh))
         body.append(fmt_const(name + "_FRAMES", nframes))
         body.append(fmt_const(name + "_SIZE", size))
+        for cname, value in tag_consts(args, name, nframes):
+            body.append(fmt_const(cname, value))
+        if info is not None:
+            info.update(frames=nframes, fw=fw, fh=fh, each=size, total=len(data))
         desc = (
             f"{nframes} frame(s) of {fw // ppb} bytes x {fh} lines"
             f"{', masked' if args.masked else ''}, {size} bytes each"
@@ -568,6 +724,35 @@ def convert(args, img: Image) -> tuple[str, str]:
         body.append(fmt_array(name + "_pal", pal))
         body.append(fmt_const(name + "_PENS", len(pal)))
     return "\n".join(body), desc
+
+
+def check_report(args, img: Image, info: dict, side: Path | None) -> str:
+    ppb = PPB[args.mode]
+    lines = [f"check: {args.image} {img.w}x{img.h} pixels, mode {args.mode}, {'tiles' if args.tiles else 'sprite'}"]
+    if side:
+        lines.append(f"  sidecar: {side}")
+    if args.tiles:
+        line = (f"  tiles: {info['count']} of {info['tw']}x8 pixels "
+                f"({info['tw'] // ppb} bytes wide, {info['each']} bytes each)")
+        n = info["repeats"]
+        if n:
+            rep = f"{n} repeat" + ("s" if n > 1 else "")
+            line += f", {rep} dropped" if args.dedupe else f", {rep} (--dedupe would drop {'it' if n == 1 else 'them'})"
+        lines.append(line)
+    else:
+        lines.append(f"  frames: {info['frames']} of {info['fw']}x{info['fh']} pixels "
+                     f"({'masked, ' if args.masked else ''}{info['fw'] // ppb} bytes x {info['fh']} lines, "
+                     f"{info['each']} bytes each)")
+    lines.append("  pens: " + " ".join(f"{pen}={fw}" for pen, fw in enumerate(info["pens"])))
+    if info["moved"]:
+        lines.append(f"  colours moved: {len(info['moved'])}")
+        for (r, g, b), pen in info["moved"]:
+            lines.append(f"    #{r:02X}{g:02X}{b:02X} -> pen {pen} (firmware {info['pens'][pen]})")
+    if info["transparent"] and not args.masked:
+        lines.append(f"  transparent pixels: {info['transparent']}")
+    lines.append(f"  total: {info['total']} bytes")
+    lines.append("  ok")
+    return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -579,6 +764,8 @@ def main(argv: list[str] | None = None) -> int:
     kind = ap.add_mutually_exclusive_group()
     kind.add_argument("--sprite", action="store_true", help="whole image as a sprite (default)")
     kind.add_argument("--tiles", action="store_true", help="cut into 8x8 tiles")
+    ap.add_argument("--tile-width", type=int, metavar="PX",
+                    help="tiles: tile width in pixels, 1, 2 or 4 bytes (default 8); emits NAME_TILEW")
     ap.add_argument("--frame", metavar="WxH", help="sprite frame size in pixels (cut a sheet, row-major)")
     ap.add_argument("--dedupe", action="store_true", help="tiles: drop repeats and emit NAME_MAP")
     ap.add_argument("--masked", action="store_true", help="sprites: emit (mask, pixel) pairs")
@@ -595,7 +782,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--spectrum", action="store_true", help="emit ZX Spectrum bitmap + attributes")
     ap.add_argument("--zx-sprite", action="store_true",
                     help="with --spectrum: sprite data, bit = 1 for every opaque non-black pixel (no per-cell ink/paper choice)")
+    ap.add_argument("--no-sidecar", action="store_true", help="ignore NAME.cpcbuild.json beside the image")
+    ap.add_argument("--check", action="store_true", help="convert but write nothing; report what would be made")
     args = ap.parse_args(argv)
+    args.sidecar_tags = []
 
     plus = args.plus_sprite or args.plus_palette
     if args.plus_sprite and args.plus_palette:
@@ -608,6 +798,17 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--plus-format needs --plus-sprite or --plus-palette")
     if args.plus_format == "bin" and not args.output:
         ap.error("--plus-format bin needs -o")
+    if args.check and args.output:
+        ap.error("--check writes nothing; leave out -o")
+    if args.check and (plus or args.spectrum):
+        ap.error("--check is for CPC modes, not --spectrum or --plus-*")
+    side_file = None
+    if not plus and not args.spectrum and not args.no_sidecar:
+        sp = sidecar_path(args.image)
+        if sp.is_file():
+            side_file = sp
+            args.sidecar_path = sp
+            apply_sidecar(args, load_sidecar(sp))
     if not plus and not args.spectrum and args.mode is None:
         ap.error("--mode is required (or --spectrum, --plus-sprite, --plus-palette)")
     if args.zx_sprite and not args.spectrum:
@@ -618,6 +819,8 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("use --palette or --palette-file, not both")
     if args.dedupe and not args.tiles:
         ap.error("--dedupe needs --tiles")
+    if args.tile_width is not None and not args.tiles:
+        ap.error("--tile-width needs --tiles")
     if args.frame and args.tiles:
         ap.error("--frame is for sprites")
     if not args.image.exists():
@@ -637,6 +840,8 @@ def main(argv: list[str] | None = None) -> int:
 
     img = load_image(args.image, transparent)
     cmd = "img2cpc.py " + " ".join(shlex.quote(a) for a in (sys.argv[1:] if argv is None else argv))
+    if side_file:
+        cmd += f" (settings from {side_file.name})"
     cmt = ";" if args.plus_format == "asm" else "'"
     if plus:
         arrays, consts, desc = plus_convert(args, img)
@@ -651,13 +856,17 @@ def main(argv: list[str] | None = None) -> int:
             body = "\n".join([fmt_array(n, d) for n, d in arrays] + [fmt_const(n, v) for n, v in consts])
         mode_txt = "CPC Plus"
     else:
-        body, desc = convert(args, img)
+        info = {} if args.check else None
+        body, desc = convert(args, img, info)
+        if args.check:
+            sys.stdout.write(check_report(args, img, info, side_file))
+            return 0
         mode_txt = "Spectrum" if args.spectrum else "mode " + str(args.mode)
     head = (
         f"{cmt} Generated by {cmd}\n"
         f"{cmt} Source: {args.image}, {img.w}x{img.h} pixels, {mode_txt}\n"
         f"{cmt} {desc}\n"
-        f"{cmt} Do not edit; regenerate with tools/build_assets.sh.\n\n"
+        f"{cmt} Do not edit; regenerate it from the source image (command above).\n\n"
     )
     text = head + body
     if args.output:

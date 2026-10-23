@@ -10,6 +10,7 @@ T="python3 tools/tmx2bas.py"
 if [ "$1" = "--draw" ]; then
   python3 examples/assets/make_sources.py
   python3 examples/assets/make_bounce_aks.py
+  python3 examples/assets/make_finetiles_png.py
   python3 tests/conformance/assets/make_sources.py
 fi
 
@@ -18,6 +19,11 @@ A=examples/assets
 $I --mode 0 --name bgtiles --tiles --palette-file $A/bounce.pal $A/bgtiles.png -o $A/bgtiles.bas
 $I --mode 0 --name balls --sprite --frame 8x16 --masked --palette-file $A/bounce.pal --no-palette $A/balls.png -o $A/balls.bas
 $T --name level $A/level.tmx -o $A/level.bas
+
+# examples/finetiles.bas: mode 0, 4 x 8-pixel tiles (SetTileWidth(2)), the same
+# 16 pens (bounce.pal); the 40 x 25 level is drawn as one image and deduped
+$I --mode 0 --name finetiles --tiles --tile-width 4 --dedupe --palette-file $A/bounce.pal $A/finelevel.png -o $A/finetiles.bas
+$I --mode 0 --name finesprites --sprite --frame 16x16 --masked --palette-file $A/bounce.pal --no-palette $A/finesprites.png -o $A/finesprites.bas
 
 # bounce's music and effects: make_bounce_aks.py writes the .vt2 sources
 # (always, it is plain Python); the Arkos command-line tools turn them into

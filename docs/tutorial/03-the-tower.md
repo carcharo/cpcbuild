@@ -104,7 +104,7 @@ In Tiled you will find:
 A worked example. Room 9 starts at cell (1, 20) of its room, which is pixel (8, 160) inside the room.
 Room 9 is in column 0 of row 3, so in the big map its pixel position is x = 0 x 160 + 8 = **8** and
 y = 3 x 184 + 160 = **712**. Find the object `start` at x = 8, y = 712 in the object layer.
-The room's walker is at room cell (17, 20).
+The room's walker is at room cell (7, 17).
 
 Try moving that enemy: select it, change **x** (keep it a multiple of 8), and save the map (`Ctrl+S`).
 

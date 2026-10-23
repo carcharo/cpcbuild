@@ -55,14 +55,14 @@
       "explorer/context": [
         {
           "command": "cpcbuild.emu.runFile",
-          "when": "resourceExtname =~ /^\\.(dsk|cpr|sna)$/i",
+          "when": "resourceExtname =~ /^\\.(cpr|sna)$/i || resourceExtname =~ /^\\.dsk$/i && !cpcbuild.inProject",
           "group": "navigation@91"
         }
       ],
       "editor/title/context": [
         {
           "command": "cpcbuild.emu.runFile",
-          "when": "resourceExtname =~ /^\\.(dsk|cpr|sna)$/i",
+          "when": "resourceExtname =~ /^\\.(cpr|sna)$/i || resourceExtname =~ /^\\.dsk$/i && !cpcbuild.inProject",
           "group": "navigation@91"
         }
       ],

@@ -3,9 +3,10 @@
 ;
 ; Written from scratch for this project (MIT); see core.asm.
 ;
-; A tile is 8x8 pixels: 1 byte x 8 lines in mode 2, 2 x 8 in mode 1,
-; 4 x 8 in mode 0 (width in bytes W = 1 << GFX_XSHIFT, colour.asm). Tile
-; data: per tile its 8 rows top first, each row's bytes left to right,
+; A tile is W bytes x 8 lines, W = 1 << s with s from __CB_TXS
+; (tiledraw.asm): the mode's GFX_XSHIFT (colour.asm) unless SetTileWidth
+; fixed it, so by default 8x8 pixels: 1 byte in mode 2, 2 in mode 1, 4 in
+; mode 0. Tile data: per tile its 8 rows top first, each row's bytes left to right,
 ; so a tile is 8 * W bytes. Tile n is at CB_TILESET + n * 8 * W.
 ; Tile cell (cx, cy) is byte column cx * W, pixel line cy * 8, so a tile
 ; starts on pixel line 0 of a character row: its 8 lines are in the 8

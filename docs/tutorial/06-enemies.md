@@ -24,7 +24,7 @@ Every enemy is 8 x 16 pixels, the player's size, drawn from frames 10 and 11 of 
 
 | Kind | Name | Moves | Uses |
 |---|---|---|---|
-| 1 | walker | back and forth along the floor; turns at a wall, at the edge of a platform and at spikes | its start position |
+| 1 | walker | back and forth along the whole platform (or floor) it stands on; turns at a wall, at the edge of the ground and at spikes | its start position |
 | 2 | floater | up and down between its start line and `range` lines below it | start position and range |
 | 3 | bat | sideways between its start column and `range` pixels to the right, wobbling up and down by a sine | start position and range |
 
@@ -36,16 +36,21 @@ Open `assets/tower.tmx` in Tiled (**CPCBuild: Open in Tiled**) and look at the o
 enemy is an object of class `enemy` (the file stores it as `type="enemy"`) with two integer properties, `kind` (1, 2 or 3) and `range`
 (in cells; walkers ignore it, so it is 0).
 
-Room 9's walker is at room cell (17, 20). In the big map that is x = 17 x 8 = **136**,
-y = 3 x 184 + 20 x 8 = **712**. Find the object at those coordinates. To add a second one:
+Room 9's walker is at room cell (7, 17): it stands on the platform that spans cells 6 to 11 of row 19. In the
+big map that is x = 7 x 8 = **56**, y = 3 x 184 + 17 x 8 = **688**. Find the object at those coordinates. A
+walker has no `range`: it patrols the whole platform it stands on, so you choose its platform, not its
+beat. Put walkers on a platform rather than on the floor of the room: a walker on the floor would sweep
+the doors and the exits. To add a second one:
 
 1. Select the `objects` layer and insert a rectangle object (Tiled's **Insert Rectangle** tool, `R`).
-2. Give it **Class** `enemy`, **width** 8, **height** 16, and position x = 72, y = 712 (cell (9, 20) of room 9).
+2. Give it **Class** `enemy`, **width** 8, **height** 16, and position x = 80, y = 688 (cell (10, 17) of room 9, on the same platform).
 3. Add custom properties `kind` (int) = 1 and `range` (int) = 0 (the `+` at the bottom of the Properties panel).
 4. Save, run `split_rooms.py` as in chapter 3 (it is a script, not a Studio command), build.
 
 The rules the splitter enforces: at most **four enemies** per room (the game has four enemy slots) and
-exactly one `start` object.
+exactly one `start` object. A second check lives in `tests/reach.py` (`make reach-lamp`): it works out the whole
+area each enemy can sweep, and fails if that touches a door, the cells next to an exit or the start cell. So the first
+room can always be left without timing a pass through an enemy.
 <!-- CHECK (Tiled UI wording, from memory): Insert Rectangle (R), the Class field and the "+" for custom properties, as in chapter 3. -->
 
 ## Step 3: Per-enemy state
@@ -82,7 +87,7 @@ DIM eY0(3) AS UBYTE
 DIM eR(3) AS UBYTE
 ```
 
-(`game.bas:63-74`.) Note the separate `DIM` lines: `DIM a(3), b(3) AS UBYTE` does not parse in the
+(`game.bas:77-86`.) Note the separate `DIM` lines: `DIM a(3), b(3) AS UBYTE` does not parse in the
 compiler this game was written against (`DESIGN.md`, "As built").
 
 `eX0`, `eY0`, `eR` are where an enemy starts, in pixels, and its range in pixels; `eX`, `eY` where it
@@ -176,7 +181,7 @@ END SUB
 
 - `LoadRoom` reads the object list `robj` (chapter 3) for room `id`: a type 1 record is the start
   cell; a type 2 record is an enemy: kind, start cell and range in cells, which are multiplied by 8
-  (`<< 3`) to pixels. **(simplified:** `game.bas:213-255` also finds the room's lamps, chapter 7.)
+  (`<< 3`) to pixels. **(simplified:** `LoadRoom` in `game.bas:361-400` also finds the room's lamps, chapter 7.)
 - `ResetEnemies` puts every enemy back on its start square and hides the unused slots (frame 255: "no
   sprite", chapter 4). Slots 1 to 4 belong to the enemies.
 - `Die` is the *whole* of the punishment in this chapter: back to where you entered, enemies reset.
@@ -187,7 +192,7 @@ END SUB
 ```basic
 ' Can a walker stand with its left edge at x, y, having just stepped in
 ' direction dir (1 right)? No wall in its way, ground under the leading
-' edge, no spikes there. (simplified: the game's is assembly)
+' edge, no spikes there.
 FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
   DIM c AS UBYTE
   IF dir = 1 THEN c = (x + 7) >> 3 ELSE c = x >> 3
@@ -255,8 +260,9 @@ SUB MoveEnemies()
 END SUB
 ```
 
-(`WalkOK` is **simplified**: the finished game's is assembly, `game.bas:581-637`, with exactly this logic.
-`MoveEnemies` is `game.bas:639-694` unchanged.)
+(The finished `game.bas` has this exact `WalkOK` under `#ifdef LAMP_BASIC` (`game.bas:736-743`), next to
+the faster assembly one that the game uses by default (`game.bas:745-801`, chapter 9), so you can
+compare them line by line. `MoveEnemies` is `game.bas:808-859` unchanged.)
 
 Read `MoveEnemies` from the top.
 
@@ -451,8 +457,7 @@ How it works:
 
 ## Build and run
 
-**CPCBuild: Build and Run**. In room 9 a purple walker patrols the strip of floor between the spikes and the
-door, turning back at each. Walk into it and you are back at the start, with the enemy back at its start.
+**CPCBuild: Build and Run**. In room 9 a purple walker patrols the platform above the floor, turning back at each end. Walk into it and you are back at the start, with the enemy back at its start.
 Go through rooms and meet floaters and bats (the finished game has them in rooms 0, 1, 3, 5, 8 and 10).
 To visit them quickly, change `GameInit(9)` to another room (rooms 0, 5, 6 and 11 have no door; the
 others will keep you in until chapter 7). The finished game's
@@ -479,7 +484,7 @@ it is now only called for slots that moved.
 
 ## Try this
 
-1. Add a walker in a room without enemies (room 6 has none): pick a flat stretch of floor and work out
+1. Add a walker in a room without enemies (room 6 has none): pick a platform (not the floor) and work out
    the pixel position as in step 2. Does it turn at the right places?
 2. Give a bat a larger `range` in Tiled. How far does it go? What stops a bat from flying through
    walls? (Nothing: bats ignore tiles; look at their code.)

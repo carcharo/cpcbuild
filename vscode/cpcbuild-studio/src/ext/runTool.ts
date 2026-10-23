@@ -35,6 +35,8 @@ export interface ToolResult {
   stdout: string;
   stderr: string;
   cancelled: boolean;
+  /** True when `error` is "program not found" (ENOENT); the zxbc fallback keys on this, not on the text. */
+  notFound?: boolean;
   /** Set when the program could not be started (not found, bad cwd, ...). */
   error?: string;
 }
@@ -85,6 +87,7 @@ export function runTool(command: readonly string[], args: readonly string[], opt
     let cancelled = false;
     let settled = false;
     let spawnError: string | undefined;
+    let notFound = false;
     const posix = process.platform !== 'win32';
     const child = spawn(exe, all, { cwd: opts.cwd, env: opts.env ?? toolEnv(), shell: false, detached: posix, windowsHide: true });
 
@@ -95,7 +98,7 @@ export function runTool(command: readonly string[], args: readonly string[], opt
       sub?.dispose();
       if (killTimer) clearTimeout(killTimer);
       for (const [buf, err] of [[outBuf, false], [errBuf, true]] as const) if (buf.s) sink?.line(buf.s, err);
-      resolve({ code, stdout, stderr, cancelled, error: spawnError });
+      resolve({ code, stdout, stderr, cancelled, error: spawnError, notFound: notFound || undefined });
     };
     const kill = (): void => {
       if (cancelled) return;
@@ -133,6 +136,7 @@ export function runTool(command: readonly string[], args: readonly string[], opt
       feed(errBuf, c, true);
     });
     child.on('error', (e: NodeJS.ErrnoException) => {
+      notFound = e.code === 'ENOENT';
       spawnError = e.code === 'ENOENT' ? `"${exe}" was not found${opts.cwd ? ` (working directory ${opts.cwd})` : ''}` : e.message;
       finish(null);
     });

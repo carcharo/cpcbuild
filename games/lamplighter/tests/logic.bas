@@ -185,6 +185,7 @@ pX = 130
 st = GameStep(0)
 CheckEq("enemy near: lives", gLives, 3)
 pX = eX(0)
+pY = eY(0)
 st = GameStep(0)
 CheckEq("enemy: lives", gLives, 2)
 
@@ -197,7 +198,7 @@ NEXT i
 CheckEq("game over lives", gLives, 0)
 CheckEq("game over state", st, S_OVER)
 
-' --- the walker keeps between the spikes and the door ---
+' --- the walker keeps to its platform (columns 6-11) ---
 Fresh()
 lo = 255
 hi = 0
@@ -206,8 +207,8 @@ FOR i = 1 TO 200
   IF eX(0) < lo THEN lo = eX(0)
   IF eX(0) > hi THEN hi = eX(0)
 NEXT i
-CheckEq("walker min x", lo, 128)
-CheckEq("walker max x", hi, 144)
+CheckEq("walker min x", lo, 48)
+CheckEq("walker max x", hi, 88)
 CheckEq("walker alive", gLives, 3)
 
 ' --- ladders: room 10, column 7, rows 16-21 ---

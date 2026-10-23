@@ -7,6 +7,10 @@
                 playseq.bas (made by reach.py): all 28 lamps, the game won.
                 The sound switches (-D NOMUSIC, NOSFX, NOSOUND) must not
                 change a pixel of room 9
+  LAMP_BASIC    logic and playthrough again with -D LAMP_BASIC (game.bas's
+                plain BASIC versions of its assembly routines) on the 464 and
+                the 48K, and the room 0 and walk shots on the 464: the same
+                goldens, the same pixels
   screenshots   each of the 12 rooms in its entry state (-D START_ROOM=n -D
                 SHOT=3: the player on the room's start cell after 3 logic
                 steps), and five scenes (SCENES: lit rooms with the door
@@ -86,12 +90,13 @@ def zxrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir: 
                           timeout=timeout * 4 + 120)
 
 
-def logic_test(model: str, timeout: float, prog: str = "logic"):
-    label = f"{model}/{prog}"
+def logic_test(model: str, timeout: float, prog: str = "logic", defines: list[str] | None = None):
+    label = f"{model}/{prog}" + ("+" + "+".join(defines) if defines else "")
+    defines = defines or []
     if model.startswith("zx"):
-        proc = zxrun(HERE / f"{prog}.bas", model, [], timeout)
+        proc = zxrun(HERE / f"{prog}.bas", model, defines, timeout)
     else:
-        proc = cpcrun(HERE / f"{prog}.bas", model, [], timeout)
+        proc = cpcrun(HERE / f"{prog}.bas", model, defines, timeout)
     out = proc.stdout
     if proc.returncode != 0:
         return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]
@@ -121,6 +126,16 @@ SWITCHES = {
     "room09+NOSFX": ("room09", ["NOSFX"]),
     "room09+NOSOUND": ("room09", ["NOSOUND"]),
 }
+
+# -D LAMP_BASIC (the plain BASIC versions of the assembly routines, game.bas)
+# must play the same: logic + playthrough on these models, and these shots on
+# the 464, pixel for pixel against the same goldens
+LAMP_BASIC_MODELS = ("464", "zx48")
+LAMP_BASIC_SHOTS = {
+    "room00+LAMP_BASIC": ("room00", ["LAMP_BASIC"]),
+    "walk+LAMP_BASIC": ("walk", ["LAMP_BASIC"]),
+}
+SWITCHES.update(LAMP_BASIC_SHOTS)
 
 
 def shot_test(model: str, name: str, timeout: float, update: bool):
@@ -192,7 +207,14 @@ def main() -> int:
         if not args.update:
             jobs.append((f"{m}/logic", lambda m=m: logic_test(m, args.timeout)))
             jobs.append((f"{m}/playthrough", lambda m=m: logic_test(m, args.timeout, "playthrough")))
-        for name in [f"room{r:02d}" for r in ROOMS] + list(SCENES) + (list(SWITCHES) if m in ("464", "zx128") else []):
+        if m in LAMP_BASIC_MODELS and not args.update:
+            for prog in ("logic", "playthrough"):
+                jobs.append((f"{m}/{prog}+LAMP_BASIC",
+                             lambda m=m, prog=prog: logic_test(m, args.timeout, prog, ["LAMP_BASIC"])))
+        switches = [n for n in SWITCHES if n not in LAMP_BASIC_SHOTS and m in ("464", "zx128")]
+        if m == "464":
+            switches += list(LAMP_BASIC_SHOTS)
+        for name in [f"room{r:02d}" for r in ROOMS] + list(SCENES) + switches:
             jobs.append((f"{m}/{name}", lambda m=m, name=name: shot_test(m, name, args.timeout, args.update)))
     jobs = [j for j in jobs if args.pattern in j[0]]
     bad = 0

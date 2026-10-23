@@ -14,7 +14,7 @@ import { newRecipe, previewOf } from '../core/cpcimp';
 import { FW_TABLE, parseRgb12List } from '../core/palette';
 import { parseSprite, resolvePalette } from '../core/spriteDoc';
 import { defaultMapName, parseTmx, parseTsx, TmxError, TmxMap, TmxTileset } from '../core/tmx';
-import { Atlas, atlasFromImage, atlasFromPens, effectiveFirstgid, tileMapCall } from '../core/tmxView';
+import { Atlas, atlasFromImage, atlasFromPens, effectiveFirstgid, tileMapCall, tileSizeNotice } from '../core/tmxView';
 import type { EditorSettings, HostToWeb } from '../shared/protocol';
 import type { AtlasResult, ConvertOptions, ConvertResult, TmxViewerView, ViewNotice, ViewTileset, WireAtlas } from '../shared/tmxProtocol';
 import { cachedDecode, decoderFor, rootIo } from './assetsGen';
@@ -376,6 +376,8 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
           return [r * 17, g * 17, b * 17];
         };
         out.atlases.push(wire(atlasFromPens(st.items, rgbOf, effectiveFirstgid(map, { firstgid: firstgidOverride }))));
+        const sizeNote = tileSizeNotice(st.w, st.h, map.tilewidth, map.tileheight);
+        if (sizeNote) out.notices.push({ severity: 'warning', text: sizeNote });
         out.notices.push({ severity: 'info', text: `Tiles from ${rel}: tile number n is item n of the tile set.` });
       } catch (e) {
         out.notices.push({ severity: 'warning', text: `${rel}: ${e instanceof Error ? e.message : String(e)}` });

@@ -12,11 +12,12 @@ import { newProjectCommand } from './newProject';
 import { ImporterEditorProvider, copyImporterCommandCommand, importImageCommand, regenerateAssetsCommand } from './importer';
 import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
-import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand } from './spriteEditor';
+import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand, regenerateForPalette } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
+import { runFromCatalogue, targetForDsk } from './dskRun';
 import { runInEmulator, setStorageDir } from './run';
 import { runTool } from './runTool';
-import { recordEmuEvent, state } from './state';
+import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
 import { requireTrust, trustTestApi } from './trust';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
 import { registerStubs } from './stubs';
@@ -52,6 +53,8 @@ export interface StudioApi {
   trust: typeof trustTestApi;
   /** runInEmulator with explicit settings (tests: no prompts, no real emulator). */
   runIn: typeof runInEmulator;
+  /** discToRun with a stubbable quick pick (extension-host tests). */
+  disc: typeof discTestApi;
 }
 
 async function configTarget(): Promise<vscode.ConfigurationTarget> {
@@ -83,6 +86,40 @@ async function runTask(run: boolean): Promise<void> {
   await vscode.tasks.executeTask(createTask(def, wf ?? vscode.TaskScope.Workspace, `${run ? 'build and run' : 'build'} ${pt.targetId}`));
 }
 
+/**
+ * The program to RUN from a .dsk: the disc name of the project target that builds this file, else the
+ * disc's own catalogue (one .BIN or .BAS runs; several ask). Undefined = nothing to run (already told).
+ */
+/** Test hooks for discToRun: `pick` answers the "which program" quick pick without showing it. */
+export const discTestApi: { pick?: (candidates: string[]) => Promise<string | undefined>; discToRun: typeof discToRun } = {
+  discToRun: (file, s) => discToRun(file, s),
+};
+
+async function discToRun(file: string, s: ReturnType<typeof readSettings>): Promise<{ name: string; model: RunInfo['model'] } | undefined> {
+  for (const lp of await findProjects()) {
+    if (!lp.project) continue;
+    const t = targetForDsk(lp.root, readSettings(lp.root).outputDir, lp.project.targets, file);
+    if (t) return { name: t.disc, model: s.modelOverride ?? t.model };
+  }
+  let img: Uint8Array;
+  try {
+    img = fs.readFileSync(file);
+  } catch (e) {
+    void vscode.window.showErrorMessage(`CPCBuild: cannot read ${file}: ${(e as Error).message}`);
+    return undefined;
+  }
+  const c = runFromCatalogue(img);
+  if (c.kind === 'one') return { name: c.name, model: s.model };
+  if (c.kind === 'many') {
+    const pick = await (discTestApi.pick ?? ((cs: string[]) => vscode.window.showQuickPick(cs, { title: 'CPCBuild: which program to run from this disc?' })))(c.candidates);
+    return pick ? { name: pick, model: s.model } : undefined;
+  }
+  void vscode.window.showInformationMessage(
+    c.kind === 'none' ? 'CPCBuild: the disc has no .BIN or .BAS program to run.' : `CPCBuild: ${path.basename(file)} is not a readable CPC disc image.`,
+  );
+  return undefined;
+}
+
 /** Explorer "Run in emulator" on a .dsk, .cpr or .bin. */
 async function runFile(uri?: vscode.Uri): Promise<void> {
   const file = uri?.fsPath ?? vscode.window.activeTextEditor?.document.uri.fsPath;
@@ -95,7 +132,11 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
   const sink = tee(channelSink);
   getChannel().show(true);
   let run: RunInfo;
-  if (ext === '.dsk') run = { file, kind: 'dsk', name: deriveDiscStem(path.basename(file, ext)), model: s.model };
+  if (ext === '.dsk') {
+    const found = await discToRun(file, s);
+    if (!found) return;
+    run = { file, kind: 'dsk', name: found.name, model: found.model };
+  }
   else if (ext === '.cpr') run = { file, kind: 'cpr', model: 'plus' };
   else if (ext === '.bin') {
     // package first (the emulator never gets a raw .bin): origin from the map beside it, else &0040
@@ -144,6 +185,7 @@ async function showReport(): Promise<void> {
 
 export function activate(context: vscode.ExtensionContext): StudioApi {
   setStorageDir(context.globalStorageUri.fsPath);
+  setTargetStore(context.workspaceState);
   setBundledLibrary(vscode.Uri.joinPath(context.extensionUri, 'bundled').fsPath);
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-project');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
@@ -200,7 +242,10 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
       pt.lp.project.targets.map((t) => ({ label: t.id, description: `${t.arch}, ${t.package}${t.bare ? ', bare' : ''}`, picked: t.id === pt.targetId })),
       { title: 'CPCBuild: target for Build and Run' },
     );
-    if (pick) await vscode.workspace.getConfiguration('cpcbuild').update('target.default', pick.label, await configTarget());
+    if (pick) {
+      await chooseTarget(pt.lp.root, pick.label);
+      void refresh();
+    }
   });
   reg('cpcbuild.selectEmulator', async () => {
     const items = [
@@ -235,6 +280,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   const sprite = new SpriteEditorProvider(context, 'spr');
   const tile = new SpriteEditorProvider(context, 'til');
   context.subscriptions.push(sprite.register(), tile.register(), registerAssetGenerator((uri) => generateAssetFile({ sprite, tile }, uri)));
+  palette.onSaved = (uri) => regenerateForPalette({ sprite, tile }, uri);
   reg('cpcbuild.newSprite', (args) => newAssetCommand('sprite', args));
   reg('cpcbuild.newTileset', (args) => newAssetCommand('tileset', args));
   reg('cpcbuild.newPlusSprite', (args) => newAssetCommand('plus', args));
@@ -262,6 +308,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     debug: debugApi,
     emuMissing: emuMissingTestApi,
     runIn: runInEmulator,
+    disc: discTestApi,
     lintRuns: (uri) => lint.runs(uri),
     trust: trustTestApi,
     palette,

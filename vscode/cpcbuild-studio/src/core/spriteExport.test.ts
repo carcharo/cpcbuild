@@ -11,7 +11,7 @@ import { normPath } from './img2cpc';
 import { MAXPENS, PPB, type Mode } from './pixels';
 import { py, rng, scratchDir } from './testutil';
 import { blankGrid, newSprite, parseSprite, resolvePalette, serialiseSprite, type Grid, type SpriteState } from './spriteDoc';
-import { assetSnippets, equivalentArgs, equivalentCommand, exportAsset, ExportError, gridFromImage, renderSheet } from './spriteExport';
+import { assetSnippets, equivalentArgs, equivalentCommand, exportAsset, ExportError, gridFromImage, mergeNote, quantiseImage, renderSheet } from './spriteExport';
 
 const dir = scratchDir('c3b-export-');
 
@@ -101,6 +101,24 @@ describe('export equals img2cpc.py (CPC modes)', () => {
         s.dedupe = dedupe;
         const text = compare(s, `til-${mode}-${dedupe}`);
         expect(text).toContain(dedupe ? 'til' + mode + '_MAP' : 'til' + mode + '_COUNT');
+      }
+  });
+
+  it('narrow and wide tiles: --tile-width, NAME_TILEW only when not 8', () => {
+    const r = rng(77);
+    const cases: [Mode, number][] = [[0, 2], [0, 4], [0, 8], [1, 4], [1, 8], [1, 16], [2, 8], [2, 16], [2, 32]];
+    for (const [mode, tw] of cases)
+      for (const dedupe of [false, true]) {
+        const pens = distinctPens(r, MAXPENS[mode] === 16 ? 9 : MAXPENS[mode]);
+        const s = newSprite('til', { name: `tw${mode}_${tw}`, mode, tileWidth: tw, palette: { pens } });
+        const a = randGrid(r, tw, 8, pens.length - 1, 0.1);
+        s.items = [a, randGrid(r, tw, 8, pens.length - 1, 0), a.map((row) => row.slice()), randGrid(r, tw, 8, pens.length - 1, 0)];
+        s.dedupe = dedupe;
+        const text = compare(s, `tw-${mode}-${tw}-${dedupe}`);
+        expect(text.includes(`tw${mode}_${tw}_TILEW`)).toBe(tw !== 8);
+        if (tw !== 8) expect(text).toContain(`tw${mode}_${tw}_TILEW AS UBYTE = ${tw / PPB[mode]}`);
+        expect(equivalentArgs(s, 'x.png').includes('--tile-width')).toBe(tw !== 8);
+        if (dedupe) expect(text).toContain(`tw${mode}_${tw}_MAPW AS UBYTE = 4`);
       }
   });
 
@@ -202,6 +220,18 @@ describe('export details', () => {
     s.items = [[[0, 1, 2, 3], [3, 2, 1, -1]]];
     const back = gridFromImage(s, renderSheet(s));
     expect(back).toEqual(s.items[0]);
+  });
+  it('counts the colours that merged onto one pen', () => {
+    const s = newSprite('spr', { name: 'm', mode: 1, masked: false, w: 3, h: 1, palette: { pens: [0, 26, 6, 18] } });
+    const img = { width: 3, height: 1, data: Uint8Array.from([0, 0, 120, 255, 0, 0, 130, 255, 255, 255, 255, 255]) } as never;
+    const q = quantiseImage(s, img);
+    expect(q.colours).toBe(3);
+    expect(q.pens).toBeLessThan(3);
+    expect(mergeNote(q)).toBe(`3 colours in the image became ${q.pens} pen${q.pens === 1 ? '' : 's'} (nearest match); add pens or use the image's palette.`);
+    expect(mergeNote({ colours: 2, pens: 2 })).toBeUndefined();
+    // transparent pixels are not colours
+    const t = { width: 2, height: 1, data: Uint8Array.from([5, 5, 5, 0, 255, 255, 255, 255]) } as never;
+    expect(quantiseImage(s, t)).toMatchObject({ colours: 1, pens: 1, rows: [[-1, 1]] });
   });
   it('snippets', () => {
     const m = newSprite('spr', { name: 'hero', mode: 1, masked: true });
