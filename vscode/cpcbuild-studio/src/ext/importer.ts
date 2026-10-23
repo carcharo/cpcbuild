@@ -11,7 +11,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
   applyRecipeOp, argvToRecipe, commandLine, composeSheet, effectiveOutput, newRecipe, outputsOf,
-  parseRecipe, previewOf, RecipeError, serialiseRecipe, shellSplit, type Recipe, type RecipeOp,
+  parseRecipe, previewOf, readSidecarFor, RecipeError, serialiseRecipe, shellSplit, type Recipe, type RecipeOp,
 } from '../core/cpcimp';
 import { decodeImage, ImageReadError } from '../core/imageio';
 import { defaultName } from '../core/img2cpc';
@@ -129,11 +129,21 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
         // an unreadable tree is not worth a failed render
       }
     }
+    let sidecar: string | undefined;
+    if (state.source && state.target === 'cpc') {
+      try {
+        const found = readSidecarFor(state.source, rootIo(root));
+        if (found) sidecar = path.basename(found.file);
+      } catch {
+        // as for the output: not worth a failed render
+      }
+    }
     return {
       recipe: state,
       recipePath,
       root,
       sourceKey,
+      sidecar,
       defaultName: defaultName(state.source || 'img'),
       defaultOutput: effectiveOutput({ ...state, output: undefined }),
       command: cmd.command,
@@ -254,6 +264,7 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
     const rel = toRel(root, uri.fsPath);
     const patch: { [k: string]: unknown } = { source: rel };
     if (!doc.state.output) patch.output = defaultOutputFor(root, doc.uri.fsPath, rel);
+    if (doc.state.target === 'cpc') Object.assign(patch, readSidecarFor(rel, rootIo(root))?.fields);
     this.commit(doc, { op: 'set', patch, label: 'Change source image' });
     return { picked: true };
   }
@@ -364,7 +375,8 @@ export async function importImageCommand(arg?: vscode.Uri | { uri?: vscode.Uri; 
   const file = path.join(dir, `${stem}.cpcimp`);
   if (!fs.existsSync(file)) {
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(file, serialiseRecipe(newRecipe(src, { output: defaultOutputFor(root, file, src) })));
+    const fromSidecar = readSidecarFor(src, rootIo(root))?.fields;
+    fs.writeFileSync(file, serialiseRecipe(newRecipe(src, { output: defaultOutputFor(root, file, src), ...fromSidecar })));
   }
   const uri = vscode.Uri.file(file);
   if (opts.open !== false) await vscode.commands.executeCommand('vscode.openWith', uri, IMPORTER_VIEW_TYPE);

@@ -31,6 +31,8 @@ export interface ImporterView extends ViewBase {
   /** The default name and output, which the form shows as placeholders. */
   defaultName: string;
   defaultOutput: string;
+  /** The sidecar beside the source image (file name), whose settings the recipe was pre-filled from. */
+  sidecar?: string;
   /** The exact command (python3 tools/img2cpc.py ...), or why there is none. */
   command?: string;
   commandReason?: string;

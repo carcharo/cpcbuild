@@ -588,6 +588,7 @@ function ImporterApp({ client, settings, view }: Host) {
         <span class="cb-muted">Source:</span> <strong class="cb-mono">{r.source || 'none'}</strong>
         {sp && <span class="cb-muted"> {sp.width}x{sp.height} px</span>}
         <button type="button" class="cb-btn cb-btn-secondary" onClick={() => void client.request('pickSource', { baseVersion: version.current })}>Change...</button>
+        {view.sidecar && <div class="cb-muted">Settings from {view.sidecar}</div>}
       </div>
       <div class="imp-out">
         <span class="cb-muted">Output:</span> <span class="cb-mono">{view.outputs[0]}</span>

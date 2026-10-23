@@ -107,6 +107,16 @@ class AsepriteExtension(unittest.TestCase):
         self.assertIn("4 frame(s) of 8 bytes x 16 lines, 128 bytes each", text)
         self.assertIn("CONST hero_FRAMES AS UBYTE = 4", text)
 
+        # no options at all: mode, frame, name, palette and tags come from the sidecar
+        out2 = self.tmp / "hero2.bas"
+        p = py("img2cpc.py", str(self.tmp / "hero.png"), "-o", str(out2))
+        self.assertEqual(p.returncode, 0, p.stderr)
+        text2 = out2.read_text()
+        for const, value in (("hero_W", 8), ("hero_H", 16), ("hero_FRAMES", 4), ("hero_SIZE", 128),
+                             ("hero_WALK", 0), ("hero_WALK_LEN", 4), ("hero_PENS", 16)):
+            self.assertIn(f"CONST {const} AS UBYTE = {value}\n", text2)
+        self.assertIn("(settings from hero.cpcbuild.json)", text2.splitlines()[0])
+
     def test_masked_sprite_sheet(self):
         f = self.tmp / "m.aseprite"
         ase("action=new_sprite", "mode=1", "w=8", "h=8", "frames=10", "masked=1", "name=m", f"out={f}")

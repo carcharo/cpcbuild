@@ -215,6 +215,13 @@ export function rootIo(root: string): CliIo {
   return {
     readFile: (p) => wrap(p, () => new Uint8Array(fs.readFileSync(insideRoot(root, p)))),
     readText: (p) => wrap(p, () => fs.readFileSync(insideRoot(root, p), 'utf8')),
+    exists: (p) => {
+      try {
+        return fs.statSync(insideRoot(root, p)).isFile();
+      } catch {
+        return false;
+      }
+    },
   };
 }
 

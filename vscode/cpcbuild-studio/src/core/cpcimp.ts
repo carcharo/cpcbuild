@@ -24,8 +24,8 @@
 import type { RgbaImage } from './image';
 import { decodeImage, ImageReadError } from './imageio';
 import {
-  buildPalette, convert, defaultName, Img2cpcError, normPath, parseArgs, penGrid, shellQuote, toPix,
-  type CliArgs, type CliIo, type Options, type Result,
+  buildPalette, convert, defaultName, Img2cpcError, normPath, parseArgs, penGrid, shellQuote, sidecarLoader, sidecarPath, toPix,
+  type CliArgs, type CliIo, type Options, type Result, type Sidecar,
 } from './img2cpc';
 import { FW_TABLE, nearest, parsePalList, parseRgb12List, rgb12, type RGB } from './palette';
 import { gridLayout, type GridSpec } from './cpcgrid';
@@ -194,6 +194,41 @@ export function applyRecipeOp(state: Recipe, op: RecipeOp): RecipeOutcome {
   }
   if (serialiseRecipe(next) === serialiseRecipe(state)) return { error: 'unchanged' };
   return { state: next, label };
+}
+
+// ------------------------------------------------------------------ sidecar
+
+/** The recipe fields a sidecar (NAME.cpcbuild.json) gives: what Import Image pre-fills. */
+export function sidecarFields(side: Sidecar): Partial<Recipe> {
+  const f: Partial<Recipe> = {};
+  if (side.mode !== undefined) f.mode = side.mode;
+  if (side.name !== undefined) f.name = side.name;
+  if (side.kind !== undefined) f.kind = side.kind;
+  if (side.kind === 'tiles') {
+    if (side.tileWidth !== undefined && side.tileWidth !== 8) f.tileWidth = side.tileWidth;
+  } else {
+    if (side.frame !== undefined) f.frame = side.frame;
+    if (side.masked) f.masked = true;
+  }
+  if (side.palette) f.palette = { list: side.palette };
+  return f;
+}
+
+/**
+ * The sidecar beside a source image: its path as the tool prints it and the recipe fields it gives.
+ * undefined when there is none; an unreadable or invalid one has `fields` empty and `error` set
+ * (the converter reports it again when the recipe runs).
+ */
+export function readSidecarFor(source: string, io: CliIo): { file: string; fields: Partial<Recipe>; error?: string } | undefined {
+  const load = sidecarLoader(io);
+  if (!load || !source) return undefined;
+  try {
+    const found = load(source);
+    return found ? { file: found.path, fields: sidecarFields(found.side) } : undefined;
+  } catch (e) {
+    if (!(e instanceof Img2cpcError)) throw e;
+    return { file: sidecarPath(source), fields: {}, error: e.message };
+  }
 }
 
 // ------------------------------------------------------------------ names and paths
@@ -502,10 +537,11 @@ function readSourceImage(io: CliIo, path: string, decode?: RunOptions['decode'])
 }
 
 /** The recipe's command line parsed like the tool does; its usage errors are UsageErrors. The palette file is not read yet. */
-export function optionsOf(r: Recipe): { args: CliArgs; argv: string[] } {
+export function optionsOf(r: Recipe, io?: CliIo): { args: CliArgs; argv: string[] } {
   const argv = recipeToArgv(r);
   try {
-    return { args: parseArgs(argv), argv };
+    // a sidecar beside the source gives the defaults (a grid sheet is composed in memory: none)
+    return { args: parseArgs(argv, io && !r.grid ? sidecarLoader(io) : undefined), argv };
   } catch (e) {
     if (e instanceof Img2cpcError) throw new UsageError(e.message);
     throw e;
@@ -519,12 +555,12 @@ function readPaletteFile(a: CliArgs, io: CliIo): void {
 
 /** Runs a recipe with the built-in engine: the same steps as `runCli`, plus grid extraction and header styling. */
 export function runRecipe(r: Recipe, io: CliIo, opts: RunOptions = {}): RunOutput {
-  const { args: a, argv } = optionsOf(r);
+  const { args: a, argv } = optionsOf(r, io);
   const o = a.options;
   let img = readSourceImage(io, a.image, opts.decode);
   readPaletteFile(a, io);
   if (r.grid) img = composeSheet(img, r.grid);
-  const result = convert(img, o, { argv, source: normPath(a.image) });
+  const result = convert(img, o, { argv, source: normPath(a.image), sidecar: a.sidecar });
   const mode = opts.header ?? 'img2cpc';
   const files: RunOutput['files'] = [];
   if (a.writePalette && result.paletteFile) files.push({ path: a.writePalette, data: result.paletteFile });
@@ -568,7 +604,7 @@ export const TRANSPARENT_INDEX = 255;
 /** The quantised picture the converter would produce, for display. The host codec only; the webview never quantises. */
 export function previewOf(r: Recipe, io: CliIo, opts: RunOptions = {}): Preview {
   const out = runRecipe(r, io, { ...opts, header: 'img2cpc' });
-  const { args: a } = optionsOf(r);
+  const { args: a } = optionsOf(r, io);
   const o = a.options;
   let img = readSourceImage(io, a.image, opts.decode);
   readPaletteFile(a, io);

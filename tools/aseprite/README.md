@@ -77,20 +77,22 @@ first time you Check or Export; the answers are stored in the sprite.
 ## Using the output
 
 ```sh
-# sprite: frame size and mode from the sidecar values
-python3 tools/img2cpc.py --mode 0 --frame 16x16 hero.png -o hero.bas
-python3 tools/img2cpc.py --mode 1 --frame 8x8 --masked m.png -o m.bas
+# sprite or tiles: mode, frame size, masked, palette, tile width, name and the
+# tags (hero_WALK, hero_WALK_LEN, ...) all come from the sidecar
+python3 tools/img2cpc.py hero.png -o hero.bas
+python3 tools/img2cpc.py ground.png -o ground_tiles.bas
 
-# tiles: tile width 8 (any other width needs img2cpc's --tile-width)
-python3 tools/img2cpc.py --mode 0 --tiles ground.png -o ground_tiles.bas
+# what it would make, without writing anything
+python3 tools/img2cpc.py --check hero.png
 
 # the level drawn in Aseprite
 python3 tools/tmx2bas.py ground.tmx -o ground_map.bas
 ```
 
-img2cpc.py does not read the sidecar yet, so pass the options yourself; write
-the pens with `--palette` from the sidecar `palette` list, because otherwise
-img2cpc.py gives pens in order of first appearance. tmx2bas.py needs no options:
+img2cpc.py reads `NAME.cpcbuild.json` beside `NAME.png`; options on the command
+line override it, and `--no-sidecar` ignores it. The `palette` list becomes the pens,
+so the pens in the BASIC include are the ones you drew with. Each tag adds
+`NAME_<TAG>` (first frame) and `NAME_<TAG>_LEN` (frames). tmx2bas.py needs no options:
 firstgid 1 maps Aseprite tile index i to tile number i, and the empty cell (tile 0)
 to 0. The TMX also opens in Tiled for further editing.
 

@@ -220,7 +220,7 @@ byte (2, 4, 8). Tile images must also be a multiple of 8 high.
 
 | Option | Meaning |
 |---|---|
-| `--mode 0\|1\|2` | CPC screen mode (required). |
+| `--mode 0\|1\|2` | CPC screen mode (required, unless a sidecar gives it). |
 | `--name NAME` | Array name prefix (default: the file stem). |
 | `-o FILE` | Output `.bas` (default: standard output). |
 | `--sprite` | The whole image is a sprite (default). |
@@ -235,6 +235,8 @@ byte (2, 4, 8). Tile images must also be a multiple of 8 high.
 | `--pen0 N` | With a palette built from the image: the firmware colour (0-26) given to pen 0. |
 | `--no-palette` | Do not emit `NAME_pal` and `NAME_PENS`. |
 | `--write-palette F` | Save the palette used, so other images can share it with `--palette-file`. |
+| `--check` | Do everything a conversion does but write nothing; print a report (see below). With `-o` it is an error. CPC modes only. |
+| `--no-sidecar` | Ignore `NAME.cpcbuild.json` beside the image (see below). |
 | `--spectrum` | Emit a ZX Spectrum bitmap plus attributes instead (see below). |
 
 Without `--palette`, the palette is built from the image: each colour goes to its
@@ -247,6 +249,7 @@ Generated names, with `NAME`:
 |---|---|
 | Sprite | `NAME` (data), `NAME_W` (bytes), `NAME_H` (lines), `NAME_FRAMES`, `NAME_SIZE` (bytes per frame) |
 | Tiles | `NAME` (data), `NAME_COUNT`; `NAME_TILEW` (bytes) when `--tile-width` is not 8; with `--dedupe` also `NAME_MAP`, `NAME_MAPW`, `NAME_MAPH` |
+| Sprite tags | with a sidecar: `NAME_<TAG>` (first frame), `NAME_<TAG>_LEN` (frame count) for each tag, after `NAME_SIZE` |
 | Palette | `NAME_pal` (one byte per pen), `NAME_PENS` (count) |
 
 Example, a masked sprite sheet of 16 x 16 frames in mode 1:
@@ -272,6 +275,44 @@ Tile set from an image of tiles:
 ```sh
 python3 tools/img2cpc.py --mode 0 --name bgtiles --tiles --palette-file bounce.pal bgtiles.png -o bgtiles.bas
 ```
+
+**Sidecar.** If `NAME.cpcbuild.json` sits beside `NAME.png` (the Aseprite
+extension's Export for CPCBuild writes one), `img2cpc.py hero.png` needs no other
+options: the sidecar's `mode`, `kind` (`--sprite` or `--tiles`), `name`, `frame`,
+`masked`, `palette` (the pens, as `--palette`) and `tileWidth` (`--tile-width`,
+if it is not 8) are the defaults, and anything on the command line wins
+(`--palette-file` replaces the sidecar palette). Each sprite tag also emits
+`NAME_<TAG>` and `NAME_<TAG>_LEN`, the tag name in capitals with every
+character but A-Z and 0-9 turned into `_`: a tag `walk` from frame 0 to 3 of
+`hero` gives `hero_WALK = 0` and `hero_WALK_LEN = 4`. A tag outside the frames,
+or a constant that is already defined, is an error, as is a sidecar with a
+wrong `format`, a `version` other than 1 or a wrongly typed field (the message
+is `img2cpc: hero.cpcbuild.json: ...`). The generated file's first line then ends
+`(settings from hero.cpcbuild.json)`. `--spectrum` and `--plus-*` never read a
+sidecar. Studio's Import Image fills the recipe from the sidecar of the image
+you pick.
+
+**Check.** `--check` runs the conversion (options and sidecar included) and
+prints instead of writing:
+
+```
+check: hero.png 64x16 pixels, mode 0, sprite
+  sidecar: hero.cpcbuild.json
+  frames: 4 of 16x16 pixels (8 bytes x 16 lines, 128 bytes each)
+  pens: 0=1 1=24 2=20 3=6
+  colours moved: 1
+    #7F0000 -> pen 3 (firmware 6)
+  transparent pixels: 40
+  total: 512 bytes
+  ok
+```
+
+Tiles show `tiles: 12 of 4x8 pixels (2 bytes wide, 16 bytes each)`, with
+`, 3 repeats dropped` under `--dedupe` or `, 3 repeats (--dedupe would drop
+them)` without. `colours moved` lists the image colours that are not exactly
+the firmware colour of the pen they got; `transparent pixels` appears for
+unmasked output, where they become pen 0; `total` counts data bytes, not the
+palette. A problem prints the error the conversion gives and exits 1.
 
 `--spectrum` writes ZX Spectrum data from the same PNG, for a program that is
 also built for `--arch zx48k`: `NAME` (8 bytes per 8 x 8 cell, UDG order),
