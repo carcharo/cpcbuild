@@ -2,9 +2,9 @@
 ; cpcplus library -- the ASIC's three DMA sound channels
 ;
 ; Written from scratch for this project (MIT); see plus.asm for the ASIC
-; page, the unlock and the paged access. Facts and sources: notes.md,
-; Phase 7 P3 (Caprice32 asic.cpp asic_dma_cycle/asic_register_page_write,
-; CPCEC cpcec.c; the cpcwiki pages were not reachable).
+; page, the unlock and the paged access. Facts and sources: Caprice32
+; asic.cpp asic_dma_cycle/asic_register_page_write, CPCEC cpcec.c (the cpcwiki
+; pages were not reachable).
 ;
 ; What the hardware does. Each of channels 0-2 reads one 16-bit
 ; instruction from RAM per scan line (when enabled and not pausing) from

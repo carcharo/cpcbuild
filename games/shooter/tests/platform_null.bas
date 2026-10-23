@@ -1,4 +1,4 @@
-' platform_null.bas -- a stand-in for the portable layer (DESIGN.md) that
+' platform_null.bas -- a stand-in for the portable layer that
 ' draws and plays nothing: it counts and remembers the calls the game
 ' logic makes, so tests/logic.bas can run game.bas on any build (it uses
 ' only plain Boriel BASIC, nothing platform-specific).

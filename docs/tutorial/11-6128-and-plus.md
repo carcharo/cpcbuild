@@ -23,7 +23,7 @@ Select the `cpc6128` target (**CPCBuild: Select Target**) and run **CPCBuild: Bu
 `defines` are `["CPC6128"]` and its `model` is `"6128"`, so the emulator tab starts a 6128.
 
 You should see exactly what you saw on the 464. That is the finding: **`lamp464` and `lamp6128` are the
-same 26,749 bytes** (`DESIGN.md`, sections 11 and 12; the build script prints both). `platform_cpc.bas` has a
+same 26,749 bytes** (the build script prints both). `platform_cpc.bas` has a
 `CPC464` and a `CPC6128` switch and does not use either: it defaults to `CPC464` when neither is set (line 30
 of the finished file), and the two builds make the same pictures. The finished game's tests run both and keep
 a screenshot golden per model: all 17 pictures of the 464 are byte-for-byte the 6128's.
@@ -36,8 +36,7 @@ model") lets you run any target on another model: try the `cpc464` target on `61
 The 6128 has 64 KB of extra RAM in four 16 KB banks, which a program pages in at `&4000-&7FFF`. The library
 has calls for it: `BankSelect`, `BankCopyIn`, `BankLoad` (load a disc file straight into a bank) and
 `MusicInitBank` (play a song from a bank) (library: **Extra RAM banks (6128)**). They would be the way to
-keep more levels than fit in memory and load a level from disc when you need it (`DESIGN.md`, section 4,
-suggests exactly that as an optional extra).
+keep more levels than fit in memory and load a level from disc when you need it (an optional extra).
 
 Lamplighter does not do this, and the reason is worth knowing. The library's rule: **any program that uses
 the bank calls reserves `&4000-&7FFF`, and the compiler refuses to run code that reaches it**
@@ -269,7 +268,7 @@ END SUB
 (`platform_plus.bas:77-79`.) Cycle 0, kind 0 (**screen pens**), starting at pen `FLAME_PEN0` (11), 4 colours from
 the `pl_flame` table, rotating by one every 2 calls of `PalCycleStep`. `PalCycleStep()`, called from `PlatFlushPlus`, once per game step, does the rotating:
 a single block write, however many lamps are lit. The period counts those calls, so with a period of 2 the flame
-advances every second step (`DESIGN.md`, section 13; library: **Palette cycling**). Setting the palette
+advances every second step (library: **Palette cycling**). Setting the palette
 restarts a cycle at offset 0, so the layer calls `FlameStart` again after every palette rewrite (every room).
 
 ## Step 7: Targets and build
@@ -288,7 +287,7 @@ firmware font either: the game's text comes from its own `fontcpc.bas` anyway). 
 
 Select `plus-cart` and run **CPCBuild: Build and Run**. The compiler flags are `--arch cpc --org 0x40 -D
 PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,056-byte
-program, the `lamppluc.bin` of `DESIGN.md` section 13), and then `mkcpr.py` wraps it as `build/plus-cart.cpr`
+program, `lamppluc.bin`), and then `mkcpr.py` wraps it as `build/plus-cart.cpr`
 (the finished game's cartridge is 49,188 bytes, 3 pages). The report is the one for a bare target, with its
 own reference lines:
 
@@ -313,7 +312,7 @@ amber, yellow, orange and pale yellow, and the effect costs one palette write ev
 For comparison, the finished game's Plus screenshots (with the flame at two moments, `lit09` and `lit09b`) are in
 `games/lamplighter/tests/golden/plus-cpcec/` and `plus-cap32/`.
 
-What the numbers say (`DESIGN.md`, section 13, on Caprice32 and CPCEC; the finished game):
+What the numbers say (on Caprice32 and CPCEC; the finished game):
 
 | | 464 build | Plus build |
 |---|---|---|
@@ -335,7 +334,7 @@ firmware build on a model other than `plus`; the cartridge target has no such ch
 The finished game also builds a **disc** for the Plus: `lampplus.dsk`, started with `RUN"PLUS`, where `PLUS.BIN`
 is a small loader that starts the program (`build_plus.sh` makes it). That disc stays **outside Studio**:
 Studio's `dsk` packaging makes a plain disc that runs one binary with `run"NAME`, and the finished project's
-`lampplus` target is the cartridge only (`DESIGN.md` section 14). Whether a plain Studio disc build of the Plus
+`lampplus` target is the cartridge only. Whether a plain Studio disc build of the Plus
 program (a target with `PLUS` defined, not `bare`) starts correctly on a Plus has not been checked: use the
 cartridge target.
 <!-- CHECK (optional, for the user's test session): add a disc target for the Plus program and see whether it boots on a Plus model; the tutorial's author did not try it. -->

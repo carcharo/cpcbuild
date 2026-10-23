@@ -1,6 +1,6 @@
 ' ----------------------------------------------------------------
 ' platform_zx.bas -- the Starfall portable layer for the ZX Spectrum
-' (--arch zx48k). The API is games/shooter/DESIGN.md's layer table; the
+' (--arch zx48k). The
 ' sprite engine is lib/zxbuild/sprites.bas.
 '
 '   -D ZX128   Spectrum 128K: double-buffered (screens 5 and 7), Arkos music
@@ -24,7 +24,7 @@
 ' PLAT_ZX_SFX itself (the layer's test harness does).
 '
 ' ---------------- Screen layout ----------------
-' Logical units (DESIGN.md): 1 unit = 2 pixels across, 1 line down.
+' Logical units: 1 unit = 2 pixels across, 1 line down.
 '   character rows 0-1   HUD (SCORE / WAVE, HI / LIVES); its rule is the
 '                        last line of row 1 (blue)
 '   character rows 2-3   free: PlatText may use them (the title does)

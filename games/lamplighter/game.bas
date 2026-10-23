@@ -13,7 +13,7 @@
 '   (the music is the platform layer's and main.bas's business: PlatMusic)
 '
 ' Units: x in mode-0 pixels 0-159 (the player is 8 wide, moves 2 at a time),
-' y in lines 0-183 (16 tall). A room is 20 x 23 cells of 8 x 8 (DESIGN.md).
+' y in lines 0-183 (16 tall). A room is 20 x 23 cells of 8 x 8.
 ' The hit box is x+1..x+6 across; rows y, y+8 and y+15 are probed.
 '
 ' The hot routines (TileAttr, TouchAttr, ColSolid, WalkOK, CopyRoom, ScanRoom)

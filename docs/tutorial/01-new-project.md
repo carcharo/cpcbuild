@@ -387,8 +387,7 @@ things you will trip over first:
 
 The last three rows come from the library's own notes (`docs/library.md`, **Performance tips**, section
 "Other things that cost time or memory"). Another trap the finished game's author found:
-`FOR i = 0 TO n - 1` with a `UBYTE n = 0` loops 256 times, because `n - 1` wraps to 255
-(`DESIGN.md`, "As built").
+`FOR i = 0 TO n - 1` with a `UBYTE n = 0` loops 256 times, because `n - 1` wraps to 255.
 
 Two library ideas to keep in mind from the start:
 

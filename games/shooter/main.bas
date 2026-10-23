@@ -3,7 +3,7 @@
 '
 ' One source for the CPC 6128 / 464 and the Spectrum 128K / 48K. The game
 ' rules are in game.bas, everything platform-specific in platform_cpc.bas
-' or platform_zx.bas (the portable layer of DESIGN.md).
+' or platform_zx.bas (the portable layer).
 '
 '   zxbc --arch cpc --org 0x40 -D CPC6128 main.bas      (see build_cpc.sh)
 '

@@ -3,9 +3,9 @@
 ;
 ; Written from scratch for this project (MIT, like Boriel's runtime),
 ; from public documentation of the CPC's screen layout; no code from
-; CPCtelera or other libraries (cpcbuild/docs/notes.md, 2026-10-01).
+; CPCtelera or other libraries.
 ;
-; Library coordinates (notes.md, Q-4c.2): x in BYTES (0-79), y in pixel
+; Library coordinates: x in BYTES (0-79), y in pixel
 ; lines (0-199), from the top-left. A byte is 2 pixels in mode 0, 4 in
 ; mode 1, 8 in mode 2, in every mode 80 bytes per line.
 ;

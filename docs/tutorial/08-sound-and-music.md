@@ -224,11 +224,9 @@ tests check pixel for pixel that the sound switches change no pixel of room 9).
 ## How it works
 
 **What sound costs.** In memory: the finished game is **26,749 bytes** on the 464 with sound
-(`DESIGN.md` section 12) and **22,335** built with `-D NOSOUND` (measured by compiling the finished game with
-`build_cpc.sh`'s flags plus `-D NOSOUND`): about 4.4 KB for the player, two tunes and the effects.
-(`DESIGN.md` section 11 gives 22,404 for the game before the sound milestone: an earlier stage of the
-code, not a build with the sound compiled out.) In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**
-(`DESIGN.md`, "As built", section 12); the library's own figure is about 5 % (16 scan lines a frame).
+and **22,335** built with `-D NOSOUND` (measured by compiling the finished game with
+`build_cpc.sh`'s flags plus `-D NOSOUND`): about 4.4 KB for the player, two tunes and the effects. In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**;
+the library's own figure is about 5 % (16 scan lines a frame).
 The 464 build had only about 8 % headroom before sound, so chapter 9 shows what had to be optimised to afford it.
 
 **Why no bank on the 6128?** The library can keep songs in the 6128's extra RAM

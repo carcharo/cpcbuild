@@ -8,8 +8,8 @@
 ; interrupts per frame drive the firmware's keyboard scan, clock and sound
 ; queue, and a non-zero PRI stops them.
 ;
-; The hardware (Caprice32 crtc.cpp match_hsw, CPCEC cpcec.c; notes.md
-; Phase 7 P3). PRI (&6800) = a scan line 1-255 counted from the first line
+; The hardware (Caprice32 crtc.cpp match_hsw, CPCEC cpcec.c).
+; PRI (&6800) = a scan line 1-255 counted from the first line
 ; of the picture (0 = off). While it is non-zero the Gate Array's own
 ; interrupt every 52 lines is not generated (both emulators), and one
 ; interrupt is raised at that line's horizontal sync, every frame, for

@@ -43,8 +43,7 @@ off the left or right edge of a room takes you to its neighbour (if there is one
 the top or falling off the bottom takes you to the room above or below. Where there is no
 neighbour, the edge is a wall. (The names are the map's own: you will find them in step 3.)
 
-(From `DESIGN.md`, sections 1 and 11; the rules are in `game.bas:413-480`, which you will write in
-chapter 5.)
+(The rules are in `game.bas:413-480`, which you will write in chapter 5.)
 
 ## Step 2: Open the map in Studio's viewer
 
@@ -327,7 +326,7 @@ re-run both conversions.
 (`blankPal`), then draws 460 tiles with `TileMap`, then sets the real palette back. While the tiles
 go down you see black, not a room being painted tile by tile. `SetPalette` costs one firmware gate
 call per pen (**Palette** in the library docs), which is nothing next to the drawing. This is
-`game.bas`'s `EnterRoom` calling `PlatRoom` (`DESIGN.md`, section 3).
+`game.bas`'s `EnterRoom` calling `PlatRoom`.
 
 **The text.** `TextFont(addr, first, rows, last)` gives the library a font: here 7 bytes per
 glyph, ASCII 45 (`-`) to 90 (`Z`) (**Text** in the library docs). `TextPen(ink, paper)` sets the pens

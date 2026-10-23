@@ -190,8 +190,8 @@ def cpcec_bin() -> Path:
 
 def subprocess_env() -> dict[str, str]:
     """Environment for subprocesses: make sure poetry (~/.local/bin) is on
-    PATH even if the caller's shell profile wasn't sourced (see both
-    repos' CLAUDE.md: `export PATH=$HOME/.local/bin:$PATH`)."""
+    PATH even if the caller's shell profile wasn't sourced (`export
+    PATH=$HOME/.local/bin:$PATH`)."""
     env = os.environ.copy()
     local_bin = str(Path.home() / ".local" / "bin")
     parts = env.get("PATH", "").split(os.pathsep)

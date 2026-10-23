@@ -20,7 +20,7 @@
 '                          TextFlush
 '
 ' Only what a program calls is compiled in. Written from scratch for
-' this project (MIT). Design: cpcbuild/docs/phase4c-design.md.
+' this project (MIT).
 ' ----------------------------------------------------------------
 
 #ifndef __LIBRARY_CPCBUILD__

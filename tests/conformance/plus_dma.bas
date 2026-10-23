@@ -6,7 +6,7 @@ REM refused starts, lists in &4000-&7FFF, the prescaler (PAUSE n takes n x (pres
 REM lines), and that the frame hook and the library calls coexist with a running channel.
 REM The lists are word data in asm blocks (ALIGN 2: the ASIC ignores bit 0 of the address).
 REM The checks of the status after a list's own STOP are left out: Caprice32 leaves the
-REM channel's DCSR enable bit set, CPCEC clears it (notes.md, Phase 7 P3).
+REM channel's DCSR enable bit set, CPCEC clears it.
 
 #include <cpc.bas>
 #include <framehook.bas>

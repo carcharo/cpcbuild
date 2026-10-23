@@ -1,6 +1,6 @@
 #!/bin/sh
 # Phase 8 (stream D1): CPCEC compiled to WebAssembly with our own SDL-free, ASYNCIFY-free
-# front end, for the cpcbuild-emu extension (design: docs/phase8-design.md, section 4).
+# front end, for the cpcbuild-emu extension.
 #
 # Copies the pinned, cpcbuild-patched CPCEC source that tools/cpcec/fetch_build.sh (make cpcec)
 # left in tools/cpcec/work/src (in a git worktree: the main checkout's) to tools/cpcec/work/wasm-host/src, applies host.patch (cpcec.c and

@@ -12,7 +12,7 @@ steps a second on a 464 with music.
 - Where the time goes in a step, and how to measure the plain BASIC and assembly versions of the hot routines yourself.
 
 **Time:** about 45 minutes. Every number in this chapter is either measured in front of you or
-labelled with the file it was measured in (mostly `DESIGN.md`, sections 11 and 12 "As built").
+labelled with where it was measured.
 
 **Before you start.** Chapter 8 is working. Keep your own code safe: copy `main.bas`, `game.bas` and
 `platform_cpc.bas` to a folder outside the project (say `mine/`). Parts of this chapter use the finished
@@ -24,7 +24,7 @@ game's files.
 
 Run **CPCBuild: Build** with the `cpc464` target. At the end of the **CPCBuild** output channel is
 the build report. The report is plain text (a graphical report with a memory bar was planned and is not
-built). For the finished game, whose size is 26,749 bytes (`DESIGN.md` section 12; the finished game's
+built). For the finished game, whose size is 26,749 bytes (the finished game's
 `build_cpc.sh` prints the same size), it reads:
 
 ```
@@ -59,7 +59,7 @@ and `bare limit` at `&B800`.)
 
 ### Where the bytes went
 
-`DESIGN.md` section 4 budgeted the 464 build like this (estimates, bytes):
+The 464 build was budgeted like this at the start (estimates, bytes):
 
 | Part | Estimate |
 |---|---|
@@ -87,8 +87,7 @@ grouped, with their addresses and, for variables, live values), **Registers** (t
 program is stopped; its toolbar has Pause, Resume, Step, Step Over, Step Out and **Show Memory**) and
 **Breakpoints** (a breakpoint is set on a symbol, with an offset). **CPCBuild: Show Memory** opens a
 read-only hex view of 512 bytes with the changed bytes marked. While a program is stopped the status bar
-says `CPC paused at PutSprite` (a symbol and offset); while it runs it says `CPC running`. These come from
-the Phase 8 "As built" notes in `docs/phase8-design.md`. A watch list and memory writes are not built yet.
+says `CPC paused at PutSprite` (a symbol and offset); while it runs it says `CPC running`. A watch list and memory writes are not built yet.
 
 ## Step 2: Think in frames
 
@@ -104,7 +103,7 @@ The firmware's own interrupts take about 12 % of that unless game mode turns the
 |---|---|
 | `PutSpriteMasked`, one 4 x 16 sprite | 5,283 |
 | `TileRestore` of its old rectangle, not aligned to a tile | about 9,600 |
-| one moved sprite, with the BASIC overhead (`DESIGN.md`) | about 26,000 |
+| one moved sprite, with the BASIC overhead | about 26,000 |
 | `DoTile8`, one tile (library) | 1,546 in mode 0 |
 | the music player, every frame | about 3,700 |
 | a call from BASIC, any call | 1,000 to 2,000 |
@@ -155,7 +154,7 @@ off. Add `NOPACE` to the target's defines. Now the steps run as fast as they can
 
 | Build (464, unpaced; frames for 250 steps) | Frames | Headroom |
 |---|---|---|
-| silent, at the end of the game's first milestone (`DESIGN.md` section 11) | 460 | about 8 % |
+| silent, at the end of the game's first milestone | 460 | about 8 % |
 | the finished game, silent (`NOPACE` and `NOSOUND`) | 406 | about 19 % |
 | the finished game, with music (`NOPACE`) | 431 | about 14 % |
 
@@ -241,12 +240,12 @@ different from the others: they do not speed up a step, they remove a pause. The
 1.7-second wait before the first room (`GameInit` counted the lamps by scanning the tower in BASIC) and a short
 pause when a lamp was lit. With the block copy (`LDIR`) and the one-pass scan, and the lamp total
 written into the data at build time, `GameInit` went from 89 to 9 frames, a room change from 25 to 9 frames
-and `LightLamp` from 7 to 0 (`DESIGN.md` section 15).
+and `LightLamp` from 7 to 0.
 
 The first milestone also needed two changes of design, which the build you measured already has, and which
 are not in assembly: enemies move every second step, half of them on each step (chapter 6's `eTick`; before,
 every enemy was visited every step, about **33,000 T-states**), and only a still player's overlap is
-redrawn (`DESIGN.md` section 11). Music costs the rest: from 406 to 431 frames.
+redrawn. Music costs the rest: from 406 to 431 frames.
 
 > **The lesson.** Measure first, then change one thing. Almost all of this game is plain BASIC; a few
 > hot spots (called many times a step) are in assembly, and the `LAMP_BASIC` switch lets you check the
@@ -264,10 +263,10 @@ cpcbuild repository, and you run them from a terminal there:
 make test-lamp        # logic checks and the whole-tower playthrough on every build, again with LAMP_BASIC on the 464 and 48K; screenshot goldens, two of them with LAMP_BASIC (88 tests in the latest run)
 make reach-lamp       # about a minute: every lamp reachable, the tower finishable, and enemy patrols clear of doors, exits and entries
 games/lamplighter/tests/bench.sh      # the benchmark, all builds, headless
-make test-lamp-plus   # the Plus builds on Caprice32 and CPCEC, about 3 minutes (84 tests in the latest run; DESIGN.md section 13)
+make test-lamp-plus   # the Plus builds on Caprice32 and CPCEC, about 3 minutes (84 tests in the latest run)
 ```
 
-(From `DESIGN.md`, sections 8 and 11 to 15, and `games/lamplighter/tests/run.py`. These need the repository's own tools and a built headless
+(The tests are in `games/lamplighter/tests/run.py`. These need the repository's own tools and a built headless
 emulator: `make chips`.) A **golden** is a saved screenshot of a known state; the test builds the game,
 runs it to that state and compares pictures pixel for pixel. That is how the sound switches were checked
 to change no pixel (chapter 8), and how the `LAMP_BASIC` build is checked to draw the same pictures as the

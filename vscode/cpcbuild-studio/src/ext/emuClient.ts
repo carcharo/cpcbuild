@@ -1,5 +1,5 @@
 /**
- * emuClient.ts -- Studio's side of the cpcbuild.emu.* contract (docs/phase8-design.md section 2).
+ * emuClient.ts -- Studio's side of the cpcbuild.emu.* contract.
  * Only vscode.commands.executeCommand; nothing of cpcbuild-emu is imported. Every method resolves:
  * a failure is `{ error }`, as in the contract.
  */

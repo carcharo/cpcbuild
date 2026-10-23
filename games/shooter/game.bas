@@ -1,13 +1,13 @@
 ' ----------------------------------------------------------------
 ' game.bas -- Starfall's game logic (portable: no platform code)
 '
-' See DESIGN.md. The logic works in logical units on a 128 x 160
+' The logic works in logical units on a 128 x 160
 ' playfield (sprites 8 x 8, bullets and bombs 1 x 4). All x positions
 ' handed to PlatSprite are even. It calls only the portable layer's
 ' PlatSprite and PlatSfx; the caller (main.bas) runs one GameStep per
 ' logic step, then GameDraw.
 '
-' Speed and size notes (docs/notes.md): the formation is three row bitmasks
+' Speed and size notes: the formation is three row bitmasks
 ' (bit c = a living enemy in column c) and an origin, so moving it costs
 ' the same whatever its size and a bullet is tested against the one column
 ' and rows it is over; bullets, bombs and explosions are small records of

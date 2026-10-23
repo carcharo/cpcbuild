@@ -2,7 +2,7 @@
 ' main.bas -- Lamplighter: title, game loop, game over (portable)
 '
 ' The game rules are in game.bas, everything platform-specific in
-' platform_cpc.bas (the portable layer of DESIGN.md).
+' platform_cpc.bas (the portable layer).
 '
 '   zxbc --arch cpc --org 0x40 -D CPC464 main.bas      (see build_cpc.sh)
 '
@@ -206,7 +206,7 @@ SUB RunGame()
   ShotSetup()
 #endif
 #ifdef BENCH
-  ' room 0 has two enemies; two more make the worst case of DESIGN.md (four):
+  ' room 0 has two enemies; two more make the worst case (four):
   ' a walker on the left of the floor and a bat over the middle
   nEn = 4
   eK(2) = 1

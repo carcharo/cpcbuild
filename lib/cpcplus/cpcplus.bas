@@ -365,10 +365,10 @@
 ' updates DCSR in RAM instead of the register when the ASIC page is out
 ' (it also writes the channel address registers there, &6C00-&6C0F: keep
 ' those 16 bytes free when testing on it), so there DmaActive() only reflects
-' DmaStart/DmaStop. Facts and sources: docs/notes.md, Phase 7 P3.
+' DmaStart/DmaStop.
 '
 ' Both modes (firmware, -D CPC_BAREMETAL). Written from scratch for this
-' project (MIT). Facts and sources: docs/notes.md, Phase 7 P2 and P3.
+' project (MIT).
 ' ----------------------------------------------------------------
 
 #ifndef __LIBRARY_CPCPLUS__

@@ -5,7 +5,7 @@
  *
  * The webview holds the recipe it is sent and edits it by operations (`RecipeOp`); it never
  * quantises or encodes pixels: the host's converter answers `preview` with pen indices and the
- * palette (docs/phase8-design.md section 3).
+ * palette.
  */
 import type { Preview, Recipe, RecipeOp } from '../core/cpcimp';
 import type { BaseRequests, HostToWeb, ViewBase, WebToHost } from './protocol';

@@ -280,8 +280,7 @@ A few lines worth a second look:
 - `sprites(CAST(UINTEGER, sNF(s)) << 7)`: frame number times 128, as a 16-bit number (a `UBYTE` would
   overflow at frame 2). `@sprites(...)` is the *address* of that element.
 - `sNX(s) >> 1`: the game keeps x in **pixels** (0 to 159), the library wants **bytes**, 2 pixels each.
-  That also means the player always moves in whole bytes, so the sprite never needs pre-shifting
-  (`DESIGN.md`, section 3).
+  That also means the player always moves in whole bytes, so the sprite never needs pre-shifting.
 - `255` as a frame number means "no sprite in this slot", both for "to be drawn" and "drawn now".
 - `GameMode(1)` and `Frames()` are explained below.
 
@@ -388,8 +387,8 @@ is **5,283 T-states** (a frame is 80,000), so drawing is cheap; the BASIC call a
 roughly another 700.
 
 **`TileRestore`** does the erasing, taking bytes and lines like a sprite does. A sprite that is not
-aligned to a tile covers up to 2 x 3 = 6 cells, which costs about 9,600 T-states
-(`DESIGN.md`, "As built"); together with the draw, one moved sprite costs about 26,000 T-states
+aligned to a tile covers up to 2 x 3 = 6 cells, which costs about 9,600 T-states;
+together with the draw, one moved sprite costs about 26,000 T-states
 including the BASIC overhead. That number matters in chapter 9.
 
 **`Frames()` and `GameMode(1)`.** The CPC's firmware runs an interrupt handler that eats about
@@ -406,7 +405,7 @@ wait of PlatFrameEnd, so the flicker is confined to the top of the beam's way"
 (`platform_cpc.bas:16-19`). A sprite near the top of the screen can still flicker if the beam is
 already there; that is the price of single buffering.
 
-**The order of drawing.** `DESIGN.md` section 3 sketched sorting the objects by y and drawing them top to
+**The order of drawing.** The design sketched sorting the objects by y and drawing them top to
 bottom, so each sprite is finished before the beam reaches it. The game as built does *not* sort. Look at
 the real `PlatFlush` (`platform_cpc.bas:180-224`): it goes through the slots in slot order, 0 to 4 (the
 player first, then the enemies), *twice*: first it erases every slot that is dirty (`TileRestore`), then it

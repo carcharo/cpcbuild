@@ -18,8 +18,6 @@ A single-screen shooter (Phase 5c demo) in one Boriel BASIC codebase for four pl
 
 **Sound effects:** Shoot, enemy explodes, player hit, wave cleared.
 
-See [DESIGN.md](DESIGN.md) for the full rules, coordinate system, asset pipeline and test suite.
-
 ## The four builds
 
 | Platform | Build | Command | Output | Music | Double-buffered | Starts at |
@@ -121,5 +119,3 @@ waves); at most one effect per step, interrupts off while it plays.
 `build_cpc.sh` and `build_zx.sh` compile the shared game logic (`game.bas`, `main.bas`) with per-platform `platform_cpc.bas` and `platform_zx.bas`, then pack assets and binaries into disc images or .tap files.
 
 **Build switches:** `-D DEMO` (attract mode, fixed seed), `-D SHOT=n` (screenshot after n logic steps, then end), `-D BENCH` (n steps, then print frame rate), `-D NODISC` (skip the disc load on Caprice32 — for chips, which has no disc), `-D BENCH_ERR` (with BENCH: report the frame count as "Error n", n = frames - 400, instead of PRINT; for bare 6128 benchmarks, where the text code would not fit below &4000). `BARE=1 tests/bench.sh chips` benches the bare builds. A bare program carries a little more than a firmware one (the boot and interrupt handler; Starfall never PRINTs, so it carries no font): see `build_cpc.sh`'s size report.
-
-See [DESIGN.md](DESIGN.md) for the portable layer, asset pipeline and Arkos Tracker integration.

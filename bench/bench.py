@@ -25,7 +25,7 @@ See README.md for the full method. In short:
     spread are reported.
 
 Run: python3 bench.py   (from anywhere; paths below are relative to
-this file). Requires the environment set up per cpcbuild/CLAUDE.md:
+this file). Requires this environment:
     export PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:$HOME/.local/bin:$PATH
 Generated files (bench/_work, bench/micro) are not committed.
 """

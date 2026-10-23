@@ -77,7 +77,7 @@ test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conform
 
 # plus_core and plus_dma expect Caprice32's DMA status behaviour (active bits only
 # from DmaStart/DmaStop); CPCEC, like the ASIC, clears a channel's bit when its list reaches STOP
-# and shows DCSR bit 7 (see docs/notes.md, Phase 7 P3), so they are left out of the CPCEC runs
+# and shows DCSR bit 7, so they are left out of the CPCEC runs
 CPCEC_SKIP :=
 CPCEC_TESTS := $(filter-out $(addprefix tests/conformance/,$(addsuffix .bas,$(CPCEC_SKIP))),$(wildcard tests/conformance/*.bas))
 

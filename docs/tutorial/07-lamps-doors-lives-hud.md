@@ -540,8 +540,7 @@ do not appear, check `DoTile8(17 + i, 23, 9)` is in `PlatHud` and that tile 9 is
 **Is the tower finishable?** The finished game's test suite proves it by search: a Python port of the
 movement rules walks the whole tower in the intended order (9 10 11 8 7 6 3 4 5 2 1 0) and finds
 every lamp reachable and every door usable, in 1,085 steps, without losing a life; the recorded
-sequence is then played on the real `game.bas` and wins (`tests/reach.py`, `make reach-lamp`;
-`DESIGN.md` section 12). You do not need to run it, but it is why you can trust the map.
+sequence is then played on the real `game.bas` and wins (`tests/reach.py`, `make reach-lamp`). You do not need to run it, but it is why you can trust the map.
 
 ## How it works
 
@@ -574,4 +573,4 @@ the call. The HUD draws only what changed so a step in which nothing changes cos
 
 A silent but complete game: title, 12 rooms, 28 lamps, enemies, lives, win and game over. Your
 build is about 22 KB (22,227 bytes when this chapter's code was checked; the finished game built with
-`-D NOSOUND` is 22,335, and `DESIGN.md` recorded 22,404 at the same stage). Next: [Chapter 8, Sound and music](08-sound-and-music.md).
+`-D NOSOUND` is 22,335). Next: [Chapter 8, Sound and music](08-sound-and-music.md).

@@ -4,7 +4,7 @@
 # (fpsmeter.patch). Copies the pinned, patched checkout made by
 # ../fetch_build.sh to work/wasm/src, applies the meter, and builds
 # work/wasm/out/index.html (+ .js, .wasm, .data) with the ROMs and one media
-# file preloaded. GPLv3 like CPCEC; see docs/notes.md (R8).
+# file preloaded. GPLv3 like CPCEC.
 #
 #   EMSDK=/path/to/emsdk sh tools/cpcec/wasm/build.sh FILE.cpr|FILE.dsk
 #   cd tools/cpcec/work/wasm/out && python3 -m http.server 8765

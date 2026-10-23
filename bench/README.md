@@ -17,8 +17,7 @@ python3 bench.py
 Prints progress to stderr and a Markdown results table to stdout. Takes
 several minutes (the Locomotive side is a real 4MHz interpreter running six
 programs three times each). Requires the sibling `zxbasic` (branch
-`cpc-arch`, via `poetry`) and `caprice32/cap32` checkouts described in
-cpcbuild/CLAUDE.md and PLAN-boriel-cpc.md. `bench/_work/` holds compiled
+`cpc-arch`, via `poetry`) and `caprice32/cap32` checkouts. `bench/_work/` holds compiled
 binaries, `.dsk` images and raw printer captures from the last run.
 
 ## Layout
@@ -304,7 +303,7 @@ reported here precisely instead.
 
 ## Caveats
 
-- **Interrupts** (superseded by cpc-port-notes.md §15: interrupts always on since Phase 4d; about 12 % of the CPU goes to the firmware's interrupt handler). Compiled Boriel programs now run with interrupts enabled, like Locomotive BASIC.
+- **Interrupts** (superseded: interrupts always on since Phase 4d; about 12 % of the CPU goes to the firmware's interrupt handler). Compiled Boriel programs now run with interrupts enabled, like Locomotive BASIC.
   The timing advantage Boriel had from running with interrupts disabled (saving the 300Hz handler's overhead when not calling
   firmware) is gone. What remains: compiled code executes straight-line code faster than the interpreter, and plays music
   or real-time graphics without the firmware's I/O pacing. Both languages now pay the same interrupt tax.

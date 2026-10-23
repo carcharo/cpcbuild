@@ -151,8 +151,7 @@ draw everything in the Studio's editors; each chapter says how.
 ### What Studio does not do for this game
 
 Studio runs the build, the editors, the importer, the map viewer and the emulator. The finished game
-still uses a few things that Studio does not do; `games/lamplighter/DESIGN.md` section 14 lists them, and
-the tutorial says so in the chapter where each one comes up:
+still uses a few things that Studio does not do; the tutorial says so in the chapter where each one comes up:
 
 - **Drawing the art.** `assets/make_art.py` draws the PNGs, `lamp.cpcpal` and `tower.tmx`;
   `assets/make_plus_art.py` draws the Plus PNGs and writes `plus/pl_pens.bas` (a 12-bit pen table that has

@@ -11,7 +11,7 @@ for the Spectrum 128K's 1.7734 MHz AY: sound effects store AY periods, so
 the sweeps are rescaled).
 
 Both songs leave AY channel A empty (melody on B, bass on C), where the
-effects play. Importer quirks (docs/notes.md, 2026-10-03): all 31
+effects play. Importer quirks: all 31
 [SampleN] sections must exist; a pattern may use samples 1-9 only;
 identical samples are merged (hence the small differences); an effect has
 the pitch of the note it is first played at in the sfx module.

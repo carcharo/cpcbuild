@@ -3,7 +3,7 @@
 ;
 ; Written from scratch for this project (MIT), from public documentation
 ; of the Gate Array's RAM configuration (cpcwiki.eu) and checked against
-; the 6128 firmware ROM (see notes.md, 2026-10-03, Phase 5c D4).
+; the 6128 firmware ROM.
 ;
 ; Hardware. A write to the Gate Array (port &7Fxx) with bits 7-6 = 11 sets
 ; the RAM configuration (&C0 + n):

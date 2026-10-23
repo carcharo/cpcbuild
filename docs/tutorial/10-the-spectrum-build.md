@@ -153,7 +153,7 @@ library's own attribute handling would recolour the empty half of each image, so
 gives the images no attribute and sets the 8 x 16 cells' colours itself (cyan for the player, magenta
 for the ghosts), restoring them from the room's map when the sprite moves on. That is why `PlatSprite`
 and `PlatFlush` are assembly: "the BASIC version was 1.6 frames a step (22 steps/s on 48K); the
-assembly one costs less than a frame" (`DESIGN.md`, section 12).
+assembly one costs less than a frame".
 
 ## Step 4: Set up the Spectrum targets
 
@@ -171,7 +171,7 @@ Change the template's two Spectrum targets to these (`zx128` had `org` 31744 and
 256). Three things changed from the template:
 
 - **`org` 32768** on both: the image has to end below `&F000`, where the sprite library keeps its data
-  (`#define ZXSPR_BASE 0xF000` in the layer). The finished game's images are, from `DESIGN.md`, section 12: 48K
+  (`#define ZXSPR_BASE 0xF000` in the layer). The finished game's images are: 48K
   32768 to 52666 (8,774 bytes below `&F000`), 128K 32768 to 57376 (4,064 bytes below). `build_zx.sh` checks
   that and stops with a message if you go over. Studio does not check this limit: for a `tap` target its
   "report" is a single line (`zx48.tap: 19992 bytes, origin 32768`), and the number includes the tape's
@@ -195,7 +195,7 @@ tape in a Spectrum emulator of your own, or on a real machine, with `LOAD ""`. 4
 You should see: the title (with `O P Q A OR KEMPSTON` under it), then the game: the same rooms, in
 Spectrum colours: red bricks, white ledges, a cyan player, magenta ghosts. The picture is the same on
 48K and 128K; the 128K has music and AY effects, the 48K has beeper blips and no music.
-<!-- CHECK (for the user's test session): load build/zx48.tap and build/zx128.tap in a Spectrum emulator and compare with the description above. Nothing here was run on a Spectrum emulator by the tutorial's author; the finished game's own tests ran the headless Spectrum builds (66 logic checks, the playthrough, and 17 + 4 screenshot goldens on both models, DESIGN.md section 12), but the .tap files themselves were not loaded by any test. -->
+<!-- CHECK (for the user's test session): load build/zx48.tap and build/zx128.tap in a Spectrum emulator and compare with the description above. Nothing here was run on a Spectrum emulator by the tutorial's author; the finished game's own tests ran the headless Spectrum builds (66 logic checks, the playthrough, and 17 + 4 screenshot goldens on both models), but the .tap files themselves were not loaded by any test. -->
 
 The sprites flicker a little where the beam catches one: the Spectrum builds are single-buffered too.
 
@@ -207,14 +207,14 @@ integers, `UBYTE` and `BYTE`, no floating point, no hardware names. `main.bas` o
 file with about a dozen calls. The Plus layer in chapter 11 is another.
 
 **Speed.** On the Spectrum the game holds **25.0 steps a second** on both models in the benchmark (chapter 9's
-bench: 250 steps; `DESIGN.md`, section 12). The unpaced figures (frames for 250 steps, 500 is the budget) are **283 on the
+bench: 250 steps). The unpaced figures (frames for 250 steps, 500 is the budget) are **283 on the
 48K and 295 on the 128K**: (the 464 build with music measured 431 in chapter 9; the library's notes say the 128K's
 music player costs about 0.2 frame a step). To run the bench for the
 Spectrum you need the repository's headless runner: `games/lamplighter/tests/bench.sh` does it for both models.
 
 **Sound.** `lib/music` works on the 128K exactly as on the CPC (the library says: "the same `music.bas` works on
 `--arch zx48k`... on the 128K the player runs on the IM2 frame hook") and stubs out on the 48K, where the layer
-plays the same four effects on the beeper instead, at most one a step (`sfx_zx.bas`, `DESIGN.md` section 12).
+plays the same four effects on the beeper instead, at most one a step (`sfx_zx.bas`).
 
 ## Try this
 

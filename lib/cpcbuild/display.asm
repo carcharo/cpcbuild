@@ -3,7 +3,7 @@
 ;
 ; Written from scratch for this project (MIT); see core.asm.
 ;
-; Double buffering (notes.md, Q-4c.1, opt-in): the CRTC can only show a
+; Double buffering (opt-in): the CRTC can only show a
 ; screen at &0000/&4000/&8000/&C000, so the back screen is &4000-&7FFF.
 ; Programs that call EnableDoubleBuffer (cpcbuild/display.bas) get the
 ; label __CPC_RESERVE_4000 (defined in reserve.bas's CbReserve4000, which

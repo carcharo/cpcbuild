@@ -1,6 +1,6 @@
 /**
  * protocol.ts -- every host <-> webview message of the Studio editors, in one file so both sides
- * type-check against it (docs/phase8-design.md section 3).
+ * type-check against it.
  *
  * Shape: `{ type, ... }`. A webview asks with `{ type: 'request', id, name, args }` and the host
  * answers with `{ type: 'response', id, ok, result | error }`. The host pushes `init` (once,

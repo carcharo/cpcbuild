@@ -21,3 +21,6 @@ vscode/cpcbuild-emu/wasm/
 vscode/cpcbuild-emu/test/.media/
 vscode/*/bundled/
 .worktrees/
+
+# The master is in ../cpcbuild-dev (private); this is a local link to it
+CLAUDE.md

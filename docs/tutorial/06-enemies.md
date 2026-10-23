@@ -88,7 +88,7 @@ DIM eR(3) AS UBYTE
 ```
 
 (`game.bas:77-86`.) Note the separate `DIM` lines: `DIM a(3), b(3) AS UBYTE` does not parse in the
-compiler this game was written against (`DESIGN.md`, "As built").
+compiler this game was written against.
 
 `eX0`, `eY0`, `eR` are where an enemy starts, in pixels, and its range in pixels; `eX`, `eY` where it
 is; `eD` its direction (1 = right or down); `eM` is 1 when it moved since `GameDraw` last handed it to
@@ -471,10 +471,10 @@ vanishes when an enemy walks past, the overlap test is missing.
 **Why parallel arrays, and why bytes.** The library's **Performance tips** ("Array indexing") say an
 array access with a variable index costs a few hundred T-states, and that pointer-based records are
 faster; the game keeps simple arrays because there are few enemies and a step visits only two of
-them. (`DESIGN.md` records "an array access ~350 T".) The finished game keeps everything `UBYTE`.
+them. The finished game keeps everything `UBYTE`.
 
 **Half the enemies each step.** Before this change the finished game visited every enemy every step,
-about 33,000 T-states; with `eTick` it visits half (`DESIGN.md`, "As built", section 12).
+about 33,000 T-states; with `eTick` it visits half.
 Drawing is the other cost: one moved sprite is about 26,000 T-states (chapter 4), so
 five moved sprites would need about 130,000 of the 160,000 T-states that two frames hold. Moving
 only half the enemies, and only redrawing what moved, is what keeps the 464 at 25 steps a second.

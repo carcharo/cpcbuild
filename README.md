@@ -79,7 +79,7 @@ Build switches: `-D BALLS=n` (1–8, default 8), `-D NOMUSIC` (effects only), `-
 ## Repository layout
 
 ```
-docs/                     # Documentation, library reference, notes and decisions
+docs/                     # Documentation: library reference, tutorial, art guide
 examples/                 # Demo programs (bounce.bas)
 examples/assets/          # PNG and TMX sources for bounce.bas (built by make assets)
 tests/                    # Test suite
@@ -95,16 +95,14 @@ tools/                    # Asset pipeline and emulator runners
   cpcrun.py               # Compile and run a test headlessly (Caprice32, or chips with --emu chips)
   chipsrun/               # Headless chips emulator runner (CI)
 Makefile                  # Build targets (run, shot, test, bench, ci, etc.)
-PLAN-boriel-cpc.md        # Implementation plan and architecture
 ```
 
 ## Documentation
 
 - **[Library reference](docs/library.md)** — API for sprites, tiles, keyboard, palette, sound, and [CPC Plus hardware](docs/library.md#10-cpc-plus-cpcplus)
 - **[CPC target (zxbasic fork)](https://github.com/carcharo/zxbasic/blob/cpc-arch/docs/architectures/amstrad_cpc.md)** — memory map, screen modes, firmware gate, PRINT, floats
-- **[PLAN-boriel-cpc.md](PLAN-boriel-cpc.md)** — design overview, standing decisions, CPC hardware facts
-- **[docs/notes.md](docs/notes.md)** — phase milestones and decisions log
-- **[docs/cpc-port-notes.md](docs/cpc-port-notes.md)** — implementation details per phase
+- **[Tutorial](docs/tutorial/README.md)** — build a complete game (Lamplighter) step by step
+- **[Art guide](docs/art-guide.md)** — drawing sprites and tiles and getting them into a project
 
 ## Emulator roles
 
@@ -126,4 +124,4 @@ The chips emulator used in CI is licensed under the zlib/libpng licence (see `to
 
 ---
 
-**Getting started:** Read [PLAN-boriel-cpc.md](PLAN-boriel-cpc.md) for the design and [docs/library.md](docs/library.md) for the API. Build and run the bounce demo with `make run PROG=examples/bounce.bas`, then explore `examples/` or write your own.
+**Getting started:** Follow the [tutorial](docs/tutorial/README.md) and keep [docs/library.md](docs/library.md) open for the API. Build and run the bounce demo with `make run PROG=examples/bounce.bas`, then explore `examples/` or write your own.

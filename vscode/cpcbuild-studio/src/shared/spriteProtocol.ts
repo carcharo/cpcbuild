@@ -1,6 +1,5 @@
 /**
- * spriteProtocol.ts -- the host <-> webview messages of the sprite and tile editor (docs/phase8-design.md
- * section 3). Generic parts (init, view, request, response) are in protocol.ts; this file adds this
+ * spriteProtocol.ts -- the host <-> webview messages of the sprite and tile editor. Generic parts (init, view, request, response) are in protocol.ts; this file adds this
  * editor's view and requests. The view carries row strings (as in the file) and the host's findings; the
  * webview sends semantic operations (src/core/spriteDoc.ts SpriteOp) and never encodes CPC bytes.
  */

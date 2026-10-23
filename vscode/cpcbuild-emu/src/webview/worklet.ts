@@ -1,5 +1,5 @@
 // AudioWorklet processor: plays the 16-bit stereo frames the page pushes, reports how many sample pairs it
-// has consumed so the page can pace the emulator by the audio clock (docs/phase8-design.md section 4).
+// has consumed so the page can pace the emulator by the audio clock.
 declare const registerProcessor: (name: string, ctor: unknown) => void;
 declare class AudioWorkletProcessor {
   readonly port: MessagePort;

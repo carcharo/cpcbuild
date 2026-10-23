@@ -5,8 +5,7 @@
 ; Written from scratch for this project (MIT), from the public
 ; documentation of the ASIC (cpcwiki.eu, "Arnold V Specs Revised") and
 ; checked against the emulators' source: Caprice32 (asic.cpp, cap32.cpp
-; z80_OUT_handler, crtc.cpp) and CPCEC (cpcec.c). Facts and sources:
-; notes.md, Phase 7 P2.
+; z80_OUT_handler, crtc.cpp) and CPCEC (cpcec.c).
 ;
 ; Unlock. The ASIC ignores everything new until a 17-byte sequence has
 ; been written to the CRTC register-select port (&BCxx):

@@ -3,8 +3,8 @@ REM INK/PAPER/INVERSE/OVER, Mode, POINT).
 REM
 REM Pixels are read back with POINT (cpc stdlib point.bas, the
 REM firmware's GRA_TEST_ABSOLUTE), which returns the pixel's pen.
-REM Coordinates are mode pixels, origin bottom-left (notes.md,
-REM 2026-10-01). Spectrum colours map to pens per mode (colour.asm):
+REM Coordinates are mode pixels, origin bottom-left.
+REM Spectrum colours map to pens per mode (colour.asm):
 REM mode 1: black/blue -> 0, red/magenta -> 3, green/cyan -> 2,
 REM yellow/white -> 1. Default INK 7 PAPER 0 -> pen 1 on pen 0.
 

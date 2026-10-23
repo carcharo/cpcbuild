@@ -10,8 +10,7 @@ bare-metal program binary (zxbc --arch cpc -D CPC_BAREMETAL -D CPC_OWNFONT).
 defaults to --load. The program must lie within RAM below &C000.
 
 Formats (checked against Caprice32's cartridge.cpp / cap32.cpp / asic.cpp
-and the cpcwiki CPR / ASIC pages as remembered through the sources noted
-in docs/notes.md):
+and the cpcwiki CPR / ASIC pages as remembered):
   * .cpr is RIFF: "RIFF", u32 LE (file size - 8), "AMS!", then chunks "cbNN"
     (NN = 00..31 as two ASCII digits), each: 4-byte id, u32 LE size, data
     (an odd size is followed by a pad byte; ours are always 16384 bytes, the

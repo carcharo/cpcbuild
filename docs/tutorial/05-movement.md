@@ -504,7 +504,7 @@ learning are in the code:
   costs a few hundred T-states (**Performance tips**, "Array indexing"). Fine here.
 - **Fixed arcs.** The jump is not physics: it is a table, and so it is the same every time. That
   makes the game deterministic, and it is what allowed the finished game to prove every lamp
-  reachable by exhaustive search (`tests/reach.py`, `DESIGN.md` section 12).
+  reachable by exhaustive search (`tests/reach.py`).
 
 ## Try this
 

@@ -7,7 +7,7 @@
 # OUTDIR defaults to games/lamplighter/build (git-ignored). Writes lamp464.bin
 # and lamp6128.bin (load at &0040: run with LOAD"..",&40 : CALL &40, or from
 # the Studio) and a .map for each, and prints where each build ends against
-# the 464 budget (DESIGN.md section 4): the program must end below the heap at
+# the 464 budget: the program must end below the heap at
 # &8B60.
 # Needs poetry (the compiler fork's environment) in the PATH.
 set -e
