@@ -11,7 +11,7 @@
  * the loaded document gives the loaded text again.
  */
 import { parsePalList, parseRgb12List } from './palette';
-import { MAXPENS, PPB, packBlock, type Mode } from './pixels';
+import { MAXPENS, PPB, packBlock, tileWidthError, type Mode } from './pixels';
 import { floodRegion } from './shapes';
 
 export type DocType = 'spr' | 'til';
@@ -36,7 +36,7 @@ export interface SpriteState {
   /** CPC mode; unused (0) for plus. */
   mode: Mode;
   name: string;
-  /** Item (frame or tile) size in pixels. Tiles are 8x8, plus sprites 16x16. */
+  /** Item (frame or tile) size in pixels. Tiles are 8 lines tall and tileWidth wide (8 unless the file says), plus sprites 16x16. */
   w: number;
   h: number;
   masked: boolean;
@@ -187,6 +187,10 @@ export function parseSprite(text: string, type: DocType, stem = 'sprite'): Sprit
   }
   let w = TILE_SIZE, h = TILE_SIZE;
   if (kind === 'plus') w = h = PLUS_SIZE;
+  else if (type === 'til' && j.tileWidth !== undefined) {
+    if (!intIn(j.tileWidth, 1, MAX_ITEM_SIDE)) throw new Error('"tileWidth" must be a number of pixels (a whole number)');
+    w = j.tileWidth as number; // whether the mode allows it is a problem of the tile set (analyse), so the picker can fix it
+  }
   else if (type === 'spr') {
     const f = j.frame as Record<string, unknown> | undefined;
     if (!f || typeof f !== 'object' || !intIn(f.w, 1, MAX_ITEM_SIDE) || !intIn(f.h, 1, MAX_ITEM_SIDE)) throw new Error(`"frame" must be {"w": n, "h": n} with sizes 1-${MAX_ITEM_SIDE}`);
@@ -201,7 +205,7 @@ export function parseSprite(text: string, type: DocType, stem = 'sprite'): Sprit
   const name = typeof j.name === 'string' && j.name ? j.name : nameFromStem(stem);
   const plus = (j.plus ?? {}) as Record<string, unknown>;
   const fmt = plus.format === 'asm' || plus.format === 'bin' ? (plus.format as PlusFormat) : 'bas';
-  const known = new Set(['format', 'version', 'kind', 'mode', 'name', 'frame', 'masked', 'palette', 'frames', 'tiles', 'output', 'emitPalette', 'dedupe', 'plus']);
+  const known = new Set(['format', 'version', 'kind', 'mode', 'name', 'frame', 'tileWidth', 'masked', 'palette', 'frames', 'tiles', 'output', 'emitPalette', 'dedupe', 'plus']);
   const extras: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(j)) if (!known.has(k)) extras[k] = v;
   const s: SpriteState = {
@@ -231,6 +235,8 @@ export interface NewOptions {
   masked?: boolean;
   w?: number;
   h?: number;
+  /** Tiles: width in pixels (default 8). */
+  tileWidth?: number;
   frames?: number;
   palette?: PaletteSpec;
 }
@@ -240,7 +246,7 @@ export function newSprite(type: DocType, o: NewOptions = {}): SpriteState {
   const kind: Kind = type === 'til' ? 'cpc' : o.kind ?? 'cpc';
   const mode: Mode = kind === 'plus' ? 0 : o.mode ?? (type === 'til' ? 0 : 1);
   const name = o.name ?? (type === 'til' ? 'tiles' : 'sprite');
-  const w = kind === 'plus' ? PLUS_SIZE : type === 'til' ? TILE_SIZE : o.w ?? 16;
+  const w = kind === 'plus' ? PLUS_SIZE : type === 'til' ? o.tileWidth ?? TILE_SIZE : o.w ?? 16;
   const h = kind === 'plus' ? PLUS_SIZE : type === 'til' ? TILE_SIZE : o.h ?? 16;
   const masked = type === 'spr' && kind === 'cpc' && (o.masked ?? true);
   const s: SpriteState = {
@@ -275,6 +281,7 @@ function formatSprite(s: SpriteState): string {
   if (s.type === 'spr') kv('kind', s.kind);
   if (!plus) kv('mode', s.mode);
   kv('name', s.name);
+  if (s.type === 'til' && s.w !== TILE_SIZE) kv('tileWidth', s.w);
   if (s.type === 'spr' && !plus) kv('frame', { w: s.w, h: s.h });
   if (s.type === 'spr' && !plus) kv('masked', s.masked);
   kv('palette', s.palette);
@@ -323,6 +330,8 @@ export type SpriteOp =
   | { op: 'setMode'; mode: Mode; force?: boolean }
   | { op: 'setMasked'; value: boolean }
   | { op: 'setSize'; w: number; h: number; crop?: boolean }
+  /** Tiles: the tile width in pixels (1, 2 or 4 bytes); a narrower tile drops the columns on the right. */
+  | { op: 'setTileWidth'; w: number; crop?: boolean }
   | { op: 'setPens'; pens: number[] }
   | { op: 'setColours'; colours: string[] }
   | { op: 'setPaletteFile'; file: string; emitPalette?: boolean }
@@ -576,6 +585,10 @@ export function applySpriteOp(s: SpriteState, op: SpriteOp): SpriteApplyResult {
       if (s.kind === 'plus') return bad('a Plus sprite has no mode');
       if (!intIn(op.mode, 0, 2)) return bad('mode must be 0, 1 or 2');
       if (op.mode === s.mode) return UNCHANGED;
+      if (s.type === 'til') {
+        const e = tileWidthError(s.w, op.mode);
+        if (e) return bad(`${e}; change the tile width first`);
+      }
       const count = MAXPENS[op.mode];
       const lostPixels = usedBeyond(s, count);
       const lostPens = 'pens' in s.palette ? Math.max(0, s.palette.pens.length - count) : 0;
@@ -597,7 +610,7 @@ export function applySpriteOp(s: SpriteState, op: SpriteOp): SpriteApplyResult {
       return ok({ ...s, masked: op.value }, op.value ? 'Make masked' : 'Make unmasked');
     }
     case 'setSize': {
-      if (s.type !== 'spr' || s.kind !== 'cpc') return bad(`${s.type === 'til' ? 'tiles are 8x8' : 'Plus sprites are 16x16'}`);
+      if (s.type !== 'spr' || s.kind !== 'cpc') return bad(`${s.type === 'til' ? 'tiles are 8 lines tall; change the tile width' : 'Plus sprites are 16x16'}`);
       if (!intIn(op.w, 1, MAX_ITEM_SIDE) || !intIn(op.h, 1, MAX_ITEM_SIDE)) return bad(`size must be 1-${MAX_ITEM_SIDE}`);
       const ppb = PPB[s.mode];
       if (op.w % ppb) return bad(`frame width ${op.w} is not a multiple of ${ppb} (mode ${s.mode})`);
@@ -607,6 +620,17 @@ export function applySpriteOp(s: SpriteState, op: SpriteOp): SpriteApplyResult {
         if (dropped) return bad(`crop: ${dropped} drawn pixel${dropped === 1 ? '' : 's'} would be cropped`);
       }
       return ok({ ...s, w: op.w, h: op.h, items: s.items.map((g) => resizeGrid(g, op.w, op.h, bg)) }, 'Change frame size');
+    }
+    case 'setTileWidth': {
+      if (s.type !== 'til') return bad('only tile sets have a tile width');
+      const e = tileWidthError(op.w, s.mode);
+      if (e) return bad(e);
+      if (op.w === s.w) return UNCHANGED;
+      if (op.w < s.w && !op.crop) {
+        const dropped = s.items.reduce((n, g) => n + g.reduce((m, r) => m + r.reduce((k, v, x) => k + (x >= op.w && v !== bg ? 1 : 0), 0), 0), 0);
+        if (dropped) return bad(`crop: ${dropped} drawn pixel${dropped === 1 ? '' : 's'} would be cropped`);
+      }
+      return ok({ ...s, w: op.w, items: s.items.map((g) => resizeGrid(g, op.w, s.h, bg)) }, 'Change tile width');
     }
     case 'setPens': {
       if (s.kind !== 'cpc') return bad('this document has no firmware pens');
@@ -718,7 +742,10 @@ export function analyse(s: SpriteState, resolved: ResolvedPalette = resolvePalet
   const ppb = ppbOf(s);
   const noun = itemNoun(s);
   if (resolved.problem) problems.push(resolved.problem);
-  if (!plus && s.w % ppb) problems.push(`frame width ${s.w} is not a multiple of ${ppb} (mode ${s.mode})`);
+  if (s.type === 'til') {
+    const e = tileWidthError(s.w, s.mode);
+    if (e) problems.push(e);
+  } else if (!plus && s.w % ppb) problems.push(`frame width ${s.w} is not a multiple of ${ppb} (mode ${s.mode})`);
   if (!s.items.length) problems.push(`no ${noun}s to emit`);
   if (s.type === 'til' && s.items.length > MAX_TILES) problems.push(`${s.items.length} tiles; tile numbers go up to 255`);
   if (plus) {
@@ -750,7 +777,7 @@ export function analyse(s: SpriteState, resolved: ResolvedPalette = resolvePalet
   if (s.type === 'til' && !problems.length) {
     const seen = new Map<string, number>();
     s.items.forEach((g, i) => {
-      const key = packBlock(g.map((r) => r.map((v) => (v < 0 ? null : v))), 0, 0, 8, 8, s.mode, false).join(',');
+      const key = packBlock(g.map((r) => r.map((v) => (v < 0 ? null : v))), 0, 0, s.w, 8, s.mode, false).join(',');
       const first = seen.get(key);
       if (first === undefined) seen.set(key, i);
       else duplicates.push([i, first]);

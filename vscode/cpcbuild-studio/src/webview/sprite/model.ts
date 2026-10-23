@@ -65,11 +65,11 @@ export function blit(dst: Uint8ClampedArray, dw: number, src: Uint8ClampedArray,
   for (let y = 0; y < sh; y++) dst.set(src.subarray(y * sw * 4, (y + 1) * sw * 4), ((oy + y) * dw + ox) * 4);
 }
 
-/** The 8x8 edit view: the tile in the middle with its eight sheet neighbours dimmed (UX 3.3). Returns 24x24 RGBA. */
-export function neighbourView(items: Grid[], index: number, cols: number, v: SpriteView): { rgba: Uint8ClampedArray; size: number; neighbours: (number | null)[] } {
-  const n = v.w;
-  const size = n * 3;
-  const rgba = new Uint8ClampedArray(size * size * 4);
+/** The tile edit view (w x 8): the tile in the middle with its eight sheet neighbours dimmed (UX 3.3). Returns 3w x 24 RGBA. */
+export function neighbourView(items: Grid[], index: number, cols: number, v: SpriteView): { rgba: Uint8ClampedArray; width: number; height: number; neighbours: (number | null)[] } {
+  const n = v.w, m = v.h;
+  const width = n * 3, height = m * 3;
+  const rgba = new Uint8ClampedArray(width * height * 4);
   const neighbours: (number | null)[] = [];
   const col = index % cols;
   for (let dy = -1; dy <= 1; dy++)
@@ -80,25 +80,25 @@ export function neighbourView(items: Grid[], index: number, cols: number, v: Spr
       if (dx || dy) neighbours.push(ok ? i : null);
       if (!ok) continue;
       const own = dx === 0 && dy === 0;
-      blit(rgba, size, renderRgba(items[i], v, own ? 255 : 110), n, n, (dx + 1) * n, (dy + 1) * n);
+      blit(rgba, width, renderRgba(items[i], v, own ? 255 : 110), n, m, (dx + 1) * n, (dy + 1) * m);
     }
-  return { rgba, size, neighbours };
+  return { rgba, width, height, neighbours };
 }
 
-/** Tile `t` of the 16x16 view: tiles 4t..4t+3 as top-left, top-right, bottom-left, bottom-right (library.md 7.5). */
+/** Tile `t` of the 2x2 view: tiles 4t..4t+3 as top-left, top-right, bottom-left, bottom-right (library.md 7.5). */
 export function tile16(items: Grid[], t: number, v: SpriteView): Uint8ClampedArray {
-  const n = v.w;
-  const rgba = new Uint8ClampedArray(4 * n * n * 4);
+  const n = v.w, m = v.h;
+  const rgba = new Uint8ClampedArray(4 * n * m * 4);
   for (let k = 0; k < 4; k++) {
     const g = items[4 * t + k];
-    if (g) blit(rgba, 2 * n, renderRgba(g, v), n, n, (k & 1) * n, (k >> 1) * n);
+    if (g) blit(rgba, 2 * n, renderRgba(g, v), n, m, (k & 1) * n, (k >> 1) * m);
   }
   return rgba;
 }
 
-/** Which tile (index) and local pixel a point of the 16x16 view belongs to. */
-export function tile16Target(t: number, x: number, y: number, n = 8): { item: number; x: number; y: number } {
-  return { item: 4 * t + (x >= n ? 1 : 0) + (y >= n ? 2 : 0), x: x % n, y: y % n };
+/** Which tile (index) and local pixel a point of the 2x2 view belongs to (tiles n x m pixels). */
+export function tile16Target(t: number, x: number, y: number, n = 8, m = 8): { item: number; x: number; y: number } {
+  return { item: 4 * t + (x >= n ? 1 : 0) + (y >= m ? 2 : 0), x: x % n, y: y % m };
 }
 
 export type ShapeTool = 'line' | 'rect' | 'ellipse';

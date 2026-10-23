@@ -104,6 +104,24 @@ describe('export equals img2cpc.py (CPC modes)', () => {
       }
   });
 
+  it('narrow and wide tiles: --tile-width, NAME_TILEW only when not 8', () => {
+    const r = rng(77);
+    const cases: [Mode, number][] = [[0, 2], [0, 4], [0, 8], [1, 4], [1, 8], [1, 16], [2, 8], [2, 16], [2, 32]];
+    for (const [mode, tw] of cases)
+      for (const dedupe of [false, true]) {
+        const pens = distinctPens(r, MAXPENS[mode] === 16 ? 9 : MAXPENS[mode]);
+        const s = newSprite('til', { name: `tw${mode}_${tw}`, mode, tileWidth: tw, palette: { pens } });
+        const a = randGrid(r, tw, 8, pens.length - 1, 0.1);
+        s.items = [a, randGrid(r, tw, 8, pens.length - 1, 0), a.map((row) => row.slice()), randGrid(r, tw, 8, pens.length - 1, 0)];
+        s.dedupe = dedupe;
+        const text = compare(s, `tw-${mode}-${tw}-${dedupe}`);
+        expect(text.includes(`tw${mode}_${tw}_TILEW`)).toBe(tw !== 8);
+        if (tw !== 8) expect(text).toContain(`tw${mode}_${tw}_TILEW AS UBYTE = ${tw / PPB[mode]}`);
+        expect(equivalentArgs(s, 'x.png').includes('--tile-width')).toBe(tw !== 8);
+        if (dedupe) expect(text).toContain(`tw${mode}_${tw}_MAPW AS UBYTE = 4`);
+      }
+  });
+
   it('a transparent pixel in a tile becomes pen 0, as the tool does', () => {
     const s = newSprite('til', { name: 'tt', mode: 1, palette: { pens: [0, 26, 6, 18] } });
     s.items = [blankGrid(8, 8, 2)];

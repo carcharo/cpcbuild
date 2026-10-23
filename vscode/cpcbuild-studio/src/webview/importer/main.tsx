@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { defaultGrid, gridLayout, type GridSpec } from '../../core/cpcgrid';
 import type { Recipe, RecipeOp } from '../../core/cpcimp';
 import { FW_NAMES, FW_TABLE, parsePalList, parseRgb12List } from '../../core/palette';
+import { tileWidthsOf } from '../../core/pixels';
 import type { ImporterRequests, ImporterView, Preview, SourceImage } from '../../shared/importerProtocol';
 import { EditorHost, startEditor } from '../shared/bootstrap';
 import { createClient } from '../shared/client';
@@ -209,7 +210,7 @@ function ImporterApp({ client, settings, view }: Host) {
     const m = r.frame ? /^\s*(\d+)\s*x\s*(\d+)\s*$/i.exec(r.frame) : null;
     return m ? { w: Number(m[1]), h: Number(m[2]) } : undefined;
   })();
-  const cellSize = grid && r.kind !== 'tiles' ? { w: grid.cellW, h: grid.cellH } : grid ? { w: grid.cellW, h: grid.cellH } : r.kind === 'tiles' ? { w: 8, h: 8 } : frame;
+  const cellSize = grid && r.kind !== 'tiles' ? { w: grid.cellW, h: grid.cellH } : grid ? { w: grid.cellW, h: grid.cellH } : r.kind === 'tiles' ? { w: r.tileWidth ?? 8, h: 8 } : frame;
   const aspMode = r.target === 'cpc' ? (r.mode ?? 1) : 'plus';
   const aw = aspectWidth(aspMode, settings.pixelAspect, 2, 1);
   const wantedW = pane === 'both' && !narrow ? avail.w / 2 : avail.w;
@@ -326,12 +327,17 @@ function ImporterApp({ client, settings, view }: Host) {
 
       {cpc && sec('kind', 'Sprites and tiles', (
         <>
-          <Segmented<string> label="Kind" value={tiles ? 'tiles' : 'sprite'} options={[{ value: 'sprite', label: 'Sprite', title: '--sprite' }, { value: 'tiles', label: 'Tiles', title: '--tiles' }]} onChange={(k) => void set({ kind: k, ...(k === 'tiles' ? { frame: null, masked: null } : { dedupe: null }) })} />
+          <Segmented<string> label="Kind" value={tiles ? 'tiles' : 'sprite'} options={[{ value: 'sprite', label: 'Sprite', title: '--sprite' }, { value: 'tiles', label: 'Tiles', title: '--tiles' }]} onChange={(k) => void set({ kind: k, ...(k === 'tiles' ? { frame: null, masked: null } : { dedupe: null, tileWidth: null }) })} />
           <TextField id="imp-frame" label="Frame size (WxH pixels)" value={grid ? `${grid.cellW}x${grid.cellH}` : (r.frame ?? '')} placeholder="whole image"
             disabled={tiles || !!grid} error={errFrame ? errText : undefined}
-            description={tiles ? 'Tiles are always 8x8 (--frame is for sprites).' : grid ? 'Set by the grid cell size while grid extraction is on.' : '--frame WxH. Cuts a sheet into frames, row by row.'} mono
+            description={tiles ? 'Tiles are 8 lines tall, and as wide as the tile width below (--frame is for sprites).' : grid ? 'Set by the grid cell size while grid extraction is on.' : '--frame WxH. Cuts a sheet into frames, row by row.'} mono
             validate={(t) => (t && !/^\d+\s*x\s*\d+$/i.test(t) ? 'Use WxH, for example 16x16' : undefined)}
             onCommit={(t) => void set({ frame: t || null })} />
+          {tiles && (
+            <NumberField id="imp-tw" label="Tile width (pixels)" value={r.tileWidth ?? 8} min={1} max={32}
+              description={`--tile-width: 1, 2 or 4 bytes, so ${tileWidthsOf(r.mode ?? 1).join(', ')} pixels in mode ${r.mode ?? 1}. 8 is the default.`}
+              onCommit={(n) => void set({ tileWidth: n === 8 ? null : n })} />
+          )}
           <CheckField id="imp-masked" label="Masked (mask byte before each pixel byte)" checked={!!r.masked} disabled={tiles} description={tiles ? '--masked with --tiles is an error, so it is off for tiles.' : '--masked'} onChange={(v) => void set({ masked: v ? true : null })} />
           <CheckField id="imp-dedupe" label="Drop repeated tiles (adds NAME_MAP)" checked={!!r.dedupe} disabled={!tiles} description={tiles ? '--dedupe' : '--dedupe needs tiles.'} onChange={(v) => void set({ dedupe: v ? true : null })} />
         </>
@@ -453,7 +459,7 @@ function ImporterApp({ client, settings, view }: Host) {
       <h2 class="imp-h">Source{sp ? ` ${sp.width}x${sp.height}` : ''}{pick ? ' (click a pixel for the transparent colour)' : ''}</h2>
       {sp ? (
         <div class="imp-scroll">
-          <SourceCanvas src={sp} zoom={srcZoom} grid={grid} frame={!grid && cpc && !tiles ? frame : tiles ? { w: 8, h: 8 } : undefined} showGrid={showGrid} pick={pick} cursor={cursor} onCursor={setCursor} onCells={toggleCells} onPick={pickFromImage} label={`Source image ${sp.width} by ${sp.height} pixels`} />
+          <SourceCanvas src={sp} zoom={srcZoom} grid={grid} frame={!grid && cpc && !tiles ? frame : tiles ? { w: r.tileWidth ?? 8, h: 8 } : undefined} showGrid={showGrid} pick={pick} cursor={cursor} onCursor={setCursor} onCells={toggleCells} onPick={pickFromImage} label={`Source image ${sp.width} by ${sp.height} pixels`} />
         </div>
       ) : src === 'loading' ? (
         <p class="cb-loading" role="status">Reading image...</p>

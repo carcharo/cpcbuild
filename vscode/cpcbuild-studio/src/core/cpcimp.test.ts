@@ -63,6 +63,16 @@ describe('recipe <-> argv', () => {
     expect(recipeToArgv(r).join(' ')).toBe('--mode 1 --name hero --sprite --frame 16x16 --masked --transparent FF00FF --palette 0,26,6,18 art/hero.png -o assets/hero.bas');
     expect(commandLine(r).command).toBe('python3 tools/img2cpc.py --mode 1 --name hero --sprite --frame 16x16 --masked --transparent FF00FF --palette 0,26,6,18 art/hero.png -o assets/hero.bas');
   });
+  it('tile width: --tile-width after --tiles, only when not 8, and it round-trips through a command line', () => {
+    const r = newRecipe('t.png', { mode: 0, kind: 'tiles', tileWidth: 4, dedupe: true, name: 't', output: 't.bas' });
+    expect(recipeToArgv(r).join(' ')).toBe('--mode 0 --name t --tiles --tile-width 4 --dedupe t.png -o t.bas');
+    expect(recipeToArgv({ ...r, tileWidth: 8 })).not.toContain('--tile-width');
+    expect(recipeToArgv({ ...r, kind: 'sprite' })).not.toContain('--tile-width');
+    const back = argvToRecipe(shellSplit(commandLine(r).command!)).recipe;
+    expect(back).toMatchObject({ kind: 'tiles', tileWidth: 4, dedupe: true });
+    expect(() => parseRecipe('{"format":"cpcimp","version":1,"tileWidth":"4"}')).toThrow(/"tileWidth"/);
+    expect(() => argvToRecipe(shellSplit('img2cpc.py --mode 0 --tile-width 4 x.png'))).toThrow('--tile-width needs --tiles');
+  });
   it('quotes like the tool does in its header', () => {
     const r = newRecipe('my art/it\'s.png', { name: 'a', output: 'o.bas' });
     expect(commandLine(r).command).toContain(`'my art/it'"'"'s.png'`);
@@ -173,6 +183,8 @@ describe('errors are the tool\'s text', () => {
     ['bad pen0 interplay is fine, bad palette is not', { mode: 1, palette: { list: [0, 1, 2, 3, 4, 5] } }, 'd.png', 8, 8, 2],
     ['tiles masked', { mode: 1, kind: 'tiles', masked: true }, 'e.png', 8, 8, 2],
     ['tile size', { mode: 1, kind: 'tiles' }, 'f.png', 12, 8, 2],
+    ['tile width not allowed', { mode: 1, kind: 'tiles', tileWidth: 2 }, 'g.png', 8, 8, 2],
+    ['tile size with a narrow tile', { mode: 0, kind: 'tiles', tileWidth: 4 }, 'h.png', 6, 8, 2],
   ];
   for (const [what, over, file, w, h, n] of cases) {
     it(what, () => {
