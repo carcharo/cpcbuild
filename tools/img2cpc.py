@@ -3,7 +3,8 @@
 DIM ... => {...} arrays and CONSTs) for the cpcbuild library.
 
     img2cpc.py --mode 0|1|2 [--name NAME] [-o out.bas] image.png
-               [--sprite [--frame WxH] | --tiles [--dedupe]] [--masked]
+               [--sprite [--frame WxH] | --tiles [--tile-width PX] [--dedupe]]
+               [--masked]
                [--transparent RRGGBB]
                [--palette 0,1,2,... | --palette-file F] [--pen0 N]
                [--no-palette] [--write-palette F]
@@ -26,6 +27,11 @@ Kinds
             mode 0/1/2, for SetTileSet. Emits NAME, NAME_COUNT. --dedupe
             drops repeated tiles and also emits NAME_MAP (one tile number
             per source cell, for TileMap) with NAME_MAPW, NAME_MAPH.
+            --tile-width PX makes the tiles PX x 8 pixels: 1, 2 or 4 screen
+            bytes wide (PX = 2/4/8 in mode 0, 4/8/16 in mode 1, 8/16/32 in
+            mode 2; default 8), for SetTileWidth. The image must be a
+            multiple of PX x 8. Unless PX is 8 it also emits NAME_TILEW (the
+            tile width in bytes); NAME_MAPW is then image width / PX.
   --masked  (sprites) (mask, pixel) byte pairs for PutSpriteMasked; mask
             bit 1 keeps the background. A pixel is transparent if its alpha
             is below 128 or it is --transparent RRGGBB. In unmasked output
@@ -519,13 +525,21 @@ def convert(args, img: Image) -> tuple[str, str]:
     if args.tiles:
         if args.masked:
             raise SystemExit("img2cpc: --masked applies to sprites only")
-        if img.w % 8 or img.h % 8:
-            raise SystemExit(f"img2cpc: tile image size {img.w}x{img.h} must be a multiple of 8")
+        tw = args.tile_width if args.tile_width is not None else 8
+        if tw not in (ppb, ppb * 2, ppb * 4):
+            raise SystemExit(
+                f"img2cpc: tile width {tw} must be {ppb}, {ppb * 2} or {ppb * 4} pixels in mode {mode} (1, 2 or 4 bytes)"
+            )
+        if tw == 8:
+            if img.w % 8 or img.h % 8:
+                raise SystemExit(f"img2cpc: tile image size {img.w}x{img.h} must be a multiple of 8")
+        elif img.w % tw or img.h % 8:
+            raise SystemExit(f"img2cpc: tile image size {img.w}x{img.h} must be a multiple of {tw}x8")
         tiles: list[list[int]] = []
         cells: list[int] = []
         for ty in range(0, img.h, 8):
-            for tx in range(0, img.w, 8):
-                t = pack_block(grid, tx, ty, 8, 8, mode, False)
+            for tx in range(0, img.w, tw):
+                t = pack_block(grid, tx, ty, tw, 8, mode, False)
                 if args.dedupe and t in tiles:
                     cells.append(tiles.index(t))
                 else:
@@ -535,9 +549,11 @@ def convert(args, img: Image) -> tuple[str, str]:
             raise SystemExit(f"img2cpc: {len(tiles)} tiles; tile numbers go up to 255")
         body.append(fmt_array(name, [b for t in tiles for b in t]))
         body.append(fmt_const(name + "_COUNT", len(tiles)))
+        if tw != 8:
+            body.append(fmt_const(name + "_TILEW", tw // ppb))
         if args.dedupe:
             body.append(fmt_array(name + "_MAP", cells))
-            body.append(fmt_const(name + "_MAPW", img.w // 8))
+            body.append(fmt_const(name + "_MAPW", img.w // tw))
             body.append(fmt_const(name + "_MAPH", img.h // 8))
         desc = f"{len(tiles)} tiles of {len(tiles[0])} bytes"
     else:
@@ -579,6 +595,8 @@ def main(argv: list[str] | None = None) -> int:
     kind = ap.add_mutually_exclusive_group()
     kind.add_argument("--sprite", action="store_true", help="whole image as a sprite (default)")
     kind.add_argument("--tiles", action="store_true", help="cut into 8x8 tiles")
+    ap.add_argument("--tile-width", type=int, metavar="PX",
+                    help="tiles: tile width in pixels, 1, 2 or 4 bytes (default 8); emits NAME_TILEW")
     ap.add_argument("--frame", metavar="WxH", help="sprite frame size in pixels (cut a sheet, row-major)")
     ap.add_argument("--dedupe", action="store_true", help="tiles: drop repeats and emit NAME_MAP")
     ap.add_argument("--masked", action="store_true", help="sprites: emit (mask, pixel) pairs")
@@ -618,6 +636,8 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("use --palette or --palette-file, not both")
     if args.dedupe and not args.tiles:
         ap.error("--dedupe needs --tiles")
+    if args.tile_width is not None and not args.tiles:
+        ap.error("--tile-width needs --tiles")
     if args.frame and args.tiles:
         ap.error("--frame is for sprites")
     if not args.image.exists():
