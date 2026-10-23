@@ -47,6 +47,9 @@ masked frame is 4 x 16 x 2 = **128 bytes**.
 
 ## Step 2: Import the frames
 
+(Drawing your own sheet: the [art guide](../art-guide.md) covers frame layout and colours, and the
+Aseprite extension in `tools/aseprite` sets it up for you.)
+
 1. **CPCBuild: Import Image**, choose `assets/sprites.png`. The importer opens on a new
    `assets/sprites.cpcimp`.
 2. Set:

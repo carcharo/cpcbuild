@@ -105,7 +105,8 @@ with the toolbar in the editor. A `.cpcpal` file is just a list of 0 to 26 numbe
 
 A **tile** is an 8 x 8 pixel picture. A game board made of tiles is cheap to store and fast to draw.
 Lamplighter has 16 tiles, numbered 0 to 15, drawn in one PNG, `tiles.png`: 128 x 8 pixels, 16 tiles
-side by side. (One PNG pixel is one CPC pixel: no scaling.)
+side by side. (One PNG pixel is one CPC pixel: no scaling. For drawing your own, the
+[art guide](../art-guide.md) has the sizes, layout and colour rules.)
 
 | # | Tile | | # | Tile |
 |---|---|---|---|---|

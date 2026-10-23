@@ -207,6 +207,9 @@ Array's hardware codes.
 
 ## 5. Asset pipeline
 
+How to draw art that converts first time (sizes, layout, palette, Aseprite and
+Tiled settings): [art-guide.md](art-guide.md).
+
 Two Python tools in `tools/` turn art into Boriel include files. They are MIT
 licensed, written from scratch, and generate plain `DIM ... => {...}` arrays and
 `CONST` values. `img2cpc.py` needs Pillow (`pip install pillow`); `tmx2bas.py`
