@@ -132,6 +132,12 @@ describe('img2cpc.ts vs tools/img2cpc.py: synthetic images', () => {
       fs.writeFileSync(p, encodePng(img));
       return ['--mode', '0', '--tiles', '--dedupe', p];
     }],
+    ['tiles mode 0 width 4', () => ['--mode', '0', '--tiles', '--tile-width', '4', makePng('tw4.png', 16, 16, 60, fwOnly, 0)]],
+    ['tiles mode 0 width 2 dedupe', () => ['--mode', '0', '--tiles', '--tile-width', '2', '--dedupe', makePng('tw2.png', 8, 16, 61, fwOnly.slice(0, 2), 0)]],
+    ['tiles mode 0 width 8 explicit', () => ['--mode', '0', '--tiles', '--tile-width', '8', makePng('tw8.png', 16, 8, 62, fwOnly, 0)]],
+    ['tiles mode 1 width 4 and 16', () => ['--mode', '1', '--tiles', '--tile-width', '4', makePng('tw14.png', 16, 8, 63, fwOnly.slice(0, 4), 0)]],
+    ['tiles mode 1 width 16 dedupe', () => ['--mode', '1', '--tiles', '--tile-width', '16', '--dedupe', makePng('tw116.png', 32, 16, 64, fwOnly.slice(0, 2), 0)]],
+    ['tiles mode 2 width 32', () => ['--mode', '2', '--tiles', '--tile-width', '32', makePng('tw232.png', 64, 8, 65, [[0, 0, 0]], 0)]],
     ['name from stem', () => ['--mode', '0', makePng('1 weird-name.v2.png', 8, 8, 15, fwOnly)]],
     ['--no-palette', () => ['--mode', '1', '--no-palette', makePng('np.png', 8, 8, 16, fwOnly.slice(0, 3))]],
     ['spectrum picture', () => ['--spectrum', makePng('zx.png', 24, 16, 17, [[0, 0, 0], [215, 0, 0], [0, 255, 0], [255, 255, 255], [0, 0, 215]], 0.1)]],
@@ -189,6 +195,13 @@ describe('img2cpc.ts vs tools/img2cpc.py: errors', () => {
     ['bad palette entry', () => ['--mode', '1', '--palette', '0,27', makePng('e8.png', 8, 8, 48, fwOnly)]],
     ['too many tiles', () => ['--mode', '2', '--tiles', makePng('e9.png', 8, 8 * 257, 49, [[0, 0, 0], [255, 255, 255]], 0)]],
     ['no mode', () => [makePng('e10.png', 8, 8, 50, fwOnly)]],
+    ['--tile-width without --tiles', () => ['--mode', '1', '--tile-width', '4', makePng('e12.png', 8, 8, 52, fwOnly)]],
+    ['tile width 3', () => ['--mode', '1', '--tiles', '--tile-width', '3', makePng('e13.png', 12, 8, 53, fwOnly.slice(0, 2))]],
+    ['tile width 4 in mode 2', () => ['--mode', '2', '--tiles', '--tile-width', '4', makePng('e14.png', 16, 8, 54, [[0, 0, 0]])]],
+    ['tile width 16 in mode 0', () => ['--mode', '0', '--tiles', '--tile-width', '16', makePng('e15.png', 16, 8, 55, fwOnly)]],
+    ['tile width not an int', () => ['--mode', '1', '--tiles', '--tile-width', 'x', makePng('e16.png', 16, 8, 56, fwOnly.slice(0, 2))]],
+    ['tile image width not a multiple of the tile width', () => ['--mode', '0', '--tiles', '--tile-width', '4', makePng('e17.png', 10, 8, 57, fwOnly)]],
+    ['tile image height with a narrow tile', () => ['--mode', '0', '--tiles', '--tile-width', '4', makePng('e18.png', 8, 12, 58, fwOnly)]],
     ['--dedupe without --tiles', () => ['--mode', '1', '--dedupe', makePng('e11.png', 8, 8, 51, fwOnly)]],
   ];
   for (const [title, mk] of bad) {

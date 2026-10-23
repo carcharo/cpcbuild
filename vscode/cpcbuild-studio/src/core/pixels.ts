@@ -20,6 +20,15 @@ export const MAXPENS: Record<Mode, number> = { 0: 16, 1: 4, 2: 2 };
 /** Pixels per screen byte. */
 export const PPB: Record<Mode, number> = { 0: 2, 1: 4, 2: 8 };
 
+/** The tile widths (pixels) a mode allows: 1, 2 or 4 bytes. */
+export const tileWidthsOf = (mode: Mode): number[] => [1, 2, 4].map((b) => b * PPB[mode]);
+
+/** The tool's message for a tile width the mode does not allow, or undefined when it is fine. */
+export function tileWidthError(tw: number, mode: Mode): string | undefined {
+  const ok = tileWidthsOf(mode);
+  return ok.includes(tw) ? undefined : `tile width ${tw} must be ${ok[0]}, ${ok[1]} or ${ok[2]} pixels in mode ${mode} (1, 2 or 4 bytes)`;
+}
+
 const M0_BITS = [7, 3, 5, 1];
 
 /** The screen-byte bits of pixel n (0 = leftmost) holding `pen`. */

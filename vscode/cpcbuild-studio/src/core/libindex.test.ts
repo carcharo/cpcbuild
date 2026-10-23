@@ -37,7 +37,7 @@ d('library index: counts per file', () => {
     'cpcbuild/spritelist.bas': 5,
     'cpcbuild/sprites.bas': 3,
     'cpcbuild/text.bas': 6,
-    'cpcbuild/tiles.bas': 6,
+    'cpcbuild/tiles.bas': 8,
     'cpcplus/cpcplus.bas': 35,
     'cpcplus/palcycle.bas': 4,
     'cpcplus/sprman.bas': 11,

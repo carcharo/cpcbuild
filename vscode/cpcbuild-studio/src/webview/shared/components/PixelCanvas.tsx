@@ -24,6 +24,8 @@ export interface GridOptions {
   byteEvery?: number;
   /** Dashed line every n pixels in both directions (tile grid). */
   tileEvery?: number;
+  /** Tile height when it differs from tileEvery (narrow tiles). */
+  tileEveryY?: number;
 }
 
 export interface PointerInfo {
@@ -85,7 +87,7 @@ export function PixelCanvas(p: PixelCanvasProps) {
   useEffect(() => {
     const raf = requestAnimationFrame(() => drawOverlay(ov.current, p, aw, size));
     return () => cancelAnimationFrame(raf);
-  }, [p.zoom, aw, p.grid?.pixel, p.grid?.byteEvery, p.grid?.tileEvery, p.selection, p.cursor, p.image.width, p.image.height, theme, size.width, size.height]);
+  }, [p.zoom, aw, p.grid?.pixel, p.grid?.byteEvery, p.grid?.tileEvery, p.grid?.tileEveryY, p.selection, p.cursor, p.image.width, p.image.height, theme, size.width, size.height]);
 
   const at = (e: PointerEvent): { x: number; y: number } | null => {
     const r = stack.current?.getBoundingClientRect();
@@ -183,7 +185,7 @@ function drawOverlay(c: HTMLCanvasElement | null, p: PixelCanvasProps, aw: numbe
       ctx.strokeStyle = colour; ctx.lineWidth = 1; ctx.setLineDash([4, 4]); ctx.lineDashOffset = off;
       ctx.beginPath();
       for (let x = g.tileEvery; x < iw; x += g.tileEvery) { const px = Math.round(x * sx) + 0.5; ctx.moveTo(px, 0); ctx.lineTo(px, H); }
-      for (let y = g.tileEvery; y < ih; y += g.tileEvery) { const py = Math.round(y * sy) + 0.5; ctx.moveTo(0, py); ctx.lineTo(W, py); }
+      for (let y = g.tileEveryY ?? g.tileEvery; y < ih; y += g.tileEveryY ?? g.tileEvery) { const py = Math.round(y * sy) + 0.5; ctx.moveTo(0, py); ctx.lineTo(W, py); }
       ctx.stroke();
     }
     ctx.setLineDash([]);

@@ -294,6 +294,67 @@ class TestTiles(Tmp):
         im.save(p)
         self.assertIn("257 tiles", self.fails("--mode", 2, "--tiles", p))
 
+    def test_tile_width_mode0_narrow(self):
+        # 8x8 px, mode 0, 4-px tiles: left half red, right half green
+        rows = [[RED] * 4 + [GREEN] * 4 for _ in range(8)]
+        p = self.png("tw0.png", rows)
+        arr, c, text = self.run_tool("--mode", 0, "--name", "t", "--tiles", "--tile-width", 4, p)
+        self.assertEqual(c["t_COUNT"], 2)
+        self.assertEqual(c["t_TILEW"], 2)
+        self.assertEqual(len(arr["t"]), 2 * 16)
+        self.assertEqual(arr["t"][:16], [0x00] * 16)  # red = pen 0
+        self.assertEqual(arr["t"][16:32], [img2cpc.encode_byte(0, [1, 1])] * 16)
+        self.assertIn("2 tiles of 16 bytes", text)
+        self.assertLess(text.index("t_COUNT"), text.index("t_TILEW"))
+
+    def test_tile_width_mode1_wide(self):
+        rows = [[RED] * 16 + [GREEN] * 16 for _ in range(8)]
+        p = self.png("tw1.png", rows)
+        arr, c, _ = self.run_tool("--mode", 1, "--name", "t", "--tiles", "--tile-width", 16, p)
+        self.assertEqual(c["t_COUNT"], 2)
+        self.assertEqual(c["t_TILEW"], 4)
+        self.assertEqual(len(arr["t"]), 2 * 32)
+        self.assertEqual(arr["t"][32:64], [img2cpc.encode_byte(1, [1] * 4)] * 32)
+
+    def test_tile_width_dedupe(self):
+        # 16x16 px, 4-px tiles in mode 0: 4x2 cells, stripes A B A B per row
+        rows = [[RED if (x // 4) % 2 == 0 else GREEN for x in range(16)] for _ in range(16)]
+        p = self.png("tw2.png", rows)
+        arr, c, _ = self.run_tool("--mode", 0, "--name", "t", "--tiles", "--tile-width", 4, "--dedupe", p)
+        self.assertEqual(c["t_COUNT"], 2)
+        self.assertEqual(c["t_TILEW"], 2)
+        self.assertEqual((c["t_MAPW"], c["t_MAPH"]), (4, 2))
+        self.assertEqual(arr["t_MAP"], [0, 1, 0, 1] * 2)
+        self.assertEqual(len(arr["t"]), 2 * 16)
+
+    def test_tile_width_default_unchanged(self):
+        p = self.png("tw3.png", [[RED] * 8] * 8)
+        _, c, text = self.run_tool("--mode", 0, "--name", "t", "--tiles", p)
+        self.assertNotIn("t_TILEW", text)
+        _, c8, text8 = self.run_tool("--mode", 0, "--name", "t", "--tiles", "--tile-width", 8, p)
+        self.assertNotIn("t_TILEW", text8)
+        self.assertEqual(c, c8)
+
+    def test_tile_width_bad_value(self):
+        p = self.png("tw4.png", [[RED] * 32] * 8)
+        self.assertIn("img2cpc: tile width 6 must be 2, 4 or 8 pixels in mode 0 (1, 2 or 4 bytes)",
+                      self.fails("--mode", 0, "--tiles", "--tile-width", 6, p))
+        self.assertIn("img2cpc: tile width 2 must be 4, 8 or 16 pixels in mode 1 (1, 2 or 4 bytes)",
+                      self.fails("--mode", 1, "--tiles", "--tile-width", 2, p))
+        self.assertIn("img2cpc: tile width 4 must be 8, 16 or 32 pixels in mode 2 (1, 2 or 4 bytes)",
+                      self.fails("--mode", 2, "--tiles", "--tile-width", 4, p))
+
+    def test_tile_width_bad_image_size(self):
+        p = self.png("tw5.png", [[RED] * 6] * 8)
+        self.assertIn("img2cpc: tile image size 6x8 must be a multiple of 4x8",
+                      self.fails("--mode", 0, "--tiles", "--tile-width", 4, p))
+        p = self.png("tw6.png", [[RED] * 8] * 12)
+        self.assertIn("must be a multiple of 4x8", self.fails("--mode", 0, "--tiles", "--tile-width", 4, p))
+
+    def test_tile_width_needs_tiles(self):
+        p = self.png("tw7.png", [[RED] * 8] * 8)
+        self.assertIn("--tile-width needs --tiles", self.fails("--mode", 0, "--tile-width", 4, p))
+
     def test_masked_tiles_rejected(self):
         p = self.png("y.png", [[RED] * 8] * 8)
         self.assertIn("sprites only", self.fails("--mode", 0, "--tiles", "--masked", p))

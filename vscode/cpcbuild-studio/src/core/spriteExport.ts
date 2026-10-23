@@ -9,7 +9,7 @@ import { newImage, setPixel, type RgbaImage } from './image';
 import { buildPalette, fmtArray, fmtAsm, fmtConst, makeHeader, penBody, shellQuote, type Options } from './img2cpc';
 import { asicEntry, fwRgb, nearest, parseRgb12List, rgb12To8, type RGB } from './palette';
 import type { PenGrid } from './pixels';
-import { analyse, MAX_PLUS_COLOURS, resolvePalette, type Grid, type ResolvedPalette, type SpriteState } from './spriteDoc';
+import { analyse, MAX_PLUS_COLOURS, resolvePalette, TILE_SIZE, type Grid, type ResolvedPalette, type SpriteState } from './spriteDoc';
 
 export type HeaderStyle = 'img2cpc' | 'studio' | 'none';
 
@@ -52,6 +52,7 @@ export function equivalentArgs(s: SpriteState, image: string, palette: ResolvedP
   }
   a.push('--mode', String(s.mode), '--name', s.name, s.type === 'til' ? '--tiles' : '--sprite');
   if (s.type === 'til') {
+    if (s.w !== TILE_SIZE) a.push('--tile-width', String(s.w));
     if (s.dedupe) a.push('--dedupe');
   } else {
     if (s.items.length > 1) a.push('--frame', `${s.w}x${s.h}`);
@@ -99,7 +100,7 @@ export function exportAsset(s: SpriteState, ctx: ExportContext): ExportResult {
   try {
     if (s.kind === 'plus') return exportPlus(s, palette, argv, style, ctx, sheet);
     const pens = buildPalette([], s.mode, palette.pens, undefined); // the tool's checks on a fixed palette
-    const o: Options = { name: s.name, mode: s.mode, tiles: s.type === 'til', dedupe: s.dedupe, masked: s.masked, noPalette: !s.emitPalette };
+    const o: Options = { name: s.name, mode: s.mode, tiles: s.type === 'til', tileWidth: s.type === 'til' && s.w !== TILE_SIZE ? s.w : undefined, dedupe: s.dedupe, masked: s.masked, noPalette: !s.emitPalette };
     if (s.type === 'spr' && n > 1) o.frame = `${s.w}x${s.h}`;
     const body = penBody(sheetGrid(s.items, s.w, s.h), sheet.w, sheet.h, pens, o);
     return { text: head(style, "'", argv, ctx, sheet.w, sheet.h, `mode ${s.mode}`, body.desc) + body.body, argv, sheet };
@@ -223,7 +224,7 @@ export function assetSnippets(s: SpriteState, rel: string, data?: string): Asset
       text: `SpriteSetImage${s.packed ? 'Packed' : ''}(0, @${n}(0))\n`,
     });
   } else if (s.type === 'til') {
-    out.push({ id: 'use', label: 'SetTileSet + DoTile8', text: `SetTileSet(@${n}(0))\nDoTile8(x, y, 0)\n` });
+    out.push({ id: 'use', label: s.w !== TILE_SIZE ? 'SetTileSet + SetTileWidth + DoTile8' : 'SetTileSet + DoTile8', text: `SetTileSet(@${n}(0))\n${s.w !== TILE_SIZE ? `SetTileWidth(${n}_TILEW)\n` : ''}DoTile8(x, y, 0)\n` });
   } else {
     const pal = s.emitPalette ? `SetPalette(@${n}_pal(0), ${n}_PENS)\n` : '';
     out.push({

@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { decodePng, type RgbaImage } from './image';
 import { layerTiles, parseTmx, parseTsx, TmxError } from './tmx';
 import {
-  atlasFromImage, atlasFromPens, cellErrors, cellInfo, doTile8Call, effectiveFirstgid, FLIP_D, FLIP_H, FLIP_V, flagNames, layerWarnings, renderLayer, tileMapCall, tilesetOfGid,
+  atlasFromImage, atlasFromPens, cellErrors, cellInfo, doTile8Call, effectiveFirstgid, FLIP_D, FLIP_H, FLIP_V, flagNames, layerWarnings, renderLayer, tileMapCall, tilesetOfGid, tileSizeNotice,
 } from './tmxView';
 import { py, REPO, scratchDir } from './testutil';
 
@@ -91,6 +91,22 @@ describe('renderLayer', () => {
     expect(px(img, 0, 0)).toEqual([255, 0, 0, 255]);
     expect(px(img, 0, 1)).toEqual([0, 0, 0, 0]);
     expect(px(img, 2, 0)).toEqual([0, 0, 255, 255]);
+  });
+  it('renders a 4x8 tile set (a narrow .cpctil) in 4x8 cells', () => {
+    const col = (pen: number) => Array.from({ length: 8 }, () => [pen, pen, pen, pen]);
+    const a = atlasFromPens([col(0), col(1)], (pen) => (pen === 0 ? [255, 0, 0] : [0, 0, 255]), 1);
+    expect([a.tw, a.th, a.width, a.height]).toEqual([4, 8, 8, 8]);
+    const img = renderLayer([1, 2, 2, 1], 2, 2, 4, 8, [a]);
+    expect([img.width, img.height]).toEqual([8, 16]);
+    expect(px(img, 0, 0)).toEqual([255, 0, 0, 255]);
+    expect(px(img, 3, 7)).toEqual([255, 0, 0, 255]);
+    expect(px(img, 4, 0)).toEqual([0, 0, 255, 255]);
+    expect(px(img, 0, 8)).toEqual([0, 0, 255, 255]);
+    expect(px(img, 7, 15)).toEqual([255, 0, 0, 255]);
+  });
+  it('says when the tile set and the map disagree on the tile size', () => {
+    expect(tileSizeNotice(8, 8, 8, 8)).toBeUndefined();
+    expect(tileSizeNotice(4, 8, 8, 8)).toMatch(/4x8 but the map's cells are 8x8/);
   });
   it('renders the repo map with its tileset image (examples/assets/level.tmx)', () => {
     const dir = path.join(REPO, 'examples/assets');

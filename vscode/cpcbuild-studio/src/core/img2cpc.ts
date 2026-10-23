@@ -23,7 +23,7 @@ import { decodePng, type RgbaImage } from './image';
 import {
   asicEntry, dist2, FW_TABLE, nearest, nearestFw, parsePalList, parseRgb12List, rgb12, type RGB,
 } from './palette';
-import { MAXPENS, packBlock, PPB, type Mode, type PenGrid } from './pixels';
+import { MAXPENS, packBlock, PPB, tileWidthError, type Mode, type PenGrid } from './pixels';
 
 export class Img2cpcError extends Error {
   constructor(message: string) {
@@ -44,6 +44,8 @@ export interface Options {
   /** Screen mode (not needed for spectrum or plus output). */
   mode?: Mode;
   tiles?: boolean;
+  /** Tile width in pixels (--tile-width; default 8): PPB * 1, 2 or 4. */
+  tileWidth?: number;
   /** Sprite frame size in pixels, "WxH". */
   frame?: string;
   dedupe?: boolean;
@@ -384,13 +386,18 @@ export function penBody(grid: PenGrid, w: number, h: number, pal: number[], o: O
   let desc: string;
   if (o.tiles) {
     if (o.masked) fail('--masked applies to sprites only');
-    if (w % 8 || h % 8) fail(`tile image size ${w}x${h} must be a multiple of 8`);
+    const tw = o.tileWidth ?? 8;
+    const twErr = tileWidthError(tw, mode);
+    if (twErr) fail(twErr);
+    if (tw === 8) {
+      if (w % 8 || h % 8) fail(`tile image size ${w}x${h} must be a multiple of 8`);
+    } else if (w % tw || h % 8) fail(`tile image size ${w}x${h} must be a multiple of ${tw}x8`);
     const tiles: number[][] = [];
     const index = new Map<string, number>();
     const cells: number[] = [];
     for (let ty = 0; ty < h; ty += 8) {
-      for (let tx = 0; tx < w; tx += 8) {
-        const t = packBlock(grid, tx, ty, 8, 8, mode, false);
+      for (let tx = 0; tx < w; tx += tw) {
+        const t = packBlock(grid, tx, ty, tw, 8, mode, false);
         const k = t.join(',');
         if (o.dedupe && index.has(k)) {
           cells.push(index.get(k)!);
@@ -404,9 +411,10 @@ export function penBody(grid: PenGrid, w: number, h: number, pal: number[], o: O
     if (tiles.length > 256) fail(`${tiles.length} tiles; tile numbers go up to 255`);
     body.push(fmtArray(o.name, tiles.flat()));
     body.push(fmtConst(o.name + '_COUNT', tiles.length));
+    if (tw !== 8) body.push(fmtConst(o.name + '_TILEW', tw / ppb));
     if (o.dedupe) {
       body.push(fmtArray(o.name + '_MAP', cells));
-      body.push(fmtConst(o.name + '_MAPW', w / 8));
+      body.push(fmtConst(o.name + '_MAPW', w / tw));
       body.push(fmtConst(o.name + '_MAPH', h / 8));
     }
     desc = `${tiles.length} tiles of ${tiles[0].length} bytes`;
@@ -535,7 +543,7 @@ export interface CliArgs {
 
 const VALUE_FLAGS = new Set([
   '--mode', '--name', '-o', '--output', '--frame', '--transparent', '--palette', '--palette-file',
-  '--pen0', '--write-palette', '--plus-format',
+  '--pen0', '--tile-width', '--write-palette', '--plus-format',
 ]);
 const BOOL_FLAGS = new Set([
   '--sprite', '--tiles', '--dedupe', '--masked', '--no-palette', '--plus-sprite', '--plus-palette',
@@ -618,6 +626,13 @@ export function parseArgs(argv: readonly string[]): CliArgs {
   if (has('--palette') && has('--palette-file')) fail('use --palette or --palette-file, not both');
   if (has('--dedupe') && !has('--tiles')) fail('--dedupe needs --tiles');
   if (has('--frame') && has('--tiles')) fail('--frame is for sprites');
+  let tileWidth: number | undefined;
+  if (has('--tile-width')) {
+    const t = str('--tile-width')!;
+    if (!/^\s*[+-]?\d+\s*$/.test(t)) fail(`argument --tile-width: invalid int value: '${t}'`);
+    if (!has('--tiles')) fail('--tile-width needs --tiles');
+    tileWidth = parseInt(t, 10);
+  }
   let transparent: RGB | undefined;
   if (str('--transparent')) {
     const t = str('--transparent')!.replace(/^#+/, '');
@@ -628,6 +643,7 @@ export function parseArgs(argv: readonly string[]): CliArgs {
     name: str('--name') ?? defaultName(image),
     mode,
     tiles: has('--tiles'),
+    tileWidth,
     frame: str('--frame'),
     dedupe: has('--dedupe'),
     masked: has('--masked'),

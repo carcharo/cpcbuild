@@ -48,7 +48,7 @@ describe('sprite webview model', () => {
     expect(stamps([[1, 1], [2, 1]], 4, 4, true, false).length).toBe(2);
     expect(stamps([[-1, 0], [9, 9]], 4, 4, false, false)).toEqual([]);
   });
-  it('tile views: 16x16 arrangement and neighbours', () => {
+  it('tile views: 2x2 arrangement and neighbours', () => {
     const s = newSprite('til', { mode: 1, frames: 5 });
     s.items[1][0][0] = 1; // top-right of group 0
     s.items[2][0][0] = 2; // bottom-left
@@ -59,7 +59,23 @@ describe('sprite webview model', () => {
     expect(tile16Target(0, 9, 3)).toEqual({ item: 1, x: 1, y: 3 });
     expect(tile16Target(1, 3, 12)).toEqual({ item: 6, x: 3, y: 4 });
     const nb = neighbourView(s.items, 1, 4, v);
-    expect(nb.size).toBe(24);
+    expect([nb.width, nb.height]).toEqual([24, 24]);
     expect(nb.neighbours).toEqual([null, null, null, 0, 2, 4, null, null]); // below-left is tile 4; tile 5 does not exist
+  });
+  it('tile views of narrow tiles (4x8)', () => {
+    const s = newSprite('til', { mode: 0, tileWidth: 4, frames: 5 });
+    s.items[1][0][0] = 1; // top-right of group 0
+    s.items[2][0][0] = 2; // bottom-left
+    const v = viewOf(s);
+    const px = tile16(s.items, 0, v);
+    expect(px.length).toBe(8 * 16 * 4);
+    expect(px[(0 * 8 + 4) * 4 + 3]).toBe(255);
+    expect(px[(8 * 8 + 0) * 4 + 3]).toBe(255);
+    expect(tile16Target(0, 5, 3, 4, 8)).toEqual({ item: 1, x: 1, y: 3 });
+    expect(tile16Target(1, 3, 12, 4, 8)).toEqual({ item: 6, x: 3, y: 4 });
+    const nb = neighbourView(s.items, 1, 4, v);
+    expect([nb.width, nb.height]).toEqual([12, 24]);
+    expect(nb.rgba.length).toBe(12 * 24 * 4);
+    expect(nb.neighbours).toEqual([null, null, null, 0, 2, 4, null, null]);
   });
 });

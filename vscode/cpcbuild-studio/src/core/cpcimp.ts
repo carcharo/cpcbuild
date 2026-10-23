@@ -53,6 +53,8 @@ export interface Recipe {
   name?: string;
   kind?: 'sprite' | 'tiles';
   frame?: string;
+  /** Tiles: tile width in pixels (`--tile-width`); absent = 8. */
+  tileWidth?: number;
   dedupe?: boolean;
   masked?: boolean;
   transparent?: string;
@@ -82,7 +84,7 @@ export function newRecipe(source = '', over: Partial<Recipe> = {}): Recipe {
 // ------------------------------------------------------------------ JSON
 
 const KEY_ORDER = [
-  'format', 'version', 'source', 'output', 'target', 'mode', 'name', 'kind', 'frame', 'dedupe', 'masked',
+  'format', 'version', 'source', 'output', 'target', 'mode', 'name', 'kind', 'frame', 'tileWidth', 'dedupe', 'masked',
   'transparent', 'palette', 'pen0', 'emitPalette', 'writePalette', 'zxSprite', 'plus', 'grid',
 ];
 
@@ -114,6 +116,7 @@ export function validateRecipe(raw: unknown): Recipe {
   checkField(raw, 'name', str, 'a string');
   checkField(raw, 'kind', (v) => v === 'sprite' || v === 'tiles', '"sprite" or "tiles"');
   checkField(raw, 'frame', str, 'a "WxH" string');
+  checkField(raw, 'tileWidth', (v) => typeof v === 'number' && Number.isInteger(v) && v >= 1, 'a whole number of pixels');
   checkField(raw, 'dedupe', bool, 'true or false');
   checkField(raw, 'masked', bool, 'true or false');
   checkField(raw, 'transparent', str, 'an RRGGBB string');
@@ -230,7 +233,7 @@ export function inputsOf(r: Recipe): string[] {
  * The command line (without the program name) for a recipe. Fixed order, which is the order the
  * repo's build scripts use:
  *   target flags (--mode N | --plus-sprite [--packed] [--plus-format F] | --plus-palette | --spectrum [--zx-sprite])
- *   --name N, [--sprite|--tiles] [--dedupe] [--frame WxH] [--masked], [--transparent RRGGBB],
+ *   --name N, [--sprite|--tiles [--tile-width PX]] [--dedupe] [--frame WxH] [--masked], [--transparent RRGGBB],
  *   [--palette L | --palette-file F], [--pen0 N], [--no-palette], [--write-palette F], SOURCE, -o OUTPUT
  * With a grid the frame is the cell size (sprites) and the source is the recipe's source (the sheet
  * is composed in memory).
@@ -257,8 +260,10 @@ export function recipeToArgv(r: Recipe): string[] {
   }
   a.push('--name', effectiveName(r));
   if (r.target === 'cpc') {
-    if (r.kind === 'tiles') a.push('--tiles');
-    else if (r.kind === 'sprite') a.push('--sprite');
+    if (r.kind === 'tiles') {
+      a.push('--tiles');
+      if (r.tileWidth !== undefined && r.tileWidth !== 8) a.push('--tile-width', String(r.tileWidth));
+    } else if (r.kind === 'sprite') a.push('--sprite');
     if (r.dedupe) a.push('--dedupe');
     const frame = r.grid && r.kind !== 'tiles' ? `${r.grid.cellW}x${r.grid.cellH}` : r.frame;
     if (frame) a.push('--frame', frame);
@@ -290,7 +295,7 @@ export function commandLine(r: Recipe): { command?: string; reason?: string } {
   return { command: 'python3 tools/img2cpc.py ' + recipeToArgv(r).map(shellQuote).join(' ') };
 }
 
-const VALUE_FLAGS = new Set(['--mode', '--name', '-o', '--output', '--frame', '--transparent', '--palette', '--palette-file', '--pen0', '--write-palette', '--plus-format']);
+const VALUE_FLAGS = new Set(['--mode', '--name', '-o', '--output', '--frame', '--transparent', '--palette', '--palette-file', '--pen0', '--tile-width', '--write-palette', '--plus-format']);
 const BOOL_FLAGS = new Set(['--sprite', '--tiles', '--dedupe', '--masked', '--no-palette', '--plus-sprite', '--plus-palette', '--packed', '--spectrum', '--zx-sprite']);
 
 /** Splits a shell line into words (single and double quotes, backslash); no expansion. */
@@ -381,6 +386,7 @@ export function argvToRecipe(words: readonly string[]): ArgvImport {
   if (r.target === 'cpc') {
     if (has('--tiles')) r.kind = 'tiles';
     else if (has('--sprite')) r.kind = 'sprite';
+    if (o.tileWidth !== undefined && o.tileWidth !== 8) r.tileWidth = o.tileWidth;
     if (o.dedupe) r.dedupe = true;
     if (o.frame) r.frame = o.frame;
     if (o.masked) r.masked = true;

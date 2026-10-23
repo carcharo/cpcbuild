@@ -3,8 +3,9 @@
 ;
 ; Written from scratch for this project (MIT); see core.asm.
 ;
-; A tile is 8x8 pixels: 1 byte x 8 lines in mode 2, 2 x 8 in mode 1,
-; 4 x 8 in mode 0 (width in bytes W = 1 << GFX_XSHIFT, colour.asm). Tile
+; A tile is W bytes x 8 lines, W = 1 << s with s from __CB_TXS (below):
+; the mode's GFX_XSHIFT (colour.asm) unless SetTileWidth fixed it, so by
+; default 8x8 pixels: 1 byte in mode 2, 2 in mode 1, 4 in mode 0. Tile
 ; data: per tile its 8 rows top first, each row's bytes left to right,
 ; so a tile is 8 * W bytes. Tile n is at CB_TILESET + n * 8 * W.
 ; Tile cell (cx, cy) is byte column cx * W, pixel line cy * 8, so a tile
@@ -185,10 +186,23 @@ __CTD_G1:
     ldi
     ret
 
+; __CB_TXS -- A = s, the tile width in bytes being 1 << s (0-2): the
+; mode's GFX_XSHIFT, or the width SetTileWidth fixed (CB_TILEW = s + 1).
+; Firmware entry called: none. Registers clobbered: AF.
+__CB_TXS:
+    ld   a, (CB_TILEW)
+    or   a
+    jr   z, __CB_TXS_M
+    dec  a
+    ret
+__CB_TXS_M:
+    ld   a, (GFX_XSHIFT)
+    ret
+
 ; __CB_TILE_DRAW -- HL = screen address of the tile's first byte (on
 ; pixel line 0 of a character row), DE = its data -> draws the tile.
 ; The row-wrap test is only needed in the last 256 bytes of a block; a
-; tile that can't wrap goes to the unrolled drawer for the mode.
+; tile that can't wrap goes to the unrolled drawer for its width.
 ; Firmware entry called: none.
 ; Registers clobbered: AF, BC, DE, HL.
 __CB_TILE_DRAW:
@@ -200,7 +214,7 @@ __CB_TILE_DRAW:
     and  $07
     cp   $07
     jr   nz, __CTD_FAST     ; only the block's last 256 bytes can wrap
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
     ld   c, 1
     or   a
     jr   z, __CTD_W
@@ -214,7 +228,7 @@ __CTD_W:                    ; C = width in bytes
     pop  de
     jr   c, __CTD_SLOW
 __CTD_FAST:
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
     or   a
     jr   z, __CTD_F1
     dec  a

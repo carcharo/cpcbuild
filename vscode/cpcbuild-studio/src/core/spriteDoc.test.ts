@@ -112,6 +112,54 @@ describe('parse and serialise', () => {
   });
 });
 
+describe('tile width', () => {
+  const til = (tileWidth?: number, mode: 0 | 1 | 2 = 0): SpriteState => newSprite('til', { mode, tileWidth });
+  it('a file without tileWidth is 8 wide and round-trips byte for byte; tileWidth is only written when not 8', () => {
+    const text = serialiseSprite(til());
+    expect(text).not.toContain('tileWidth');
+    expect(parseSprite(text, 'til').w).toBe(8);
+    expect(serialiseSprite(parseSprite(text, 'til'))).toBe(text);
+    const narrow = til(4);
+    const t = serialiseSprite(narrow);
+    expect(t).toContain('"tileWidth": 4');
+    const back = parseSprite(t, 'til');
+    expect([back.w, back.h, back.items[0][0].length]).toEqual([4, 8, 4]);
+    expect(serialiseSprite(back)).toBe(t);
+    // an explicit 8 loads and saves untouched until edited
+    const explicit = text.replace('  "name"', '  "tileWidth": 8,\n  "name"');
+    expect(serialiseSprite(parseSprite(explicit, 'til'))).toBe(explicit);
+  });
+  it('a bad tileWidth is refused at load; one the mode does not allow is a problem of the set', () => {
+    expect(() => parseSprite('{"format":"cpctil","mode":0,"tileWidth":"4","palette":{"pens":[0,1]}}', 'til')).toThrow(/tileWidth/);
+    const t = parseSprite('{"format":"cpctil","mode":0,"tileWidth":16,"palette":{"pens":[0,1]},"tiles":[]}', 'til');
+    expect(analyse({ ...t, items: [blankGrid(16, 8, 0)] }).problems[0]).toBe('tile width 16 must be 2, 4 or 8 pixels in mode 0 (1, 2 or 4 bytes)');
+  });
+  it('setTileWidth resizes every tile: legal widths only, narrowing asks, widening pads', () => {
+    const s = doc([g('11111111', '11111111', '11111111', '11111111', '11111111', '11111111', '11111111', '11111111')], { mode: 0 }, 'til');
+    expect(err(s, { op: 'setTileWidth', w: 6 })).toBe('tile width 6 must be 2, 4 or 8 pixels in mode 0 (1, 2 or 4 bytes)');
+    expect(err(s, { op: 'setTileWidth', w: 8 })).toBe('unchanged');
+    expect(err(s, { op: 'setTileWidth', w: 4 })).toMatch(/^crop: 32 drawn pixels would be cropped/);
+    const n = run(s, { op: 'setTileWidth', w: 4, crop: true });
+    expect([n.w, n.h, n.items[0][0].length]).toEqual([4, 8, 4]);
+    const analysis = analyse(n);
+    expect([analysis.itemBytes, analysis.totalBytes, analysis.problems]).toEqual([16, 16, []]);
+    const wide = run(n, { op: 'setTileWidth', w: 8 });
+    expect(rows(wide.items[0])[0]).toBe('11110000');
+    expect(err(newSprite('spr', {}), { op: 'setTileWidth', w: 4 })).toMatch(/only tile sets/);
+  });
+  it('a mode change that leaves the width illegal is refused; a legal one keeps the width', () => {
+    const s = til(2); // 2 px = 1 byte in mode 0
+    expect(err(s, { op: 'setMode', mode: 1 })).toBe('tile width 2 must be 4, 8 or 16 pixels in mode 1 (1, 2 or 4 bytes); change the tile width first');
+    const m = run(til(4), { op: 'setMode', mode: 1, force: true });
+    expect([m.mode, m.w, m.items[0][0].length]).toEqual([1, 4, 4]);
+    expect(analyse(m).itemBytes).toBe(8);
+  });
+  it('duplicates are found on narrow tiles', () => {
+    const a = blankGrid(4, 8, 1);
+    expect(analyse(doc([a, blankGrid(4, 8, 0), a], { mode: 0, tileWidth: 4 }, 'til')).duplicates).toEqual([[2, 0]]);
+  });
+});
+
 describe('paint, fill, replace', () => {
   const base = (): SpriteState => doc([g('0000', '0000', '0000')], { w: 4, h: 3, masked: false });
   it('paint is one edit, validates pens and bounds', () => {

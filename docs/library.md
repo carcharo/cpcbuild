@@ -115,6 +115,8 @@ mode is 80 bytes wide:
 To convert: `byte column = pixel x / pixels per byte` (a shift by 1, 2 or 3).
 Tile calls (`DoTile8`, `DoTile16`, `TileMap`, `TileMapPart`) take **tile
 cells**: cell (cx, cy) is byte column `cx * tile width`, pixel line `cy * 8`.
+The tile width above is the default; `SetTileWidth` can make tiles 1, 2 or 4
+bytes wide in any mode (see [Tile and tile set](#tile-and-tile-set)).
 `TileRestore` takes bytes and lines, like sprites.
 
 Sprite, fill and block routines take `x` and `y` as signed 16-bit integers and
@@ -162,12 +164,27 @@ its pixel bits 0.
 
 ### Tile and tile set
 
-A tile is 8 x 8 pixels: 8 rows, top first, each row `tile width` bytes
-(1, 2 or 4 bytes in mode 2, 1, 0): **8, 16 or 32 bytes per tile**. A tile set is
-the tiles one after another; tile n starts at `n * bytes per tile`. `SetTileSet`
-gives its address. `DoTile8` and the maps take tile numbers 0-255 (one byte).
-`DoTile16(x, y, t)` draws the four 8 x 8 tiles `4t` to `4t+3` (top-left,
-top-right, bottom-left, bottom-right).
+A tile is W bytes by 8 lines: 8 rows, top first, each row W bytes, so
+**8 * W bytes per tile**. A tile set is the tiles one after another; tile n
+starts at `n * 8 * W`. `SetTileSet` gives its address. `DoTile8` and the maps
+take tile numbers 0-255 (one byte). `DoTile16(x, y, t)` draws the four tiles
+`4t` to `4t+3` as a 2 x 2 block (top-left, top-right, bottom-left,
+bottom-right).
+
+By default W follows the mode, so a tile is 8 x 8 pixels: 4, 2 or 1 bytes in
+mode 0, 1, 2 (32, 16 or 8 bytes per tile). `SetTileWidth(w)` fixes W at 1, 2 or
+4 bytes in any mode instead, until `SetTileWidth(0)`; it stays through `Mode`.
+The usual reason is a finer grid in mode 0: W = 2 gives 4 x 8-pixel tiles and
+40 x 25 cells.
+
+| W | Mode 0 | Mode 1 | Mode 2 | Cells across |
+|---|---|---|---|---|
+| 1 | 2 x 8 px | 4 x 8 px | 8 x 8 px (default) | 80 |
+| 2 | 4 x 8 px | 8 x 8 px (default) | 16 x 8 px | 40 |
+| 4 | 8 x 8 px (default) | 16 x 8 px | 32 x 8 px | 20 |
+
+All the tile routines use the same W (`img2cpc.py --tiles --tile-width PX`
+makes the data; it emits `NAME_TILEW` for `SetTileWidth`).
 
 ### Tile map
 
@@ -209,6 +226,7 @@ byte (2, 4, 8). Tile images must also be a multiple of 8 high.
 | `--sprite` | The whole image is a sprite (default). |
 | `--frame WxH` | With `--sprite`: cut the image into frames of W x H **pixels**, row-major. W must be a multiple of the pixels per byte. |
 | `--tiles` | Cut into 8 x 8 tiles, row-major. |
+| `--tile-width PX` | With `--tiles`: tiles PX x 8 pixels, 1, 2 or 4 bytes wide (PX = 2/4/8 in mode 0, 4/8/16 in mode 1, 8/16/32 in mode 2; default 8). The image must be a multiple of PX x 8. |
 | `--dedupe` | With `--tiles`: drop repeated tiles and emit a map. |
 | `--masked` | Emit (mask, pixels) pairs. A pixel is transparent if its alpha is below 128 or it is `--transparent`. |
 | `--transparent RRGGBB` | A colour to treat as transparent. |
@@ -228,7 +246,7 @@ Generated names, with `NAME`:
 | Kind | Emitted |
 |---|---|
 | Sprite | `NAME` (data), `NAME_W` (bytes), `NAME_H` (lines), `NAME_FRAMES`, `NAME_SIZE` (bytes per frame) |
-| Tiles | `NAME` (data), `NAME_COUNT`; with `--dedupe` also `NAME_MAP`, `NAME_MAPW`, `NAME_MAPH` |
+| Tiles | `NAME` (data), `NAME_COUNT`; `NAME_TILEW` (bytes) when `--tile-width` is not 8; with `--dedupe` also `NAME_MAP`, `NAME_MAPW`, `NAME_MAPH` |
 | Palette | `NAME_pal` (one byte per pen), `NAME_PENS` (count) |
 
 Example, a masked sprite sheet of 16 x 16 frames in mode 1:
@@ -625,8 +643,10 @@ FillRect(10, 20, 8, 40, 2)    ' 8 bytes wide, 40 lines high, pen 2
 | Call | Parameters | Returns |
 |---|---|---|
 | `SetTileSet(addr)` | `addr AS UINTEGER` | sub |
+| `SetTileWidth(w)` | `w AS UBYTE`: 1, 2 or 4 bytes; 0 = the mode's | sub |
+| `TileWidth()` | | `UBYTE`, bytes |
 | `DoTile8(x, y, tile)` | `x, y, tile AS UBYTE`; x, y in tile cells | sub |
-| `DoTile16(x, y, tile)` | as above; x, y in 16 x 16 cells | sub |
+| `DoTile16(x, y, tile)` | as above; x, y in 2 x 2-tile cells | sub |
 | `TileMap(map, x, y, w, h)` | `map AS UINTEGER`; `x, y, w, h AS UBYTE` in tile cells | sub |
 | `TileMapPart(map, mapw, x, y, w, h)` | `map AS UINTEGER`; `mapw, x, y, w, h AS UBYTE` | sub |
 | `TileRestore(map, mapw, x, y, w, h)` | `map AS UINTEGER`; `mapw, x, y, w, h AS UBYTE`; x, w in bytes, y, h in lines | sub |
@@ -636,11 +656,16 @@ All draw on the drawing screen and work with a scroll offset. Tile formats:
 [Tile and tile set](#tile-and-tile-set), [Tile map](#tile-map).
 
 * **SetTileSet** sets the address of the tile data used by all later calls.
+* **SetTileWidth** sets the tile width W in bytes for all later calls: 1, 2 or
+  4 in any mode; any other value (0) goes back to the mode's width (the
+  default). It is kept through `Mode`. **TileWidth** returns the W in use, so
+  a screen is `80 / TileWidth()` cells across.
 * **DoTile8** draws tile number `tile` at cell (x, y): byte column `x * tile
   width`, pixel line `y * 8`. A cell off the screen draws nothing.
-* **DoTile16** draws a 16 x 16 tile made of the 8 x 8 tiles `4t` to `4t+3` at
-  16 x 16 cell (x, y), that is 8 x 8 cells (2x, 2y) to (2x+1, 2y+1).
-* **TileMap** draws a `w` x `h` block of 8 x 8 tiles whose numbers are the bytes
+* **DoTile16** draws the tiles `4t` to `4t+3` as a 2 x 2 block at 2 x 2 cell
+  (x, y), that is cells (2x, 2y) to (2x+1, 2y+1): 16 x 16 pixels with the
+  default width.
+* **TileMap** draws a `w` x `h` block of tiles whose numbers are the bytes
   at `map` (row-major, `w` per row), top-left at cell (x, y). Cells off the screen
   are skipped.
 * **TileMapPart** is the same for a block taken out of a wider map: `map` is the
@@ -656,11 +681,13 @@ All draw on the drawing screen and work with a scroll offset. Tile formats:
   rectangle is on the screen and no row can wrap (no scroll offset) it takes a
   short path; otherwise the general path through `TileMapPart`.
 
-Cost (T-states): `DoTile8` 1,179 in mode 1 and 1,546 in mode 0; `TileMap` about
-839 per tile in mode 1 and 1,199 in mode 0 for a full screen. The first version
+Cost (T-states, `cb_tiles.bas` on chips): `DoTile8` 1,226 in mode 1 and 1,573
+in mode 0; `TileMap` about 853 per tile in mode 1 and 1,226 in mode 0 for a full
+screen. The first version
 took 1,853 / 2,639 and 1,466 / 2,204. From BASIC in mode 0, a
 `DoTile8` call measured about 2.3k in bounce.bas, so the BASIC call itself costs
-roughly 0.7k on top.
+roughly 0.7k on top. A tile's cost depends on its width, not the mode: with
+`SetTileWidth(2)` a mode-0 tile costs what a mode-1 tile does.
 
 ```basic
 SetTileSet(@bgtiles(0))
@@ -1475,9 +1502,9 @@ pulls in only the assembly it needs, and including the library costs nothing):
 
 | Call | Bytes | Call | Bytes |
 |---|---|---|---|
-| `PutSprite` | 636 | `DoTile8` | 485 |
-| `PutSpriteMasked` | 952 | `TileMap` | 779 |
-| `GetBlock` | 624 | `TileRestore` | 1,047 |
+| `PutSprite` | 636 | `DoTile8` | 508 |
+| `PutSpriteMasked` | 952 | `TileMap` | 806 |
+| `GetBlock` | 624 | `TileRestore` | 1,074 |
 | `FillRect` | 349 | `EnableDoubleBuffer` + `FlipBuffer` | 154 |
 | `ClearScreen` | 149 | `SprListBegin` + `Draw` + `End` | 1,005 |
 | `TextFont` + `TextAt` | 1,216 | + `TextAtBoth` + `TextFlush` | 397 |
