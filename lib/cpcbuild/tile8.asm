@@ -35,13 +35,17 @@
 ; Registers clobbered: AF, BC, DE, HL.
 __CB_TILE_AT:
     PROC
-    LOCAL __CTA_M1, __CTA_M2
+    LOCAL __CTA_M1, __CTA_M2, __CTA_W, __CTA_FIX
 
     ld   a, b
     cp   25
     ret  nc                 ; below the screen
-    call __CB_TXS
+    ld   a, (CB_TILEW)      ; __CB_TXS inline (this path is the hot one)
     or   a
+    jr   nz, __CTA_FIX
+    ld   a, (GFX_XSHIFT)
+    or   a
+__CTA_W:
     jr   z, __CTA_M2
     dec  a
     jr   z, __CTA_M1
@@ -100,6 +104,9 @@ __CTA_M2:
     cp   $07
     jp   nz, __CTD_U1
     jp   __CB_TILE_DRAW
+__CTA_FIX:                  ; SetTileWidth's: s + 1 -> s, Z if 0
+    dec  a
+    jr   __CTA_W
     ENDP
 
 ; __CB_CELL_ADDR -- B = cell y (0-24), C = byte column (0-79) -> HL = the
