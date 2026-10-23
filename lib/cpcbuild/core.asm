@@ -198,5 +198,6 @@ CB_SHOWN:   defb 0          ; high byte of the screen being displayed
 CB_OFFSET:  defw 0          ; the firmware's hardware-scroll offset, 0-&7FE
 CB_DBUF:    defb 0          ; 1 = double buffering on
 CB_TILESET: defw 0          ; current tileset address (tiles.asm)
+CB_TILEW:   defb 0          ; tile width: 0 = the mode's, else 1 + log2 bytes (tiles.asm)
 
     pop namespace

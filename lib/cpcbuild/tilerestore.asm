@@ -3,9 +3,10 @@
 ;
 ; Written from scratch for this project (MIT); see core.asm.
 ;
-; A tile is 8x8 pixels: 1 byte x 8 lines in mode 2, 2 x 8 in mode 1,
-; 4 x 8 in mode 0 (width in bytes W = 1 << GFX_XSHIFT, colour.asm). Tile
-; data: per tile its 8 rows top first, each row's bytes left to right,
+; A tile is W bytes x 8 lines, W = 1 << s with s from __CB_TXS
+; (tiledraw.asm): the mode's GFX_XSHIFT (colour.asm) unless SetTileWidth
+; fixed it, so by default 8x8 pixels: 1 byte in mode 2, 2 in mode 1, 4 in
+; mode 0. Tile data: per tile its 8 rows top first, each row's bytes left to right,
 ; so a tile is 8 * W bytes. Tile n is at CB_TILESET + n * 8 * W.
 ; Tile cell (cx, cy) is byte column cx * W, pixel line cy * 8, so a tile
 ; starts on pixel line 0 of a character row: its 8 lines are in the 8
@@ -33,7 +34,7 @@
 ; where the tile is 2^s bytes wide). Meant for erasing a sprite in one
 ; call, so the usual case is short: when every cell is on the screen and
 ; no row can wrap (__CB_NOWRAP) it works out the first screen address
-; and map byte once and runs the fast row loop of the mode (__CTM_F4/F2/
+; and map byte once and runs the fast row loop of the width (__CTM_F4/F2/
 ; F1) row by row, stepping 80 bytes and one map row. Otherwise it goes
 ; through __CB_TILEMAP_S, which clips and wraps.
 ; Firmware entry called: none.
@@ -68,7 +69,7 @@ __CB_TILE_RESTORE:
     add  a, c
     dec  a
     ld   c, a
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
 __CTR_SH:                   ; to cell columns: C = last, E = first
     or   a
     jr   z, __CTR_SHD
@@ -87,7 +88,7 @@ __CTR_SHD:
     cp   26
     jp   nc, __CTR_SLOW     ; below the last cell row
     push bc
-    ld   a, (GFX_XSHIFT)    ; cells per screen row: 80 >> s
+    call __CB_TXS           ; cells per screen row: 80 >> s
     ld   b, a
     inc  b
     ld   a, 80
@@ -116,7 +117,7 @@ __CTR_CLD:
     add  a, a
     ld   b, a               ; B = pixel line
     ld   c, e
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
 __CTR_XS:
     or   a
     jr   z, __CTR_XSD
@@ -127,7 +128,7 @@ __CTR_XSD:
     call __CB_ADDR
     ld   (__CTR_SCR), hl
     pop  bc
-    ld   a, (GFX_XSHIFT)    ; run length in bytes = columns << s
+    call __CB_TXS           ; run length in bytes = columns << s
     ld   h, a
     ld   a, c
 __CTR_RS:
@@ -137,7 +138,7 @@ __CTR_RS:
     jr   __CTR_RS
 __CTR_RSD:
     ld   (__CTR_RUNB), a
-    ld   a, (GFX_XSHIFT)    ; the mode's fast row loop
+    call __CB_TXS           ; the width's fast row loop
     ld   hl, __CTM_F1
     or   a
     jr   z, __CTR_FS

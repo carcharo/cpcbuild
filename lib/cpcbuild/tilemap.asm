@@ -3,9 +3,10 @@
 ;
 ; Written from scratch for this project (MIT); see core.asm.
 ;
-; A tile is 8x8 pixels: 1 byte x 8 lines in mode 2, 2 x 8 in mode 1,
-; 4 x 8 in mode 0 (width in bytes W = 1 << GFX_XSHIFT, colour.asm). Tile
-; data: per tile its 8 rows top first, each row's bytes left to right,
+; A tile is W bytes x 8 lines, W = 1 << s with s from __CB_TXS
+; (tiledraw.asm): the mode's GFX_XSHIFT (colour.asm) unless SetTileWidth
+; fixed it, so by default 8x8 pixels: 1 byte in mode 2, 2 in mode 1, 4 in
+; mode 0. Tile data: per tile its 8 rows top first, each row's bytes left to right,
 ; so a tile is 8 * W bytes. Tile n is at CB_TILESET + n * 8 * W.
 ; Tile cell (cx, cy) is byte column cx * W, pixel line cy * 8, so a tile
 ; starts on pixel line 0 of a character row: its 8 lines are in the 8
@@ -36,13 +37,13 @@ __CB_TILE_PTR:
     add  hl, hl
     add  hl, hl
     add  hl, hl             ; * 8
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
     or   a
     jr   z, __CTP_DONE
-    add  hl, hl             ; * 16 (mode 1)
+    add  hl, hl             ; * 16 (W = 2)
     dec  a
     jr   z, __CTP_DONE
-    add  hl, hl             ; * 32 (mode 0)
+    add  hl, hl             ; * 32 (W = 4)
 __CTP_DONE:
     ld   de, (CB_TILESET)
     add  hl, de
@@ -57,7 +58,7 @@ __CTP_DONE:
 ; skipping cells off the screen. Per row the first address comes from
 ; __CB_ADDR, then each tile's is the previous plus W. Two row loops:
 ; when no row of the screen can wrap in its block (__CB_NOWRAP) the fast
-; one (__CTM_F4/F2/F1, one per mode, see below) draws each tile with the
+; one (__CTM_F4/F2/F1, one per width, see below) draws each tile with the
 ; unrolled drawer and no wrap handling; otherwise the general one wraps
 ; at the block end by clearing bit 3 of H (valid because a tile starts in
 ; block 0, so a carry out of the block is the only way that bit gets set)
@@ -88,7 +89,7 @@ __CTM_R1:
     or   a
     ret  z
     ld   (__CTM_ROWS), a
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
     ld   d, a
     ld   a, 80
 __CTM_LIM:                  ; A = cells per screen row
@@ -110,7 +111,7 @@ __CTM_V1:
     or   a
     ret  z                  ; width 0
     ld   (__CTM_VIS), a
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
     ld   d, a
     ld   a, e               ; x * W: first byte column
     ld   e, 1               ; E = W
@@ -124,7 +125,7 @@ __CTM_SHD:
     ld   (__CTM_XB), a
     ld   d, 0
     ld   (__CTM_WB), de
-    ld   a, (GFX_XSHIFT)    ; run length in bytes = visible tiles * W
+    call __CB_TXS           ; run length in bytes = visible tiles * W
     ld   b, a
     ld   a, (__CTM_VIS)
     inc  b
@@ -204,7 +205,7 @@ __CTM_FROW:                 ; fast row: the whole run of tiles
     add  a, e
     ld   (__CTM_END), a     ; the low byte the run ends at
     ld   hl, (__CTM_ROWMAP)
-    ld   a, (GFX_XSHIFT)
+    call __CB_TXS
     or   a
     jr   z, __CTM_FM1
     dec  a
@@ -220,7 +221,7 @@ __CTM_FNEXT:
     jp   __CTM_TAIL
     ENDP
 
-; The fast row loops, one per width W = 4, 2, 1 (modes 0, 1, 2): HL = the
+; The fast row loops, one per width W = 4, 2, 1 (by default modes 0, 1, 2): HL = the
 ; map row, DE = screen address of the first tile; draws tiles until the
 ; screen address' low byte reaches __CTM_END (the run is at most 80 bytes,
 ; so the low byte is unambiguous). Per tile: its data address is
