@@ -24,28 +24,28 @@ game's files.
 
 Run **CPCBuild: Build** with the `cpc464` target. At the end of the **CPCBuild** output channel is
 the build report. The report is plain text (a graphical report with a memory bar was planned and is not
-built). For the finished game, whose size is 26,727 bytes (`DESIGN.md` section 12; the finished game's
+built). For the finished game, whose size is 26,749 bytes (`DESIGN.md` section 12; the finished game's
 `build_cpc.sh` prints the same size), it reads:
 
 ```
 Build report for cpc464:
-  26727 bytes, &0040-&68A7
-    passes &4000 by 10407 bytes (only matters if you use a back screen or banks)
-    headroom below &8B60: 8889 bytes  [firmware heap start]
+  26749 bytes, &0040-&68BD
+    passes &4000 by 10429 bytes (only matters if you use a back screen or banks)
+    headroom below &8B60: 8867 bytes  [firmware heap start]
 ```
 
 (The layout is `formatReport` in Studio's `map.ts`, checked against a screenshot of a real run; the
-numbers are worked out from the 26,727 bytes: &0040 + 26,727 = &68A7, and &68A7 - &4000 = 10,407.) Run
+numbers are worked out from the 26,749 bytes: &0040 + 26,749 = &68BD, and &68BD - &4000 = 10,429.) Run
 **CPCBuild: Show Build Report** to print the last one again. Your own build will be a few hundred bytes
 different. The lines mean:
 
-- **`26727 bytes, &0040-&68A7`**: the program's size and address range. Studio reads the start from the `.map`
+- **`26749 bytes, &0040-&68BD`**: the program's size and address range. Studio reads the start from the `.map`
   file the compiler writes next to the program (the label `.core.__START_PROGRAM`) and adds the size.
   A CPC program loads at `&0040` by default (library: **Program origin**).
 - **`headroom below &8B60`**: the firmware's heap starts at `&8B60`; the program must end below it.
-  From `&0040` that leaves about 34.8 KB (library: **Program origin**). Lamplighter ends at `&68A7`
-  and has **8,889 bytes spare**: room to add rooms.
-- **`passes &4000 by 10407 bytes`**: a reference line, not an error. A program that
+  From `&0040` that leaves about 34.8 KB (library: **Program origin**). Lamplighter ends at `&68BD`
+  and has **8,867 bytes spare**: room to add rooms.
+- **`passes &4000 by 10429 bytes`**: a reference line, not an error. A program that
   uses double buffering or the 6128's banks must stay below `&4000` because it reserves `&4000-&7FFF`.
   Lamplighter is single-buffered and keeps no banks, so it passes that line by design, and the line says it only matters if you use a back screen or banks.
   A real limit that is exceeded says `OVER` in capitals. The build still finishes: Studio *reports* the
@@ -71,7 +71,7 @@ and `bare limit` at `&B800`.)
 | Music and effects | about 3,000 to 4,000 |
 | Font | 0 to 800 |
 
-The design's total was 25,000 to 29,000 bytes; the finished game is 26,727 (22,313 without sound, built with `-D NOSOUND`), inside it.
+The design's total was 25,000 to 29,000 bytes; the finished game is 26,749 (22,335 without sound, built with `-D NOSOUND`), inside it.
 (The 1,536 and 5,520 are exact: you saw them in the generated files' array sizes.)
 
 To see for yourself, open `build/<name>.map`. It is a list of `address: label` lines. Sort it by address in
@@ -196,8 +196,8 @@ build both and measure the difference.
 
    Paced, plain BASIC manages 22.8 steps a second, with 46 late steps. Add `NOPACE` as well and it
    takes 548 frames for 250 steps. That is over the 500-frame budget, so **the game cannot hold 25
-   steps a second in plain BASIC**. The build report says 26,927 bytes: 200 more than the assembly build's
-   26,727.
+   steps a second in plain BASIC**. The build report says 26,949 bytes: 200 more than the assembly build's
+   26,749.
 3. Remove `LAMP_BASIC` again and run the bench. It is back to
    `INFO steps=250 frames=499 per second=25.1 late=3 longest=3`.
 

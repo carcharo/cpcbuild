@@ -23,7 +23,7 @@ Select the `cpc6128` target (**CPCBuild: Select Target**) and run **CPCBuild: Bu
 `defines` are `["CPC6128"]` and its `model` is `"6128"`, so the emulator tab starts a 6128.
 
 You should see exactly what you saw on the 464. That is the finding: **`lamp464` and `lamp6128` are the
-same 26,727 bytes** (`DESIGN.md`, sections 11 and 12; the build script prints both). `platform_cpc.bas` has a
+same 26,749 bytes** (`DESIGN.md`, sections 11 and 12; the build script prints both). `platform_cpc.bas` has a
 `CPC464` and a `CPC6128` switch and does not use either: it defaults to `CPC464` when neither is set (line 30
 of the finished file), and the two builds make the same pictures. The finished game's tests run both and keep
 a screenshot golden per model: all 17 pictures of the 464 are byte-for-byte the 6128's.
@@ -41,7 +41,7 @@ suggests exactly that as an optional extra).
 
 Lamplighter does not do this, and the reason is worth knowing. The library's rule: **any program that uses
 the bank calls reserves `&4000-&7FFF`, and the compiler refuses to run code that reaches it**
-(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&68A7`, which
+(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&68BD`, which
 crosses `&4000`. To use banks it would have to be rebuilt to fit below `&4000` (about 16 KB, against 26.7 KB now)
 or to live above `&8000`. The finished game keeps its songs and levels in main RAM, which is why the 464 and
 6128 builds are one program.
@@ -287,19 +287,19 @@ firmware font either: the game's text comes from its own `fontcpc.bas` anyway). 
 `&0040`. These are the finished game's `lamppluc` flags (`build_plus.sh`).
 
 Select `plus-cart` and run **CPCBuild: Build and Run**. The compiler flags are `--arch cpc --org 0x40 -D
-PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,034-byte
+PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,056-byte
 program, the `lamppluc.bin` of `DESIGN.md` section 13), and then `mkcpr.py` wraps it as `build/plus-cart.cpr`
 (the finished game's cartridge is 49,188 bytes, 3 pages). The report is the one for a bare target, with its
 own reference lines:
 
 ```
 Build report for plus-cart:
-  30034 bytes, &0040-&7592
-    passes &4000 by 13714 bytes (only matters if you use a back screen or banks)
-    headroom below &B800: 17006 bytes  [bare limit]
+  30056 bytes, &0040-&75A8
+    passes &4000 by 13736 bytes (only matters if you use a back screen or banks)
+    headroom below &B800: 16984 bytes  [bare limit]
 ```
 
-(Worked out from the 30,034 bytes in the same way as in chapter 9: &0040 + 30,034 = &7592.) The emulator tab
+(Worked out from the 30,056 bytes in the same way as in chapter 9: &0040 + 30,056 = &75A8.) The emulator tab
 starts a Plus and boots the `.cpr` (Studio sends a `.cpr` to the Emulator extension, which always starts a
 Plus for a cartridge); a cartridge boots by itself.
 <!-- CHECK (for the user's test session): run plus-cart through Studio and the emulator tab, not only through the compiler and mkcpr.py as the tutorial's author did (that was run headless on CPCEC up to the title screen). Also confirm the report lines above. -->
@@ -317,7 +317,7 @@ What the numbers say (`DESIGN.md`, section 13, on Caprice32 and CPCEC; the finis
 
 | | 464 build | Plus build |
 |---|---|---|
-| program size | 26,727 bytes | 30,483 bytes (disc), 30,034 (cartridge) |
+| program size | 26,749 bytes | 30,505 bytes (disc), 30,056 (cartridge) |
 | paced speed | 25.0 steps a second | 25.1 (498-499 frames) |
 | unpaced, frames for 250 steps (500 is the budget) | 428 | 335 to 339 |
 | headroom | about 14 % | about 32 to 33 % |

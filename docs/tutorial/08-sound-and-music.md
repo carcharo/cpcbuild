@@ -223,8 +223,8 @@ tests check pixel for pixel that the sound switches change no pixel of room 9).
 
 ## How it works
 
-**What sound costs.** In memory: the finished game is **26,727 bytes** on the 464 with sound
-(`DESIGN.md` section 12) and **22,313** built with `-D NOSOUND` (measured by compiling the finished game with
+**What sound costs.** In memory: the finished game is **26,749 bytes** on the 464 with sound
+(`DESIGN.md` section 12) and **22,335** built with `-D NOSOUND` (measured by compiling the finished game with
 `build_cpc.sh`'s flags plus `-D NOSOUND`): about 4.4 KB for the player, two tunes and the effects.
 (`DESIGN.md` section 11 gives 22,404 for the game before the sound milestone: an earlier stage of the
 code, not a build with the sound compiled out.) In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**
