@@ -184,7 +184,7 @@ class AsepriteExtension(unittest.TestCase):
 
     def new_tiles(self, tw: int) -> Path:
         f = self.tmp / f"ground{tw}.aseprite"
-        ase("action=new_tiles", "mode=0", f"tw={tw}", "count=8", f"name=ground{tw}", f"out={f}")
+        ase("action=new_tiles", "mode=0", f"tw={tw}", "mw=8", "mh=1", f"name=ground{tw}", f"out={f}")
         # one stroke along row 1 makes tiles 1-3 (the cel grows to the stroke); a dot edits tile 1
         x2 = tw * 8 - 2
         r = ase("action=draw_tiles", f"file={f}", f"px=1:1:{x2}:1:2,2:5:2:5:3")
@@ -209,7 +209,7 @@ class AsepriteExtension(unittest.TestCase):
         self.assertNotIn("frame", side)
         self.assertNotIn("tags", side)
 
-        root = ET.parse(self.tmp / "ground4.tmx").getroot()
+        root = ET.parse(self.tmp / "ground4_map.tmx").getroot()
         self.assertEqual(root.get("orientation"), "orthogonal")
         self.assertEqual((root.get("width"), root.get("height")), ("8", "1"))
         self.assertEqual((root.get("tilewidth"), root.get("tileheight")), ("4", "8"))
@@ -224,12 +224,14 @@ class AsepriteExtension(unittest.TestCase):
         self.assertEqual(gids, [2, 3, 3, 3, 3, 3, 3, 4])      # tile index + 1
 
         out = self.tmp / "ground4.bas"
-        p = py("tmx2bas.py", str(self.tmp / "ground4.tmx"), "-o", str(out))
+        p = py("tmx2bas.py", str(self.tmp / "ground4_map.tmx"), "-o", str(out))
         self.assertEqual(p.returncode, 0, p.stderr)
         text = out.read_text()
         self.assertIn("$01, $02, $02, $02, $02, $02, $02, $03", text)   # gid - firstgid = tile index
-        self.assertIn("CONST ground4_W AS UBYTE = 8", text)
-        self.assertIn("CONST ground4_H AS UBYTE = 1", text)
+        self.assertIn("CONST ground4_map_W AS UBYTE = 8", text)
+        self.assertIn("CONST ground4_map_H AS UBYTE = 1", text)
+        self.assertIn("DIM ground4_map(", text)
+        self.assertFalse((self.tmp / "ground4.tmx").exists())
 
     def test_tileset_tw8_through_img2cpc(self):
         f = self.new_tiles(8)
@@ -241,15 +243,92 @@ class AsepriteExtension(unittest.TestCase):
                "-o", str(out))
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("CONST ground8_COUNT AS UBYTE = 4", out.read_text())
-        p = py("tmx2bas.py", str(self.tmp / "ground8.tmx"), "-o", str(self.tmp / "ground8_map.bas"))
+        p = py("tmx2bas.py", str(self.tmp / "ground8_map.tmx"), "-o", str(self.tmp / "ground8_map.bas"))
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertIn("$01, $02, $02, $02, $02, $02, $02, $03", (self.tmp / "ground8_map.bas").read_text())
 
     def test_tileset_rejects_illegal_width(self):
-        r = ase("action=new_tiles", "mode=0", "tw=6", "count=4", "name=x", f"out={self.tmp / 'x.aseprite'}",
+        r = ase("action=new_tiles", "mode=0", "tw=6", "name=x", f"out={self.tmp / 'x.aseprite'}",
                 check=False)
         self.assertNotEqual(r.returncode, 0)
         self.assertIn("tile width must be 2, 4 or 8 in mode 0", r.stdout)
+
+    def test_tileset_map_size_defaults_to_a_screen(self):
+        # 160/320/640 pixels by 200 lines; tiles are 8 lines high
+        for mode, tw, mw in ((0, 4, 40), (0, 8, 20), (0, 2, 80), (1, 4, 80), (1, 8, 40), (2, 8, 80), (2, 32, 20)):
+            f = self.tmp / f"d{mode}_{tw}.aseprite"
+            ase("action=new_tiles", f"mode={mode}", f"tw={tw}", "name=d", f"out={f}")
+            with self.subTest(mode=mode, tw=tw):
+                self.assertEqual(results(ase("action=size", f"file={f}"), "size"), [f"{mw * tw}x200"])
+        f = self.tmp / "own.aseprite"
+        ase("action=new_tiles", "mode=0", "tw=4", "mw=10", "mh=3", "name=own", f"out={f}")
+        self.assertEqual(results(ase("action=size", f"file={f}"), "size"), ["40x24"])
+        r = ase("action=new_tiles", "mode=0", "tw=4", "mw=0", "mh=3", "name=x", f"out={self.tmp / 'x.aseprite'}",
+                check=False)
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("1 to 255 tiles", r.stdout)
+
+    # -- projects
+
+    def make_project(self, assets=("assets/**/*.cpcimp", "assets/**/*.cpcspr", "assets/**/*.cpcpal")) -> Path:
+        proj = self.tmp / "proj"
+        (proj / "assets").mkdir(parents=True)
+        (proj / "cpcbuild.json").write_text(json.dumps({"version": 1, "name": "demo", "targets": [],
+                                                        "assets": list(assets)}))
+        return proj
+
+    def test_export_into_project_writes_minimal_recipe(self):
+        proj = self.make_project()
+        f = self.new_hero()
+        r = ase("action=export", f"file={f}", f"dir={proj / 'assets'}")
+        recipe = proj / "assets" / "hero.cpcimp"
+        self.assertEqual(results(r, "project"), [f"demo|{recipe}|created|matched"])
+        # source and output only (Studio's field order), paths relative to the project root
+        self.assertEqual(recipe.read_text(),
+                         '{\n  "format": "cpcimp",\n  "version": 1,\n  "source": "assets/hero.png",\n'
+                         '  "output": "assets/hero.bas",\n  "target": "cpc"\n}\n')
+        # img2cpc run from the project root on that source gets its settings from the sidecar
+        p = subprocess.run([sys.executable, str(TOOLS / "img2cpc.py"), "assets/hero.png", "-o", "assets/hero.bas"],
+                           capture_output=True, text=True, cwd=proj)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertIn("CONST hero_FRAMES AS UBYTE = 4", (proj / "assets" / "hero.bas").read_text())
+
+    def test_export_keeps_an_existing_recipe(self):
+        proj = self.make_project()
+        recipe = proj / "assets" / "hero.cpcimp"
+        recipe.write_text("mine\n")
+        r = ase("action=export", f"file={self.new_hero()}", f"dir={proj / 'assets'}")
+        self.assertEqual(results(r, "project"), [f"demo|{recipe}|kept|matched"])
+        self.assertEqual(recipe.read_text(), "mine\n")
+
+    def test_export_recipe_at_project_root_and_unmatched(self):
+        proj = self.make_project(assets=("src/*.cpcimp",))
+        f = self.new_hero()
+        r = ase("action=export", f"file={f}", f"dir={proj}")
+        self.assertEqual(results(r, "project"), [f"demo|{proj / 'hero.cpcimp'}|created|unmatched"])
+        self.assertIn('"source": "hero.png"', (proj / "hero.cpcimp").read_text())
+        # a deeper folder: the glob must match the whole relative path
+        (proj / "src" / "art").mkdir(parents=True)
+        r = ase("action=export", f"file={f}", f"dir={proj / 'src' / 'art'}")
+        self.assertTrue(results(r, "project")[0].endswith("|unmatched"))
+        r = ase("action=export", f"file={f}", f"dir={proj / 'src'}")
+        self.assertTrue(results(r, "project")[0].endswith("|matched"))
+
+    def test_export_outside_a_project_writes_no_recipe(self):
+        r = ase("action=export", f"file={self.new_hero()}", f"dir={self.tmp}")
+        self.assertEqual(results(r, "project"), [])
+        self.assertEqual(list(self.tmp.glob("*.cpcimp")), [])
+
+    def test_tileset_export_into_project(self):
+        proj = self.make_project()
+        f = self.new_tiles(4)
+        r = ase("action=export", f"file={f}", f"dir={proj / 'assets'}", "tmx=1")
+        recipe = proj / "assets" / "ground4.cpcimp"
+        self.assertEqual(results(r, "project"), [f"demo|{recipe}|created|matched"])
+        self.assertIn('"source": "assets/ground4.png"', recipe.read_text())
+        self.assertTrue((proj / "assets" / "ground4_map.tmx").exists())
+        self.assertFalse((proj / "assets" / "ground4.tmx").exists())
+        self.assertFalse((proj / "assets" / "ground4_map.cpcimp").exists())   # the map has no recipe
 
     # -- extension files
 

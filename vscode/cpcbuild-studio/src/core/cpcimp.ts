@@ -198,7 +198,7 @@ export function applyRecipeOp(state: Recipe, op: RecipeOp): RecipeOutcome {
 
 // ------------------------------------------------------------------ sidecar
 
-/** The recipe fields a sidecar (NAME.cpcbuild.json) gives: what Import Image pre-fills. */
+/** The recipe fields a sidecar (NAME.cpcbuild.json) gives: what the importer shows as the effective values. */
 export function sidecarFields(side: Sidecar): Partial<Recipe> {
   const f: Partial<Recipe> = {};
   if (side.mode !== undefined) f.mode = side.mode;
@@ -219,16 +219,52 @@ export function sidecarFields(side: Sidecar): Partial<Recipe> {
  * undefined when there is none; an unreadable or invalid one has `fields` empty and `error` set
  * (the converter reports it again when the recipe runs).
  */
-export function readSidecarFor(source: string, io: CliIo): { file: string; fields: Partial<Recipe>; error?: string } | undefined {
+export function readSidecarFor(source: string, io: CliIo): { file: string; side?: Sidecar; fields: Partial<Recipe>; error?: string } | undefined {
   const load = sidecarLoader(io);
   if (!load || !source) return undefined;
   try {
     const found = load(source);
-    return found ? { file: found.path, fields: sidecarFields(found.side) } : undefined;
+    return found ? { file: found.path, side: found.side, fields: sidecarFields(found.side) } : undefined;
   } catch (e) {
     if (!(e instanceof Img2cpcError)) throw e;
     return { file: sidecarPath(source), fields: {}, error: e.message };
   }
+}
+
+/**
+ * The sidecar the converter will read for a recipe, as `readSidecarFor` finds it: CPC targets only,
+ * and not with a grid (the composed sheet is not the image the sidecar describes).
+ */
+export function sidecarOf(r: Recipe, io: CliIo): ReturnType<typeof readSidecarFor> {
+  return r.target === 'cpc' && !r.grid ? readSidecarFor(r.source, io) : undefined;
+}
+
+const SIDECAR_KEYS = ['mode', 'name', 'kind', 'frame', 'tileWidth', 'masked', 'palette'] as const;
+
+/** The recipe as the converter sees it: what the recipe leaves out comes from the sidecar's fields. */
+export function effectiveRecipe(r: Recipe, fields: Partial<Recipe>): Recipe {
+  const e: { [k: string]: unknown } = { ...r };
+  for (const k of SIDECAR_KEYS) if (r[k] === undefined && fields[k] !== undefined) e[k] = fields[k];
+  return e as Recipe;
+}
+
+/** The recipe fields that override a value the sidecar gives (a recipe option wins over the sidecar). */
+export function overriddenFields(r: Recipe, fields: Partial<Recipe>): string[] {
+  return SIDECAR_KEYS.filter((k) => r[k] !== undefined && fields[k] !== undefined);
+}
+
+/**
+ * The recipe Import Image writes for an image. A sidecar beside it gives the settings and stays the
+ * one place for them (copies would go stale after a re-export, and a recipe's options override the
+ * sidecar), so the recipe then holds only the source and output; the importer form shows the sidecar's values.
+ */
+export function importRecipe(source: string, output: string, io: CliIo): Recipe {
+  const r = newRecipe(source, { output });
+  if (readSidecarFor(source, io)) {
+    delete r.mode;
+    delete r.kind;
+  }
+  return r;
 }
 
 // ------------------------------------------------------------------ names and paths
@@ -272,12 +308,14 @@ export function inputsOf(r: Recipe): string[] {
  *   [--palette L | --palette-file F], [--pen0 N], [--no-palette], [--write-palette F], SOURCE, -o OUTPUT
  * With a grid the frame is the cell size (sprites) and the source is the recipe's source (the sheet
  * is composed in memory).
+ * `side` is the sidecar beside the source: --mode and --name are left out when the recipe has no
+ * value and the sidecar gives one, so the sidecar's value stands (a recipe option would override it).
  */
-export function recipeToArgv(r: Recipe): string[] {
+export function recipeToArgv(r: Recipe, side?: Sidecar): string[] {
   const a: string[] = [];
   switch (r.target) {
     case 'cpc':
-      a.push('--mode', String(r.mode ?? 1));
+      if (r.mode !== undefined || side?.mode === undefined) a.push('--mode', String(r.mode ?? 1));
       break;
     case 'plus-sprite':
       a.push('--plus-sprite');
@@ -293,7 +331,7 @@ export function recipeToArgv(r: Recipe): string[] {
       if (r.zxSprite) a.push('--zx-sprite');
       break;
   }
-  a.push('--name', effectiveName(r));
+  if (r.name !== undefined || side?.name === undefined) a.push('--name', effectiveName(r));
   if (r.target === 'cpc') {
     if (r.kind === 'tiles') {
       a.push('--tiles');
@@ -323,11 +361,11 @@ export function preprocessing(r: Recipe): string | undefined {
 }
 
 /** The exact line the panel shows and "copy" copies, or why there is none. */
-export function commandLine(r: Recipe): { command?: string; reason?: string } {
+export function commandLine(r: Recipe, side?: Sidecar): { command?: string; reason?: string } {
   const pre = preprocessing(r);
   if (pre) return { reason: `No single img2cpc command does this: ${pre} is on. The converter runs on a pre-processed image.` };
   if (!r.source) return { reason: 'Choose a source image first.' };
-  return { command: 'python3 tools/img2cpc.py ' + recipeToArgv(r).map(shellQuote).join(' ') };
+  return { command: 'python3 tools/img2cpc.py ' + recipeToArgv(r, side).map(shellQuote).join(' ') };
 }
 
 const VALUE_FLAGS = new Set(['--mode', '--name', '-o', '--output', '--frame', '--transparent', '--palette', '--palette-file', '--pen0', '--tile-width', '--write-palette', '--plus-format']);
@@ -536,9 +574,14 @@ function readSourceImage(io: CliIo, path: string, decode?: RunOptions['decode'])
   }
 }
 
+/** The command line a run uses: `recipeToArgv` with the sidecar beside the source, if any. */
+export function argvFor(r: Recipe, io: CliIo): string[] {
+  return recipeToArgv(r, sidecarOf(r, io)?.side);
+}
+
 /** The recipe's command line parsed like the tool does; its usage errors are UsageErrors. The palette file is not read yet. */
 export function optionsOf(r: Recipe, io?: CliIo): { args: CliArgs; argv: string[] } {
-  const argv = recipeToArgv(r);
+  const argv = io ? argvFor(r, io) : recipeToArgv(r);
   try {
     // a sidecar beside the source gives the defaults (a grid sheet is composed in memory: none)
     return { args: parseArgs(argv, io && !r.grid ? sidecarLoader(io) : undefined), argv };

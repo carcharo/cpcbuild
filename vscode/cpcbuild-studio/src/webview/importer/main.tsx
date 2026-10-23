@@ -82,7 +82,11 @@ function TextField(p: { id: string; label: string; value: string; placeholder?: 
 
 const MIN_AVAIL_W = 64;
 function ImporterApp({ client, settings, view }: Host) {
-  const r = view.recipe;
+  const r = view.effective; // the form shows the effective values: the recipe's, else the sidecar's
+  const side = view.sidecar;
+  /** The field description, with where the value comes from when the sidecar supplies it. */
+  const fromSide = (key: keyof Recipe, text: string): string =>
+    side && view.sidecarFields?.[key] !== undefined && view.recipe[key] === undefined ? `${text} From ${side}.` : text;
   const saved = client.getState<Persisted>() ?? {};
   const [tab, setTab] = useState<Tab>(saved.tab ?? 'options');
   const [pane, setPane] = useState<Pane>(saved.pane ?? 'both');
@@ -221,6 +225,7 @@ function ImporterApp({ client, settings, view }: Host) {
   const stepBy = (dir: 1 | -1): void => setZoomWanted(stepZoom(typeof zoomWanted === 'number' ? zoomWanted : zoom, dir, aw));
 
   const tiles = r.kind === 'tiles';
+  const sideMasked = !!side && !tiles && !!view.sidecarFields?.masked;
   const cpc = r.target === 'cpc';
   const plusT = r.target === 'plus-sprite' || r.target === 'plus-palette';
   const palMode: 'auto' | 'pens' | 'file' = r.palette?.file ? 'file' : r.palette?.list?.length ? 'pens' : (palPending ?? 'auto');
@@ -275,7 +280,8 @@ function ImporterApp({ client, settings, view }: Host) {
     if (/16-bit PNG/.test(src.error)) acts.unshift({ label: 'Use the Python engine', onClick: () => void client.request('useEngine', { engine: 'python' }).then((x) => x.changed && setRefresh((n) => n + 1)) });
     notices.push(<Notice key="srcerr" severity="error" actions={acts}>{src.error}</Notice>);
   }
-  if (errText) {
+  if (view.sidecarError) notices.push(<Notice key="sidecar" severity="error">{view.sidecarError}</Notice>);
+  if (errText && !view.sidecarError) {
     const acts: NoticeAction[] = [];
     if (sixteen) acts.push({ label: 'Use the Python engine', onClick: () => void client.request('useEngine', { engine: 'python' }) });
     if (/needs \d+ colours/.test(errText) && cpc) acts.push({ label: 'Pick a palette', onClick: () => { setOpen({ ...open, colours: true }); setPalPending('pens'); setTab('options'); queueMicrotask(() => document.getElementById('imp-pens')?.focus()); } });
@@ -309,13 +315,13 @@ function ImporterApp({ client, settings, view }: Host) {
           {cpc && (
             <>
               <Segmented<number> label="Mode" value={r.mode ?? 1} options={[0, 1, 2].map((m) => ({ value: m, label: `Mode ${m}` }))} onChange={(m) => void set({ mode: m })} />
-              <div class="cb-muted">{[16, 4, 2][r.mode ?? 1]} pens. <code class="imp-flag">--mode {r.mode ?? 1}</code></div>
+              <div class="cb-muted">{[16, 4, 2][r.mode ?? 1]} pens. <code class="imp-flag">--mode {r.mode ?? 1}</code>{fromSide('mode', '')}</div>
             </>
           )}
           {r.target === 'spectrum' && (
             <CheckField id="imp-zx" label="Sprite data (one bit per opaque non-black pixel)" checked={!!r.zxSprite} description="--zx-sprite" onChange={(v) => void set({ zxSprite: v ? true : null })} />
           )}
-          <TextField id="imp-name" label="Name" value={r.name ?? ''} placeholder={view.defaultName} description="--name NAME. Prefix of the generated arrays and constants." mono
+          <TextField id="imp-name" label="Name" value={r.name ?? ''} placeholder={view.defaultName} description={fromSide('name', '--name NAME. Prefix of the generated arrays and constants.')} mono
             validate={(t) => (t && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(t) ? 'Use letters, digits and _, not starting with a digit' : undefined)}
             onCommit={(t) => void set({ name: t || null })} />
           <div class="imp-row">
@@ -328,17 +334,18 @@ function ImporterApp({ client, settings, view }: Host) {
       {cpc && sec('kind', 'Sprites and tiles', (
         <>
           <Segmented<string> label="Kind" value={tiles ? 'tiles' : 'sprite'} options={[{ value: 'sprite', label: 'Sprite', title: '--sprite' }, { value: 'tiles', label: 'Tiles', title: '--tiles' }]} onChange={(k) => void set({ kind: k, ...(k === 'tiles' ? { frame: null, masked: null } : { dedupe: null, tileWidth: null }) })} />
+          {fromSide('kind', '') && <div class="cb-muted">The kind comes from {side}.</div>}
           <TextField id="imp-frame" label="Frame size (WxH pixels)" value={grid ? `${grid.cellW}x${grid.cellH}` : (r.frame ?? '')} placeholder="whole image"
             disabled={tiles || !!grid} error={errFrame ? errText : undefined}
-            description={tiles ? 'Tiles are 8 lines tall, and as wide as the tile width below (--frame is for sprites).' : grid ? 'Set by the grid cell size while grid extraction is on.' : '--frame WxH. Cuts a sheet into frames, row by row.'} mono
+            description={tiles ? 'Tiles are 8 lines tall, and as wide as the tile width below (--frame is for sprites).' : grid ? 'Set by the grid cell size while grid extraction is on.' : fromSide('frame', '--frame WxH. Cuts a sheet into frames, row by row.')} mono
             validate={(t) => (t && !/^\d+\s*x\s*\d+$/i.test(t) ? 'Use WxH, for example 16x16' : undefined)}
             onCommit={(t) => void set({ frame: t || null })} />
           {tiles && (
             <NumberField id="imp-tw" label="Tile width (pixels)" value={r.tileWidth ?? 8} min={1} max={32}
-              description={`--tile-width: 1, 2 or 4 bytes, so ${tileWidthsOf(r.mode ?? 1).join(', ')} pixels in mode ${r.mode ?? 1}. 8 is the default.`}
+              description={fromSide('tileWidth', `--tile-width: 1, 2 or 4 bytes, so ${tileWidthsOf(r.mode ?? 1).join(', ')} pixels in mode ${r.mode ?? 1}. 8 is the default.`)}
               onCommit={(n) => void set({ tileWidth: n === 8 ? null : n })} />
           )}
-          <CheckField id="imp-masked" label="Masked (mask byte before each pixel byte)" checked={!!r.masked} disabled={tiles} description={tiles ? '--masked with --tiles is an error, so it is off for tiles.' : '--masked'} onChange={(v) => void set({ masked: v ? true : null })} />
+          <CheckField id="imp-masked" label="Masked (mask byte before each pixel byte)" checked={!!r.masked} disabled={tiles || sideMasked} description={tiles ? '--masked with --tiles is an error, so it is off for tiles.' : sideMasked ? `Set by ${side}, which a recipe option cannot switch off. Change it there, or use Use ${side} above to drop the recipe's own copy.` : '--masked'} onChange={(v) => void set({ masked: v ? true : null })} />
           <CheckField id="imp-dedupe" label="Drop repeated tiles (adds NAME_MAP)" checked={!!r.dedupe} disabled={!tiles} description={tiles ? '--dedupe' : '--dedupe needs tiles.'} onChange={(v) => void set({ dedupe: v ? true : null })} />
         </>
       ), true)}
@@ -369,7 +376,7 @@ function ImporterApp({ client, settings, view }: Host) {
                 }} />
               {palMode === 'auto' && <div class="cb-muted">Pens in order of first appearance in the image, after pen 0 if given.</div>}
               {palMode === 'pens' && (
-                <TextField id="imp-pens" label="Fixed pens (firmware colours 0-26)" value={r.palette?.list?.join(',') ?? ''} placeholder="0,26,6,18" description="--palette LIST. Each pixel takes the nearest pen; all entries are emitted." mono
+                <TextField id="imp-pens" label="Fixed pens (firmware colours 0-26)" value={r.palette?.list?.join(',') ?? ''} placeholder="0,26,6,18" description={fromSide('palette', '--palette LIST. Each pixel takes the nearest pen; all entries are emitted.')} mono
                   error={errPal ? errText : undefined}
                   validate={(t) => {
                     if (!t) return undefined;
@@ -588,7 +595,10 @@ function ImporterApp({ client, settings, view }: Host) {
         <span class="cb-muted">Source:</span> <strong class="cb-mono">{r.source || 'none'}</strong>
         {sp && <span class="cb-muted"> {sp.width}x{sp.height} px</span>}
         <button type="button" class="cb-btn cb-btn-secondary" onClick={() => void client.request('pickSource', { baseVersion: version.current })}>Change...</button>
-        {view.sidecar && <div class="cb-muted">Settings from {view.sidecar}</div>}
+        {view.sidecar && !view.sidecarError && <div class="cb-muted">Settings from {view.sidecar}{view.overridden.length ? `, except ${view.overridden.join(', ')} (set in this recipe)` : ''}</div>}
+        {view.sidecar && view.overridden.length > 0 && (
+          <button type="button" class="cb-btn cb-btn-secondary" onClick={() => void set(Object.fromEntries(view.overridden.map((k) => [k, null])))}>Use {view.sidecar}</button>
+        )}
       </div>
       <div class="imp-out">
         <span class="cb-muted">Output:</span> <span class="cb-mono">{view.outputs[0]}</span>

@@ -238,7 +238,7 @@ export function checkReport(image: string, w: number, h: number, o: Options, c: 
     const n = c.repeats!;
     if (n) {
       const rep = `${n} repeat` + (n > 1 ? 's' : '');
-      line += o.dedupe ? `, ${rep} dropped` : `, ${rep} (--dedupe would drop them)`;
+      line += o.dedupe ? `, ${rep} dropped` : `, ${rep} (--dedupe would drop ${n === 1 ? 'it' : 'them'})`;
     }
     lines.push(line);
   } else {
@@ -604,7 +604,7 @@ export function penBody(grid: PenGrid, w: number, h: number, pal: number[], o: O
       body.push(fmtConst(o.name + '_MAPW', w / tw));
       body.push(fmtConst(o.name + '_MAPH', h / 8));
     }
-    desc = `${tiles.length} tiles of ${tiles[0].length} bytes`;
+    desc = `${tiles.length} tile${tiles.length === 1 ? '' : 's'} of ${tiles[0].length} bytes`;
   } else {
     let fw = w, fh = h;
     if (o.frame) {

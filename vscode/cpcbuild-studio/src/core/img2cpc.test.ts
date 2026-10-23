@@ -297,7 +297,7 @@ describe('img2cpc.ts vs tools/img2cpc.py: the sidecar', () => {
     }
     const noVersion = withSide(32, 8, JSON.stringify({ format: 'cpcbuild-image', mode: 0 }));
     sameError([noVersion]);
-  });
+  }, 30_000); // 24 runs of the Python tool: about 5 s, the default limit
 });
 
 describe('img2cpc.ts vs tools/img2cpc.py: --check', () => {
@@ -329,7 +329,7 @@ describe('img2cpc.ts vs tools/img2cpc.py: --check', () => {
     same(['--check', '--mode', '1', '--tiles', p]);
     same(['--check', '--mode', '2', '--tiles', '--tile-width', '16', '--dedupe', png(32, 16, [[0, 0, 0], [255, 255, 255]], 0)]);
     const one = png(16, 8, [[255, 0, 0]], 0);
-    expect(same(['--check', '--mode', '1', '--tiles', one])).toContain(', 1 repeat (--dedupe');
+    expect(same(['--check', '--mode', '1', '--tiles', one])).toContain(', 1 repeat (--dedupe would drop it)\n');
   });
 
   it('with a sidecar', () => {

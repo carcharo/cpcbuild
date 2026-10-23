@@ -691,7 +691,7 @@ def convert(args, img: Image, info: dict | None = None) -> tuple[str, str]:
             body.append(fmt_array(name + "_MAP", cells))
             body.append(fmt_const(name + "_MAPW", img.w // tw))
             body.append(fmt_const(name + "_MAPH", img.h // 8))
-        desc = f"{len(tiles)} tiles of {len(tiles[0])} bytes"
+        desc = f"{len(tiles)} tile{'s' if len(tiles) != 1 else ''} of {len(tiles[0])} bytes"
     else:
         fw, fh = img.w, img.h
         if args.frame:
@@ -737,7 +737,7 @@ def check_report(args, img: Image, info: dict, side: Path | None) -> str:
         n = info["repeats"]
         if n:
             rep = f"{n} repeat" + ("s" if n > 1 else "")
-            line += f", {rep} dropped" if args.dedupe else f", {rep} (--dedupe would drop them)"
+            line += f", {rep} dropped" if args.dedupe else f", {rep} (--dedupe would drop {'it' if n == 1 else 'them'})"
         lines.append(line)
     else:
         lines.append(f"  frames: {info['frames']} of {info['fw']}x{info['fh']} pixels "

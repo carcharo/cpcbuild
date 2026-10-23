@@ -31,8 +31,15 @@ export interface ImporterView extends ViewBase {
   /** The default name and output, which the form shows as placeholders. */
   defaultName: string;
   defaultOutput: string;
-  /** The sidecar beside the source image (file name), whose settings the recipe was pre-filled from. */
+  /** The recipe with what it leaves out filled in from the sidecar: the values the form shows. */
+  effective: Recipe;
+  /** The sidecar beside the source image (file name) that supplies those values. */
   sidecar?: string;
+  /** The recipe fields the sidecar gives, and which of them the recipe overrides. */
+  sidecarFields?: Partial<Recipe>;
+  overridden: string[];
+  /** The sidecar's error message when it cannot be read (the converter reports the same). */
+  sidecarError?: string;
   /** The exact command (python3 tools/img2cpc.py ...), or why there is none. */
   command?: string;
   commandReason?: string;

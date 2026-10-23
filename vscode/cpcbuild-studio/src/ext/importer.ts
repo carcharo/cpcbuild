@@ -10,8 +10,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import {
-  applyRecipeOp, argvToRecipe, commandLine, composeSheet, effectiveOutput, newRecipe, outputsOf,
-  parseRecipe, previewOf, readSidecarFor, RecipeError, serialiseRecipe, shellSplit, type Recipe, type RecipeOp,
+  applyRecipeOp, argvToRecipe, commandLine, composeSheet, effectiveOutput, effectiveRecipe, importRecipe, outputsOf,
+  overriddenFields, parseRecipe, previewOf, RecipeError, sidecarOf, serialiseRecipe, shellSplit, type Recipe, type RecipeOp,
 } from '../core/cpcimp';
 import { decodeImage, ImageReadError } from '../core/imageio';
 import { defaultName } from '../core/img2cpc';
@@ -111,7 +111,13 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
     const root = this.rootOf(doc);
     const s = readSettings(root);
     const recipePath = toRel(root, doc.uri.fsPath);
-    const cmd = commandLine(state);
+    let found: ReturnType<typeof sidecarOf>;
+    try {
+      found = sidecarOf(state, rootIo(root));
+    } catch {
+      // an unreadable sidecar file is not worth a failed render
+    }
+    const cmd = commandLine(state, found?.side);
     let sourceKey = `${state.source}:none`;
     let stale = false;
     let outputExists = false;
@@ -129,21 +135,16 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
         // an unreadable tree is not worth a failed render
       }
     }
-    let sidecar: string | undefined;
-    if (state.source && state.target === 'cpc') {
-      try {
-        const found = readSidecarFor(state.source, rootIo(root));
-        if (found) sidecar = path.basename(found.file);
-      } catch {
-        // as for the output: not worth a failed render
-      }
-    }
     return {
       recipe: state,
+      effective: found ? effectiveRecipe(state, found.fields) : state,
       recipePath,
       root,
       sourceKey,
-      sidecar,
+      sidecar: found && path.basename(found.file),
+      sidecarFields: found?.fields,
+      sidecarError: found?.error,
+      overridden: found ? overriddenFields(state, found.fields) : [],
       defaultName: defaultName(state.source || 'img'),
       defaultOutput: effectiveOutput({ ...state, output: undefined }),
       command: cmd.command,
@@ -264,7 +265,6 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
     const rel = toRel(root, uri.fsPath);
     const patch: { [k: string]: unknown } = { source: rel };
     if (!doc.state.output) patch.output = defaultOutputFor(root, doc.uri.fsPath, rel);
-    if (doc.state.target === 'cpc') Object.assign(patch, readSidecarFor(rel, rootIo(root))?.fields);
     this.commit(doc, { op: 'set', patch, label: 'Change source image' });
     return { picked: true };
   }
@@ -309,7 +309,7 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
   }
 
   async copyCommand(doc: StudioDocument<Recipe>): Promise<{ copied: boolean; reason?: string }> {
-    const c = commandLine(doc.state);
+    const c = commandLine(doc.state, sidecarOf(doc.state, rootIo(this.rootOf(doc)))?.side);
     if (!c.command) return { copied: false, reason: c.reason };
     await vscode.env.clipboard.writeText(c.command);
     return { copied: true };
@@ -375,8 +375,7 @@ export async function importImageCommand(arg?: vscode.Uri | { uri?: vscode.Uri; 
   const file = path.join(dir, `${stem}.cpcimp`);
   if (!fs.existsSync(file)) {
     fs.mkdirSync(dir, { recursive: true });
-    const fromSidecar = readSidecarFor(src, rootIo(root))?.fields;
-    fs.writeFileSync(file, serialiseRecipe(newRecipe(src, { output: defaultOutputFor(root, file, src), ...fromSidecar })));
+    fs.writeFileSync(file, serialiseRecipe(importRecipe(src, defaultOutputFor(root, file, src), rootIo(root))));
   }
   const uri = vscode.Uri.file(file);
   if (opts.open !== false) await vscode.commands.executeCommand('vscode.openWith', uri, IMPORTER_VIEW_TYPE);

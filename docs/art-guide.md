@@ -4,8 +4,10 @@ This page is for drawing sprites, tiles and levels in any paint program so
 that `tools/img2cpc.py`, `tools/tmx2bas.py` and Studio's Import Image take
 them first time. It covers sizes, layout and colours, not drawing.
 
-If you use Aseprite, install the extension in `tools/aseprite/` (see its
-README): **New CPC Sprite** and **New CPC Tileset** set up everything below,
+If you use Aseprite (tested with 1.3.18.6), install the extension in
+`tools/aseprite/` (see its README; in Finder use Open With > Aseprite, or
+Aseprite's Preferences > Extensions > Add Extension, since a double-click may
+open it in TextEdit): **New CPC Sprite** and **New CPC Tileset** set up everything below,
 **Check for CPC** finds the problems, and **Export for CPCBuild** writes the
 sheet plus a settings file, so `python3 tools/img2cpc.py hero.png` needs no
 options. Everyone else (LibreSprite, Pixelorama, GIMP, Photoshop...) sets the
@@ -108,7 +110,9 @@ tile 0 is the top-left one.
 
 - The image must be a multiple of the tile size.
 - At most 256 tiles (tile numbers are one byte).
-- Tiles are not masked (`--masked` is for sprites).
+- Tiles are not masked (`--masked` is for sprites): any transparent pixel in
+  a tile becomes pen 0. Editors show it as a checkerboard, the CPC as pen 0's
+  colour; `--check` counts them (`transparent pixels: N`).
 - `--dedupe` drops repeated tiles and writes a map (`NAME_MAP`, `NAME_MAPW`,
   `NAME_MAPH`): you can draw a whole screen as one picture and get both the
   tile set and the map from it. `--check` says how many repeats there are.
@@ -151,7 +155,30 @@ be multiples of 8, and each 8 x 8 cell gets only two colours (its two most
 frequent: paper and ink). Keep two colours per 8 x 8 cell where the art must
 look right on both machines.
 
-## 8. Checklist
+## 8. Using it in a project
+
+With the Aseprite extension:
+
+1. Export into the project's `assets/` folder (e.g. `assets/hero.png`). Inside a
+   project (a `cpcbuild.json` above the folder) Export also writes a recipe,
+   `assets/hero.cpcimp`, naming only the image and `assets/hero.bas`; an existing
+   recipe is kept. The export summary says which.
+2. In `main.bas`: `#include "../assets/hero.bas"` (**CPCBuild: Insert Asset Use**
+   writes the lines).
+3. Build. Every build turns the PNG into `hero.bas` with the settings file's
+   mode, frames, palette and tags, so after changing the art (or its settings) in
+   Aseprite, export again and build: nothing else to update. `cpcbuild.json`'s
+   `"assets"` list (a new project has `assets/**/*.cpcimp`) is what makes the
+   build find the recipe; the summary warns if it doesn't match.
+
+Maps are not built automatically: convert `NAME_map.tmx` with **CPCBuild:
+Convert Tiled Map to BASIC** or `tmx2bas.py` after changing the level.
+
+Without Aseprite: put the PNG in `assets/`, right-click it, **CPCBuild: Import
+Image**, choose the settings and save; the recipe it writes is built the same
+way.
+
+## 9. Checklist
 
 - [ ] Mode chosen; editor pixel ratio set (2:1, 1:1, 1:2).
 - [ ] Widths are multiples of 2 / 4 / 8 pixels (mode 0 / 1 / 2).
@@ -162,7 +189,7 @@ look right on both machines.
 - [ ] Transparent = alpha (or one `--transparent` colour), masked sprites only.
 - [ ] `img2cpc.py --check` says `ok`.
 
-## 9. Common errors
+## 10. Common errors
 
 | Message | Fix |
 |---|---|

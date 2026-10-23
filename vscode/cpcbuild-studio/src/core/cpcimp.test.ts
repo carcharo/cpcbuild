@@ -9,8 +9,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  argvToRecipe, commandLine, composeSheet, defaultGrid, effectiveOutput, gridLayout, newRecipe, outputsOf, parseRecipe,
-  previewOf, readSidecarFor, recipeToArgv, restyleHeader, RecipeError, runRecipe, serialiseRecipe, shellSplit, toolMessage,
+  applyRecipeOp, argvFor, argvToRecipe, commandLine, composeSheet, defaultGrid, effectiveOutput, effectiveRecipe, gridLayout, importRecipe, newRecipe, outputsOf, overriddenFields, parseRecipe,
+  previewOf, readSidecarFor, recipeToArgv, restyleHeader, RecipeError, runRecipe, serialiseRecipe, shellSplit, sidecarOf, toolMessage,
   type Recipe,
 } from './cpcimp';
 import { decodeImage } from './imageio';
@@ -347,5 +347,111 @@ describe('sidecar', () => {
     expect(t.stdout.split('\n').slice(1).join('\n')).toBe(text.split('\n').slice(1).join('\n'));
     // without exists in the io, or with a grid, the sidecar is not read
     expect((runRecipe(r, ioAt(dir)).files[0].data as string)).not.toContain('settings from');
+  });
+});
+
+describe('the minimal recipe the Aseprite extension writes', () => {
+  // {format, version, source, output, target}: every other setting comes from the sidecar
+  const minimal = '{\n  "format": "cpcimp",\n  "version": 1,\n  "source": "assets/hero.png",\n  "output": "assets/hero.bas",\n  "target": "cpc"\n}\n';
+  const dir = scratchDir('cpcimp-min-');
+  fs.mkdirSync(path.join(dir, 'assets'));
+  const sio: CliIo = { ...ioAt(dir), exists: (p) => fs.existsSync(path.resolve(dir, p)) };
+  const img = newImage(32, 8);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 32; x++) setPixel(img, x, y, ...(x < 16 ? [255, 0, 0] : [0, 0, 255]) as [number, number, number], 255);
+  fs.writeFileSync(path.join(dir, 'assets', 'hero.png'), encodePng(img));
+  const side = { format: 'cpcbuild-image', version: 1, kind: 'sprite', mode: 0, name: 'hero', frame: '16x8', masked: false, palette: [1, 24, 20, 6], tags: [{ name: 'walk', from: 0, to: 1 }] };
+  fs.writeFileSync(path.join(dir, 'assets', 'hero.cpcbuild.json'), JSON.stringify(side));
+
+  it('converts like the full command with the sidecar settings', () => {
+    const r = parseRecipe(minimal);
+    const out = runRecipe(r, sio);
+    const text = out.files[0].data as string;
+    expect(out.files[0].path).toBe('assets/hero.bas');
+    expect(text).toContain('CONST hero_W AS UBYTE = 8'); // mode 0 from the sidecar (mode 1 would give 4)
+    expect(text).toContain('CONST hero_FRAMES AS UBYTE = 2');
+    expect(text).toContain('CONST hero_WALK AS UBYTE = 0');
+    expect(text).toContain('(settings from hero.cpcbuild.json)');
+    const full = runRecipe(newRecipe('assets/hero.png', { mode: 0, name: 'hero', output: 'assets/hero.bas', kind: undefined, emitPalette: undefined }), sio);
+    expect((full.files[0].data as string).split('\n').slice(1)).toEqual(text.split('\n').slice(1));
+  });
+});
+
+describe('Import Image with a sidecar: the sidecar stays the source of the settings', () => {
+  const dir = scratchDir('cpcimp-imp-');
+  const sio: CliIo = { ...ioAt(dir), exists: (p) => fs.existsSync(path.resolve(dir, p)) };
+  const img = newImage(32, 8);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 32; x++) setPixel(img, x, y, ...(x < 16 ? [255, 0, 0] : [0, 0, 255]) as [number, number, number], 255);
+  fs.writeFileSync(path.join(dir, 'hero.png'), encodePng(img));
+  fs.copyFileSync(path.join(dir, 'hero.png'), path.join(dir, 'plain.png'));
+  fs.copyFileSync(path.join(dir, 'hero.png'), path.join(dir, 'bad.png'));
+  const side = { format: 'cpcbuild-image', version: 1, kind: 'sprite', mode: 0, name: 'hero', frame: '16x8', masked: true, palette: [1, 24, 20, 6], tags: [] };
+  fs.writeFileSync(path.join(dir, 'hero.cpcbuild.json'), JSON.stringify(side));
+  fs.writeFileSync(path.join(dir, 'bad.cpcbuild.json'), '{"format":"cpcbuild-image","version":1,"mode":3}');
+
+  it('a picked image with a sidecar gives a recipe of the source and output only', () => {
+    const r = importRecipe('hero.png', 'hero.bas', sio);
+    expect(JSON.parse(serialiseRecipe(r))).toEqual({ format: 'cpcimp', version: 1, source: 'hero.png', output: 'hero.bas', target: 'cpc', emitPalette: true });
+    for (const k of ['mode', 'name', 'kind', 'frame', 'masked', 'palette', 'tileWidth']) expect(r[k]).toBeUndefined();
+  });
+
+  it('without a sidecar the recipe keeps its defaults, as before', () => {
+    const r = importRecipe('plain.png', 'plain.bas', sio);
+    expect(r).toMatchObject({ mode: 1, kind: 'sprite' });
+    expect(commandLine(r).command).toBe('python3 tools/img2cpc.py --mode 1 --name plain --sprite plain.png -o plain.bas');
+  });
+
+  it('the Command line has no copied options and the run uses the sidecar', () => {
+    const r = importRecipe('hero.png', 'hero.bas', sio);
+    const found = sidecarOf(r, sio)!;
+    expect(commandLine(r, found.side).command).toBe('python3 tools/img2cpc.py hero.png -o hero.bas');
+    const text = runRecipe(r, sio).files[0].data as string;
+    expect(text).toContain('CONST hero_FRAMES AS UBYTE = 2');
+    expect(text.split('\n')[0]).toBe("' Generated by img2cpc.py hero.png -o hero.bas (settings from hero.cpcbuild.json)");
+    // the tool, given the same words, reads the same sidecar
+    const t = spawnSync('python3', [path.join(REPO, 'tools', 'img2cpc.py'), ...argvFor(r, sio).slice(0, -2)], { cwd: dir, encoding: 'utf8' });
+    expect(t.stdout.split('\n').slice(1).join('\n')).toBe(text.split('\n').slice(1).join('\n'));
+  });
+
+  it('the effective view shows the sidecar values, with nothing overridden', () => {
+    const r = importRecipe('hero.png', 'hero.bas', sio);
+    const { fields } = sidecarOf(r, sio)!;
+    expect(effectiveRecipe(r, fields)).toMatchObject({ mode: 0, name: 'hero', kind: 'sprite', frame: '16x8', masked: true, palette: { list: [1, 24, 20, 6] } });
+    expect(overriddenFields(r, fields)).toEqual([]);
+  });
+
+  it('one override is stored in the recipe, wins over the sidecar, and is cleared back to it', () => {
+    const r0 = importRecipe('hero.png', 'hero.bas', sio);
+    const set = applyRecipeOp(r0, { op: 'set', patch: { mode: 1 } });
+    const r1 = (set as { state: Recipe }).state;
+    expect(r1.mode).toBe(1);
+    const { fields, side: sc } = sidecarOf(r1, sio)!;
+    expect(overriddenFields(r1, fields)).toEqual(['mode']);
+    expect(effectiveRecipe(r1, fields)).toMatchObject({ mode: 1, name: 'hero', frame: '16x8' });
+    expect(commandLine(r1, sc).command).toBe('python3 tools/img2cpc.py --mode 1 hero.png -o hero.bas');
+    const clear = applyRecipeOp(r1, { op: 'set', patch: Object.fromEntries(overriddenFields(r1, fields).map((k) => [k, null])) });
+    const r2 = (clear as { state: Recipe }).state;
+    expect(r2.mode).toBeUndefined();
+    expect(commandLine(r2, sc).command).toBe('python3 tools/img2cpc.py hero.png -o hero.bas');
+    expect(serialiseRecipe(r2)).toBe(serialiseRecipe(r0));
+  });
+
+  it('a recipe that already holds copied values keeps working: they are overrides', () => {
+    const r = newRecipe('hero.png', { mode: 0, name: 'hero', kind: 'sprite', frame: '16x8', masked: true, palette: { list: [1, 24, 20, 6] }, output: 'hero.bas' });
+    const { fields, side: sc } = sidecarOf(r, sio)!;
+    expect(overriddenFields(r, fields)).toEqual(['mode', 'name', 'kind', 'frame', 'masked', 'palette']);
+    expect(commandLine(r, sc).command).toBe('python3 tools/img2cpc.py --mode 0 --name hero --sprite --frame 16x8 --masked --palette 1,24,20,6 hero.png -o hero.bas');
+  });
+
+  it('a grid recipe or a non-CPC target does not use the sidecar', () => {
+    expect(sidecarOf(newRecipe('hero.png', { grid: defaultGrid(32, 8) }), sio)).toBeUndefined();
+    expect(sidecarOf(newRecipe('hero.png', { target: 'spectrum' }), sio)).toBeUndefined();
+  });
+
+  it('an invalid sidecar shows its error, and the run reports it too', () => {
+    const r = importRecipe('bad.png', 'bad.bas', sio);
+    const found = sidecarOf(r, sio)!;
+    expect(found.error).toBe('bad.cpcbuild.json: "mode" must be 0, 1 or 2');
+    expect(found.fields).toEqual({});
+    expect(() => runRecipe(r, sio)).toThrow(/bad\.cpcbuild\.json: "mode" must be 0, 1 or 2/);
   });
 });

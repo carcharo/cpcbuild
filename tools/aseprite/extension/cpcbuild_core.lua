@@ -28,6 +28,9 @@ cpc.PENS = { [0] = 16, [1] = 4, [2] = 2 }      -- pens per mode
 cpc.MAX_COLS = 8                               -- widest sheet (see sheet_cols)
 cpc.MAX_TILES = 256                            -- TileMap takes one byte per cell
 cpc.TILE_H = 8
+cpc.SCREEN_W = { [0] = 160, [1] = 320, [2] = 640 }   -- screen width in pixels per mode
+cpc.SCREEN_H = 200                                    -- screen lines (25 tile rows)
+cpc.MAX_MAP = 255                                     -- a map is at most 255 x 255 cells
 
 -- Default pens: the firmware's own inks (as in the fork's bareboot.asm). Pens
 -- 14 and 15 flash by default (1/24 and 16/11); either colour would repeat
@@ -90,6 +93,12 @@ function cpc.pixel_ratio(mode)
   if mode == 0 then return Size(2, 1) end
   if mode == 2 then return Size(1, 2) end
   return Size(1, 1)
+end
+
+-- Default map size in tiles for a tile width: a full screen, 160/320/640
+-- pixels wide by 200 lines (25 rows of 8-line tiles).
+function cpc.default_map_size(mode, tw)
+  return cpc.SCREEN_W[mode] // tw, cpc.SCREEN_H // cpc.TILE_H
 end
 
 -- Sheet columns for n cells: the largest divisor of n that is at most
@@ -230,9 +239,9 @@ function cpc.new_sprite(o)
 end
 
 -- Creates an indexed sprite with a tilemap layer whose tileset grid is
--- tw x 8. The canvas is sized for `count` tiles (a hint: tiles are added as
--- they are drawn).
---   o = { mode, tw, count, name }
+-- tw x 8. The canvas is the map: mapw x maph tiles (default a full screen,
+-- see default_map_size), so mapw*tw x maph*8 pixels.
+--   o = { mode, tw, mapw, maph, name }
 function cpc.new_tileset(o)
   local mode, tw = o.mode, o.tw
   if cpc.PPB[mode] == nil then return nil, "mode must be 0, 1 or 2" end
@@ -240,10 +249,12 @@ function cpc.new_tileset(o)
     local t = cpc.tile_widths(mode)
     return nil, "tile width must be " .. t[1] .. ", " .. t[2] .. " or " .. t[3] .. " in mode " .. mode
   end
-  local count = math.max(1, o.count or 16)
-  local cols = math.min(count, 16)
-  local rows = (count + cols - 1) // cols
-  local spec = ImageSpec{ width = cols * tw, height = rows * cpc.TILE_H,
+  local dw, dh = cpc.default_map_size(mode, tw)
+  local mapw, maph = o.mapw or dw, o.maph or dh
+  if mapw < 1 or mapw > cpc.MAX_MAP or maph < 1 or maph > cpc.MAX_MAP then
+    return nil, "the map is 1 to " .. cpc.MAX_MAP .. " tiles wide and high"
+  end
+  local spec = ImageSpec{ width = mapw * tw, height = maph * cpc.TILE_H,
                           colorMode = ColorMode.INDEXED, transparentColor = 255 }
   local sprite = Sprite(spec)
   sprite:setPalette(make_palette(mode, false))
@@ -553,6 +564,106 @@ local function sidecar_text(meta, pens, tags)
   return "{\n" .. table.concat(t, ",\n") .. "\n}\n"
 end
 
+-- ---------------------------------------------------------------- project
+
+local function slashes(p)
+  return (p:gsub("\\", "/"))
+end
+
+-- The CPCBuild project that holds `dir`: the nearest folder at or above it
+-- with a cpcbuild.json. Returns { root, name, assets = {globs} } or nil. The
+-- file is read with patterns (no json library in Aseprite 1.3-beta20): the
+-- first "name" is the project's, "assets" is a list of strings.
+function cpc.find_project(dir)
+  local p = dir
+  for _ = 1, 64 do
+    local file = app.fs.joinPath(p, "cpcbuild.json")
+    if app.fs.isFile(file) then
+      local f = io.open(file, "rb")
+      local text = f and f:read("a") or ""
+      if f then f:close() end
+      local assets = {}
+      local list = text:match('"assets"%s*:%s*%[(.-)%]')
+      for g in (list or ""):gmatch('"([^"]*)"') do assets[#assets + 1] = g end
+      return { root = p, name = text:match('"name"%s*:%s*"([^"]*)"') or app.fs.fileName(p), assets = assets }
+    end
+    local parent = app.fs.filePath(p)
+    if parent == nil or parent == "" or parent == p then break end
+    p = parent
+  end
+  return nil
+end
+
+local function split_slash(s)
+  local t = {}
+  for part in s:gmatch("[^/]+") do t[#t + 1] = part end
+  return t
+end
+
+-- One glob segment (`*` any run, `?` one character) against one name.
+local function segment_matches(g, name)
+  local pat = g:gsub("[%^%$%(%)%%%.%[%]%+%-]", "%%%0"):gsub("%*+", ".*"):gsub("%?", ".")
+  return name:match("^" .. pat .. "$") ~= nil
+end
+
+local function segments_match(gs, i, ps, j)
+  if i > #gs then return j > #ps end
+  if gs[i] == "**" then
+    -- any number of folders; as the last segment it needs at least one name
+    for k = (i == #gs) and j + 1 or j, #ps + 1 do
+      if segments_match(gs, i + 1, ps, k) then return true end
+    end
+    return false
+  end
+  return j <= #ps and segment_matches(gs[i], ps[j]) and segments_match(gs, i + 1, ps, j + 1)
+end
+
+-- Whether a project-relative path matches one of cpcbuild.json's "assets"
+-- globs (the dialect of Studio's glob.ts: `**` any folders, `*`, `?`).
+function cpc.matches_assets(globs, rel)
+  local ps = split_slash(rel)
+  for _, g in ipairs(globs) do
+    g = slashes(g):gsub("^%./", "")
+    if segments_match(split_slash(g), 1, ps, 1) then return true end
+  end
+  return false
+end
+
+-- Path of `dir` below `root`, with forward slashes ("" when equal).
+local function relative_to(root, dir)
+  root, dir = slashes(root):gsub("/+$", ""), slashes(dir):gsub("/+$", "")
+  if dir == root then return "" end
+  return (dir:sub(#root + 2))
+end
+
+-- The smallest importer recipe (.cpcimp) for an exported image: only the
+-- source and the output (project-relative). Everything else comes from the
+-- NAME.cpcbuild.json beside the PNG each time the project builds. Field
+-- order is Studio's (serialiseRecipe).
+local function recipe_text(source, output)
+  return '{\n  "format": "cpcimp",\n  "version": 1,\n  "source": ' .. json_str(source) ..
+         ',\n  "output": ' .. json_str(output) .. ',\n  "target": "cpc"\n}\n'
+end
+
+-- If `dir` is inside a CPCBuild project, writes NAME.cpcimp beside NAME.png
+-- unless it exists. Returns nil outside a project, else
+--   { name, root, recipe = path, created = bool, matched = bool }
+-- `matched` is false when no "assets" glob covers the recipe (the build would
+-- not pick it up).
+function cpc.add_to_project(dir, name)
+  local proj = cpc.find_project(dir)
+  if proj == nil then return nil end
+  local rel = relative_to(proj.root, dir)
+  local prefix = rel == "" and "" or rel .. "/"
+  local path = app.fs.joinPath(dir, name .. ".cpcimp")
+  local created = not app.fs.isFile(path)
+  if created then
+    write_file(path, recipe_text(prefix .. name .. ".png", prefix .. name .. ".bas"))
+  end
+  return { name = proj.name, root = proj.root, recipe = path, created = created,
+           matched = cpc.matches_assets(proj.assets, prefix .. name .. ".cpcimp") }
+end
+
 -- Saves an RGBA sheet of `count` cells of cw x ch, `cols` per row, cell i at
 -- column i % cols, row i // cols, each drawn by draw(sheet, x, y, i).
 local function save_sheet(path, count, cw, ch, cols, draw)
@@ -619,9 +730,10 @@ end
 
 -- Exports a sprite or tileset.
 --   o = { dir = folder, name = optional override of the stored name,
---         tmx = bool (tilesets), layer = tilemap layer, force = bool,
+--         tmx = bool (tilesets: writes NAME_map.tmx), layer = tilemap layer, force = bool,
 --         meta = settings for sprites not made by CPCBuild }
--- Returns { files = {paths}, report = check report, sheet = {w=, h=, cols=, count=} }
+-- Returns { files = {paths}, report = check report, sheet = {w=, h=, cols=, count=},
+--           project = nil, or add_to_project's result (inside a CPCBuild project) }
 -- or nil, a message and the report (problems found by the check, unless
 -- `force`).
 function cpc.export(sprite, o)
@@ -671,11 +783,12 @@ function cpc.export(sprite, o)
     files[#files + 1] = base .. ".png"
     files[#files + 1] = base .. ".cpcbuild.json"
     if o.tmx then
-      write_file(base .. ".tmx", tmx_text(sprite, meta, layer, cols, n, w, h))
-      files[#files + 1] = base .. ".tmx"
+      -- NAME_map.tmx: tmx2bas names the map array after the file, and NAME is the tile data
+      write_file(base .. "_map.tmx", tmx_text(sprite, meta, layer, cols, n, w, h))
+      files[#files + 1] = base .. "_map.tmx"
     end
   end
-  return { files = files, report = rep, sheet = info }
+  return { files = files, report = rep, sheet = info, project = cpc.add_to_project(o.dir, meta.name) }
 end
 
 return cpc

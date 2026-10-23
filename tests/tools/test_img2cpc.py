@@ -308,6 +308,12 @@ class TestTiles(Tmp):
         self.assertIn("2 tiles of 16 bytes", text)
         self.assertLess(text.index("t_COUNT"), text.index("t_TILEW"))
 
+    def test_single_tile_header(self):
+        p = self.png("one.png", [[RED] * 4 for _ in range(8)])
+        _, _, text = self.run_tool("--mode", 0, "--tiles", "--tile-width", 4, p)
+        self.assertIn("1 tile of 16 bytes", text)
+        self.assertNotIn("1 tiles", text)
+
     def test_tile_width_mode1_wide(self):
         rows = [[RED] * 16 + [GREEN] * 16 for _ in range(8)]
         p = self.png("tw1.png", rows)
@@ -653,7 +659,7 @@ class TestCheck(Tmp):
 
     def test_single_repeat(self):
         p = self.png("t.png", [[RED] * 16] * 8)
-        self.assertIn("), 1 repeat (--dedupe would drop them)\n", self.check("--mode", 1, "--tiles", p))
+        self.assertIn("), 1 repeat (--dedupe would drop it)\n", self.check("--mode", 1, "--tiles", p))
 
     def test_same_errors_as_a_conversion(self):
         many = [[BLACK, BLUE, RED, GREEN, WHITE, (255, 255, 0), (0, 255, 255), (255, 0, 255)]] * 8

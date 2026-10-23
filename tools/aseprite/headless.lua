@@ -10,15 +10,17 @@
 --
 -- Actions (parameters are app.params):
 --   new_sprite  mode w h frames masked name [tags=name:from-to,...] out
---   new_tiles   mode tw count name out
+--   new_tiles   mode tw [mw mh] name out         (mw x mh = map size in tiles, default a full screen)
 --   draw        file px=frame:x:y:index,...        (sprites; index = palette index)
 --   draw_tiles  file px=x1:y1:x2:y2:index,...      (pencil strokes on the tilemap layer; the
 --                                                  first stroke must cover the area to be used)
 --   set_color   file index=r,g,b                   (change a palette entry)
+--   size        file                               (prints the canvas size WxH)
 --   plugin_init                                    (runs the extension's init() with a stand-in
 --                                                  plugin and lists the commands it registers)
 --   check       file                               (prints the report)
---   export      file dir [tmx=1] [force=1]         (prints the files written)
+--   export      file dir [tmx=1] [force=1]         (prints the files written, and the project
+--                                                  recipe if dir is inside a CPCBuild project)
 -- Every action prints lines starting "RESULT " that the tests read.
 
 local here = debug.getinfo(1, "S").source:sub(2):match("^(.*)/[^/]*$") or "."
@@ -55,7 +57,7 @@ if action == "new_sprite" then
 
 elseif action == "new_tiles" then
   local s, err = cpc.new_tileset{ mode = tonumber(P.mode), tw = tonumber(P.tw),
-                                  count = tonumber(P.count), name = P.name }
+                                  mapw = tonumber(P.mw), maph = tonumber(P.mh), name = P.name }
   if not s then fail(err) end
   save(s, P.out)
 
@@ -93,6 +95,10 @@ elseif action == "set_color" then
   s:setPalette(pal)
   save(s, P.file)
 
+elseif action == "size" then
+  local s = open(P.file)
+  print("RESULT size " .. s.width .. "x" .. s.height)
+
 elseif action == "plugin_init" then
   dofile(here .. "/extension/cpcbuild.lua")
   local mock = { path = here .. "/extension", preferences = {} }
@@ -117,6 +123,11 @@ elseif action == "export" then
   local r, err = cpc.export(s, { dir = P.dir, tmx = P.tmx == "1", force = P.force == "1" })
   if not r then fail(err) end
   for _, f in ipairs(r.files) do print("RESULT file " .. f) end
+  local pr = r.project
+  if pr then
+    print(string.format("RESULT project %s|%s|%s|%s", pr.name, pr.recipe, pr.created and "created" or "kept",
+                        pr.matched and "matched" or "unmatched"))
+  end
   print(string.format("RESULT sheet %dx%d cols=%d count=%d", r.sheet.w, r.sheet.h, r.sheet.cols, r.sheet.count))
 
 else

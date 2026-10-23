@@ -15,7 +15,7 @@ import { encodePng, type RgbaImage } from '../core/image';
 import { decodeImage, ImageReadError } from '../core/imageio';
 import { Img2cpcError, type CliIo } from '../core/img2cpc';
 import {
-  composeSheet, effectiveOutput, inputsOf, outputsOf, parseRecipe, recipeToArgv, restyleHeader, RecipeError, runRecipe,
+  argvFor, composeSheet, effectiveOutput, inputsOf, outputsOf, parseRecipe, restyleHeader, RecipeError, runRecipe,
   toolMessage, type HeaderMode, type Recipe,
 } from '../core/cpcimp';
 import { globBase, matchesAny } from '../core/glob';
@@ -294,7 +294,7 @@ async function generatePython(root: string, recipeRel: string, r: Recipe, s: Gen
   }
   let tmpDir: string | undefined;
   let tmpPng: string | undefined;
-  let argv = recipeToArgv(r);
+  let argv = argvFor(r, rootIo(root));
   if (r.grid) {
     // pre-processing has no flag: compose the sheet here and hand the tool a temporary PNG
     const img = composeSheet(decodeImage(rootIo(root).readFile(r.source)), r.grid);

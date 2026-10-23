@@ -63,17 +63,30 @@ local function new_tileset_command(plugin)
     for _, w in ipairs(cpc.tile_widths(mode)) do o[#o + 1] = tostring(w) end
     return o
   end
+  -- a full screen of tiles for the mode and tile width, offered again
+  -- whenever either changes
+  local function reset_size()
+    local m = tonumber(dlg.data.mode)
+    local w, h = cpc.default_map_size(m, tonumber(dlg.data["tw" .. m]))
+    dlg:modify{ id = "mw", text = tostring(w) }
+    dlg:modify{ id = "mh", text = tostring(h) }
+  end
   local function sync()
     local m = tonumber(dlg.data.mode)
     for k = 0, 2 do dlg:modify{ id = "tw" .. k, visible = (k == m) } end
+    reset_size()
   end
+  local mode0 = pref.tmode or 0
   dlg:combobox{ id = "mode", label = "Mode", options = { "0", "1", "2" },
-                option = tostring(pref.tmode or 0), onchange = sync }
+                option = tostring(mode0), onchange = sync }
   for k = 0, 2 do
     -- 8 pixels is the library's default tile width in every mode
-    dlg:combobox{ id = "tw" .. k, label = "Tile width (px)", options = opts(k), option = "8" }
+    dlg:combobox{ id = "tw" .. k, label = "Tile width (px)", options = opts(k), option = "8",
+                  onchange = reset_size }
   end
-  dlg:number{ id = "count", label = "Tiles (canvas hint)", text = tostring(pref.tcount or 16), decimals = 0 }
+  local dw, dh = cpc.default_map_size(mode0, 8)
+  dlg:number{ id = "mw", label = "Map width (tiles)", text = tostring(dw), decimals = 0 }
+  dlg:number{ id = "mh", label = "Map height (tiles)", text = tostring(dh), decimals = 0 }
   dlg:entry{ id = "name", label = "Name", text = pref.tname or "tiles" }
   dlg:button{ id = "ok", text = "OK", focus = true }
   dlg:button{ id = "cancel", text = "Cancel" }
@@ -83,9 +96,9 @@ local function new_tileset_command(plugin)
   if not d.ok then return end
   local mode = tonumber(d.mode)
   local sprite, err = cpc.new_tileset{ mode = mode, tw = tonumber(d["tw" .. mode]),
-                                       count = math.floor(d.count), name = d.name }
+                                       mapw = math.floor(d.mw), maph = math.floor(d.mh), name = d.name }
   if not sprite then return show_error(err) end
-  pref.tmode, pref.tcount, pref.tname = mode, d.count, d.name
+  pref.tmode, pref.tname = mode, d.name
   app.sprite = sprite
   app.refresh()
 end
@@ -164,7 +177,7 @@ local function export_command(plugin)
   dlg:file{ id = "png", label = "Sheet PNG", save = true, entry = true, filetypes = { "png" },
             filename = app.fs.joinPath(dir, meta.name .. ".png") }
   if meta.kind == "tiles" then
-    dlg:check{ id = "tmx", label = "Tiled map", text = "also write NAME.tmx", selected = pref.tmx ~= false }
+    dlg:check{ id = "tmx", label = "Tiled map", text = "also write NAME_map.tmx", selected = pref.tmx ~= false }
   end
   dlg:button{ id = "ok", text = "Export", focus = true }
   dlg:button{ id = "cancel", text = "Cancel" }
@@ -188,6 +201,18 @@ local function export_command(plugin)
   for _, f in ipairs(r.files) do lines[#lines + 1] = f end
   lines[#lines + 1] = string.format("Sheet: %dx%d pixels, %d columns, %d %s",
     r.sheet.w, r.sheet.h, r.sheet.cols, r.sheet.count, meta.kind == "tiles" and "tiles" or "frames")
+  local pr = r.project
+  if pr then
+    lines[#lines + 1] = ""
+    if pr.created then
+      lines[#lines + 1] = "Added to project " .. pr.name .. ": " .. pr.recipe
+    else
+      lines[#lines + 1] = "Kept the existing recipe (project " .. pr.name .. "): " .. pr.recipe
+    end
+    if not pr.matched then
+      lines[#lines + 1] = "Warning: no \"assets\" glob in cpcbuild.json matches the recipe, so the build won't pick it up."
+    end
+  end
   app.alert{ title = "Export for CPCBuild", text = lines }
 end
 
