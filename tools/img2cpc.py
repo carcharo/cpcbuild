@@ -202,7 +202,7 @@ def load_image(path: Path, transparent: tuple[int, int, int] | None) -> Image:
     try:
         im = PILImage.open(path).convert("RGBA")
     except OSError as e:
-        raise SystemExit(f"img2cpc: {path}: {e}")
+        raise SystemExit(f"img2cpc: {path.as_posix()}: {e}")
     w, h = im.size
     data = im.load()
     pix = []
@@ -503,7 +503,7 @@ def load_sidecar(path: Path) -> dict:
     (name, from, to), always present). Anything wrong is a SystemExit."""
 
     def bad(what: str):
-        raise SystemExit(f"img2cpc: {path}: {what}")
+        raise SystemExit(f"img2cpc: {path.as_posix()}: {what}")
 
     try:
         raw = json.loads(path.read_text(encoding="utf-8"), parse_constant=_no_constant)
@@ -568,13 +568,13 @@ def tag_consts(args, name: str, nframes: int) -> list[tuple[str, int]]:
     for tag, first, last in getattr(args, "sidecar_tags", []):
         if not 0 <= first <= last < nframes:
             raise SystemExit(
-                f'img2cpc: {args.sidecar_path}: tag "{tag}" is frames {first}-{last}, '
+                f'img2cpc: {args.sidecar_path.as_posix()}: tag "{tag}" is frames {first}-{last}, '
                 f"but the sheet has {nframes} frames"
             )
         const = f"{name}_" + re.sub("[^A-Z0-9]", "_", tag.upper())
         for c in ((const, first), (const + "_LEN", last - first + 1)):
             if c[0].upper() in taken:
-                raise SystemExit(f'img2cpc: {args.sidecar_path}: tag "{tag}" makes {c[0]}, which is already defined')
+                raise SystemExit(f'img2cpc: {args.sidecar_path.as_posix()}: tag "{tag}" makes {c[0]}, which is already defined')
             taken.add(c[0].upper())
             out.append(c)
     return out
@@ -838,7 +838,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.frame and args.tiles:
         ap.error("--frame is for sprites")
     if not args.image.exists():
-        ap.error(f"{args.image}: not found")
+        ap.error(f"{args.image.as_posix()}: not found")
     if args.name is None:
         stem = "".join(c if c.isalnum() else "_" for c in args.image.stem)
         args.name = stem if stem and not stem[0].isdigit() else "img_" + stem

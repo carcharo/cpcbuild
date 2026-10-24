@@ -14,6 +14,7 @@ import * as path from 'node:path';
 import { encodePng, type RgbaImage } from '../core/image';
 import { decodeImage, ImageReadError } from '../core/imageio';
 import { Img2cpcError, type CliIo } from '../core/img2cpc';
+import { posixSlashes } from '../core/pathtext';
 import {
   argvFor, composeSheet, effectiveOutput, inputsOf, outputsOf, parseRecipe, restyleHeader, RecipeError, runRecipe,
   toolMessage, type HeaderMode, type Recipe,
@@ -301,7 +302,7 @@ async function generatePython(root: string, recipeRel: string, r: Recipe, s: Gen
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcimp-'));
     tmpPng = path.join(tmpDir, path.basename(r.source).replace(/\.[^.]*$/, '') + '.png');
     fs.writeFileSync(tmpPng, encodePng(img));
-    argv = argv.map((w) => (w === r.source ? (tmpPng as string) : w));
+    argv = argv.map((w) => (w === r.source ? posixSlashes(tmpPng as string) : w));
   }
   try {
     const t = await runTool(pythonCmd(s.pythonPath), [script, ...argv], { cwd: root, token: extra.token, sink: extra.sink, quiet: true });
@@ -322,7 +323,7 @@ async function generatePython(root: string, recipeRel: string, r: Recipe, s: Gen
     const isBin = r.target.startsWith('plus') && r.plus?.format === 'bin';
     if (!isBin) {
       let text = fs.readFileSync(abs, 'utf8');
-      if (tmpPng) text = text.split(tmpPng).join(r.source);
+      if (tmpPng) text = text.split(`'${posixSlashes(tmpPng)}'`).join(r.source).split(posixSlashes(tmpPng)).join(r.source); // shlex quotes the path in the header only when it has odd characters
       const styled = restyleHeader(text, s.header, recipeRel);
       if (styled !== text || tmpPng) fs.writeFileSync(abs, styled);
     }

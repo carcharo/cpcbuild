@@ -2,6 +2,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { posixSlashes } from '../core/pathtext';
 import { py, PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { defaultOutput, generateTmx, tmxArgv } from './tmxGen';
 
@@ -79,7 +80,7 @@ describe('generateTmx equals tools/tmx2bas.py', () => {
       for (const eng of [TS, PY]) {
         const r = await generateTmx(dir, 'e.tmx', { ...opts, output: 'out/x.bas' }, eng);
         expect(r.ok).toBe(false);
-        expect(r.error).toBe(ref.stderr.trim().replace(f, 'e.tmx'));
+        expect(r.error).toBe(ref.stderr.trim().replace(posixSlashes(f), 'e.tmx'));
       }
     }
   });

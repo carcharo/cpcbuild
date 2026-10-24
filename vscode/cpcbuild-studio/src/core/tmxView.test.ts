@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodePng, type RgbaImage } from './image';
+import { posixSlashes } from './pathtext';
 import { layerTiles, parseTmx, parseTsx, TmxError } from './tmx';
 import {
   atlasFromImage, atlasFromPens, cellErrors, cellInfo, doTile8Call, effectiveFirstgid, FLIP_D, FLIP_H, FLIP_V, flagNames, layerWarnings, renderLayer, tileMapCall, tilesetOfGid, tileSizeNotice,
@@ -164,7 +165,7 @@ describe('cells, errors and warnings', () => {
     const r = py('tmx2bas.py', [f]);
     expect(r.ok).toBe(false);
     const first = cellErrors(parseTmx(fs.readFileSync(f, 'utf8')), parseTmx(fs.readFileSync(f, 'utf8')).layers[0])[0];
-    expect(r.stderr.trim()).toBe(`tmx2bas: ${f}: ${first.message}`);
+    expect(r.stderr.trim()).toBe(`tmx2bas: ${posixSlashes(f)}: ${first.message}`);
     const r2 = py('tmx2bas.py', ['--firstgid', '2', f]);
     const m = parseTmx(fs.readFileSync(f, 'utf8'));
     expect(r2.stderr.trim()).toBe(`tmx2bas: ${f}: ${cellErrors(m, m.layers[0], { firstgid: 2 })[0].message}`);

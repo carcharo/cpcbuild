@@ -35,7 +35,8 @@ function compare(s: SpriteState, tag: string, extra: string[] = [], palFileText?
   const palette = resolvePalette(s, palFileText);
   fs.writeFileSync(png, encodePng(renderSheet(s, palette)));
   const argv = equivalentArgs(s, png, palette);
-  const p = py('img2cpc.py', [...argv.slice(0, -1), ...extra, png]);
+  // the tool echoes its command line as given: hand it the forward-slash path the editor writes
+  const p = py('img2cpc.py', [...argv.slice(0, -1), ...extra, normPath(png)]);
   expect(p.ok, `${tag}: ${p.stderr}`).toBe(true);
   const mine = exportAsset(s, { source: normPath(png), palette });
   expect(mine.text, tag).toBe(p.stdout);
