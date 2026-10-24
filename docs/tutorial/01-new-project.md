@@ -51,7 +51,7 @@ download a ready-made build of it. You do not need Python or Poetry for this.
 Run **CPCBuild: Download Tools** from the Command Palette. (The **Get started with CPCBuild** walkthrough has the
 same button: run **Welcome: Open Walkthrough...** and choose it.) A list asks what to download:
 
-- **Boriel BASIC compiler 1.19.0-cpc.1 (zxbc, zxbasm, mkdsk)**
+- **Boriel BASIC compiler 1.19.0-cpc.2 (zxbc, zxbasm, mkdsk)**
 - **Arkos Tracker 3.7 command-line tools (music conversion)**
 
 Both are ticked unless they are already installed. You need the compiler now. The Arkos tools are only for
@@ -78,7 +78,7 @@ result looks like this (paths and version text will differ):
 
 ```
 CPCBuild environment check
-  [ok] zxbc (Boriel BASIC compiler, cpc arch): managed: /.../zxbasic-1.19.0-cpc.1; /.../zxbc: <the version line zxbc prints>
+  [ok] zxbc (Boriel BASIC compiler, cpc arch): managed: /.../zxbasic-1.19.0-cpc.2; /.../zxbc: <the version line zxbc prints>
   [optional] Python 3: ...
         fix: Only needed with the python engine or a zxbasic checkout.
   [ok] cpcbuild library (lib/): /.../lib

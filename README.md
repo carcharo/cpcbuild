@@ -32,7 +32,7 @@ Pick one route.
 2. In VS Code, open the Command Palette and run **Extensions: Install from VSIX...**. Do this once for each file.
 3. Run **Welcome: Open Walkthrough...** and choose **Get started with CPCBuild**.
 4. In the walkthrough, choose **Download Tools**. Studio asks what to download: the Boriel BASIC compiler
-   1.19.0-cpc.1 (with `zxbasm` and `mkdsk`) and the Arkos Tracker 3.7 command-line tools (music conversion). It
+   1.19.0-cpc.2 (with `zxbasm` and `mkdsk`) and the Arkos Tracker 3.7 command-line tools (music conversion). It
    checks each download against a known checksum. You can run **CPCBuild: Download Tools** from the Command
    Palette later.
 5. The walkthrough's next steps create a project from a template, then build and run it. You can skip

@@ -1,12 +1,13 @@
 {
   "zxbasic": {
-    "version": "1.19.0-cpc.1",
+    "version": "1.19.0-cpc.2",
     "assets": {
-      "windows-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.1/zxbasic-1.19.0-cpc.1-windows-x64.zip", "sha256": "72cda781b518a1cfe1da7798b9ee163b032dab639a62ec654d235b05df68febc" },
-      "linux-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.1/zxbasic-1.19.0-cpc.1-linux-x64.tar.gz", "sha256": "20e96712847a492217f872028fbde4ae7b40b1a062dd4cffebe0c62b61438654" },
-      "linux-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.1/zxbasic-1.19.0-cpc.1-linux-arm64.tar.gz", "sha256": "f411e532fd1be9e5d979d9e3d88f40f9e70007c240af7efde8767d76e5b7a161" },
-      "macos-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.1/zxbasic-1.19.0-cpc.1-macos-arm64.zip", "sha256": "701ced9136c2b6152b123d9f16900f775b5fd271e05b7a6afff8ec589d4d7236" },
-      "macos-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.1/zxbasic-1.19.0-cpc.1-macos-x64.zip", "sha256": "8dc1aa1a0d844ee003cee74c2676c312c60f54ce3ce298d30c2697e7f63f1189" }
+      "windows-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-windows-x64.zip", "sha256": "ea97dd2c563e605af6c84dc28172d668bbd9160900212da51232fe85ff0106c4" },
+      "windows-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-windows-arm64.zip", "sha256": "c362b3329ae53f20aacd47fdd1c918884bf5df99de6e57ae1defc8b519250f05" },
+      "linux-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-linux-x64.tar.gz", "sha256": "18581c06291b1d26a42bece49de7d1824d13e6b192200c73c12b7c029fc2f278" },
+      "linux-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-linux-arm64.tar.gz", "sha256": "5680afbeee811601c7ceeb49c723ee07db2d156a52f94880df29c7acc2507b36" },
+      "macos-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-macos-arm64.zip", "sha256": "b19fb1429905670c000c8ff467190b7142c118cc87c03dcb73fc0b2efb893d6d" },
+      "macos-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-macos-x64.zip", "sha256": "1cd8542235346815e0813aa3d8fc02fc786af47bc25384b63e063496489aea60" }
     }
   },
   "arkos": {
