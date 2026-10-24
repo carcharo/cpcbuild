@@ -286,6 +286,11 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: cpcbuild
+      # Python + Pillow first: some unit tests compare with the Python tools. The extension-host tests also
+      # need the compiler checkout (poetry), as on Linux.
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'false'
       - name: Set up Node 22
         uses: actions/setup-node@v7
         with:
@@ -298,11 +303,7 @@ jobs:
       - name: Studio unit tests (vitest)
         working-directory: cpcbuild/vscode/cpcbuild-studio
         run: npm run test:unit
-      # The extension-host tests need the compiler checkout (poetry), as on Linux. macOS runners have a
-      # display, Windows needs no xvfb. Non-blocking until they have been seen green on both.
-      - uses: ./cpcbuild/.github/actions/setup
-        with:
-          chips: 'false'
+      # macOS runners have a display, Windows needs no xvfb. Non-blocking until seen green on both.
       - name: Studio extension-host tests (npm run test:vscode)
         continue-on-error: true
         working-directory: cpcbuild/vscode/cpcbuild-studio
