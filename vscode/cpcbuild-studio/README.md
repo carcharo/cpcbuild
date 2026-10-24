@@ -9,20 +9,25 @@ contains no code from it.
 
 ## Requirements
 
-- **The Boriel BASIC compiler with the CPC backend**: the zxbasic fork (branch `cpc-arch`,
-  `https://github.com/carcharo/zxbasic`), installed so that `zxbc --arch cpc` works. Set `cpcbuild.zxbc.command`
-  and `cpcbuild.zxbc.cwd` if you start it through Poetry (`["poetry", "run", "zxbc"]`). With the default command
-  and a `pyproject.toml` in `cpcbuild.zxbc.cwd`, Studio uses `poetry run zxbc` by itself when `zxbc` is not found
-  (poetry on `PATH`, else `~/.local/bin/poetry`, or under `%APPDATA%` on Windows). The same checkout holds
-  `tools/cpc/mkdsk.py`, which packages a `.dsk`. Point `cpcbuild.zxbc.cwd` at it. (`mkdsk.py` is licensed AGPL-3.0
-  with the compiler, so it is not part of this extension.)
-- **Python 3**, for `mkdsk.py`, `mkcpr.py` (Plus cartridges) and the optional Python image engine (which also
-  needs Pillow).
-- **The CPCBuild library** (`lib/`) and the converters in `tools/`. A copy is bundled in this extension and is
-  used when nothing else is found; set `cpcbuild.library.path` to a cpcbuild checkout to use your own.
-- Optional: the **CPCBuild Emulator** extension (`cpcbuild.cpcbuild-emu`) to run in an editor tab and debug;
-  Caprice32, CPCEC or Retro Virtual Machine as external emulators; the Arkos Tracker command-line tools for music;
+- **VS Code 1.90 or later.** No Python is needed for normal use.
+- **The Boriel BASIC compiler with the CPC backend** (`zxbc`, with `zxbasm` and `mkdsk`). Run
+  **CPCBuild: Download Tools** to have Studio download a checked build of it, or use the CPCBuild SDK folder from
+  the [Releases page](https://github.com/carcharo/cpcbuild/releases). Studio looks for the compiler in this order:
+  the `cpcbuild.zxbc.command` setting; a checkout named by `cpcbuild.zxbc.cwd`; an SDK folder (`cpcbuild.sdk.path`,
+  or one at or above the project); the downloaded tools; `zxbc` on `PATH`; `poetry run zxbc`.
+- **The CPCBuild library** (`lib/`) and the converters. A copy is bundled in this extension and is used when
+  nothing else is found; set `cpcbuild.library.path` to a cpcbuild checkout to use your own. The image, map,
+  cartridge and music converters are built in.
+- Optional: the **CPCBuild Emulator** extension (`cpcbuild.cpcbuild-emu`) to run in an editor tab and debug
+  (**CPCBuild: Install Emulator** downloads it); Caprice32, CPCEC or Retro Virtual Machine as external emulators;
+  the Arkos Tracker command-line tools for music (also in **Download Tools**, not available for linux-arm64);
   Tiled for maps.
+- Only for developers: Python 3 (with Pillow) for `cpcbuild.assets.engine: "python"`, and Python with Poetry to
+  run the compiler from a zxbasic checkout (`cpcbuild.zxbc.cwd`). With a checkout, `mkdsk.py` comes from its
+  `tools/cpc/`.
+
+The **Get started with CPCBuild** walkthrough (**Welcome: Open Walkthrough...**) goes through the tools, the
+emulator, a new project and the first build.
 
 Right-click on a `.dsk` in a project: **Run in Emulator** types `RUN"` with the disc name from `cpcbuild.json` when
 the disc is a target's output, else with the only `.BIN` or `.BAS` in the disc's catalogue (it asks when there are several).
@@ -49,7 +54,8 @@ Everything is under `cpcbuild.*`; **CPCBuild: Open Settings** lists them. The ma
 | Setting | Meaning |
 | --- | --- |
 | `cpcbuild.zxbc.command`, `cpcbuild.zxbc.cwd`, `cpcbuild.zxbc.args` | How to start the compiler, where, and extra arguments |
-| `cpcbuild.python.path` | Python 3 |
+| `cpcbuild.sdk.path` | The SDK folder (holds `bin/zxbc`); empty means look at or above the project, then use the downloaded tools |
+| `cpcbuild.python.path` | Python 3 (only for the Python engine or a zxbasic checkout) |
 | `cpcbuild.library.path` | A cpcbuild checkout (empty: search upwards, then the bundled copy) |
 | `cpcbuild.run.emulator` | `emu`, `caprice32`, `cpcec`, `rvm` or `custom` |
 | `cpcbuild.run.zxEmulator`, `cpcbuild.run.zxEmulatorArgs` | An external Spectrum emulator (Fuse, ZEsarUX, ...) that Build and Run starts on the `.tap` of a `zx48k` target; `${file}` is the `.tap` |

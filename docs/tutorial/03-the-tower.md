@@ -19,8 +19,9 @@ your project's `assets/` folder:
 - `fontcpc.bas`, the game's font (a ready-made `.bas`: nothing to import).
 
 `tower.tmx` refers to its tileset image as `tiles.png`, so keep it in the same folder as the map
-(you copied `tiles.png` to `assets/` in chapter 2). You also need a checkout of the cpcbuild repository
-for step 5, which runs one of its scripts.
+(you copied `tiles.png` to `assets/` in chapter 2). Step 5 runs a Python script from the cpcbuild
+repository, so for that step you need Python 3 and a checkout of the repository (or you can skip it, as step 5
+explains).
 
 ---
 
@@ -159,7 +160,7 @@ cd /path/to/lamplighter
 python3 /path/to/cpcbuild/games/lamplighter/assets/split_rooms.py assets/tower.tmx -o assets/rooms.bas
 ```
 
-(No Python on your machine, or no checkout? Copy the finished `games/lamplighter/assets/rooms.bas`
+(No Python on your machine, or no checkout (the SDK folder does not include `tools/`)? Copy the finished `games/lamplighter/assets/rooms.bas`
 instead; it is the output of exactly this command. You will only need to run the script if you edit the
 map.)
 

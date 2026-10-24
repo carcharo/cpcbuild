@@ -55,37 +55,35 @@ can be done in either order, or skipped.
 | VS Code | everything | |
 | The **CPCBuild Studio** extension (`cpcbuild.cpcbuild-studio`) | editors, importer, build and run | the **CPCBuild** icon in the Activity Bar, once a folder with a `cpcbuild.json` is open |
 | The **CPCBuild Emulator** extension (`cpcbuild.cpcbuild-emu`) | running the game in an editor tab | **CPC Emulator: Open File...** in the Command Palette |
-| The Boriel BASIC compiler with the CPC backend: the `zxbasic` fork, branch `cpc-arch` (`https://github.com/carcharo/zxbasic`), installed so that `poetry run zxbc` works in its folder | compiling, and `mkdsk.py` (the disc packager, which is in this checkout and not in the extension) | `poetry run zxbc --version` in that folder |
-| Python 3 | `mkdsk.py` and `mkcpr.py`, and the scripts that stay outside Studio | `python3 --version` |
-| A cpcbuild checkout | the finished game to compare with, the art files, `split_rooms.py` (chapter 3) | `games/lamplighter/` exists |
+| The Boriel BASIC compiler with the CPC backend, with `mkdsk` (the disc packager) | compiling and making `.dsk` files | **CPCBuild: Check Environment** (chapter 1) |
+| The Lamplighter files: the finished game, the art files and `split_rooms.py` | comparing with your own copy, and the files you copy in | `games/lamplighter/` exists |
 | [Tiled](https://www.mapeditor.org/) (chapter 3) | editing the tower map | **CPCBuild: Open in Tiled** |
+| Python 3 (chapter 3, step 5 only) | running `split_rooms.py`, which cuts the map into rooms | `python3 --version` |
 
-Tiled is optional: you can follow chapter 3 without editing, because the finished map is in the repo. The
-cpcbuild library (`lib/`) and the Python converters are bundled inside the Studio extension, including the
-Plus sprite manager and palette cycling that chapter 11 uses, so no setting is needed for them.
+You do not need Python for anything else. Python is only for chapter 3, step 5, and you can skip it: that
+step also says how to copy the finished `rooms.bas` instead. Tiled is optional too: you can follow chapter 3
+without editing, because the finished map is in the repository.
 
-### Installing the two extensions today
+The cpcbuild library (`lib/`) and the converters are bundled inside the Studio extension, including the Plus
+sprite manager and palette cycling that chapter 11 uses, so no setting is needed for them.
 
-There is no download page or Marketplace entry yet, so you build the two `.vsix` files from a cpcbuild
-checkout (the `phase-8` branch or one that has merged it: the `vsix` target is in that branch's Makefile):
+### Installing the tools
 
-```sh
-cd /path/to/cpcbuild
-make vsix
-```
+The two extensions and the compiler are on the
+[Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild` (version 0.1.0 is a
+pre-release). There are two ways to get them. Chapter 1 walks through the first.
 
-`make vsix` first builds the emulator's WebAssembly core (`make wasm`, which needs the emulator sources and
-ROMs from `make cpcec`, and an Emscripten SDK or `emcc` on your path), runs `npm ci` in both extension folders
-if they have no `node_modules`, and packages both. It needs Node.js 22 (the version of the repository's CI job) and npm. It produces two files:
+- **The two extensions.** Download `cpcbuild-studio-0.1.0.vsix` and `cpcbuild-emu-0.1.0.vsix`. In VS Code, run
+  **Extensions: Install from VSIX...** from the Command Palette, once for each file. Then let Studio fetch the
+  compiler with **CPCBuild: Download Tools** (chapter 1, step 2). For the Lamplighter files, clone or download
+  the [cpcbuild repository](https://github.com/carcharo/cpcbuild) and look in `games/lamplighter/`.
+- **The SDK folder.** Download `cpcbuild-sdk-0.1.0-<platform>.zip` (or `.tar.gz` on Linux) for your system. It
+  holds the compiler, both `.vsix` files and `games/lamplighter/`. See the
+  [README](../../README.md#install) for the platform names and the notes for each system.
 
-- `vscode/cpcbuild-studio/cpcbuild-studio-0.0.1.vsix`
-- `vscode/cpcbuild-emu/cpcbuild-emu-0.0.1.vsix`
-
-In VS Code open the Command Palette and run **Extensions: Install from VSIX...**, once for each file, then
-reload the window if VS Code asks. Next, get the compiler: clone the `zxbasic` fork, check out the `cpc-arch`
-branch and install it with Poetry (`poetry install` in that folder; the fork's own README has the details), and make sure `python3` is Python 3.
-Chapter 1 then points Studio at the compiler. (If someone hands you the two `.vsix` files ready-made, only
-the install step and the compiler remain.)
+If you use the SDK, the Lamplighter files are in its `games/lamplighter/` folder. The SDK does not include the
+repository's `tools/` folder, so for `split_rooms.py` in chapter 3 you need the repository (or you copy the
+finished `rooms.bas`).
 
 ## How the chapters work
 
@@ -158,8 +156,8 @@ still uses a few things that Studio does not do; the tutorial says so in the cha
   no recipe). The tutorial hands you the finished files (chapters 2, 3, 10, 11).
 - **Splitting the map into rooms.** `assets/split_rooms.py` cuts `tower.tmx` into `rooms.bas`. Studio only
   converts a whole tile layer; the split is a small Python command you run yourself (chapter 3).
-- **Packaging a disc.** Studio's `dsk` packaging needs `mkdsk.py` from your `zxbasic` checkout (set
-  `cpcbuild.zxbc.cwd`): it is AGPL-licensed with the compiler, so it is not in the extension.
+- **Packaging a disc.** Studio uses `mkdsk`, which comes with the compiler (Download Tools, or the SDK's
+  `bin/`). It is licensed AGPL with the compiler, so it is not inside the extension.
 - **The Plus loader disc.** `lampplus.dsk`, started with `RUN"PLUS`, comes from `build_plus.sh`; Studio's
   Plus target makes the cartridge only (chapter 11).
 - **Size-limit checks.** `build_cpc.sh` stops if the program ends above `&8B60`, and `build_zx.sh` if the

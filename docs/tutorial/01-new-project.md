@@ -6,20 +6,25 @@ same code. By the end you know the edit, build, run loop that every later chapte
 
 **What you'll learn**
 
-- How to check that the compiler, Python and the library are found.
+- How to get the compiler and check that Studio finds it, with the library and the disc tool.
 - What a CPCBuild project is: `cpcbuild.json`, targets, and the `build/` folder.
 - Why Lamplighter is split into `main.bas`, `game.bas` and `platform_cpc.bas`.
 - A few things that are different between Locomotive BASIC and Boriel BASIC.
 
-**Time:** about 20 minutes, most of it installing.
+**Time:** about 20 minutes, most of it downloading.
 
 ---
 
 ## Step 1: Install the two extensions
 
-Install **CPCBuild Studio** and **CPCBuild Emulator** from their `.vsix` files (see the
-[README](README.md#what-you-need)): open the Command Palette and run
-**Extensions: Install from VSIX...**, once for each file.
+Go to the [Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild` and download
+`cpcbuild-studio-0.1.0.vsix` and `cpcbuild-emu-0.1.0.vsix` (version 0.1.0 is a pre-release). Then, in VS Code,
+open the Command Palette and run **Extensions: Install from VSIX...**, once for each file. Reload the window
+if VS Code asks.
+
+(If you downloaded the SDK folder instead, the two `.vsix` files are inside it. Install them the same way.
+Studio then finds the compiler in that folder by itself, as long as your project is inside the folder, so you
+can skip step 2 except for the check.)
 
 The two extensions are separate on purpose. Studio does the editing, building and debugging.
 The Emulator extension is the CPC in a tab. They talk only through VS Code commands, and Studio
@@ -38,57 +43,60 @@ Two things to know about where Studio shows up:
   points at **Manage Workspace Trust**. A project you create in step 3 and open yourself is yours, so
   trust it. (The Emulator extension runs in Restricted Mode: it starts no program.)
 
-## Step 2: Tell Studio where the compiler is
+## Step 2: Get the compiler
 
-Studio runs the Boriel compiler for you, and the CPC backend lives in the `zxbasic` fork. Open
-**Settings** (`Ctrl+,`) and search for `cpcbuild`, or run **CPCBuild: Open Settings**. Set:
+Studio runs the Boriel BASIC compiler for you. The CPC backend is in the `zxbasic` fork, and Studio can
+download a ready-made build of it. You do not need Python or Poetry for this.
 
-| Setting | Value |
-|---|---|
-| `cpcbuild.zxbc.command` | `["poetry", "run", "zxbc"]` |
-| `cpcbuild.zxbc.cwd` | the path of your `zxbasic` checkout (branch `cpc-arch`) |
+Run **CPCBuild: Download Tools** from the Command Palette. (The **Get started with CPCBuild** walkthrough has the
+same button: run **Welcome: Open Walkthrough...** and choose it.) A list asks what to download:
 
-The first two are the ones Studio's own documentation gives for the Poetry setup. If you leave
-`cpcbuild.zxbc.command` at its default (`zxbc`) and `cpcbuild.zxbc.cwd` is a Poetry project (it has a
-`pyproject.toml`), Studio falls back to `poetry run zxbc` by itself when it cannot find `zxbc`. It looks for
-`poetry` on your `PATH` and in `~/.local/bin`. If VS Code still cannot find it (VS Code started from the Dock
-may not see `~/.local/bin`), put the full path of `poetry` in the setting, for example
-`["/Users/you/.local/bin/poetry", "run", "zxbc"]`. You do **not** need a
-cpcbuild checkout for the library: Studio carries a copy of `lib/` and the Python converters inside the
-extension and uses it when nothing else is found (chapter 11's Plus library is in it too). The setting
+- **Boriel BASIC compiler 1.19.0-cpc.1 (zxbc, zxbasm, mkdsk)**
+- **Arkos Tracker 3.7 command-line tools (music conversion)**
+
+Both are ticked unless they are already installed. You need the compiler now. The Arkos tools are only for
+converting your own songs in chapter 8, so you may leave them out and add them later. Studio checks each
+download against a known checksum before it uses it. On linux-arm64 there are no Arkos tools, and Studio says so.
+
+You do not need a cpcbuild checkout for the library: Studio carries a copy of `lib/` inside the extension and
+uses it when nothing else is found (chapter 11's Plus library is in it too). The setting
 `cpcbuild.library.path` points Studio at a different copy; leave it empty for this tutorial.
 
-The `cpcbuild.zxbc.cwd` folder does a second job: it is where Studio looks for `mkdsk.py`, the tool that
-packages a disc image. `mkdsk.py` belongs to the compiler (AGPL licence), so it is not bundled in the
-extension; without the `zxbasic` checkout there is no `.dsk`.
+Where Studio looks for the compiler, in this order: the `cpcbuild.zxbc.command` setting, a checkout named by
+`cpcbuild.zxbc.cwd`, an SDK folder (`cpcbuild.sdk.path`, or one at or above your project), the tools you
+downloaded, `zxbc` on your `PATH`, and last `poetry run zxbc`.
 
-> **Tip.** If you prefer editing `settings.json`: the keys are exactly the ones above.
+> **Using a zxbasic checkout?** If you build the compiler yourself, set `cpcbuild.zxbc.cwd` to your `zxbasic`
+> checkout (branch `cpc-arch`). Studio then runs `poetry run zxbc` from there and takes `mkdsk.py` from the
+> checkout's `tools/cpc/`. That route needs Python 3 and Poetry, and **Check Environment** will list Python 3.
+> Everything else in the tutorial is the same.
 
 Now run **CPCBuild: Check Environment**. It writes a list to the **CPCBuild** channel of the Output view and
 shows a message when something required is missing. Each line is `[ok]`, `[optional]` or `[MISSING]`, then
-the item and where it was found, with a `fix:` line under every missing one. A good result looks like this
-(paths and versions will differ):
+the item and where it was found, with a `fix:` line under every one that is not ok. After **Download Tools**, the
+result looks like this (paths and version text will differ):
 
 ```
 CPCBuild environment check
-  [ok] zxbc (Boriel BASIC compiler, cpc arch): poetry run zxbc: zxbc 1.x ...
-  [ok] Python 3: python3: Python 3.x.y
-  [ok] cpcbuild library (lib/): /.../bundled/lib
-  [ok] cpcbuild tools/ (mkcpr.py): /.../bundled/tools/mkcpr.py
-  [ok] mkdsk.py (zxbasic tools/cpc/): /.../zxbasic/tools/cpc/mkdsk.py
+  [ok] zxbc (Boriel BASIC compiler, cpc arch): managed: /.../zxbasic-1.19.0-cpc.1; /.../zxbc: <the version line zxbc prints>
+  [optional] Python 3: ...
+        fix: Only needed with the python engine or a zxbasic checkout.
+  [ok] cpcbuild library (lib/): /.../lib
+  [ok] Cartridge packaging (mkcpr): built in
+  [ok] mkdsk (disc images): /.../mkdsk
   [ok] Emulator: cpcbuild-emu extension: cpcbuild.emu.version answers
-  [optional] Arkos command-line tools: not found
-        fix: Run `sh tools/arkos/fetch.sh` ...
+  [ok] Arkos command-line tools: /...
   [optional] Tiled map editor: not found
         fix: Install Tiled (mapeditor.org) for "Open in Tiled".
 ```
 
-(The labels are the ones in Studio's `doctor.ts`; the exact paths and version text depend on your machine.
-The Arkos tools and Tiled are optional: chapters 3 and 8 say when you would want them.)
+(The labels are the ones in Studio's `doctor.ts`. The Python line is `[ok]` if Python 3 is installed, and it is
+optional because nothing in this tutorial needs it in Studio. The Arkos line says `[optional]` and `not found` if
+you skipped those tools. Tiled is optional: chapter 3 says when you would want it.)
 
-If something says `MISSING`, fix it before you go on. If `zxbc` is missing, check that `poetry run zxbc
---version` works in a terminal in the `zxbasic` folder first. In Restricted Mode the compiler and Python
-lines say `not run` instead of being checked.
+If a required line says `MISSING`, read its `fix:` line. If `zxbc` is missing, run **CPCBuild: Download Tools**
+again, then run the check again. In Restricted Mode the compiler and Python lines say `not run` instead of being
+checked.
 
 ## Step 3: Create the project
 
@@ -142,7 +150,7 @@ way through.
 
 Run **CPCBuild: Build and Run**.
 
-The **CPCBuild** output channel shows the steps: the compiler runs, `mkdsk.py` packs the program
+The **CPCBuild** output channel shows the steps: the compiler runs, `mkdsk` packs the program
 into a disc image, a report says how big the program is, and the emulator opens.
 
 A new editor tab opens with a CPC screen in it. **Click on the screen** once: that gives the CPC your

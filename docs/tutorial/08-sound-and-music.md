@@ -245,9 +245,9 @@ The tutorial does not need you to, but if you want to: write a song in **Arkos T
 `.aks`, and run **CPCBuild: Convert Music** on it (right-click the `.aks` in the Explorer, or run the command
 from the Command Palette with the song open; Studio also takes Vortex Tracker `.vt2` files, which is what
 the repository's own songs are). **CPCBuild: Open in Arkos Tracker** opens the application: set
-`cpcbuild.arkos.trackerPath`, and for the converter set `cpcbuild.arkos.toolsPath` to the folder with the
-Arkos command-line tools (**Check Environment** lists them as optional; its fix line is `sh tools/arkos/fetch.sh`
-in a cpcbuild checkout). That runs `tools/aks2bas.py`, the same tool as on the command line:
+`cpcbuild.arkos.trackerPath`, and for the converter run **CPCBuild: Download Tools** and tick the Arkos
+command-line tools (or set `cpcbuild.arkos.toolsPath` to a folder that holds them). **Check Environment** lists
+them as optional. That runs `tools/aks2bas.py`, the same tool as on the command line:
 
 ```sh
 python3 tools/aks2bas.py tune.aks tune.bas --name tune

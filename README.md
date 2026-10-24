@@ -18,6 +18,56 @@ CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` co
 
 **Supported models:** Amstrad CPC 464, 664, 6128, and the CPC Plus range (6128 Plus; GX4000 cartridges). The runtime is firmware-first (text, graphics, sound and files go through the jumpblock at &BB00-&BDxx); the `cpcbuild` library drives the screen, keyboard and palette directly for speed. Phase 6 adds firmware-free bare-metal mode. Phase 7 adds CPC Plus ASIC support: hardware sprites, 12-bit palette, split screen and soft scroll, raster interrupts (bare only), and DMA sound.
 
+## Install
+
+Version 0.1.0 is a pre-release. Everything is on the
+[Releases page](https://github.com/carcharo/cpcbuild/releases). You need [VS Code](https://code.visualstudio.com/).
+You do not need Python.
+
+Pick one route.
+
+### Route A: the two extensions
+
+1. From the Releases page, download `cpcbuild-studio-0.1.0.vsix` and `cpcbuild-emu-0.1.0.vsix`.
+2. In VS Code, open the Command Palette and run **Extensions: Install from VSIX...**. Do this once for each file.
+3. Run **Welcome: Open Walkthrough...** and choose **Get started with CPCBuild**.
+4. In the walkthrough, choose **Download Tools**. Studio asks what to download: the Boriel BASIC compiler
+   1.19.0-cpc.1 (with `zxbasm` and `mkdsk`) and the Arkos Tracker 3.7 command-line tools (music conversion). It
+   checks each download against a known checksum. You can run **CPCBuild: Download Tools** from the Command
+   Palette later.
+5. The walkthrough's next steps create a project from a template, then build and run it. You can skip
+   **Install Emulator**: it is for people who installed Studio without the emulator extension.
+
+Run **CPCBuild: Check Environment** at any time to see what Studio found and what to fix.
+
+### Route B: the SDK folder
+
+The SDK is a ready-to-run folder with the compiler and tools (`bin/`), the library, the docs, the examples, the
+Lamplighter game and both `.vsix` files. Download the one for your computer:
+
+| Computer | File |
+|---|---|
+| Windows (x64, and Windows on ARM) | `cpcbuild-sdk-0.1.0-windows-x64.zip` |
+| Linux x64 | `cpcbuild-sdk-0.1.0-linux-x64.tar.gz` |
+| Linux arm64 | `cpcbuild-sdk-0.1.0-linux-arm64.tar.gz` |
+| macOS, Apple silicon | `cpcbuild-sdk-0.1.0-macos-arm64.zip` |
+| macOS, Intel | `cpcbuild-sdk-0.1.0-macos-x64.zip` |
+
+Unpack it anywhere, install the two `.vsix` files from inside it as in route A, and read `README-FIRST.txt`.
+Studio finds the SDK by itself for any project inside the SDK folder. For a project somewhere else, set
+`cpcbuild.sdk.path` to the SDK folder.
+
+### Notes for each system
+
+- **macOS.** The binaries are meant to be signed and notarised, but until that is set up they are unsigned. If
+  macOS refuses to open a program from an SDK you downloaded in a browser, run
+  `xattr -dr com.apple.quarantine <folder>` on the unpacked folder. Unpack with Finder or `ditto -x -k`. Tools
+  that Studio downloads itself are not affected.
+- **Windows.** The binaries are unsigned. SmartScreen may warn about the SDK zip: choose **More info**, then
+  **Run anyway**. Tools that Studio downloads itself are not affected.
+- **Linux.** Unpack with `tar -xzf`, which keeps file permissions. Arkos Tracker has no command-line tools for
+  linux-arm64, so music conversion is not available there.
+
 ## Screenshots
 
 **Starfall (Phase 5c):** a single-screen shooter for CPC and Spectrum.
@@ -31,16 +81,18 @@ See [games/shooter/README.md](games/shooter/README.md) for how to play and build
 
 ![bounce demo](docs/images/bounce.png)
 
-Build the demo yourself: `make run PROG=examples/bounce.bas`
+Build the demo yourself from a checkout: `make run PROG=examples/bounce.bas` (see [Developing CPCBuild](#developing-cpcbuild))
 
-## Quick start
+## Developing CPCBuild
+
+This section is for working on CPCBuild itself. To use it, see [Install](#install).
 
 ### Prerequisites
 
 - macOS dev environment
-- Python 3 + Pillow (`pip install Pillow`)
+- Python 3 + Pillow (`pip install Pillow`), for the Python asset tools in `tools/` and the test scripts
 - Poetry (`pipx install poetry` or Homebrew)
-- zxbasic fork checked out as `../zxbasic` on branch `cpc-arch` with `poetry install`
+- zxbasic fork checked out as `../zxbasic` on branch `cpc-arch` with `poetry install` (the compiler the `make` targets use)
 - Caprice32 built from source in `../caprice32` (needs SDL2, `brew install sdl2`; used for `make run` and `make test`)
 - A C compiler for chipsrun, the headless runner used by `make test-chips` and CI (no other dependencies; `make chips` fetches and builds it)
 
@@ -124,4 +176,4 @@ The chips emulator used in CI is licensed under the zlib/libpng licence (see `to
 
 ---
 
-**Getting started:** Follow the [tutorial](docs/tutorial/README.md) and keep [docs/library.md](docs/library.md) open for the API. Build and run the bounce demo with `make run PROG=examples/bounce.bas`, then explore `examples/` or write your own.
+**Getting started:** [Install](#install) the extensions, follow the [tutorial](docs/tutorial/README.md) and keep [docs/library.md](docs/library.md) open for the API. To build the bounce demo from a checkout, see [Developing CPCBuild](#developing-cpcbuild).
