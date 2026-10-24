@@ -2,16 +2,17 @@
   "name": "cpcbuild-emu",
   "displayName": "CPCBuild Emulator",
   "description": "Amstrad CPC and CPC Plus emulator (CPCEC compiled to WebAssembly) in a VS Code tab.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "cpcbuild",
   "license": "GPL-3.0-or-later",
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Programming Languages",
+    "Debuggers",
     "Other"
   ],
-  "private": true,
   "main": "./dist/extension.js",
   "activationEvents": [
     "onCommand:cpcbuild.emu.version",
@@ -106,7 +107,7 @@
     "test:wasm": "node test/wasm-smoke.mjs",
     "test:golden": "python3 test/prepare_media.py && node test/golden.mjs",
     "source": "sh scripts/make-source.sh",
-    "package": "npm run build && npm run source && vsce package --allow-missing-repository --skip-license"
+    "package": "npm run build && npm run source && vsce package --skip-license"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",
@@ -118,5 +119,22 @@
     "puppeteer-core": "^25.14.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
-  }
+  },
+  "homepage": "https://github.com/carcharo/cpcbuild#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/carcharo/cpcbuild",
+    "directory": "vscode/cpcbuild-emu"
+  },
+  "bugs": {
+    "url": "https://github.com/carcharo/cpcbuild/issues"
+  },
+  "keywords": [
+    "amstrad",
+    "cpc",
+    "z80",
+    "boriel",
+    "basic",
+    "retro"
+  ]
 }

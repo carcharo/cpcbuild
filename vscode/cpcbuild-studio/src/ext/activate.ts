@@ -25,6 +25,8 @@ import { registerStubs } from './stubs';
 import { registerLintAndHover } from './lintHover';
 import { DebugApi, registerDebugFeatures } from './debugFeatures';
 import { emuMissingTestApi } from './emuMissing';
+import { emuInstallTestApi, installEmulator, setEmuInstallContext } from './emuInstall';
+import { offerToolsAtActivation, setStudioExtensionId, setupTestApi, updateSetupContext } from './setupPrompts';
 import { musicConvertCommand, musicPlayCommand, musicStopCommand } from './music';
 import { generateTmxAsset, openInTiledCommand, TmxViewerProvider, tmxGenerateCommand } from './tmxViewer';
 
@@ -48,6 +50,10 @@ export interface StudioApi {
   debug: DebugApi;
   /** The missing-emulator warning: test hooks. */
   emuMissing: typeof emuMissingTestApi;
+  /** The setup notifications (activation, build failure, Arkos): test hooks. */
+  setup: typeof setupTestApi;
+  /** The emulator install from the release: test hooks. */
+  emuInstall: typeof emuInstallTestApi;
   /** How many lint passes ran for a document (tests wait on this). */
   lintRuns(uri: vscode.Uri): number;
   /** Workspace Trust test hooks (pretend the workspace is untrusted). */
@@ -188,6 +194,8 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   setStorageDir(context.globalStorageUri.fsPath);
   setToolsStorage(context.globalStorageUri.fsPath);
   setTargetStore(context.workspaceState);
+  setStudioExtensionId(context.extension.id);
+  setEmuInstallContext(String(context.extension.packageJSON.version), context.globalStorageUri.fsPath);
   setBundledLibrary(vscode.Uri.joinPath(context.extensionUri, 'bundled').fsPath);
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-project');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
@@ -224,6 +232,14 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     vscode.tasks.registerTaskProvider(TASK_TYPE, new CpcbuildTaskProvider()),
   );
   void refresh();
+  // walkthrough completion (cpcbuild.toolsInstalled, cpcbuild.emuInstalled) and the one-per-session "no compiler" notice
+  void updateSetupContext();
+  context.subscriptions.push(
+    vscode.extensions.onDidChange(() => void updateSetupContext()),
+    vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration('cpcbuild') && void updateSetupContext()),
+  );
+  // the extension-host tests start with no tools on purpose: they ask for the notice through setupTestApi
+  if (context.extensionMode !== vscode.ExtensionMode.Test) void offerToolsAtActivation();
 
   const reg = (id: string, fn: (...a: any[]) => unknown): void => void context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   reg('cpcbuild.newProject', (args) => newProjectCommand(args));
@@ -236,7 +252,16 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   reg('cpcbuild.runFile', runFile);
   reg('cpcbuild.showBuildReport', showReport);
   reg('cpcbuild.checkEnvironment', async () => doctorCommand(pickProject(await findProjects())?.root, channelSink, () => getChannel().show(true)));
-  reg('cpcbuild.downloadTools', (arg) => downloadToolsCommand(arg));
+  reg('cpcbuild.downloadTools', async (arg) => {
+    const r = await downloadToolsCommand(arg);
+    void updateSetupContext();
+    return r;
+  });
+  reg('cpcbuild.installEmulator', async (arg) => {
+    const lp = pickProject(await findProjects());
+    const base = lp?.root ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd();
+    return installEmulator(arg ?? { library: resolveLibrary(base, readSettings(lp?.root)) });
+  });
   reg('cpcbuild.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', 'cpcbuild'));
   reg('cpcbuild.selectTarget', async () => {
     const pt = await projectAndTarget();
@@ -310,6 +335,8 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     emuEvents: () => state.emuEvents,
     debug: debugApi,
     emuMissing: emuMissingTestApi,
+    setup: setupTestApi,
+    emuInstall: emuInstallTestApi,
     runIn: runInEmulator,
     disc: discTestApi,
     lintRuns: (uri) => lint.runs(uri),

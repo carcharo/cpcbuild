@@ -7,6 +7,7 @@ import { readSettings } from './config';
 import { findProjects, LoadedProject, pickProject, selectedTarget } from './projects';
 import { runInEmulator } from './run';
 import { Sink } from './runTool';
+import { notifyBuildFailure } from './setupPrompts';
 import { state } from './state';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 import { runInZxEmulator } from './zxRun';
@@ -53,7 +54,10 @@ export async function executeBuild(def: CpcbuildTaskDefinition, sink: Sink, toke
   for (const n of lp.notes) sink.line(`note: ${n.message}`);
   const res = await buildTarget(lp.root, lp.project, target, sink, token, s);
   state.lastBuild = res;
-  if (!res.ok) return 1;
+  if (!res.ok) {
+    void notifyBuildFailure(res);
+    return 1;
+  }
   if (def.run) return (await runLast(sink, lp.project.library)) ? 0 : 1;
   return 0;
 }

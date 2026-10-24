@@ -17,6 +17,7 @@ import { buildTarget } from './build';
 import { channelSink, getChannel, tee } from './channel';
 import { absFrom, readSettings, resolveArkos, resolveLibrary, Settings } from './config';
 import { NOT_IN_PROJECT, projectRootOf } from './importer';
+import { notifyArkosMissing } from './setupPrompts';
 import { notifyUntrusted, isTrusted, restrictedText } from './trust';
 import { killTree } from './runTool';
 import { runInEmulator } from './run';
@@ -113,7 +114,10 @@ export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): 
     }
   } else {
     getChannel().appendLine(`Convert Music failed: ${r.error}`);
-    if (!quiet) void vscode.window.showErrorMessage(`CPCBuild: ${r.error}`);
+    if (!quiet) {
+      if (!t.toolsDir && r.error === arkosMissingText()) void notifyArkosMissing(r.error);
+      else void vscode.window.showErrorMessage(`CPCBuild: ${r.error}`);
+    }
   }
   return { ok: r.ok, output: r.output, name: r.name, argv: r.argv, error: r.error };
 }

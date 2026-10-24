@@ -6,6 +6,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { installEmulator } from './emuInstall';
 
 export const INSTALL_BUTTON = 'Install CPCBuild Emulator';
 export const EXTERNAL_BUTTON = 'Use external emulator';
@@ -69,13 +70,7 @@ export async function notifyEmuMissing(c: MissingContext): Promise<void> {
   const buttons = [INSTALL_BUTTON, ...(c.external ? [EXTERNAL_BUTTON] : [])];
   const pick = await ui.warn(`CPCBuild: ${c.why}.${used} CPCBuild Emulator runs the program in an editor tab and adds the debugger.`, ...buttons);
   if (pick === INSTALL_BUTTON) {
-    const vsix = findLocalVsix(c.library);
-    if (vsix) {
-      await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(vsix));
-      void vscode.window.showInformationMessage(`CPCBuild: the emulator package is ${vsix}. Install it with "Extensions: Install from VSIX..." from the Extensions view menu.`);
-    } else {
-      await vscode.commands.executeCommand('workbench.extensions.search', `@id:${EMU_EXTENSION_ID}`);
-    }
+    await installEmulator({ library: c.library });
   } else if (pick === EXTERNAL_BUTTON && c.external) {
     await setEmulator(c.external);
   }

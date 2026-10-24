@@ -2,13 +2,14 @@
   "name": "cpcbuild-studio",
   "displayName": "CPCBuild Studio",
   "description": "Amstrad CPC tools for CPCBuild (Boriel BASIC --arch cpc): palette, sprite and tile editors, image importer, build and run.",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "publisher": "cpcbuild",
   "license": "MIT",
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Programming Languages",
     "Other"
   ],
   "main": "./dist/extension.js",
@@ -214,6 +215,11 @@
       {
         "command": "cpcbuild.downloadTools",
         "title": "Download Tools",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.installEmulator",
+        "title": "Install Emulator",
         "category": "CPCBuild"
       },
       {
@@ -929,6 +935,60 @@
         "view": "cpcbuild.breakpoints",
         "contents": "No breakpoints. Toggle one on a symbol in the Symbols view, or by name or address.\n[Toggle Breakpoint](command:cpcbuild.debug.toggleBreakpoint)"
       }
+    ],
+    "walkthroughs": [
+      {
+        "id": "cpcbuild.getStarted",
+        "title": "Get started with CPCBuild",
+        "description": "Install the tools, create a project, build it and run it on an Amstrad CPC.",
+        "steps": [
+          {
+            "id": "cpcbuild.step.tools",
+            "title": "Install the tools",
+            "description": "Download the Boriel BASIC compiler and the music tools.\n[Download Tools](command:cpcbuild.downloadTools)",
+            "completionEvents": [
+              "onContext:cpcbuild.toolsInstalled",
+              "onCommand:cpcbuild.downloadTools"
+            ],
+            "media": {
+              "markdown": "media/walkthrough/tools.md"
+            }
+          },
+          {
+            "id": "cpcbuild.step.emulator",
+            "title": "Install the emulator",
+            "description": "Download CPCBuild Emulator to run programs in an editor tab.\n[Install Emulator](command:cpcbuild.installEmulator)",
+            "completionEvents": [
+              "onContext:cpcbuild.emuInstalled"
+            ],
+            "media": {
+              "markdown": "media/walkthrough/emulator.md"
+            }
+          },
+          {
+            "id": "cpcbuild.step.project",
+            "title": "Create a project",
+            "description": "Start from a template.\n[New Project](command:cpcbuild.newProject)",
+            "completionEvents": [
+              "onCommand:cpcbuild.newProject"
+            ],
+            "media": {
+              "markdown": "media/walkthrough/project.md"
+            }
+          },
+          {
+            "id": "cpcbuild.step.run",
+            "title": "Build and run",
+            "description": "Compile the program and start it in the emulator.\n[Build and Run](command:cpcbuild.buildAndRun)",
+            "completionEvents": [
+              "onCommand:cpcbuild.buildAndRun"
+            ],
+            "media": {
+              "markdown": "media/walkthrough/run.md"
+            }
+          }
+        ]
+      }
     ]
   },
   "scripts": {
@@ -938,7 +998,7 @@
     "test:unit": "vitest run",
     "test:vscode": "npm run build && npm run build:test && node out/test/runTest.js",
     "test": "npm run test:unit && npm run test:vscode",
-    "package": "npm run build && vsce package --allow-missing-repository",
+    "package": "npm run build && vsce package",
     "test:integration": "npm run build && npm run build:test && node out/test/runIntegration.js"
   },
   "devDependencies": {
@@ -957,5 +1017,22 @@
     "pako": "^3.0.2",
     "preact": "^11.0.1",
     "upng-js": "^2.1.0"
-  }
+  },
+  "homepage": "https://github.com/carcharo/cpcbuild#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/carcharo/cpcbuild",
+    "directory": "vscode/cpcbuild-studio"
+  },
+  "bugs": {
+    "url": "https://github.com/carcharo/cpcbuild/issues"
+  },
+  "keywords": [
+    "amstrad",
+    "cpc",
+    "z80",
+    "boriel",
+    "basic",
+    "retro"
+  ]
 }

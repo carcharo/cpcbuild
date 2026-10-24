@@ -1,6 +1,7 @@
 /** Symbols view, debug controls and the missing-emulator warning without cpcbuild-emu (this run loads Studio only). */
 import * as assert from 'assert';
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
@@ -182,8 +183,13 @@ test('"Use external emulator" sets the setting for good; "Install" does not thro
 
     a.emuMissing.reset();
     a.emuMissing.setUi({ warn: async () => 'Install CPCBuild Emulator' });
-    await a.runIn(ws, run, sink, { ...base, emulator: 'emu' }, null); // opens the Extensions view search; nothing to assert but no failure
+    // no network, no browser: the download goes to a dead port and the releases page "opens" into a stub
+    const opened: string[] = [];
+    a.emuInstall.setDefaults({ quiet: true, version: '9.9.9', releasesBase: 'http://127.0.0.1:9', dir: path.join(os.tmpdir(), 'cpcbuild-emu-dead'), open: async (u) => void opened.push(u) });
+    await a.runIn(ws, run, sink, { ...base, emulator: 'emu' }, null);
+    await waitFor('the releases page', () => opened.length > 0, 5000);
   } finally {
+    a.emuInstall.setDefaults(undefined);
     a.emuMissing.setUi(undefined);
     a.emuMissing.reset();
     await cfg.update('run.emulator', before, vscode.ConfigurationTarget.Workspace);
