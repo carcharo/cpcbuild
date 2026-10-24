@@ -3,15 +3,23 @@
  * command-line tools, and the SHA-256 each download must have) and the platform names it uses. No vscode import.
  */
 
-export type ToolsPlatform = 'windows-x64' | 'linux-x64' | 'linux-arm64' | 'macos-arm64' | 'macos-x64';
-export const TOOLS_PLATFORMS: readonly ToolsPlatform[] = ['windows-x64', 'linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
+export type ToolsPlatform = 'windows-x64' | 'windows-arm64' | 'linux-x64' | 'linux-arm64' | 'macos-arm64' | 'macos-x64';
+export const TOOLS_PLATFORMS: readonly ToolsPlatform[] = ['windows-x64', 'windows-arm64', 'linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
 
-/** The manifest's platform key for `process.platform` / `process.arch`; undefined where there are no tools. Windows on ARM runs the x64 build. */
+/** The manifest's platform key for `process.platform` / `process.arch`; undefined where there are no tools. */
 export function toolsPlatform(platform: NodeJS.Platform, arch: string): ToolsPlatform | undefined {
-  if (platform === 'win32') return arch === 'x64' || arch === 'arm64' ? 'windows-x64' : undefined;
+  if (platform === 'win32') return arch === 'x64' ? 'windows-x64' : arch === 'arm64' ? 'windows-arm64' : undefined;
   if (platform === 'linux') return arch === 'x64' ? 'linux-x64' : arch === 'arm64' ? 'linux-arm64' : undefined;
   if (platform === 'darwin') return arch === 'arm64' ? 'macos-arm64' : arch === 'x64' ? 'macos-x64' : undefined;
   return undefined;
+}
+
+/**
+ * The part's asset for a platform key: its own entry, else (Windows on ARM) the x64 one, which runs under
+ * emulation (about 3.5 times slower for the compiler; Arkos has no ARM build at all).
+ */
+export function assetForKey(p: ToolPart, key: ToolsPlatform): ToolAsset | undefined {
+  return p.assets[key] ?? (key === 'windows-arm64' ? p.assets['windows-x64'] : undefined);
 }
 
 export interface ToolAsset {

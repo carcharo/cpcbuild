@@ -6,7 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { makeTarGz, makeZip, FixEntry } from '../../src/core/archiveFixture';
-import { toolsPlatform, ToolsManifest } from '../../src/core/tools';
+import { toolsPlatform, ToolsManifest, ToolsPlatform } from '../../src/core/tools';
 import { test } from './harness';
 
 const win = process.platform === 'win32';
@@ -46,7 +46,7 @@ async function withServer<T>(blobs: Record<string, Buffer>, fn: (base: string) =
   }
 }
 
-const key = (): 'windows-x64' | 'linux-x64' | 'linux-arm64' | 'macos-arm64' | 'macos-x64' => {
+const key = (): ToolsPlatform => {
   const k = toolsPlatform(process.platform, process.arch);
   assert.ok(k, `no tools platform for ${process.platform}-${process.arch}`);
   return k;

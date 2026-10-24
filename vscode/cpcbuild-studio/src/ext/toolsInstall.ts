@@ -7,7 +7,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ArchiveEntry, ArchiveError } from '../core/archive';
-import { arkosDirName, isPinned, ToolAsset, ToolPart, ToolsManifest, ToolsPlatform, toolsPlatform, zxbasicDirName } from '../core/tools';
+import { arkosDirName, assetForKey, isPinned, ToolAsset, ToolPart, ToolsManifest, ToolsPlatform, toolsPlatform, zxbasicDirName } from '../core/tools';
 import { readTarGz } from '../core/tar';
 import { readZip } from '../core/zip';
 import { arkosToolPath, arkosUnavailableText } from './arkos';
@@ -79,7 +79,7 @@ export function arkosInstalled(root: string, m: ToolsManifest, platform: NodeJS.
 /** The asset for this machine (throws NoToolsError / UnpinnedError). */
 export function assetFor(part: Part, m: ToolsManifest, platform: NodeJS.Platform, arch: string): ToolAsset {
   const key = toolsPlatform(platform, arch);
-  const asset = key && (m[part] as ToolPart).assets[key as ToolsPlatform];
+  const asset = key && assetForKey(m[part] as ToolPart, key);
   if (!asset) throw new NoToolsError(part, `${platform}-${arch}`);
   if (!isPinned(asset)) throw new UnpinnedError(part);
   return asset;

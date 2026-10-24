@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isPinned, ManifestError, parseManifest, toolsPlatform } from './tools';
+import { assetForKey, isPinned, ManifestError, parseManifest, toolsPlatform } from './tools';
 
 const sha = 'a'.repeat(64);
 const good = (): any => ({
@@ -10,9 +10,9 @@ const good = (): any => ({
 });
 
 describe('platform keys', () => {
-  it('maps node platform and arch to the manifest keys (Windows on ARM runs x64)', () => {
+  it('maps node platform and arch to the manifest keys', () => {
     expect(toolsPlatform('win32', 'x64')).toBe('windows-x64');
-    expect(toolsPlatform('win32', 'arm64')).toBe('windows-x64');
+    expect(toolsPlatform('win32', 'arm64')).toBe('windows-arm64');
     expect(toolsPlatform('linux', 'x64')).toBe('linux-x64');
     expect(toolsPlatform('linux', 'arm64')).toBe('linux-arm64');
     expect(toolsPlatform('darwin', 'arm64')).toBe('macos-arm64');
@@ -20,6 +20,13 @@ describe('platform keys', () => {
     expect(toolsPlatform('linux', 'ia32')).toBeUndefined();
     expect(toolsPlatform('win32', 'ia32')).toBeUndefined();
     expect(toolsPlatform('freebsd', 'x64')).toBeUndefined();
+  });
+  it('Windows on ARM takes its own asset, else the x64 one (emulated); no other platform falls back', () => {
+    const x64 = { url: 'https://h/x.zip', sha256: sha };
+    const arm = { url: 'https://h/a.zip', sha256: sha };
+    expect(assetForKey({ version: '1', assets: { 'windows-x64': x64 } }, 'windows-arm64')).toBe(x64);
+    expect(assetForKey({ version: '1', assets: { 'windows-x64': x64, 'windows-arm64': arm } }, 'windows-arm64')).toBe(arm);
+    expect(assetForKey({ version: '1', assets: { 'linux-x64': x64 } }, 'linux-arm64')).toBeUndefined();
   });
 });
 

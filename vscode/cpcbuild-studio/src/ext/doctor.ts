@@ -7,7 +7,7 @@ import { pythonCmd, runTool, Sink } from './runTool';
 import { describeCompiler } from './toolpaths';
 import { compilerHint, DOWNLOAD_HINT, poetryAdvice, runZxbc } from './zxbcCommand';
 import { arkosUnavailableText } from './arkos';
-import { toolsPlatform } from '../core/tools';
+import { assetForKey, toolsPlatform } from '../core/tools';
 import { findTiled } from './tmxViewer';
 import { isTrusted, restrictedText } from './trust';
 
@@ -108,7 +108,7 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   // optional tools
   const arkos = resolveArkos(base, s, lib);
   const plat = toolsPlatform(process.platform, process.arch);
-  const noAsset = !plat || !manifest.arkos.assets[plat];
+  const noAsset = !plat || !assetForKey(manifest.arkos, plat);
   add({
     id: 'arkos', label: 'Arkos command-line tools', ok: !!arkos, optional: true, detail: arkos || 'not found',
     fix: !noAsset ? `${DOWNLOAD_HINT} Or set "cpcbuild.arkos.toolsPath" (in a cpcbuild checkout: \`sh tools/arkos/fetch.sh\`).` : arkosUnavailableText(`${process.platform}-${process.arch}`),

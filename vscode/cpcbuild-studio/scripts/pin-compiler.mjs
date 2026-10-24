@@ -11,7 +11,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO = 'https://github.com/carcharo/zxbasic/releases/download';
-export const PLATFORMS = ['windows-x64', 'linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
+export const PLATFORMS = ['windows-x64', 'windows-arm64', 'linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
+/** Releases before windows-arm64 existed lack it; Studio then gives Windows on ARM the x64 build. */
+export const OPTIONAL = ['windows-arm64'];
 const ext = (p) => (p.startsWith('linux') ? 'tar.gz' : 'zip');
 
 /** "<sha>  <name>" lines (a leading * on the name is binary mode) -> Map(name -> sha). */
@@ -32,7 +34,9 @@ export function pin(manifest, tag, sums) {
   for (const p of PLATFORMS) {
     const file = `zxbasic-${version}-${p}.${ext(p)}`;
     const sha256 = sums.get(file);
-    if (!sha256) missing.push(file);
+    if (!sha256) {
+      if (!OPTIONAL.includes(p)) missing.push(file);
+    }
     else assets[p] = { url: `${REPO}/${tag}/${file}`, sha256 };
   }
   if (missing.length) throw new Error(`SHA256SUMS of ${tag} has no entry for: ${missing.join(', ')}`);

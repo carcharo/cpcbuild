@@ -33,6 +33,12 @@ describe('scripts/pin-compiler.mjs', () => {
     expect(m.arkos.assets['macos-x64']).toEqual(m.arkos.assets['macos-arm64']);
     expect(JSON.parse(text)).toEqual(out);
   });
+  it('pins windows-arm64 when the release has it, and leaves it out (x64 fallback) when it does not', async () => {
+    const { parseSums, pin } = await load();
+    expect(pin(shipped(), tag, parseSums(sumsText)).zxbasic.assets['windows-arm64']).toBeUndefined();
+    const withArm = sumsText + `${'f'.repeat(64)}  zxbasic-1.19.0-cpc.2-windows-arm64.zip\n`;
+    expect(pin(shipped(), tag, parseSums(withArm)).zxbasic.assets['windows-arm64'].sha256).toBe('f'.repeat(64));
+  });
   it('refuses a release whose SHA256SUMS lacks a platform', async () => {
     const { parseSums, pin } = await load();
     const partial = parseSums(sumsText.split('\n').slice(0, 3).join('\n'));
