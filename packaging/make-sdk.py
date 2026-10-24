@@ -2,7 +2,7 @@
 """make-sdk.py -- assembles the CPCBuild SDK archives (Python standard library only; runs in CI and locally).
 
   python3 packaging/make-sdk.py --version 0.1.0 --compiler-dir DIR --studio-vsix F --emu-vsix F --out OUT \
-          [--platform all|windows-x64|macos-arm64|macos-x64|linux-x64|linux-arm64] \
+          [--platform all|windows-x64|windows-arm64|macos-arm64|macos-x64|linux-x64|linux-arm64] \
           [--compiler-version 1.19.0-cpc.1] [--compiler-tag v1.19.0-cpc.1] [--cpcbuild-ref v0.1.0]
 
 DIR holds the compiler release assets, named zxbasic-<compiler-version>-<platform>.zip|.tar.gz, and
@@ -37,7 +37,7 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-PLATFORMS = ["windows-x64", "macos-arm64", "macos-x64", "linux-x64", "linux-arm64"]
+PLATFORMS = ["windows-x64", "windows-arm64", "macos-arm64", "macos-x64", "linux-x64", "linux-arm64"]
 MANIFEST = REPO / "vscode" / "cpcbuild-studio" / "tools-manifest.json"
 SKIP_DIRS = {"__pycache__", ".git", ".worktrees", "build", "tests", "node_modules", ".vscode-test"}
 SKIP_FILES = {".DS_Store", "Thumbs.db"}

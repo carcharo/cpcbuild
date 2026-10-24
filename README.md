@@ -47,7 +47,8 @@ Lamplighter game and both `.vsix` files. Download the one for your computer:
 
 | Computer | File |
 |---|---|
-| Windows (x64, and Windows on ARM) | `cpcbuild-sdk-0.1.0-windows-x64.zip` |
+| Windows x64 | `cpcbuild-sdk-0.1.0-windows-x64.zip` |
+| Windows on ARM | `cpcbuild-sdk-0.1.0-windows-arm64.zip` |
 | Linux x64 | `cpcbuild-sdk-0.1.0-linux-x64.tar.gz` |
 | Linux arm64 | `cpcbuild-sdk-0.1.0-linux-arm64.tar.gz` |
 | macOS, Apple silicon | `cpcbuild-sdk-0.1.0-macos-arm64.zip` |
