@@ -8,13 +8,14 @@ import * as path from 'node:path';
 export const REPO = path.resolve(__dirname, '..', '..', '..', '..');
 
 /**
- * The Python 3 the tests run the tools with: `python3` (POSIX), on Windows the `py -3` launcher, else `python`.
+ * The Python 3 the tests run the tools with: `python3` (POSIX); on Windows `python` first (the one on PATH, which
+ * has Pillow in CI), then the `py -3` launcher (it picks the newest installed Python, which may lack Pillow).
  * `PYTHON_SETTING` is the same as a "cpcbuild.python.path" value (the Studio code turns `py -3` into two words).
  */
 function findPython(): { setting: string; cmd: string[] } {
   const cands: { setting: string; cmd: string[] }[] =
     process.platform === 'win32'
-      ? [{ setting: 'py -3', cmd: ['py', '-3'] }, { setting: 'python', cmd: ['python'] }, { setting: 'python3', cmd: ['python3'] }]
+      ? [{ setting: 'python', cmd: ['python'] }, { setting: 'py -3', cmd: ['py', '-3'] }, { setting: 'python3', cmd: ['python3'] }]
       : [{ setting: 'python3', cmd: ['python3'] }, { setting: 'python', cmd: ['python'] }];
   for (const c of cands) {
     const r = spawnSync(c.cmd[0], [...c.cmd.slice(1), '--version'], { encoding: 'utf8' });
