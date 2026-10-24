@@ -336,7 +336,8 @@ describe('img2cpc.ts vs tools/img2cpc.py: --check', () => {
     const p = png(32, 8, dark, 0.2);
     fs.writeFileSync(p.replace(/\.png$/, '.cpcbuild.json'), JSON.stringify({ format: 'cpcbuild-image', version: 1, kind: 'sprite', mode: 0, frame: '8x8', palette: [2, 3, 6, 18] }));
     const text = same(['--check', p]);
-    expect(text).toContain(`  sidecar: ${p.replace(/\.png$/, '.cpcbuild.json')}\n`);
+    // the tool prints paths with forward slashes on every OS
+    expect(text).toContain(`  sidecar: ${p.replace(/\.png$/, '.cpcbuild.json').split(path.sep).join('/')}\n`);
   });
 
   it('writes nothing, even with --write-palette (the port returns no files)', () => {

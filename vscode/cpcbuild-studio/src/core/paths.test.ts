@@ -10,7 +10,7 @@ const outside = path.join(base, 'outside');
 mkdirSync(root);
 mkdirSync(outside);
 writeFileSync(path.join(outside, 'secret.txt'), 'x');
-symlinkSync(outside, path.join(root, 'link'));
+symlinkSync(outside, path.join(root, 'link'), 'junction');
 mkdirSync(path.join(root, 'assets'));
 afterAll(() => rmSync(base, { recursive: true, force: true }));
 

@@ -1,8 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { findZxbasic, warnNoZxbasic } from './testutil';
+import { findZxbasic, gitLsFiles, warnNoZxbasic } from './testutil';
 import { loadIndex, stdlibDirOf } from './libfs';
 import { BARE_ONLY, Finding, FIRMWARE_ONLY, lint, LintContext, literalValue, RuleId } from './lint';
 
@@ -207,7 +206,7 @@ d('corpus: the repo programs', () => {
     'tests/conformance/play.bas': ['CB006'], // Play after AyWrite register tests
     'tests/conformance/plus_none_state.bas': ['CB005'], // the program that checks state when no sprite is hidden
   };
-  const files = execSync("git ls-files '*.bas'", { cwd: REPO }).toString().split('\n').filter((f) => f && !f.startsWith('lib/'));
+  const files = gitLsFiles('*.bas').filter((f) => !f.startsWith('lib/'));
   it('finds the corpus', () => expect(files.length).toBeGreaterThan(150));
   it('produces no unexpected finding (target unknown: CB003 and CB008 need the target)', () => {
     const bad: string[] = [];

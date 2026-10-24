@@ -109,10 +109,13 @@ describe('tar.gz reader', () => {
     fs.writeFileSync(path.join(src, 'zxbc'), 'x');
     fs.chmodSync(path.join(src, 'zxbc'), 0o755);
     fs.writeFileSync(path.join(src, '_internal', 'a.so'), 'z'.repeat(3000));
-    const out = path.join(tmp, 'real.tar.gz');
-    expect(spawnSync('tar', ['czf', out, '-C', path.join(tmp, 'tar'), 'zxbasic']).status).toBe(0);
-    const e = readTarGz(fs.readFileSync(out));
-    expect(e.find((x) => x.path === 'zxbasic/zxbc')?.mode).toBe(0o755);
+    // relative names from inside tmp: GNU tar reads "C:\\..." as host:file
+    const t = spawnSync('tar', ['czf', 'real.tar.gz', '-C', 'tar', 'zxbasic'], { cwd: tmp, encoding: 'utf8' });
+    expect(t.status, t.stderr).toBe(0);
+    const e = readTarGz(fs.readFileSync(path.join(tmp, 'real.tar.gz')));
+    // unix modes do not exist on a Windows file system
+    if (process.platform !== 'win32') expect(e.find((x) => x.path === 'zxbasic/zxbc')?.mode).toBe(0o755);
+    else expect(e.find((x) => x.path === 'zxbasic/zxbc')).toBeDefined();
     expect(e.find((x) => x.path === 'zxbasic/_internal/a.so')?.data().length).toBe(3000);
   });
 });

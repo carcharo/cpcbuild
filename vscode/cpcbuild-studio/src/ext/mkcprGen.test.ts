@@ -2,12 +2,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { REPO, scratchDir } from '../core/testutil';
+import { PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { makeCpr, type MkcprSettings } from './mkcprGen';
 
 const FX = path.join(__dirname, '..', 'core', 'fixtures', 'mkcpr');
 const dir = scratchDir('mkcprgen-');
-const S = (engine: 'builtin' | 'python', over: Partial<MkcprSettings> = {}): MkcprSettings => ({ engine, pythonPath: 'python3', library: REPO, ...over });
+const S = (engine: 'builtin' | 'python', over: Partial<MkcprSettings> = {}): MkcprSettings => ({ engine, pythonPath: PYTHON_SETTING, library: REPO, ...over });
 
 for (const engine of ['builtin', 'python'] as const) {
   describe(`engine ${engine}`, () => {

@@ -4,7 +4,7 @@
  * through a token, and report every line to a sink (the "CPCBuild" output
  * channel and/or a task terminal). No vscode import: unit-testable in node.
  */
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -95,7 +95,14 @@ export function runTool(command: readonly string[], args: readonly string[], opt
     let spawnError: string | undefined;
     let notFound = false;
     const posix = process.platform !== 'win32';
-    const child = spawn(exe, all, { cwd: opts.cwd, env: opts.env ?? toolEnv(), shell: false, detached: posix, windowsHide: true });
+    let child: ChildProcess;
+    try {
+      child = spawn(exe, all, { cwd: opts.cwd, env: opts.env ?? toolEnv(), shell: false, detached: posix, windowsHide: true });
+    } catch (e) {
+      // spawn throws (rather than emitting 'error') for some failures, e.g. UNKNOWN for a file Windows cannot run
+      resolve({ code: null, stdout, stderr, cancelled, error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
 
     let killTimer: NodeJS.Timeout | undefined;
     const finish = (code: number | null): void => {
@@ -163,7 +170,13 @@ export function launchDetached(command: readonly string[], args: readonly string
   const all = [...pre, ...args];
   opts.sink?.line(`$ ${[exe, ...all].map(displayArg).join(' ')}`);
   return new Promise((resolve) => {
-    const child = spawn(exe, all, { cwd: opts.cwd, env: opts.env ?? toolEnv(), shell: false, detached: true, stdio: 'ignore' });
+    let child: ChildProcess;
+    try {
+      child = spawn(exe, all, { cwd: opts.cwd, env: opts.env ?? toolEnv(), shell: false, detached: true, stdio: 'ignore' });
+    } catch (e) {
+      resolve({ ok: false, error: e instanceof Error ? e.message : String(e) });
+      return;
+    }
     child.once('error', (e: NodeJS.ErrnoException) => resolve({ ok: false, error: e.code === 'ENOENT' ? `"${exe}" was not found` : e.message }));
     let exited = false;
     child.once('exit', () => (exited = true));

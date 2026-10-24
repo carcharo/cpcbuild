@@ -21,7 +21,7 @@ meta = {}
 for name, (n, load, entry) in cases.items():
     data = bytes(rnd.randrange(256) for _ in range(n))
     (out / f"{name}.bin").write_bytes(data)
-    args = ["python3", str(tool), str(out / f"{name}.bin"), "--load", hex(load), "-o", str(out / f"{name}.cpr"), "--listing"]
+    args = [sys.executable, str(tool), str(out / f"{name}.bin"), "--load", hex(load), "-o", str(out / f"{name}.cpr"), "--listing"]
     if entry is not None:
         args += ["--entry", hex(entry)]
     r = subprocess.run(args, capture_output=True, text=True, check=True)

@@ -2,18 +2,17 @@
  * imageio.ts against Pillow: imageio.gen.py writes GIF / BMP images (and a 16-bit PNG) plus the
  * bytes of Pillow's convert("RGBA"); the decoders must reproduce them exactly.
  */
-import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { encodePng } from './image';
 import { decodeImage, ImageReadError, sniffFormat } from './imageio';
-import { scratchDir } from './testutil';
+import { pySpawn, scratchDir } from './testutil';
 
 let dir = '';
 beforeAll(() => {
   dir = scratchDir('imageio-');
-  const r = spawnSync('python3', [path.join(__dirname, 'imageio.gen.py'), dir], { encoding: 'utf8' });
+  const r = pySpawn([path.join(__dirname, 'imageio.gen.py'), dir], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(r.stderr);
 });
 

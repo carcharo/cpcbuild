@@ -1,9 +1,8 @@
 /** Arkos conversion: argument construction, and the output against the repo's own script on Starfall's songs. */
-import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { REPO, scratchDir } from '../core/testutil';
+import { PYTHON_SETTING, pySpawn, REPO, scratchDir } from '../core/testutil';
 import { aksArgv, arkosToolPath, checkMusicOptions, convertMusic, defaultMusicOutput, arkosMissingText, findArkosTools, previewProgram, type MusicConvertOptions, songLabelOf, songName } from './arkos';
 
 /** The Arkos tools: $AT3_TOOLS, this checkout's, or the main checkout's (a worktree has no tools/arkos/work). */
@@ -17,12 +16,12 @@ const A = 'games/shooter/assets';
 fs.mkdirSync(path.join(dir, A), { recursive: true });
 fs.cpSync(path.join(REPO, A), path.join(dir, A), { recursive: true });
 const O = (n: string): string => path.join(dir, 'out', n);
-const S = { pythonPath: 'python3', library: REPO, toolsDir: TOOLS };
+const S = { pythonPath: PYTHON_SETTING, library: REPO, toolsDir: TOOLS };
 const SE = (engine: 'builtin' | 'python') => ({ ...S, engine });
 
 /** The script run the way build_assets.sh runs it (from the repo root, AT3_TOOLS set). */
 function script(args: string[]): void {
-  const r = spawnSync('python3', ['tools/aks2bas.py', ...args], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS }, timeout: 120000 });
+  const r = pySpawn(['tools/aks2bas.py', ...args], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS }, timeout: 120000 });
   expect(r.status, r.stderr).toBe(0);
 }
 const same = (a: string, b: string): void => expect(fs.readFileSync(a).equals(fs.readFileSync(b))).toBe(true);
@@ -74,7 +73,7 @@ describe('finding the tools', () => {
     expect(findArkosTools({ setting: path.join(dir, 'none') })).toBeUndefined();
   });
   it('says how to get them when missing', async () => {
-    const r = await convertMusic(dir, `${A}/title.vt2`, { output: 'out/x.bas' }, { pythonPath: 'python3', library: REPO });
+    const r = await convertMusic(dir, `${A}/title.vt2`, { output: 'out/x.bas' }, { pythonPath: PYTHON_SETTING, library: REPO });
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/sh tools\/arkos\/fetch\.sh/);
   });
@@ -83,7 +82,7 @@ describe('finding the tools', () => {
 describe('convertMusic keeps its paths inside the project', () => {
   it('refuses ../, absolute and symlink-escaping input, output and --bin', async () => {
     const outside = scratchDir('arkos-outside-');
-    fs.symlinkSync(outside, path.join(dir, 'escape'));
+    fs.symlinkSync(outside, path.join(dir, 'escape'), 'junction');
     const cases = [
       ['../song.aks', {}],
       [`${A}/title.vt2`, { output: '../evil.bas' }],
@@ -92,7 +91,7 @@ describe('convertMusic keeps its paths inside the project', () => {
       [`${A}/title.vt2`, { at: '0x4000', bin: '../evil.bin' }],
     ] as const;
     for (const [input, o] of cases) {
-      const r = await convertMusic(dir, input, { ...o }, { pythonPath: 'python3', library: REPO, toolsDir: dir });
+      const r = await convertMusic(dir, input, { ...o }, { pythonPath: PYTHON_SETTING, library: REPO, toolsDir: dir });
       expect(r.ok, input + JSON.stringify(o)).toBe(false);
       expect(r.error).toMatch(/outside the project folder|absolute path|symbolic link/);
     }
@@ -125,7 +124,7 @@ for (const engine of ['builtin', 'python'] as const) describe(`convertMusic (${e
   });
   have('--psg needs an .aks (the tool rewrites the song\'s clock): the tool\'s message comes through for a .vt2', async () => {
     const r = await convertMusic(dir, `${A}/zx/sfx_zx.vt2`, { name: 'sf_sfx', sfx: true, psg: 'spectrum', output: 'out/sfx_zx.bas' }, SE(engine));
-    const direct = spawnSync('python3', ['tools/aks2bas.py', '--sfx', `${A}/zx/sfx_zx.vt2`, path.join(dir, 'out', 'd.bas'), '--name', 'sf_sfx', '--psg', 'spectrum'], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS } });
+    const direct = pySpawn(['tools/aks2bas.py', '--sfx', `${A}/zx/sfx_zx.vt2`, path.join(dir, 'out', 'd.bas'), '--name', 'sf_sfx', '--psg', 'spectrum'], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS } });
     expect(r.ok).toBe(false);
     expect(r.error).toBe(direct.stderr.trim().split('\n').pop());
   });

@@ -23,6 +23,7 @@
  * Python tool's SystemExit); the message has no "img2cpc: " prefix.
  */
 import { decodePng, type RgbaImage } from './image';
+import { baseName, posixSlashes } from './pathtext';
 import {
   asicEntry, dist2, FW_TABLE, nearest, nearestFw, parsePalList, parseRgb12List, rgb12, type RGB,
 } from './palette';
@@ -165,6 +166,7 @@ export function parseSidecar(text: string, file: string): Sidecar {
 
 /** The sidecar beside an image: NAME.cpcbuild.json for NAME.ext, as Python's str(Path) prints it. */
 export function sidecarPath(image: string): string {
+  image = posixSlashes(image);
   const slash = image.lastIndexOf('/');
   const base = image.slice(slash + 1);
   const dot = base.lastIndexOf('.');
@@ -746,15 +748,16 @@ const BOOL_FLAGS = new Set([
 
 /** The file stem img2cpc.py names its arrays after (Path.stem, non-alphanumerics to "_"). */
 export function defaultName(imagePath: string): string {
-  const base = imagePath.split('/').pop() ?? imagePath;
+  const base = baseName(imagePath);
   const dot = base.lastIndexOf('.');
   const stemRaw = dot > 0 ? base.slice(0, dot) : base;
   const stem = [...stemRaw].map((c) => (/[\p{L}\p{N}]/u.test(c) ? c : '_')).join('');
   return stem && !/^\d/.test(stem) ? stem : 'img_' + stem;
 }
 
-/** Path as Python's str(Path(p)) prints it (no "./", doubled or trailing slashes). */
+/** Path as the tool prints it, Python's Path(p).as_posix() (no "./", doubled or trailing slashes; "/" on Windows too). */
 export function normPath(p: string): string {
+  p = posixSlashes(p);
   const lead = p.startsWith('/') ? '/' : '';
   const rest = p.split('/').filter((s) => s !== '' && s !== '.');
   return rest.length ? lead + rest.join('/') : lead || '.';

@@ -1,5 +1,5 @@
 /** Shared by the core tests: the repo root and running the Python tools. Test-only (uses node). */
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync, type SpawnSyncOptionsWithStringEncoding, type SpawnSyncReturns } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -7,11 +7,40 @@ import * as path from 'node:path';
 /** Repo root: the directory above vscode/ (this file is vscode/cpcbuild-studio/src/core/). */
 export const REPO = path.resolve(__dirname, '..', '..', '..', '..');
 
-/** Runs python3 tools/<tool> with `args` from the repo root; stdout, or the failure. */
+/**
+ * The Python 3 the tests run the tools with: `python3` (POSIX), on Windows the `py -3` launcher, else `python`.
+ * `PYTHON_SETTING` is the same as a "cpcbuild.python.path" value (the Studio code turns `py -3` into two words).
+ */
+function findPython(): { setting: string; cmd: string[] } {
+  const cands: { setting: string; cmd: string[] }[] =
+    process.platform === 'win32'
+      ? [{ setting: 'py -3', cmd: ['py', '-3'] }, { setting: 'python', cmd: ['python'] }, { setting: 'python3', cmd: ['python3'] }]
+      : [{ setting: 'python3', cmd: ['python3'] }, { setting: 'python', cmd: ['python'] }];
+  for (const c of cands) {
+    const r = spawnSync(c.cmd[0], [...c.cmd.slice(1), '--version'], { encoding: 'utf8' });
+    if (!r.error && r.status === 0 && /Python 3/.test(r.stdout + r.stderr)) return c;
+  }
+  return cands[0];
+}
+const FOUND = findPython();
+export const PYTHON_SETTING = FOUND.setting;
+export const PYTHON: readonly string[] = FOUND.cmd;
+
+/** spawnSync of Python 3 with `args` (e.g. ['-c', code], or [script, ...]). */
+export function pySpawn(args: readonly string[], opts: SpawnSyncOptionsWithStringEncoding = { encoding: 'utf8' }): SpawnSyncReturns<string> {
+  return spawnSync(PYTHON[0], [...PYTHON.slice(1), ...args], opts);
+}
+
+/** Runs python tools/<tool> with `args` from the repo root; stdout, or the failure. */
 export function py(tool: string, args: string[]): { ok: boolean; stdout: string; stderr: string } {
-  const r = spawnSync('python3', [path.join('tools', tool), ...args], { cwd: REPO, encoding: 'utf8' });
+  const r = pySpawn([path.join('tools', tool), ...args], { cwd: REPO, encoding: 'utf8' });
   if (r.error) throw r.error;
   return { ok: r.status === 0, stdout: r.stdout, stderr: r.stderr };
+}
+
+/** Repo root files that are listed by git (a glob such as '*.bas'); no shell, so it works the same on Windows. */
+export function gitLsFiles(pattern: string): string[] {
+  return execFileSync('git', ['ls-files', pattern], { cwd: REPO, encoding: 'utf8' }).split('\n').map((l) => l.replace(/\r$/, '')).filter(Boolean);
 }
 
 export function scratchDir(prefix: string): string {

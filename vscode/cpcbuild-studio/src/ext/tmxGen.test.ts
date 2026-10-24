@@ -2,7 +2,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { py, REPO, scratchDir } from '../core/testutil';
+import { py, PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { defaultOutput, generateTmx, tmxArgv } from './tmxGen';
 
 const dir = scratchDir('tmxgen-');
@@ -13,8 +13,8 @@ for (const m of MAPS) {
   fs.copyFileSync(path.join(REPO, m), path.join(dir, m));
 }
 fs.mkdirSync(path.join(dir, 'out'), { recursive: true });
-const PY = { engine: 'python' as const, pythonPath: 'python3', library: REPO };
-const TS = { engine: 'builtin' as const, pythonPath: 'python3', library: REPO };
+const PY = { engine: 'python' as const, pythonPath: PYTHON_SETTING, library: REPO };
+const TS = { engine: 'builtin' as const, pythonPath: PYTHON_SETTING, library: REPO };
 
 /** What the tool writes for these options, run exactly as the extension runs it (from the repo root). */
 function reference(tmxRel: string, extra: string[], out: string): string {
@@ -45,7 +45,10 @@ describe('generateTmx equals tools/tmx2bas.py', () => {
           const out = path.join(dir, rel);
           const r = await generateTmx(dir, f, { ...opts, output: rel }, eng);
           expect(r.ok, r.error).toBe(true);
-          expect(fs.readFileSync(out, 'utf8')).toBe(reference(f, extra, path.join(dir, 'ref.bas')).replace(path.join(dir, 'ref.bas'), rel));
+          // the tool quotes a path it finds odd (a Windows path has backslashes): take it out either way
+          const refOut = path.join(dir, 'ref.bas');
+          const want = reference(f, extra, refOut).replace(`'${refOut}'`, rel).replace(refOut, rel);
+          expect(fs.readFileSync(out, 'utf8')).toBe(want);
           expect(r.text).toBe(fs.readFileSync(out, 'utf8'));
         });
       }
@@ -85,12 +88,12 @@ describe('generateTmx equals tools/tmx2bas.py', () => {
     expect((await generateTmx(dir, MAPS[0], { empty: 300, output: 'out/z.bas' }, TS)).error).toBe('tmx2bas.py: error: --empty must be 0-255');
   });
   it('the python engine says what is missing', async () => {
-    const r = await generateTmx(dir, MAPS[0], { output: 'out/p.bas' }, { engine: 'python', pythonPath: 'python3' });
+    const r = await generateTmx(dir, MAPS[0], { output: 'out/p.bas' }, { engine: 'python', pythonPath: PYTHON_SETTING });
     expect(r.error).toMatch(/tmx2bas\.py was not found/);
   });
   it('refuses ../, absolute and symlink-escaping map and output paths on both engines', async () => {
     const outside = scratchDir('tmxgen-outside-');
-    fs.symlinkSync(outside, path.join(dir, 'escape'));
+    fs.symlinkSync(outside, path.join(dir, 'escape'), 'junction');
     for (const eng of [TS, PY]) {
       for (const [tmx, output] of [[MAPS[0], '../evil.bas'], [MAPS[0], path.join(outside, 'abs.bas')], [MAPS[0], 'escape/evil.bas'], ['../level.tmx', 'out/a.bas'], [path.join(REPO, MAPS[0]), 'out/a.bas']]) {
         const r = await generateTmx(dir, tmx, { output }, eng);

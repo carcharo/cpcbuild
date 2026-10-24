@@ -74,8 +74,10 @@ describe('resolveCompiler: first hit wins', () => {
     const sdk = j('elsewhere', 'sdk');
     const r = resolveCompiler({ ...bs, sdkPath: sdk }, proj, managed, 'linux', o(...all, path.join(sdk, 'bin', 'zxbc')));
     expect(r).toMatchObject({ kind: 'sdk', dir: sdk, zxbc: [path.join(sdk, 'bin', 'zxbc')] });
-    const rel = resolveCompiler({ ...bs, sdkPath: '../sdk' }, proj, managed, 'linux', o(j('work', 'sdk', 'bin', 'zxbc')));
-    expect(rel).toMatchObject({ kind: 'sdk', dir: j('work', 'sdk') });
+    // a relative setting is resolved against the project: path.resolve puts a drive letter on Windows
+    const relSdk = path.resolve(j('work', 'sdk'));
+    const rel = resolveCompiler({ ...bs, sdkPath: '../sdk' }, proj, managed, 'linux', o(path.join(relSdk, 'bin', 'zxbc')));
+    expect(rel).toMatchObject({ kind: 'sdk', dir: relSdk });
     const wrong = resolveCompiler({ ...bs, sdkPath: j('nope') }, proj, managed, 'linux', o(...all));
     expect(wrong.kind).toBe('none');
     expect((wrong as any).problem).toMatch(/"cpcbuild.sdk.path" is .*no bin\/zxbc under/);

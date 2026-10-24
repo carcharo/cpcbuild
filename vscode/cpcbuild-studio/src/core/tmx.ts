@@ -10,6 +10,7 @@
  * reader below, atob for base64).
  */
 import * as pako from 'pako';
+import { baseName } from './pathtext';
 
 export class TmxError extends Error {
   constructor(message: string) {
@@ -336,7 +337,7 @@ export function layerTiles(map: TmxMap, o: TmxToBasOptions = {}): TileLayer {
 
 /** Default array name for a map file: the stem, non-alphanumerics to "_", "map_" if empty or starting with a digit. */
 export function defaultMapName(path: string): string {
-  const base = path.split('/').pop() ?? path;
+  const base = baseName(path);
   const dot = base.lastIndexOf('.');
   const stem = [...(dot > 0 ? base.slice(0, dot) : base)].map((c) => (/[\p{L}\p{N}]/u.test(c) ? c : '_')).join('');
   return !stem || /^\d/.test(stem) ? 'map_' + stem : stem;

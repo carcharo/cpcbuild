@@ -46,7 +46,8 @@ describe('scripts/pin-compiler.mjs', () => {
   });
   it('format() reproduces the file as shipped (so a pin changes only the zxbasic lines)', async () => {
     const { format } = await load();
-    expect(format(shipped())).toBe(fs.readFileSync(path.join(__dirname, '..', '..', 'tools-manifest.json'), 'utf8'));
+    // (a checkout with CRLF line ends holds the same text)
+    expect(format(shipped())).toBe(fs.readFileSync(path.join(__dirname, '..', '..', 'tools-manifest.json'), 'utf8').replace(/\r\n/g, '\n'));
   });
 });
 

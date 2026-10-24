@@ -9,12 +9,12 @@ import * as path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { argvToRecipe, newRecipe, serialiseRecipe, type Recipe } from '../core/cpcimp';
 import { committed } from '../core/testcorpus';
-import { REPO, scratchDir } from '../core/testutil';
+import { PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { newSprite, serialiseSprite } from '../core/spriteDoc';
 import { assetFailure, findRecipes, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
 
 const GLOBS = ['assets/**/*.cpcimp'];
-const settings = (over: Partial<GenSettings> = {}): GenSettings => ({ engine: 'builtin', header: 'img2cpc', pythonPath: 'python3', library: REPO, ...over });
+const settings = (over: Partial<GenSettings> = {}): GenSettings => ({ engine: 'builtin', header: 'img2cpc', pythonPath: PYTHON_SETTING, library: REPO, ...over });
 
 let root = '';
 const recipes: { file: string; rel: string; committed: string }[] = [];
@@ -146,7 +146,7 @@ describe('path containment (recipe-supplied paths)', () => {
   const r = (): Recipe => argvToRecipe(committed().find(([f]) => f.endsWith('spr1.bas'))![1]).recipe;
   it('refuses ../, absolute and symlink-escaping outputs and sources on both engines, writing nothing', async () => {
     const outside = scratchDir('assetsgen-outside-');
-    fs.symlinkSync(outside, path.join(root, 'escape'));
+    fs.symlinkSync(outside, path.join(root, 'escape'), 'junction');
     const cases: [string, Recipe][] = [
       ['../evil.bas', { ...r(), output: '../evil.bas' }],
       ['/tmp/evil.bas', { ...r(), output: path.join(outside, 'abs.bas') }],
@@ -273,7 +273,7 @@ describe('assetFailure (what a failed regenerate means for the build)', () => {
     fs.mkdirSync(path.join(r, 'sprites'), { recursive: true });
     fs.writeFileSync(path.join(r, 'sprites/ball.cpcspr'), serialiseSprite(s));
     fs.writeFileSync(path.join(r, 'sprites/bad.cpcpal'), '0, 99\n');
-    const settings = { engine: 'ts', header: 'img2cpc', pythonPath: 'python3', library: undefined } as unknown as GenSettings;
+    const settings = { engine: 'ts', header: 'img2cpc', pythonPath: PYTHON_SETTING, library: undefined } as unknown as GenSettings;
     let res = (await regenerateAll(r, ['sprites/*.cpcspr'], settings))[0];
     expect(res).toMatchObject({ ok: false, doc: true, outputExists: false });
     fs.writeFileSync(path.join(r, 'sprites/ball.bas'), 'old');

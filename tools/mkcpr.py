@@ -142,7 +142,14 @@ def write_cpr(path: Path | str, image: bytes, load: int, entry: int | None = Non
     Path(path).write_bytes(build_cpr(image, load, entry))
 
 
+def lf_stdout() -> None:
+    """Makes stdout write "\\n" as is (Windows would turn it into CRLF)."""
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(newline="\n")
+
+
 def main(argv: list[str] | None = None) -> int:
+    lf_stdout()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("binary", type=Path, help="bare-metal program binary (no AMSDOS header)")
     ap.add_argument("--load", type=lambda s: int(s, 0), help="load address (default: from prog.map)")

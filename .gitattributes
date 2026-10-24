@@ -1,0 +1,25 @@
+# Text is LF in the working tree on every OS: the generated files (img2cpc, tmx2bas, aks2bas output),
+# the golden fixtures the tests compare them with, shell scripts and the manifests are byte-exact.
+# Without this, a Windows checkout (core.autocrlf=true) turns them into CRLF.
+* text=auto eol=lf
+
+# Binary: never converted (git guesses most of these, but a file without a NUL byte can fool it).
+*.png binary
+*.bin binary
+*.cpr binary
+*.dsk binary
+*.dat binary
+*.zip binary
+*.gz binary
+*.ase binary
+*.aseprite binary
+
+# Byte-exact fixtures that are not (or not only) LF text:
+# Arkos .aks are a zip or XML, the .expected files beside them are the XML bytes the converter must write;
+*.aks -text
+*.expected -text
+# the Arkos tools' raw exports (CRLF as the tools write them, the code reads both);
+vscode/cpcbuild-studio/src/core/fixtures/aks2bas/*.asm -text
+tests/tools/fixtures/*.asm -text
+# patches carry the line ends of the files they patch.
+*.patch -text

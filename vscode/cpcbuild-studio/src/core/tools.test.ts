@@ -57,7 +57,7 @@ describe('tools manifest', () => {
   });
   it('the manifest that ships is valid, covers every platform for the compiler and all but linux-arm64 for Arkos', () => {
     const m = parseManifest(JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'tools-manifest.json'), 'utf8')));
-    expect(Object.keys(m.zxbasic.assets).sort()).toEqual(['linux-arm64', 'linux-x64', 'macos-arm64', 'macos-x64', 'windows-x64']);
+    expect(Object.keys(m.zxbasic.assets).sort()).toEqual(['linux-arm64', 'linux-x64', 'macos-arm64', 'macos-x64', 'windows-arm64', 'windows-x64']);
     expect(Object.keys(m.arkos.assets).sort()).toEqual(['linux-x64', 'macos-arm64', 'macos-x64', 'windows-x64']);
     for (const [k, a] of Object.entries(m.zxbasic.assets)) {
       expect(a?.url).toBe(`https://github.com/carcharo/zxbasic/releases/download/v${m.zxbasic.version}/zxbasic-${m.zxbasic.version}-${k}.${k.startsWith('linux') ? 'tar.gz' : 'zip'}`);
@@ -65,6 +65,6 @@ describe('tools manifest', () => {
     for (const a of Object.values(m.arkos.assets)) expect(isPinned(a!)).toBe(true);
   });
   it('the manifest is listed in .vscodeignore (so it ships in the vsix)', () => {
-    expect(fs.readFileSync(path.join(__dirname, '..', '..', '.vscodeignore'), 'utf8').split('\n')).toContain('!tools-manifest.json');
+    expect(fs.readFileSync(path.join(__dirname, '..', '..', '.vscodeignore'), 'utf8').split(/\r?\n/)).toContain('!tools-manifest.json');
   });
 });

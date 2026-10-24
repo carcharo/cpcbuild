@@ -286,7 +286,8 @@ def main(argv=None) -> int:
             sys.exit(f"aks2bas: the song ({len(data)} bytes) doesn't fit between {adr:#06x} and 0x7FFF")
         if a.bin:
             Path(a.bin).write_bytes(data)
-        Path(a.output).write_text(bank_include(data, name, adr), encoding="utf-8")
+        with open(a.output, "w", encoding="utf-8", newline="\n") as f:
+            f.write(bank_include(data, name, adr))
         return 0
     if a.from_asm:
         src = Path(a.input).read_text(encoding="utf-8")
@@ -309,7 +310,8 @@ def main(argv=None) -> int:
                 run_tool("SongToAkg", extra + ["--labelPrefix", prefix, a.input, tmp])
             src = Path(tmp).read_text(encoding="utf-8")
         prefix = ""   # the tool already prefixed
-    Path(a.output).write_text(to_boriel(src, name, prefix, kind), encoding="utf-8")
+    with open(a.output, "w", encoding="utf-8", newline="\n") as f:
+        f.write(to_boriel(src, name, prefix, kind))
     return 0
 
 
