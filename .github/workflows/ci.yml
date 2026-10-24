@@ -9,6 +9,8 @@ name: CI
 #   plus           build patched Caprice32 (tools/caprice32) at the pinned commit, make test-plus
 #                  (6128 Plus: smoke tests, conformance firmware + bare, screens), then
 #                  build CPCEC (tools/cpcec: pinned commit + our patch) and make test-cpcec
+#   studio-os      CPCBuild Studio unit tests on Windows and macOS (npm run test:unit), then the
+#                  extension-host tests there too (non-blocking while they settle)
 #   vscode         Node 22 under xvfb: make test-vscode (CPCBuild Studio), make test-wasm vsix
 #                  (CPCBuild Emulator on the wasm core, emsdk 6.0.12, then both .vsix uploaded)
 # `make ci` runs the same targets serially (local all-in-one); `make ci-vscode` runs the
@@ -264,6 +266,47 @@ jobs:
             cpcbuild/tests/**/*.actual.png
             cpcbuild/tests/**/*.diff.png
           if-no-files-found: ignore
+
+  studio-os:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      ZXBASIC: ${{ github.workspace }}/zxbasic
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout cpcbuild
+        uses: actions/checkout@v7
+        with:
+          path: cpcbuild
+      - name: Set up Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: cpcbuild/vscode/cpcbuild-studio/package-lock.json
+      - name: npm ci
+        working-directory: cpcbuild/vscode/cpcbuild-studio
+        run: npm ci
+      - name: Studio unit tests (vitest)
+        working-directory: cpcbuild/vscode/cpcbuild-studio
+        run: npm run test:unit
+      # The extension-host tests need the compiler checkout (poetry), as on Linux. macOS runners have a
+      # display, Windows needs no xvfb. Non-blocking until they have been seen green on both.
+      - uses: ./cpcbuild/.github/actions/setup
+        with:
+          chips: 'false'
+      - name: Studio extension-host tests (npm run test:vscode)
+        continue-on-error: true
+        working-directory: cpcbuild/vscode/cpcbuild-studio
+        run: npm run test:vscode
 
   vscode:
     needs: gate

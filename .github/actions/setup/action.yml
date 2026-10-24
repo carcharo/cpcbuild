@@ -13,6 +13,9 @@ inputs:
   # Keep in sync with SHA in tools/chipsrun/fetch_chips.sh (cache key only).
   chips-sha:
     default: 9e88298ce56319953ac7a43213a1120359f7a3a6
+  zxbasic-ref:
+    description: 'branch or tag of carcharo/zxbasic to check out (the release workflow passes the pinned compiler tag)'
+    default: cpc-arch
   chips:
     description: 'true to restore the chips cache and build chipsrun/zxrun'
     default: 'false'
@@ -23,7 +26,7 @@ runs:
       uses: actions/checkout@v7
       with:
         repository: carcharo/zxbasic
-        ref: cpc-arch
+        ref: ${{ inputs.zxbasic-ref }}
         path: zxbasic
 
     - name: Fetch CPC ROMs (caprice32 rom/ at pinned commit)

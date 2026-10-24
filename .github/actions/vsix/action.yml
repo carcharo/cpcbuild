@@ -1,0 +1,41 @@
+name: Build the CPCBuild .vsix files
+description: >
+  Builds both VS Code extensions (CPCBuild Studio and CPCBuild Emulator) into
+  cpcbuild/vscode/*/*.vsix without running their tests: Node 22, the pinned CPCEC
+  (ROMs and the sources for the emulator's source tarball), emsdk 6.0.12, then `make vsix`.
+  The same steps as the vscode job of ci.yml, which keeps its own copy because it also
+  runs the tests under xvfb. Expects cpcbuild already checked out at ./cpcbuild.
+runs:
+  using: composite
+  steps:
+    - name: Set up Node 22 (npm cache for both extensions' lock files)
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: |
+          cpcbuild/vscode/cpcbuild-studio/package-lock.json
+          cpcbuild/vscode/cpcbuild-emu/package-lock.json
+    - name: Install the SDL2 headers (CPCEC's make cpcec)
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libsdl2-dev
+    - name: Cache the CPCEC checkout and build
+      uses: actions/cache@v6
+      with:
+        path: cpcbuild/tools/cpcec/work
+        key: cpcec-work-${{ runner.os }}-${{ hashFiles('cpcbuild/tools/cpcec/fetch_build.sh', 'cpcbuild/tools/cpcec/cpcbuild.patch') }}
+    - name: make cpcec
+      shell: bash
+      working-directory: cpcbuild
+      run: make cpcec
+    - name: Set up emsdk 6.0.12
+      uses: emscripten-core/setup-emsdk@v16
+      with:
+        version: '6.0.12'
+        actions-cache-folder: emsdk-cache
+    - name: make vsix
+      shell: bash
+      working-directory: cpcbuild
+      run: make vsix
