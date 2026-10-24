@@ -168,7 +168,7 @@ describe('cells, errors and warnings', () => {
     expect(r.stderr.trim()).toBe(`tmx2bas: ${posixSlashes(f)}: ${first.message}`);
     const r2 = py('tmx2bas.py', ['--firstgid', '2', f]);
     const m = parseTmx(fs.readFileSync(f, 'utf8'));
-    expect(r2.stderr.trim()).toBe(`tmx2bas: ${f}: ${cellErrors(m, m.layers[0], { firstgid: 2 })[0].message}`);
+    expect(r2.stderr.trim()).toBe(`tmx2bas: ${posixSlashes(f)}: ${cellErrors(m, m.layers[0], { firstgid: 2 })[0].message}`);
   });
   it('warns about opacity, offsets and tiles of a later tileset', () => {
     const m = parseTmx(
