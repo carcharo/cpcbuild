@@ -14,11 +14,23 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { Aks2basError, bankInclude, hex06, PSG_HZ, pyInt0, sanitizeName, setPsgClock, toBoriel } from '../core/aks2bas';
 import { insideRoot, PathEscapeError } from '../core/paths';
+import { toolsPlatform } from '../core/tools';
+import { manifest } from './toolsManifest';
 import { parseAddress } from '../core/project';
-import { runTool, type CancelToken, type Sink } from './runTool';
+import { pythonCmd, runTool, type CancelToken, type Sink } from './runTool';
 
 export const ARKOS_MISSING =
-  'The Arkos command-line tools were not found. Run `sh tools/arkos/fetch.sh` in the cpcbuild checkout (on macOS it also re-signs the downloaded tools, which otherwise hang), or set "cpcbuild.arkos.toolsPath".';
+  'The Arkos command-line tools were not found. Run "CPCBuild: Download Tools", or set "cpcbuild.arkos.toolsPath" (in a cpcbuild checkout: `sh tools/arkos/fetch.sh`, which on macOS also re-signs the tools, which otherwise hang).';
+
+/** Arkos has no command-line tools for this machine's platform (Download Tools says so too). */
+export const arkosUnavailableText = (platform: string): string =>
+  `Arkos Tracker has no command-line tools for ${platform}, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".`;
+
+/** Why the Arkos tools are missing: the platform has none (linux-arm64), or they are not installed yet. */
+export function arkosMissingText(platform: NodeJS.Platform = process.platform, arch: string = process.arch): string {
+  const key = toolsPlatform(platform, arch);
+  return key && manifest.arkos.assets[key] ? ARKOS_MISSING : arkosUnavailableText(`${platform}-${arch}`);
+}
 
 const isDir = (p: string): boolean => {
   try {
@@ -34,13 +46,36 @@ export function arkosToolPath(dir: string, tool: 'SongToAkg' | 'SongToSoundEffec
   return names.map((n) => path.join(dir, n)).find((p) => fs.existsSync(p));
 }
 
-/** The folder holding SongToAkg and SongToSoundEffects: the setting, $AT3_TOOLS, then <library>/tools/arkos/work/bin. */
-export function findArkosTools(o: { setting?: string; env?: string; library?: string; base?: string }): string | undefined {
+export interface ArkosLookup {
+  /** "cpcbuild.arkos.toolsPath": when set it is the only place looked at (a wrong one is reported, not replaced). */
+  setting?: string;
+  /** The SDK folder: its arkos/bin/ (or bin/). */
+  sdk?: string;
+  /** The managed tools folder (<globalStorage>/tools/arkos-<version>/bin). */
+  managed?: string;
+  /** $AT3_TOOLS. */
+  env?: string;
+  /** PATH directories. */
+  pathDirs?: string[];
+  /** A cpcbuild checkout: tools/arkos/work/bin. */
+  library?: string;
+  base?: string;
+}
+
+/** The folder holding SongToAkg and SongToSoundEffects: the setting, the SDK, the managed tools, $AT3_TOOLS, PATH, then <library>/tools/arkos/work/bin. */
+export function findArkosTools(o: ArkosLookup): string | undefined {
+  const ok = (d: string): boolean => isDir(d) && !!arkosToolPath(d, 'SongToAkg') && !!arkosToolPath(d, 'SongToSoundEffects');
+  if (o.setting?.trim()) {
+    const d = path.resolve(o.base ?? '.', o.setting.trim());
+    return ok(d) ? d : undefined;
+  }
   const cands: string[] = [];
-  if (o.setting?.trim()) cands.push(path.resolve(o.base ?? '.', o.setting.trim()));
+  if (o.sdk) cands.push(path.join(o.sdk, 'arkos', 'bin'), path.join(o.sdk, 'bin'));
+  if (o.managed) cands.push(o.managed);
   if (o.env) cands.push(o.env);
+  cands.push(...(o.pathDirs ?? []));
   if (o.library) cands.push(path.join(o.library, 'tools', 'arkos', 'work', 'bin'));
-  return cands.find((d) => isDir(d) && arkosToolPath(d, 'SongToAkg') && arkosToolPath(d, 'SongToSoundEffects'));
+  return cands.find(ok);
 }
 
 export interface MusicConvertOptions {
@@ -247,7 +282,7 @@ export async function convertMusic(
     throw e;
   }
   if (!fs.existsSync(path.resolve(root, inputRel))) return (res.error = `${inputRel}: not found`), res;
-  if (!s.toolsDir) return (res.error = ARKOS_MISSING), res;
+  if (!s.toolsDir) return (res.error = arkosMissingText()), res;
   res.argv = aksArgv(inputRel, output, { ...o, name });
   fs.mkdirSync(path.dirname(path.resolve(root, output)), { recursive: true });
   const to = timeoutToken(extra.timeoutMs ?? 120000, extra.token);
@@ -259,7 +294,7 @@ export async function convertMusic(
         res.error = 'tools/aks2bas.py was not found. Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/), or set "cpcbuild.assets.engine" to "builtin".';
         return res;
       }
-      const t = await runTool([s.pythonPath], [script, ...res.argv], {
+      const t = await runTool(pythonCmd(s.pythonPath), [script, ...res.argv], {
         cwd: root, token: to.token, sink: extra.sink, env: { ...process.env, AT3_TOOLS: s.toolsDir },
       });
       if (to.timedOut()) res.error = TIMED_OUT;

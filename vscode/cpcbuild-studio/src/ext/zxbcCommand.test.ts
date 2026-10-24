@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runTool } from './runTool';
-import { compilerHint, findPoetry, isDefaultZxbc, poetryFallback } from './zxbcCommand';
+import { compilerHint, DOWNLOAD_HINT, findPoetry, isDefaultZxbc, poetryFallback } from './zxbcCommand';
 
 const home = path.join(path.sep, 'home', 'u');
 const local = path.join(home, '.local', 'bin', 'poetry');
@@ -32,9 +32,19 @@ describe('zxbc fallback', () => {
   });
   it('suggests the exact setting with the full poetry path', () => {
     const o = { env: { PATH: '' }, home, platform: 'linux' as const, exists: has(local) };
-    const t = compilerHint('"zxbc" was not found', ['zxbc'], undefined, o);
+    const t = compilerHint('"zxbc" was not found', ['zxbc'], path.dirname(pyproject), o);
     expect(t).toContain(JSON.stringify([local, 'run', 'zxbc']));
     expect(t).toContain('"cpcbuild.zxbc.cwd" to your zxbasic checkout');
+  });
+  it('ends with the Download Tools hint, and keeps the Poetry advice for developers (zxbc.cwd set) only', () => {
+    const user = compilerHint('"zxbc" was not found');
+    expect(user).toBe(`"zxbc" was not found. ${DOWNLOAD_HINT}`);
+    expect(DOWNLOAD_HINT).toBe('Run "CPCBuild: Download Tools".');
+    expect(user).not.toContain('poetry');
+    const dev = compilerHint('"zxbc" was not found', ['zxbc'], '/zx', { env: { PATH: '' }, home, platform: 'linux', exists: has() });
+    expect(dev).toContain('poetry');
+    expect(dev.endsWith(DOWNLOAD_HINT)).toBe(true);
+    expect(compilerHint('x', ['./mine'])).toContain('Check "cpcbuild.zxbc.command"');
   });
   it('does not offer poetry.cmd / poetry.bat on Windows (they cannot be spawned without a shell)', () => {
     const d = 'C:\\bin';
@@ -43,8 +53,8 @@ describe('zxbc fallback', () => {
   });
   it('names the platform-specific location in the hint', () => {
     const base = { env: { PATH: '' }, home, exists: has() };
-    expect(compilerHint('x', ['zxbc'], undefined, { ...base, platform: 'linux' })).toContain('~/.local/bin');
-    const w = compilerHint('x', ['zxbc'], undefined, { ...base, platform: 'win32' });
+    expect(compilerHint('x', ['zxbc'], '/zx', { ...base, platform: 'linux' })).toContain('~/.local/bin');
+    const w = compilerHint('x', ['zxbc'], '/zx', { ...base, platform: 'win32' });
     expect(w).not.toContain('~/.local/bin');
     expect(w).toContain('%APPDATA%');
   });

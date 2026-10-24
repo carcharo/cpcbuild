@@ -23,6 +23,7 @@
         "cpcbuild.zxbc.command",
         "cpcbuild.zxbc.cwd",
         "cpcbuild.zxbc.args",
+        "cpcbuild.sdk.path",
         "cpcbuild.python.path",
         "cpcbuild.library.path",
         "cpcbuild.build.outputDir",
@@ -208,6 +209,11 @@
       {
         "command": "cpcbuild.docs.open",
         "title": "Open Library Docs",
+        "category": "CPCBuild"
+      },
+      {
+        "command": "cpcbuild.downloadTools",
+        "title": "Download Tools",
         "category": "CPCBuild"
       },
       {
@@ -519,7 +525,7 @@
           "default": [
             "zxbc"
           ],
-          "description": "How to start the compiler. For the Boriel fork run through poetry: [\"poetry\", \"run\", \"zxbc\"].",
+          "description": "How to start the compiler. Leave it at the default to use the SDK folder, the tools that \"CPCBuild: Download Tools\" installed, or zxbc on PATH. For the Boriel fork run through poetry: [\"poetry\", \"run\", \"zxbc\"].",
           "items": {
             "type": "string"
           },
@@ -529,6 +535,12 @@
           "type": "string",
           "default": "",
           "description": "Working directory for the compiler (the zxbasic checkout when using poetry). Empty = the project folder.",
+          "scope": "resource"
+        },
+        "cpcbuild.sdk.path": {
+          "type": "string",
+          "default": "",
+          "description": "The CPCBuild SDK folder (the one holding bin/zxbc, lib/ and tools/). Empty = look for one at or above the project, then use the tools that \"CPCBuild: Download Tools\" installed.",
           "scope": "resource"
         },
         "cpcbuild.zxbc.args": {
@@ -543,7 +555,7 @@
         "cpcbuild.python.path": {
           "type": "string",
           "default": "python3",
-          "description": "Python 3 for mkdsk.py, mkcpr.py and the Python image engine.",
+          "description": "Python 3 for mkdsk.py, mkcpr.py and the Python image engine; only needed with the python engine or a zxbasic checkout. Unset means python3 (py -3 on Windows).",
           "scope": "resource"
         },
         "cpcbuild.library.path": {

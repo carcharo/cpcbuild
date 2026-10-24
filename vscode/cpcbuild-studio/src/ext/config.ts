@@ -1,6 +1,9 @@
 /** config.ts -- the `cpcbuild.*` settings (spec 6) and where the tools live. */
+import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { MODELS, Model, parseAddress } from '../core/project';
+import { arkosDirName, ToolsManifest, zxbasicDirName } from '../core/tools';
+import { manifest } from './toolsManifest';
 
 export type EmulatorChoice = 'emu' | 'caprice32' | 'cpcec' | 'rvm' | 'custom';
 
@@ -8,6 +11,9 @@ export interface Settings {
   zxbcCommand: string[];
   zxbcCwd: string;
   zxbcArgs: string[];
+  /** "cpcbuild.sdk.path" (empty = look for an SDK folder above the project). */
+  sdkPath: string;
+  /** The Python program ("py -3" = the Windows launcher, when the setting is unset there). */
   pythonPath: string;
   libraryPath: string;
   buildOrg?: number;
@@ -45,6 +51,14 @@ function scopeFor(dir?: string): vscode.Uri | undefined {
   return vscode.workspace.getWorkspaceFolder(uri) ? uri : undefined;
 }
 
+/** `python3`, or `py -3` on Windows while the setting is unset (an explicit value is always used as given). */
+function pythonSetting(c: vscode.WorkspaceConfiguration): string {
+  const i = c.inspect<string>('python.path');
+  const set = i?.globalValue ?? i?.workspaceValue ?? i?.workspaceFolderValue;
+  if (set) return set;
+  return process.platform === 'win32' ? PY_LAUNCHER : 'python3';
+}
+
 export function readSettings(projectDir?: string): Settings {
   const c = vscode.workspace.getConfiguration('cpcbuild', scopeFor(projectDir));
   const limits: Record<string, number> = {};
@@ -60,7 +74,8 @@ export function readSettings(projectDir?: string): Settings {
     zxbcCommand: c.get<string[]>('zxbc.command') ?? ['zxbc'],
     zxbcCwd: c.get<string>('zxbc.cwd') ?? '',
     zxbcArgs: c.get<string[]>('zxbc.args') ?? [],
-    pythonPath: c.get<string>('python.path') || 'python3',
+    sdkPath: c.get<string>('sdk.path') ?? '',
+    pythonPath: pythonSetting(c),
     libraryPath: c.get<string>('library.path') ?? '',
     buildOrg: orgText ? parseAddress(orgText) : undefined,
     outputDir: c.get<string>('build.outputDir') || 'build',
@@ -87,10 +102,30 @@ export function readSettings(projectDir?: string): Settings {
   };
 }
 
-import { absFrom, fileExists, isLibraryDir, resolveLibraryPure, resolveMkcpr, resolveMkdskPure } from './toolpaths';
+import { findArkosTools } from './arkos';
+import { PY_LAUNCHER, pythonCmd, toolEnv } from './runTool';
+import { absFrom, CompilerResolution, fileExists, findSdk, isLibraryDir, mkdskCommand, NoCompiler, pathDirs, resolveCompiler, resolveLibraryPure, resolveMkcpr } from './toolpaths';
 import { isTrusted } from './trust';
 
 export { absFrom, fileExists, isLibraryDir, resolveMkcpr };
+
+export { manifest };
+
+/** Where Studio may keep files of its own (ExtensionContext.globalStorageUri), set at activation. */
+let storageRoot: string | undefined;
+export function setToolsStorage(dir: string | undefined): void {
+  storageRoot = dir;
+}
+/** <globalStorage>/tools: the managed tools live under it, one folder per version. */
+export const toolsRoot = (): string | undefined => (storageRoot ? path.join(storageRoot, 'tools') : undefined);
+export const managedZxbasicDir = (m: ToolsManifest = manifest): string | undefined => {
+  const r = toolsRoot();
+  return r ? path.join(r, zxbasicDirName(m.zxbasic.version)) : undefined;
+};
+export const managedArkosDir = (m: ToolsManifest = manifest): string | undefined => {
+  const r = toolsRoot();
+  return r ? path.join(r, arkosDirName(m.arkos.version), 'bin') : undefined;
+};
 
 /** The copy of lib/ and tools/ shipped inside the extension (set at activation); the last place the library is looked for. */
 let bundledDir: string | undefined;
@@ -101,12 +136,38 @@ export function bundledLibrary(): string | undefined {
   return bundledDir;
 }
 
-/** The cpcbuild folder: setting, then the project's "library" (ignored in Restricted Mode), then upwards from the project, then the bundled copy. */
-export function resolveLibrary(projectDir: string, s: Settings, projectLibrary?: string | null): string | undefined {
-  return resolveLibraryPure(projectDir, s, isTrusted() ? projectLibrary : null, bundledDir);
+/** The SDK folder for a project (the setting, else bin/zxbc at or above it). */
+export function sdkFolder(projectDir: string, s: Settings): string | undefined {
+  return findSdk(projectDir, s.sdkPath);
 }
 
-/** mkdsk.py (zxbc.cwd, then the zxbasic sibling of the library). It is AGPL and lives in the compiler's repo, so it is not bundled. */
-export function resolveMkdsk(s: Settings, projectDir: string, library?: string): string | undefined {
-  return resolveMkdskPure(s, projectDir, library);
+/** The cpcbuild folder: setting, then the project's "library" (ignored in Restricted Mode), then upwards from the project, then the SDK's lib/, then the bundled copy. */
+export function resolveLibrary(projectDir: string, s: Settings, projectLibrary?: string | null): string | undefined {
+  return resolveLibraryPure(projectDir, s, isTrusted() ? projectLibrary : null, bundledDir, sdkFolder(projectDir, s));
+}
+
+/** Where the compiler comes from (explicit setting, SDK, managed tools, PATH, Poetry checkout). */
+export function resolveCompilerFor(projectDir: string, s: Settings): CompilerResolution | NoCompiler {
+  return resolveCompiler(s, projectDir, managedZxbasicDir(), process.platform, { env: toolEnv() });
+}
+
+/** The command that starts the compiler: the resolved one, else the setting (whose "not found" error is then reported). */
+export const compilerCommand = (r: CompilerResolution | NoCompiler, s: Settings): string[] => (r.kind === 'none' ? s.zxbcCommand : r.zxbc);
+
+/** The command that creates a .dsk (mkdsk next to the compiler, or mkdsk.py through Python); undefined when neither exists. */
+export function resolveMkdsk(s: Settings, projectDir: string, library?: string, res: CompilerResolution | NoCompiler = resolveCompilerFor(projectDir, s)): string[] | undefined {
+  return mkdskCommand(res, s, projectDir, library, pythonCmd(s.pythonPath));
+}
+
+/** The Arkos command-line tools: setting, SDK, managed, $AT3_TOOLS, PATH, then a checkout's tools/arkos/work/bin. */
+export function resolveArkos(projectDir: string, s: Settings, library?: string, override?: string): string | undefined {
+  return findArkosTools({
+    setting: override ?? s.arkosToolsPath,
+    sdk: sdkFolder(projectDir, s),
+    managed: managedArkosDir(),
+    env: process.env.AT3_TOOLS,
+    pathDirs: pathDirs(toolEnv(), process.platform),
+    library,
+    base: projectDir,
+  });
 }

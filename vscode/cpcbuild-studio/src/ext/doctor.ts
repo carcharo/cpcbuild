@@ -1,11 +1,13 @@
 /** doctor.ts -- "CPCBuild: Check Environment" (spec 2.5). */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { absFrom, fileExists, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
+import { absFrom, compilerCommand, manifest, readSettings, resolveArkos, resolveCompilerFor, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { findCap32, findCpcec, findRvm } from './run';
-import { runTool, Sink } from './runTool';
-import { compilerHint, runZxbc } from './zxbcCommand';
-import { findArkosTools } from './arkos';
+import { pythonCmd, runTool, Sink } from './runTool';
+import { describeCompiler } from './toolpaths';
+import { compilerHint, DOWNLOAD_HINT, poetryAdvice, runZxbc } from './zxbcCommand';
+import { arkosUnavailableText } from './arkos';
+import { toolsPlatform } from '../core/tools';
 import { findTiled } from './tmxViewer';
 import { isTrusted, restrictedText } from './trust';
 
@@ -40,20 +42,25 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   // compiler and Python: running them starts programs named by settings, so not in Restricted Mode
   const trusted = isTrusted();
   const cwd = s.zxbcCwd ? absFrom(base, s.zxbcCwd) : base;
+  const comp = resolveCompilerFor(base, s);
+  // Python is optional now: the compiler tools bring their own mkdsk, cartridges and music are built in. It is
+  // needed with the python engine, or with a zxbasic checkout (zxbc.cwd, or `poetry run zxbc`).
+  const pyNeeded = s.assetsEngine === 'python' || !!s.zxbcCwd || comp.kind === 'poetry';
   if (trusted) {
-    const z = await runZxbc(s.zxbcCommand, ['--version'], { cwd, quiet: true });
+    const z = await runZxbc(compilerCommand(comp, s), ['--version'], { cwd, quiet: true });
     const zOut = (z.stdout + z.stderr).trim().split('\n')[0];
+    const where = comp.kind === 'none' ? '' : `${describeCompiler(comp)}; `;
     add({
       id: 'zxbc', label: 'zxbc (Boriel BASIC compiler, cpc arch)', ok: z.code === 0,
-      detail: z.code === 0 ? `${z.used.join(' ')}${z.fellBack ? ' (fallback: the default "zxbc" was not found)' : ''}: ${zOut}` : z.error ?? `exited ${z.code}: ${zOut}`,
-      fix: compilerHint('zxbc could not be run', s.zxbcCommand, cwd),
+      detail: z.code === 0 ? `${where}${z.used.join(' ')}${z.fellBack ? ' (fallback: the default "zxbc" was not found)' : ''}: ${zOut}` : comp.kind === 'none' && comp.problem ? comp.problem : z.error ?? `exited ${z.code}: ${zOut}`,
+      fix: s.zxbcCwd ? `${DOWNLOAD_HINT} Or, with a zxbasic checkout: ${poetryAdvice(s.zxbcCommand, cwd)}` : compilerHint('zxbc could not be run', s.zxbcCommand),
     });
-    const py = await runTool([s.pythonPath], ['--version'], { quiet: true });
+    const py = await runTool(pythonCmd(s.pythonPath), ['--version'], { quiet: true });
     const pyOut = (py.stdout + py.stderr).trim();
     add({
-      id: 'python', label: 'Python 3', ok: py.code === 0 && /Python 3/.test(pyOut),
+      id: 'python', label: 'Python 3', ok: py.code === 0 && /Python 3/.test(pyOut), optional: !pyNeeded,
       detail: py.code === 0 ? `${s.pythonPath}: ${pyOut}` : py.error ?? `exited ${py.code}`,
-      fix: 'Install Python 3 or set "cpcbuild.python.path".',
+      fix: pyNeeded ? 'Install Python 3 or set "cpcbuild.python.path".' : 'Only needed with the python engine or a zxbasic checkout.',
     });
   } else {
     for (const [id, label] of [['zxbc', 'zxbc (Boriel BASIC compiler, cpc arch)'], ['python', 'Python 3']] as const) {
@@ -71,10 +78,10 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
       fix: 'Point "cpcbuild.library.path" at a full cpcbuild checkout, or set "cpcbuild.assets.engine" to "builtin".',
     }
     : { id: 'tools', label: 'Cartridge packaging (mkcpr)', ok: true, detail: 'built in' });
-  const mkdsk = resolveMkdsk(s, base, lib);
+  const mkdsk = resolveMkdsk(s, base, lib, comp);
   add({
-    id: 'mkdsk', label: 'mkdsk.py (zxbasic tools/cpc/)', ok: !!mkdsk, detail: mkdsk ?? 'not found',
-    fix: 'Set "cpcbuild.zxbc.cwd" to your zxbasic checkout (it holds tools/cpc/mkdsk.py).',
+    id: 'mkdsk', label: 'mkdsk (disc images)', ok: !!mkdsk, detail: mkdsk?.join(' ') ?? 'not found',
+    fix: `${DOWNLOAD_HINT} Or set "cpcbuild.zxbc.cwd" to your zxbasic checkout (it holds tools/cpc/mkdsk.py).`,
   });
 
   // emulator
@@ -99,8 +106,13 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   }
 
   // optional tools
-  const arkos = findArkosTools({ setting: s.arkosToolsPath, env: process.env.AT3_TOOLS, library: lib, base });
-  add({ id: 'arkos', label: 'Arkos command-line tools', ok: !!arkos, optional: true, detail: arkos || 'not found', fix: 'Run `sh tools/arkos/fetch.sh` in the cpcbuild checkout (on macOS it also re-signs the downloaded tools, which otherwise hang), or set "cpcbuild.arkos.toolsPath".' });
+  const arkos = resolveArkos(base, s, lib);
+  const plat = toolsPlatform(process.platform, process.arch);
+  const noAsset = !plat || !manifest.arkos.assets[plat];
+  add({
+    id: 'arkos', label: 'Arkos command-line tools', ok: !!arkos, optional: true, detail: arkos || 'not found',
+    fix: !noAsset ? `${DOWNLOAD_HINT} Or set "cpcbuild.arkos.toolsPath" (in a cpcbuild checkout: \`sh tools/arkos/fetch.sh\`).` : arkosUnavailableText(`${process.platform}-${process.arch}`),
+  });
   const tiled = findTiled(s.tiledPath);
   add({ id: 'tiled', label: 'Tiled map editor', ok: !!tiled, optional: true, detail: tiled ?? 'not found', fix: 'Install Tiled (mapeditor.org) for "Open in Tiled".' });
 

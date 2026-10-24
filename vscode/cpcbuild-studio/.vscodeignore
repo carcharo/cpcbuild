@@ -7,3 +7,4 @@
 !media/**
 !schemas/**
 !bundled/**
+!tools-manifest.json

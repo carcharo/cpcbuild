@@ -6,8 +6,9 @@ import { MODELS, deriveDiscStem } from '../core/project';
 import type { EmuEvent } from '../emuApi';
 import { buildTarget, BuildResult, RunInfo } from './build';
 import { channelSink, getChannel, tee } from './channel';
-import { readSettings, resolveLibrary, resolveMkdsk, setBundledLibrary } from './config';
+import { readSettings, resolveLibrary, resolveMkdsk, setBundledLibrary, setToolsStorage } from './config';
 import { checkEnvironment, doctorCommand } from './doctor';
+import { downloadToolsCommand } from './toolsCommand';
 import { newProjectCommand } from './newProject';
 import { ImporterEditorProvider, copyImporterCommandCommand, importImageCommand, regenerateAssetsCommand } from './importer';
 import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
@@ -146,19 +147,19 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
       const { parseMap, programStart } = await import('../core/map');
       load = programStart(parseMap(fs.readFileSync(mapFile, 'utf8'))) ?? 0x40;
     }
-    if (!requireTrust('Run in Emulator for a .bin file (it is packaged with Python first)')) return;
+    if (!requireTrust('Run in Emulator for a .bin file (it is packaged with mkdsk first)')) return;
     const lib = resolveLibrary(path.dirname(file), s);
     const mkdsk = resolveMkdsk(s, path.dirname(file), lib);
     if (!mkdsk) {
-      void vscode.window.showErrorMessage('CPCBuild: mkdsk.py was not found. Set "cpcbuild.zxbc.cwd" to your zxbasic checkout.');
+      void vscode.window.showErrorMessage('CPCBuild: mkdsk was not found. Run "CPCBuild: Download Tools", or set "cpcbuild.zxbc.cwd" to your zxbasic checkout.');
       return;
     }
     const stem = deriveDiscStem(path.basename(file, ext));
     const dsk = file.replace(/\.bin$/i, '.dsk');
     const hex = '0x' + load.toString(16).toUpperCase();
-    const r = await runTool([s.pythonPath], [mkdsk, '-o', dsk, '--load', hex, '--exec', hex, '--name', `${stem}.BIN`, file], { sink });
+    const r = await runTool(mkdsk, ['-o', dsk, '--load', hex, '--exec', hex, '--name', `${stem}.BIN`, file], { sink });
     if (r.code !== 0) {
-      void vscode.window.showErrorMessage(`CPCBuild: packaging failed${r.error ? `: ${r.error}` : ` (mkdsk.py exited ${r.code})`}.`);
+      void vscode.window.showErrorMessage(`CPCBuild: packaging failed${r.error ? `: ${r.error}` : ` (mkdsk exited ${r.code})`}.`);
       return;
     }
     run = { file: dsk, kind: 'dsk', name: stem, model: s.model };
@@ -185,6 +186,7 @@ async function showReport(): Promise<void> {
 
 export function activate(context: vscode.ExtensionContext): StudioApi {
   setStorageDir(context.globalStorageUri.fsPath);
+  setToolsStorage(context.globalStorageUri.fsPath);
   setTargetStore(context.workspaceState);
   setBundledLibrary(vscode.Uri.joinPath(context.extensionUri, 'bundled').fsPath);
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-project');
@@ -234,6 +236,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   reg('cpcbuild.runFile', runFile);
   reg('cpcbuild.showBuildReport', showReport);
   reg('cpcbuild.checkEnvironment', async () => doctorCommand(pickProject(await findProjects())?.root, channelSink, () => getChannel().show(true)));
+  reg('cpcbuild.downloadTools', (arg) => downloadToolsCommand(arg));
   reg('cpcbuild.openSettings', () => vscode.commands.executeCommand('workbench.action.openSettings', 'cpcbuild'));
   reg('cpcbuild.selectTarget', async () => {
     const pt = await projectAndTarget();

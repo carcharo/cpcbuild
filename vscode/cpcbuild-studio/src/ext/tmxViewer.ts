@@ -24,6 +24,7 @@ import { insideRootFrom, PathEscapeError } from '../core/paths';
 import { NOT_IN_PROJECT, projectRootOf, viewRootOf } from './importer';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 import { launchDetached } from './runTool';
+import { tiledCandidates } from './toolpaths';
 import { generateTmx } from './tmxGen';
 import { webviewHtml, webviewRoot } from './webviewHtml';
 
@@ -33,12 +34,10 @@ const posix = (p: string): string => p.split(path.sep).join('/');
 
 // ------------------------------------------------------------------- Tiled
 
-const TILED_CANDIDATES = ['/Applications/Tiled.app', '/usr/bin/tiled', '/usr/local/bin/tiled', '/opt/homebrew/bin/tiled'];
-
-/** The Tiled application: the setting, else the usual places. */
+/** The Tiled application: the setting, else the usual places of this platform (tiledCandidates). */
 export function findTiled(setting: string): string | undefined {
   if (setting.trim()) return fs.existsSync(setting.trim()) ? setting.trim() : undefined;
-  return TILED_CANDIDATES.find((p) => fs.existsSync(p));
+  return tiledCandidates(process.platform).find((p) => fs.existsSync(p));
 }
 
 /** How to start `app` on `file` (an .app bundle goes through `open -a` on macOS). */

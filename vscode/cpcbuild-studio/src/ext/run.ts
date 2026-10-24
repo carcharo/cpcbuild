@@ -14,6 +14,7 @@ import { fileExists, readSettings, resolveLibrary, Settings } from './config';
 import { ExternalChoice, notifyEmuMissing } from './emuMissing';
 import { cap32Config } from './cap32cfg';
 import { launchDetached, Sink } from './runTool';
+import { cap32Candidates, cpcecCandidates } from './toolpaths';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 
 const MODEL_NUM: Record<EmuModel, number> = { '464': 0, '664': 1, '6128': 2, plus: 3 };
@@ -73,15 +74,17 @@ function firstExisting(...cands: (string | undefined)[]): string | undefined {
 }
 
 export function findCap32(s: Settings, library?: string): string | undefined {
-  return firstExisting(s.caprice32Path, process.env.CAP32, library && path.join(library, 'tools/caprice32/work/src/cap32'), library && path.resolve(library, '../caprice32/cap32'));
+  return firstExisting(s.caprice32Path, process.env.CAP32, ...cap32Candidates(library));
 }
 
 export function findCpcec(s: Settings, library?: string): string | undefined {
-  return firstExisting(s.cpcecPath, process.env.CPCEC, library && path.join(library, 'tools/cpcec/work/cpcec'));
+  return firstExisting(s.cpcecPath, process.env.CPCEC, ...cpcecCandidates(library));
 }
 
+/** Retro Virtual Machine: the setting, else /Applications on macOS. Windows and Linux: the setting only (no install location is known). */
 export function findRvm(s: Settings): string | undefined {
   if (s.rvmPath) return fileExists(s.rvmPath) ? s.rvmPath : undefined;
+  if (process.platform !== 'darwin') return undefined;
   try {
     const dir = '/Applications';
     const hit = fs.readdirSync(dir).find((n) => /^Retro Virtual Machine.*\.app$/i.test(n));
@@ -186,7 +189,7 @@ export async function runInEmulator(root: string, run: RunInfo, sink: Sink, sett
     }
     case 'rvm': {
       const app = findRvm(s);
-      if (!app) return { ok: false, message: 'Retro Virtual Machine was not found in /Applications. Install it, or set "cpcbuild.run.rvmPath".' };
+      if (!app) return { ok: false, message: `Retro Virtual Machine was not found${process.platform === 'darwin' ? ' in /Applications' : ' (it is only looked for on macOS)'}. Install it, or set "cpcbuild.run.rvmPath".` };
       const r = process.platform === 'darwin' ? await launchDetached(['open'], ['-a', app, run.file], { sink }) : await launchDetached([app], [run.file], { sink });
       return r.ok ? { ok: true, used: 'rvm', pid: r.pid, alive: r.alive } : { ok: false, message: `could not start Retro Virtual Machine: ${r.error}` };
     }

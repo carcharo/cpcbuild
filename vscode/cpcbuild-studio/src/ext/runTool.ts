@@ -74,6 +74,12 @@ export function killTree(pid: number | undefined, child: { kill(signal?: NodeJS.
   }
 }
 
+/** What "cpcbuild.python.path" holds when unset on Windows: the py launcher, asking for Python 3. */
+export const PY_LAUNCHER = 'py -3';
+
+/** The command for a Python setting: `py -3` is two words, anything else (a path may hold spaces) is one program. */
+export const pythonCmd = (p: string): string[] => (p === PY_LAUNCHER ? ['py', '-3'] : [p]);
+
 export function runTool(command: readonly string[], args: readonly string[], opts: ToolOptions = {}): Promise<ToolResult> {
   const [exe, ...pre] = command;
   const all = [...pre, ...args];

@@ -8,9 +8,10 @@ import * as path from 'node:path';
 import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
 import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
 import { assetFailure, regenerateAll } from './assetsGen';
-import { absFrom, readSettings, resolveLibrary, resolveMkdsk, Settings } from './config';
+import { absFrom, compilerCommand, readSettings, resolveCompilerFor, resolveLibrary, resolveMkdsk, Settings } from './config';
 import { makeCpr } from './mkcprGen';
 import { CancelToken, runTool, Sink } from './runTool';
+import { describeCompiler } from './toolpaths';
 import { compilerHint, runZxbc } from './zxbcCommand';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
 import type { EmuModel } from '../emuApi';
@@ -38,6 +39,8 @@ export interface BuildResult {
   targetId: string;
   /** The failure, with the fix. */
   message?: string;
+  /** True when the failure is "no compiler found" (the caller may offer "CPCBuild: Download Tools"). */
+  compilerMissing?: boolean;
   artifacts: Artifacts;
   report?: MemoryReport;
   reportLines: string[];
@@ -113,10 +116,18 @@ export async function buildTarget(
   // 1. compile
   const args = zxbcArgs(target, { libraryDir: library, main, out, map, defaultOrg: s.buildOrg, extra: s.zxbcArgs });
   const zxCwd = s.zxbcCwd ? absFrom(root, s.zxbcCwd) : root;
-  const cr = await runZxbc(s.zxbcCommand, args, { cwd: zxCwd, token, sink });
+  const comp = resolveCompilerFor(root, s);
+  if (comp.kind === 'none' && comp.problem) {
+    res.compilerMissing = true;
+    return done(), fail(res, `${comp.problem}. Fix the setting or clear it, then run "CPCBuild: Check Environment".`, sink);
+  }
+  const cr = await runZxbc(compilerCommand(comp, s), args, { cwd: zxCwd, token, sink });
   if (cr.cancelled) return done(), fail(res, 'cancelled.', sink);
-  if (cr.error) return done(), fail(res, compilerHint(cr.error, s.zxbcCommand, zxCwd), sink);
-  sink.line(`Compiler: ${cr.used.join(' ')}${cr.fellBack ? ' (fallback)' : ''}`);
+  if (cr.error) {
+    res.compilerMissing = !!cr.notFound;
+    return done(), fail(res, compilerHint(cr.error, s.zxbcCommand, s.zxbcCwd ? zxCwd : undefined), sink);
+  }
+  sink.line(`Compiler: ${cr.used.join(' ')}${cr.fellBack ? ' (fallback)' : comp.kind !== 'none' ? ` (${describeCompiler(comp).split(':')[0]})` : ''}`);
   if (cr.code !== 0 || !fs.existsSync(out)) {
     return done(), fail(res, `zxbc exited with ${cr.code} (the errors above are in the Problems panel). Fix them and build again.`, sink);
   }
@@ -150,15 +161,16 @@ export async function buildTarget(
   // 3. package
   const model: EmuModel = s.modelOverride ?? target.model;
   if (target.package === 'dsk') {
-    const mkdsk = resolveMkdsk(s, root, library);
+    const mkdsk = resolveMkdsk(s, root, library, comp);
     if (!mkdsk) {
-      return done(), fail(res, 'mkdsk.py was not found (it lives in the zxbasic fork, tools/cpc/). Set "cpcbuild.zxbc.cwd" to your zxbasic checkout, then run "CPCBuild: Check Environment".', sink);
+      return done(), fail(res, `mkdsk was not found (it comes with the compiler tools: run "CPCBuild: Download Tools"; or set "cpcbuild.zxbc.cwd" to your zxbasic checkout, which holds tools/cpc/mkdsk.py), then run "CPCBuild: Check Environment".`, sink);
     }
     const dsk = `${base}.dsk`;
-    const r = await runTool([s.pythonPath], [mkdsk, '-o', dsk, '--load', loadHex, '--exec', loadHex, '--name', `${target.disc}.BIN`, bin as string], { cwd: root, token, sink });
+    const r = await runTool(mkdsk, ['-o', dsk, '--load', loadHex, '--exec', loadHex, '--name', `${target.disc}.BIN`, bin as string], { cwd: root, token, sink });
     if (r.cancelled) return done(), fail(res, 'cancelled.', sink);
     if (r.error || r.code !== 0 || !fs.existsSync(dsk)) {
-      return done(), fail(res, r.error ? `${r.error}. Set "cpcbuild.python.path" to a Python 3.` : `mkdsk.py exited with ${r.code}.`, sink);
+      const py = mkdsk[0] === s.pythonPath || mkdsk[0] === 'py';
+      return done(), fail(res, r.error ? `${r.error}.${py ? ' Set "cpcbuild.python.path" to a Python 3.' : ' Run "CPCBuild: Download Tools" again.'}` : `mkdsk exited with ${r.code}.`, sink);
     }
     a.dsk = dsk;
     res.run = { file: dsk, kind: 'dsk', name: target.disc, model };

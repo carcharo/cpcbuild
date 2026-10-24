@@ -12,10 +12,10 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import type { Project, Target } from '../core/project';
 import type { EmuError } from '../emuApi';
-import { ARKOS_MISSING, convertMusic, findArkosTools, MusicConvertOptions, previewProgram, songLabelOf, songName, PreviewPlan } from './arkos';
+import { arkosMissingText, convertMusic, MusicConvertOptions, previewProgram, songLabelOf, songName, PreviewPlan } from './arkos';
 import { buildTarget } from './build';
 import { channelSink, getChannel, tee } from './channel';
-import { absFrom, readSettings, resolveLibrary, Settings } from './config';
+import { absFrom, readSettings, resolveArkos, resolveLibrary, Settings } from './config';
 import { NOT_IN_PROJECT, projectRootOf } from './importer';
 import { notifyUntrusted, isTrusted, restrictedText } from './trust';
 import { killTree } from './runTool';
@@ -26,7 +26,7 @@ const posix = (p: string): string => p.split(path.sep).join('/');
 
 function toolsFor(root: string, s: Settings, override?: string): { library?: string; toolsDir?: string } {
   const library = resolveLibrary(root, s);
-  return { library, toolsDir: findArkosTools({ setting: override ?? s.arkosToolsPath, env: process.env.AT3_TOOLS, library, base: root }) };
+  return { library, toolsDir: resolveArkos(root, s, library, override) };
 }
 
 function activeMusicUri(bas = false): vscode.Uri | undefined {
@@ -191,7 +191,7 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
   } else {
     const name = a.name ?? songName(path.basename(file));
     const t = toolsFor(root, s, a.toolsPath);
-    if (!t.toolsDir) return fail(ARKOS_MISSING);
+    if (!t.toolsDir) return fail(arkosMissingText());
     includeFile = `${name}.bas`;
     const outRel = posix(path.relative(root, path.join(dir, includeFile)));
     const c = await convertMusic(root, posix(path.relative(root, file)), { name, sfx: a.sfx, subsongs: a.subsongs, psg: a.psg, output: outRel }, { engine: s.assetsEngine, pythonPath: s.pythonPath, library, toolsDir: t.toolsDir }, { sink });

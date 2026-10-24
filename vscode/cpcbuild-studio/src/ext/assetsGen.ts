@@ -22,7 +22,7 @@ import { globBase, matchesAny } from '../core/glob';
 import { insideRoot, insideRootFrom, PathEscapeError } from '../core/paths';
 import { parseSprite, resolvePalette, type DocType, type SpriteState } from '../core/spriteDoc';
 import { exportAsset } from '../core/spriteExport';
-import { runTool, type CancelToken, type Sink } from './runTool';
+import { pythonCmd, runTool, type CancelToken, type Sink } from './runTool';
 
 export type AssetEngine = 'builtin' | 'python';
 
@@ -304,7 +304,7 @@ async function generatePython(root: string, recipeRel: string, r: Recipe, s: Gen
     argv = argv.map((w) => (w === r.source ? (tmpPng as string) : w));
   }
   try {
-    const t = await runTool([s.pythonPath], [script, ...argv], { cwd: root, token: extra.token, sink: extra.sink, quiet: true });
+    const t = await runTool(pythonCmd(s.pythonPath), [script, ...argv], { cwd: root, token: extra.token, sink: extra.sink, quiet: true });
     if (t.cancelled) {
       res.error = 'cancelled';
       return res;

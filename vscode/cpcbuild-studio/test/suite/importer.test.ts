@@ -6,7 +6,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import type { Recipe } from '../../src/core/cpcimp';
 import { argvToRecipe, serialiseRecipe } from '../../src/core/cpcimp';
 import type { StudioDocument } from '../../src/ext/customEditor';
-import { test, waitFor } from './harness';
+import { python, test, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const REPO = path.resolve(__dirname, '../../../../..');
@@ -220,7 +220,7 @@ test('importer: requests - preview, command import, copy command, grid blocks th
 
 test('importer: a 16-bit PNG is refused with the way out; useEngine switches to python', async () => {
   const img = path.join(ws, 'art16.png');
-  const py = require('child_process').spawnSync('python3', ['-c', `from PIL import Image\nImage.new('I;16',(8,4),1000).save(${JSON.stringify(img)})`]);
+  const py = require('child_process').spawnSync(python().cmd, [...python().pre, '-c', `from PIL import Image\nImage.new('I;16',(8,4),1000).save(${JSON.stringify(img)})`]);
   assert.strictEqual(py.status, 0);
   const uri = writeRecipe('assets/wide.cpcimp', { format: 'cpcimp', version: 1, source: 'art16.png', target: 'cpc', mode: 1, output: 'assets/wide.bas' });
   const { a, doc } = await openImporter(uri);

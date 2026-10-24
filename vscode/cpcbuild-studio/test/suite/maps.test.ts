@@ -7,7 +7,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import { newSprite, serialiseSprite } from '../../src/core/spriteDoc';
 import type { TmxDocument } from '../../src/ext/tmxViewer';
 import type { ConvertResult } from '../../src/shared/tmxProtocol';
-import { test, waitFor } from './harness';
+import { python, test, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const REPO = path.resolve(__dirname, '../../../../..');
@@ -113,7 +113,7 @@ test('tmx viewer: Convert (request and command) writes what tmx2bas.py writes, o
   const { doc } = await openViewer(vscode.Uri.file(path.join(ws, 'maps/level.tmx')));
   const ref = (extra: string[]): string => {
     const out = path.join(ws, 'maps/ref.bas');
-    const r = spawnSync('python3', [path.join(REPO, 'tools/tmx2bas.py'), 'maps/level.tmx', ...extra, '-o', 'maps/ref.bas'], { cwd: ws, encoding: 'utf8' });
+    const r = spawnSync(python().cmd, [...python().pre, path.join(REPO, 'tools/tmx2bas.py'), 'maps/level.tmx', ...extra, '-o', 'maps/ref.bas'], { cwd: ws, encoding: 'utf8' });
     assert.strictEqual(r.status, 0, r.stderr);
     return fs.readFileSync(out, 'utf8');
   };

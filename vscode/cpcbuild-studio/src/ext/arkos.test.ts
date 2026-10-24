@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { REPO, scratchDir } from '../core/testutil';
-import { aksArgv, arkosToolPath, checkMusicOptions, convertMusic, defaultMusicOutput, findArkosTools, previewProgram, type MusicConvertOptions, songLabelOf, songName } from './arkos';
+import { aksArgv, arkosToolPath, checkMusicOptions, convertMusic, defaultMusicOutput, arkosMissingText, findArkosTools, previewProgram, type MusicConvertOptions, songLabelOf, songName } from './arkos';
 
 /** The Arkos tools: $AT3_TOOLS, this checkout's, or the main checkout's (a worktree has no tools/arkos/work). */
 const TOOLS = [process.env.AT3_TOOLS, path.join(REPO, 'tools/arkos/work/bin'), path.resolve(REPO, '../../tools/arkos/work/bin')].find(
@@ -69,7 +69,8 @@ describe('finding the tools', () => {
     if (!TOOLS) return;
     expect(findArkosTools({ setting: TOOLS })).toBe(TOOLS);
     expect(findArkosTools({ env: TOOLS })).toBe(TOOLS);
-    expect(findArkosTools({ setting: path.join(dir, 'none'), env: TOOLS })).toBe(TOOLS);
+    // a wrong explicit setting is reported (undefined), never replaced by $AT3_TOOLS or the checkout
+    expect(findArkosTools({ setting: path.join(dir, 'none'), env: TOOLS })).toBeUndefined();
     expect(findArkosTools({ setting: path.join(dir, 'none') })).toBeUndefined();
   });
   it('says how to get them when missing', async () => {
@@ -204,5 +205,49 @@ describe('Arkos tool names on Windows', () => {
     } finally {
       Object.defineProperty(process, 'platform', orig);
     }
+  });
+});
+
+describe('finding the tools: the new lookup order', () => {
+  const mk = (d: string): string => {
+    const names = process.platform === 'win32' ? ['SongToAkg.exe', 'SongToSoundEffects.exe'] : ['SongToAkg', 'SongToSoundEffects'];
+    fs.mkdirSync(d, { recursive: true });
+    for (const n of names) fs.writeFileSync(path.join(d, n), '#');
+    return d;
+  };
+  const root = scratchDir('arkos-order-');
+  const sdk = path.join(root, 'sdk');
+  const o = {
+    sdk,
+    managed: path.join(root, 'managed', 'bin'),
+    env: path.join(root, 'env'),
+    pathDirs: [path.join(root, 'nothere'), path.join(root, 'onpath')],
+    library: path.join(root, 'checkout'),
+  };
+  it('setting, SDK, managed, $AT3_TOOLS, PATH, checkout; the first complete folder wins', () => {
+    const checkout = mk(path.join(o.library, 'tools', 'arkos', 'work', 'bin'));
+    expect(findArkosTools(o)).toBe(checkout);
+    const onPath = mk(path.join(root, 'onpath'));
+    expect(findArkosTools(o)).toBe(onPath);
+    const env = mk(o.env);
+    expect(findArkosTools(o)).toBe(env);
+    const managed = mk(o.managed);
+    expect(findArkosTools(o)).toBe(managed);
+    const sdkBin = mk(path.join(sdk, 'arkos', 'bin'));
+    expect(findArkosTools(o)).toBe(sdkBin);
+    const explicit = mk(path.join(root, 'explicit'));
+    expect(findArkosTools({ ...o, setting: explicit })).toBe(explicit);
+    expect(findArkosTools({ ...o, setting: path.join(root, 'wrong') })).toBeUndefined();
+  });
+  it('skips a folder with only one of the two tools', () => {
+    const half = path.join(root, 'half');
+    fs.mkdirSync(half, { recursive: true });
+    fs.writeFileSync(path.join(half, process.platform === 'win32' ? 'SongToAkg.exe' : 'SongToAkg'), '#');
+    expect(findArkosTools({ env: half })).toBeUndefined();
+  });
+  it('says plainly when the platform has no Arkos tools (linux-arm64), and otherwise how to get them', async () => {
+    expect(arkosMissingText('linux', 'arm64')).toMatch(/^Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here\./);
+    expect(arkosMissingText('linux', 'x64')).toContain('Run "CPCBuild: Download Tools"');
+    expect(arkosMissingText('win32', 'x64')).toContain('Run "CPCBuild: Download Tools"');
   });
 });

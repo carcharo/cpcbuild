@@ -9,7 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { buildCpr, MkcprError } from '../core/mkcpr';
-import { runTool, type CancelToken, type Sink } from './runTool';
+import { pythonCmd, runTool, type CancelToken, type Sink } from './runTool';
 import { resolveMkcpr } from './toolpaths';
 
 export interface MkcprSettings {
@@ -37,7 +37,7 @@ export async function makeCpr(
     const script = resolveMkcpr(s.library);
     if (!script) return { ok: false, error: `tools/mkcpr.py was not found under ${s.library}. Point "cpcbuild.library.path" at a full cpcbuild checkout, or set "cpcbuild.assets.engine" to "builtin".` };
     const loadHex = '0x' + load.toString(16).toUpperCase();
-    const r = await runTool([s.pythonPath], [script, bin, '--load', loadHex, '-o', cpr], { cwd: extra.cwd, token: extra.token, sink: extra.sink });
+    const r = await runTool(pythonCmd(s.pythonPath), [script, bin, '--load', loadHex, '-o', cpr], { cwd: extra.cwd, token: extra.token, sink: extra.sink });
     if (r.cancelled) return { ok: false, error: 'cancelled.' };
     if (r.error || r.code !== 0 || !fs.existsSync(cpr)) {
       return { ok: false, error: r.error ? `${r.error}. Set "cpcbuild.python.path" to a Python 3, or set "cpcbuild.assets.engine" to "builtin".` : `mkcpr.py exited with ${r.code} (is the program below &C000?).` };

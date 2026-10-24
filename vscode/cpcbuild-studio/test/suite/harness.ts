@@ -33,3 +33,6 @@ export async function waitFor<T>(what: string, fn: () => T | undefined | false |
     await new Promise((r) => setTimeout(r, 100));
   }
 }
+
+/** The Python the tests call directly: `py -3` on Windows (there is no python3 there), python3 elsewhere. */
+export const python = (): { cmd: string; pre: string[] } => (process.platform === 'win32' ? { cmd: 'py', pre: ['-3'] } : { cmd: 'python3', pre: [] });

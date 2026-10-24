@@ -10,6 +10,7 @@
     "jsx": "react-jsx",
     "jsxImportSource": "preact",
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "skipLibCheck": true,
     "outDir": "out",
     "rootDir": ".",

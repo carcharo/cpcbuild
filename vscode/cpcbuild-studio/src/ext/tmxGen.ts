@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { insideRoot, PathEscapeError } from '../core/paths';
 import { defaultMapName, parseTmx, TmxError, tmxToBas } from '../core/tmx';
-import { runTool, type CancelToken, type Sink } from './runTool';
+import { pythonCmd, runTool, type CancelToken, type Sink } from './runTool';
 
 export interface TmxGenSettings {
   engine: 'builtin' | 'python';
@@ -92,7 +92,7 @@ export async function generateTmx(
       res.error = 'tools/tmx2bas.py was not found. Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/), or set "cpcbuild.assets.engine" to "builtin".';
       return res;
     }
-    const t = await runTool([s.pythonPath], [script, ...argv], { cwd: root, token: extra.token, sink: extra.sink, quiet: true });
+    const t = await runTool(pythonCmd(s.pythonPath), [script, ...argv], { cwd: root, token: extra.token, sink: extra.sink, quiet: true });
     if (t.cancelled) res.error = 'cancelled';
     else if (t.error) res.error = `${t.error}. Set "cpcbuild.python.path" to a Python 3, or set "cpcbuild.assets.engine" to "builtin".`;
     else if (t.code !== 0) res.error = (t.stderr.trim() || `tmx2bas.py exited with ${t.code}`).split('\n').pop() as string;

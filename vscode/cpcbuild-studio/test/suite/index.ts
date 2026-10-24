@@ -6,6 +6,7 @@ import './importer.test';
 import './maps.test';
 import './debug.test';
 import './review.test';
+import './tools.test';
 import { runAll } from './harness';
 
 export async function run(): Promise<void> {

@@ -1,6 +1,7 @@
 /**
  * zxbcCommand.ts -- starting the compiler. The default command ["zxbc"] is replaced by `poetry run zxbc` when
- * it cannot be found and zxbc.cwd is a Poetry project (the zxbasic fork). No vscode import (unit-testable).
+ * it cannot be found and zxbc.cwd is a Poetry project (the zxbasic fork). Where zxbc comes from in the first
+ * place (SDK, managed tools, PATH) is toolpaths.ts's resolveCompiler. No vscode import (unit-testable).
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -77,10 +78,21 @@ export async function runZxbc(command: readonly string[], args: readonly string[
   return { ...second, used: fb, fellBack: true };
 }
 
-/** The error text for a compiler that could not be started, with the exact setting when poetry is known. */
-export function compilerHint(spawnError: string, cmd: readonly string[] = DEFAULT_ZXBC, cwd?: string, o: PoetryEnv = {}): string {
+export const DOWNLOAD_HINT = 'Run "CPCBuild: Download Tools".';
+
+/** The developer's way: `poetry run zxbc` from the zxbasic checkout, with the exact setting when poetry is known. */
+export function poetryAdvice(cmd: readonly string[], cwd: string, o: PoetryEnv = {}): string {
   const poetry = isDefaultZxbc(cmd) ? findPoetry(o) : undefined;
   const value = poetry ? [poetry, 'run', 'zxbc'] : ['poetry', 'run', 'zxbc'];
-  const needCwd = !cwd || !(o.exists ?? isFile)(path.join(cwd, 'pyproject.toml'));
-  return `${spawnError}. Set "cpcbuild.zxbc.command" to ${settingText(value)} (for the fork${poetry ? '' : `; poetry was not found on PATH or in ${(o.platform ?? process.platform) === 'win32' ? '%APPDATA%\\Python\\Scripts' : '~/.local/bin'}`}) and ${needCwd ? '"cpcbuild.zxbc.cwd" to your zxbasic checkout' : 'keep "cpcbuild.zxbc.cwd" on your zxbasic checkout'}, then run "CPCBuild: Check Environment".`;
+  const needCwd = !(o.exists ?? isFile)(path.join(cwd, 'pyproject.toml'));
+  return `Set "cpcbuild.zxbc.command" to ${settingText(value)} (for the fork${poetry ? '' : `; poetry was not found on PATH or in ${(o.platform ?? process.platform) === 'win32' ? '%APPDATA%\\Python\\Scripts' : '~/.local/bin'}`}) and ${needCwd ? '"cpcbuild.zxbc.cwd" to your zxbasic checkout' : 'keep "cpcbuild.zxbc.cwd" on your zxbasic checkout'}, then run "CPCBuild: Check Environment".`;
+}
+
+/**
+ * The error text for a compiler that could not be started: it ends with the Download Tools hint. The Poetry advice
+ * is for developers, so it appears only when `cwd` (zxbc.cwd) is set.
+ */
+export function compilerHint(spawnError: string, cmd: readonly string[] = DEFAULT_ZXBC, cwd?: string, o: PoetryEnv = {}): string {
+  if (cwd) return `${spawnError}. ${poetryAdvice(cmd, cwd, o)} ${DOWNLOAD_HINT}`;
+  return `${spawnError}.${isDefaultZxbc(cmd) ? '' : ' Check "cpcbuild.zxbc.command", or clear it to use the downloaded tools.'} ${DOWNLOAD_HINT}`;
 }
