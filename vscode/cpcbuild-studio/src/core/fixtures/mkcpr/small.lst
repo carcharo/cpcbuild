@@ -1,0 +1,20 @@
+0000  F3           di
+0001  01 81 7F     ld bc,&7F81        ; GA RMR: mode 1, lower and upper ROM on
+0004  ED 49        out (c),c
+0006  01 81 DF     ld bc,&DF81        ; upper ROM = cartridge page 1
+0009  ED 49        out (c),c
+000B  21 00 C0     ld hl,&C000
+000E  11 00 40     ld de,&4000
+0011  01 2C 01     ld bc,&012C
+0014  ED B0        ldir
+0016  01 89 7F     ld bc,&7F89        ; RMR: upper ROM off (lower still on)
+0019  ED 49        out (c),c
+001B  21 29 00     ld hl,&0029        ; the tail (below)
+001E  11 00 C0     ld de,&C000
+0021  01 0D 00     ld bc,13
+0024  ED B0        ldir
+0026  C3 00 C0     jp &C000
+0029  tail, copied to RAM at &C000 (13 bytes):
+      01 C0 7F ED 49  ld bc,&7FC0 ; out (c),c   RAM configuration normal
+      01 8D 7F ED 49  ld bc,&7F8D ; out (c),c   lower ROM off too, mode 1
+      C3 10 40        jp &4010

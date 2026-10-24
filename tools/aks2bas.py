@@ -217,13 +217,16 @@ def set_psg_clock(data: bytes, hz: int) -> bytes:
 
 
 def find_tool(tool: str) -> str:
-    cands = []
+    # on Windows the Arkos tools are SongToAkg.exe / SongToSoundEffects.exe
+    names = [tool + ".exe", tool] if os.name == "nt" else [tool]
+    dirs = []
     if os.environ.get("AT3_TOOLS"):
-        cands.append(Path(os.environ["AT3_TOOLS"]) / tool)
-    cands.append(HERE / "arkos" / "work" / "bin" / tool)
-    for c in cands:
-        if c.is_file():
-            return str(c)
+        dirs.append(Path(os.environ["AT3_TOOLS"]))
+    dirs.append(HERE / "arkos" / "work" / "bin")
+    for d in dirs:
+        for n in names:
+            if (d / n).is_file():
+                return str(d / n)
     sys.exit(f"aks2bas: {tool} not found (run tools/arkos/fetch.sh or set AT3_TOOLS)")
 
 

@@ -101,7 +101,7 @@ export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): 
   const t = toolsFor(root, s, a.toolsPath);
   const inputRel = posix(path.relative(root, uri.fsPath));
   const sink = tee(channelSink);
-  const r = await convertMusic(root, inputRel, opts, { pythonPath: s.pythonPath, library: t.library, toolsDir: t.toolsDir }, { sink });
+  const r = await convertMusic(root, inputRel, opts, { engine: s.assetsEngine, pythonPath: s.pythonPath, library: t.library, toolsDir: t.toolsDir }, { sink });
   if (r.ok) {
     getChannel().appendLine(`${inputRel} -> ${r.output}`);
     if (!quiet) {
@@ -194,7 +194,7 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
     if (!t.toolsDir) return fail(ARKOS_MISSING);
     includeFile = `${name}.bas`;
     const outRel = posix(path.relative(root, path.join(dir, includeFile)));
-    const c = await convertMusic(root, posix(path.relative(root, file)), { name, sfx: a.sfx, subsongs: a.subsongs, psg: a.psg, output: outRel }, { pythonPath: s.pythonPath, library, toolsDir: t.toolsDir }, { sink });
+    const c = await convertMusic(root, posix(path.relative(root, file)), { name, sfx: a.sfx, subsongs: a.subsongs, psg: a.psg, output: outRel }, { engine: s.assetsEngine, pythonPath: s.pythonPath, library, toolsDir: t.toolsDir }, { sink });
     if (!c.ok) return fail(c.error ?? 'conversion failed');
     plan = { kind: a.sfx ? 'sfx' : 'song', name, subsong: a.subsong ?? 0, effect: a.effect ?? 1 };
   }

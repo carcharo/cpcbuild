@@ -1,10 +1,18 @@
 /**
- * arkos.ts -- converting Arkos Tracker songs and effect banks to Boriel includes by running
- * tools/aks2bas.py, exactly as games/shooter/build_assets.sh does (so the output is the script's
- * own). Also the preview program that plays a song through the real player. No vscode import.
+ * arkos.ts -- converting Arkos Tracker songs and effect banks to Boriel includes, with the engine
+ * the settings choose:
+ *
+ *   builtin  the TypeScript port (src/core/aks2bas.ts): runs the Arkos tools through runTool and
+ *            post-processes their output itself, no Python needed;
+ *   python   tools/aks2bas.py, exactly as games/shooter/build_assets.sh runs it.
+ *
+ * Both write the same bytes. Also the preview program that plays a song through the real player.
+ * No vscode import.
  */
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
+import { Aks2basError, bankInclude, hex06, PSG_HZ, pyInt0, sanitizeName, setPsgClock, toBoriel } from '../core/aks2bas';
 import { insideRoot, PathEscapeError } from '../core/paths';
 import { parseAddress } from '../core/project';
 import { runTool, type CancelToken, type Sink } from './runTool';
@@ -20,13 +28,19 @@ const isDir = (p: string): boolean => {
   }
 };
 
+/** The file of an Arkos tool in `dir`: `Tool.exe` on Windows (or plain `Tool`), `Tool` elsewhere; undefined if absent. */
+export function arkosToolPath(dir: string, tool: 'SongToAkg' | 'SongToSoundEffects'): string | undefined {
+  const names = process.platform === 'win32' ? [`${tool}.exe`, tool] : [tool];
+  return names.map((n) => path.join(dir, n)).find((p) => fs.existsSync(p));
+}
+
 /** The folder holding SongToAkg and SongToSoundEffects: the setting, $AT3_TOOLS, then <library>/tools/arkos/work/bin. */
 export function findArkosTools(o: { setting?: string; env?: string; library?: string; base?: string }): string | undefined {
   const cands: string[] = [];
   if (o.setting?.trim()) cands.push(path.resolve(o.base ?? '.', o.setting.trim()));
   if (o.env) cands.push(o.env);
   if (o.library) cands.push(path.join(o.library, 'tools', 'arkos', 'work', 'bin'));
-  return cands.find((d) => isDir(d) && fs.existsSync(path.join(d, 'SongToAkg')) && fs.existsSync(path.join(d, 'SongToSoundEffects')));
+  return cands.find((d) => isDir(d) && arkosToolPath(d, 'SongToAkg') && arkosToolPath(d, 'SongToSoundEffects'));
 }
 
 export interface MusicConvertOptions {
@@ -83,6 +97,8 @@ export function aksArgv(inputRel: string, outRel: string, o: MusicConvertOptions
 }
 
 export interface MusicConvertSettings {
+  /** Default 'builtin'. */
+  engine?: 'builtin' | 'python';
   pythonPath: string;
   library?: string;
   toolsDir?: string;
@@ -130,6 +146,87 @@ function timeoutToken(ms: number, base?: CancelToken): { token: CancelToken; cle
   };
 }
 
+const TIMED_OUT = 'The Arkos tool did not finish in time. On macOS, downloaded tools hang until re-signed: run `sh tools/arkos/fetch.sh` again, or `codesign --force --sign - <tool>` on SongToAkg and SongToSoundEffects.';
+const CANCELLED = '\0cancelled';
+
+/** What the Python tool prints last (Studio shows that line): the message's final non-blank line. */
+const lastLine = (msg: string): string => msg.trim().split('\n').pop() as string;
+
+/**
+ * The builtin engine: aks2bas.py's steps in TypeScript (same order, same messages). Returns the error text
+ * (the tool's last line), CANCELLED, or undefined on success. Never throws.
+ */
+async function convertBuiltin(
+  root: string,
+  inputRel: string,
+  output: string,
+  name: string,
+  o: MusicConvertOptions,
+  toolsDir: string,
+  token: CancelToken,
+  sink?: Sink,
+): Promise<string | undefined> {
+  const safeName = sanitizeName(name);
+  const abs = (p: string): string => path.resolve(root, p);
+  let adr = 0;
+  if (o.at) {
+    adr = pyInt0(o.at);
+    if (Number.isNaN(adr)) return `aks2bas.py: error: --at ${o.at}: not a number`;
+    if (adr < 0x4000 || adr > 0x7fff) return 'aks2bas.py: error: --at must be inside the bank window, 0x4000-0x7FFF';
+  }
+  const td = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-aks-'));
+  try {
+    /** Runs one Arkos tool; undefined on success. */
+    const run = async (tool: 'SongToAkg' | 'SongToSoundEffects', args: string[]): Promise<string | undefined> => {
+      const exe = arkosToolPath(toolsDir, tool);
+      if (!exe) return `aks2bas: ${tool} not found (run tools/arkos/fetch.sh or set AT3_TOOLS)`;
+      const r = await runTool([exe], args, { cwd: root, token, sink });
+      if (r.cancelled) return CANCELLED;
+      if (r.error) return `${r.error}. Run \`sh tools/arkos/fetch.sh\` or set "cpcbuild.arkos.toolsPath".`;
+      if (r.code !== 0) return lastLine(`aks2bas: ${tool} failed (${r.code}):\n${r.stdout}${r.stderr}`);
+      return undefined;
+    };
+    let input = inputRel;
+    if (o.psg) {
+      const patched = path.join(td, 'in.aks');
+      try {
+        fs.writeFileSync(patched, setPsgClock(fs.readFileSync(abs(inputRel)), PSG_HZ[o.psg]));
+      } catch (e) {
+        if (e instanceof Aks2basError) return `aks2bas: ${inputRel}: ${e.message}`;
+        throw e;
+      }
+      input = patched;
+    }
+    const subs = o.subsongs ? ['-s', o.subsongs.replace(/\s+/g, '')] : [];
+    if (o.at) {
+      const tmp = path.join(td, 'out.bin');
+      const err = await run('SongToAkg', [...subs, '--exportAsBinary', '--encodingAddress', '0x' + adr.toString(16), input, tmp]);
+      if (err) return err;
+      const data = fs.readFileSync(tmp);
+      if (adr + data.length > 0x8000) return `aks2bas: the song (${data.length} bytes) doesn't fit between ${hex06(adr)} and 0x7FFF`;
+      if (o.bin) fs.writeFileSync(abs(o.bin), data);
+      fs.writeFileSync(abs(output), bankInclude(data, safeName, adr), 'utf8');
+      return undefined;
+    }
+    const prefix = safeName + '_';
+    const tmp = path.join(td, 'out.asm');
+    const err = o.sfx
+      ? await run('SongToSoundEffects', ['--labelPrefix', prefix, input, tmp])
+      : await run('SongToAkg', [...subs, '--labelPrefix', prefix, input, tmp]);
+    if (err) return err;
+    try {
+      fs.writeFileSync(abs(output), toBoriel(fs.readFileSync(tmp, 'utf8'), safeName, '', o.sfx ? 'sfx' : 'song'), 'utf8');
+    } catch (e) {
+      // the Python tool dies with an uncaught ValueError here; its last line is what Studio showed
+      if (e instanceof Aks2basError) return `ValueError: ${e.message}`;
+      throw e;
+    }
+    return undefined;
+  } finally {
+    fs.rmSync(td, { recursive: true, force: true });
+  }
+}
+
 /** Converts a song or effect bank. Runs from the project root with project-relative paths, as build_assets.sh does. */
 export async function convertMusic(
   root: string,
@@ -150,24 +247,33 @@ export async function convertMusic(
     throw e;
   }
   if (!fs.existsSync(path.resolve(root, inputRel))) return (res.error = `${inputRel}: not found`), res;
-  const script = s.library ? path.join(s.library, 'tools', 'aks2bas.py') : '';
-  if (!script || !fs.existsSync(script)) {
-    res.error = 'tools/aks2bas.py was not found. Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/).';
-    return res;
-  }
   if (!s.toolsDir) return (res.error = ARKOS_MISSING), res;
   res.argv = aksArgv(inputRel, output, { ...o, name });
   fs.mkdirSync(path.dirname(path.resolve(root, output)), { recursive: true });
   const to = timeoutToken(extra.timeoutMs ?? 120000, extra.token);
+  const python = s.engine === 'python';
   try {
-    const t = await runTool([s.pythonPath], [script, ...res.argv], {
-      cwd: root, token: to.token, sink: extra.sink, env: { ...process.env, AT3_TOOLS: s.toolsDir },
-    });
-    if (to.timedOut()) res.error = 'The Arkos tool did not finish in time. On macOS, downloaded tools hang until re-signed: run `sh tools/arkos/fetch.sh` again, or `codesign --force --sign - <tool>` on SongToAkg and SongToSoundEffects.';
-    else if (t.cancelled) res.error = 'cancelled';
-    else if (t.error) res.error = `${t.error}. Set "cpcbuild.python.path" to a Python 3.`;
-    else if (t.code !== 0) res.error = (t.stderr.trim() || `aks2bas.py exited with ${t.code}`).split('\n').pop() as string;
-    else res.ok = true;
+    if (python) {
+      const script = s.library ? path.join(s.library, 'tools', 'aks2bas.py') : '';
+      if (!script || !fs.existsSync(script)) {
+        res.error = 'tools/aks2bas.py was not found. Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/), or set "cpcbuild.assets.engine" to "builtin".';
+        return res;
+      }
+      const t = await runTool([s.pythonPath], [script, ...res.argv], {
+        cwd: root, token: to.token, sink: extra.sink, env: { ...process.env, AT3_TOOLS: s.toolsDir },
+      });
+      if (to.timedOut()) res.error = TIMED_OUT;
+      else if (t.cancelled) res.error = 'cancelled';
+      else if (t.error) res.error = `${t.error}. Set "cpcbuild.python.path" to a Python 3, or set "cpcbuild.assets.engine" to "builtin".`;
+      else if (t.code !== 0) res.error = (t.stderr.trim() || `aks2bas.py exited with ${t.code}`).split('\n').pop() as string;
+      else res.ok = true;
+    } else {
+      const err = await convertBuiltin(root, inputRel, output, name, o, s.toolsDir, to.token, extra.sink);
+      if (to.timedOut()) res.error = TIMED_OUT;
+      else if (err === CANCELLED) res.error = 'cancelled';
+      else if (err) res.error = err;
+      else res.ok = true;
+    }
   } finally {
     to.clear();
   }

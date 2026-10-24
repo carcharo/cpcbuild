@@ -8,7 +8,8 @@ import * as path from 'node:path';
 import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
 import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
 import { assetFailure, regenerateAll } from './assetsGen';
-import { absFrom, readSettings, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
+import { absFrom, readSettings, resolveLibrary, resolveMkdsk, Settings } from './config';
+import { makeCpr } from './mkcprGen';
 import { CancelToken, runTool, Sink } from './runTool';
 import { compilerHint, runZxbc } from './zxbcCommand';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
@@ -162,14 +163,9 @@ export async function buildTarget(
     a.dsk = dsk;
     res.run = { file: dsk, kind: 'dsk', name: target.disc, model };
   } else if (target.package === 'cpr') {
-    const mkcpr = resolveMkcpr(library);
-    if (!mkcpr) return done(), fail(res, `tools/mkcpr.py was not found under ${library}. Point "cpcbuild.library.path" at a full cpcbuild checkout.`, sink);
     const cpr = `${base}.cpr`;
-    const r = await runTool([s.pythonPath], [mkcpr, bin as string, '--load', loadHex, '-o', cpr], { cwd: root, token, sink });
-    if (r.cancelled) return done(), fail(res, 'cancelled.', sink);
-    if (r.error || r.code !== 0 || !fs.existsSync(cpr)) {
-      return done(), fail(res, r.error ? `${r.error}. Set "cpcbuild.python.path" to a Python 3.` : `mkcpr.py exited with ${r.code} (is the program below &C000?).`, sink);
-    }
+    const r = await makeCpr(bin as string, start ?? 0x40, cpr, { engine: s.assetsEngine, pythonPath: s.pythonPath, library }, { cwd: root, token, sink });
+    if (!r.ok) return done(), fail(res, r.error ?? 'mkcpr failed.', sink);
     a.cpr = cpr;
     res.run = { file: cpr, kind: 'cpr', model: 'plus' };
   }

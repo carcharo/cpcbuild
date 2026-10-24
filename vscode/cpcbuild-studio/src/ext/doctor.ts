@@ -65,10 +65,12 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
     id: 'library', label: 'cpcbuild library (lib/)', ok: !!lib, detail: lib ? path.join(lib, 'lib') : 'not found',
     fix: 'Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/).',
   });
-  add({
-    id: 'tools', label: 'cpcbuild tools/ (mkcpr.py)', ok: !!resolveMkcpr(lib), detail: resolveMkcpr(lib) ?? 'not found',
-    fix: 'Point "cpcbuild.library.path" at a full cpcbuild checkout.',
-  });
+  add(s.assetsEngine === 'python'
+    ? {
+      id: 'tools', label: 'cpcbuild tools/ (mkcpr.py)', ok: !!resolveMkcpr(lib), detail: resolveMkcpr(lib) ?? 'not found',
+      fix: 'Point "cpcbuild.library.path" at a full cpcbuild checkout, or set "cpcbuild.assets.engine" to "builtin".',
+    }
+    : { id: 'tools', label: 'Cartridge packaging (mkcpr)', ok: true, detail: 'built in' });
   const mkdsk = resolveMkdsk(s, base, lib);
   add({
     id: 'mkdsk', label: 'mkdsk.py (zxbasic tools/cpc/)', ok: !!mkdsk, detail: mkdsk ?? 'not found',

@@ -1,0 +1,32 @@
+{
+ "tiny": {
+  "load": 64,
+  "entry": 64,
+  "summary": "mkcpr: tiny.cpr: 32796 bytes, 2 pages, load &0040 entry &0040"
+ },
+ "small": {
+  "load": 16384,
+  "entry": 16400,
+  "summary": "mkcpr: small.cpr: 32796 bytes, 2 pages, load &4000 entry &4010"
+ },
+ "page": {
+  "load": 256,
+  "entry": 256,
+  "summary": "mkcpr: page.cpr: 32796 bytes, 2 pages, load &0100 entry &0100"
+ },
+ "pageplus1": {
+  "load": 64,
+  "entry": 64,
+  "summary": "mkcpr: pageplus1.cpr: 49188 bytes, 3 pages, load &0040 entry &0040"
+ },
+ "max": {
+  "load": 64,
+  "entry": 64,
+  "summary": "mkcpr: max.cpr: 65580 bytes, 4 pages, load &0040 entry &0040"
+ },
+ "top": {
+  "load": 49120,
+  "entry": 49128,
+  "summary": "mkcpr: top.cpr: 32796 bytes, 2 pages, load &BFE0 entry &BFE8"
+ }
+}
