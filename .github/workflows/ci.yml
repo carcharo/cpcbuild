@@ -25,10 +25,10 @@ name: CI
 
 on:
   push:
-    branches: [main, 'phase-*', 'pre-*']
+    branches: [main, 'phase-*', 'pre-*', 'release-*']
     paths-ignore: ['**.md', 'docs/**']
   pull_request:
-    branches: [main, 'phase-*', 'pre-*']
+    branches: [main, 'phase-*', 'pre-*', 'release-*']
     paths-ignore: ['**.md', 'docs/**']
   schedule:
     - cron: '23 3 * * *'
