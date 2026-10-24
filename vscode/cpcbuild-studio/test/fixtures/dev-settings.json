@@ -2,6 +2,7 @@
   "cpcbuild.zxbc.command": ["poetry", "run", "python", "zxbc.py"],
   "cpcbuild.zxbc.cwd": "${zxbasic}",
   "cpcbuild.library.path": "${repo}",
+  "cpcbuild.python.path": "${python}",
   "cpcbuild.run.emulator": "custom",
-  "cpcbuild.run.customCommand": "/usr/bin/touch ${dsk}${cpr}.ran"
+  "cpcbuild.run.customCommand": "\"${node}\" \"${touch}\" ${dsk}${cpr}.ran"
 }

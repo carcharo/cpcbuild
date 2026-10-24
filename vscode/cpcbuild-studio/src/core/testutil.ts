@@ -17,13 +17,22 @@ function findPython(): { setting: string; cmd: string[] } {
     process.platform === 'win32'
       ? [{ setting: 'python', cmd: ['python'] }, { setting: 'py -3', cmd: ['py', '-3'] }, { setting: 'python3', cmd: ['python3'] }]
       : [{ setting: 'python3', cmd: ['python3'] }, { setting: 'python', cmd: ['python'] }];
+  let first: { setting: string; cmd: string[] } | undefined;
   for (const c of cands) {
-    const r = spawnSync(c.cmd[0], [...c.cmd.slice(1), '--version'], { encoding: 'utf8' });
-    if (!r.error && r.status === 0 && /Python 3/.test(r.stdout + r.stderr)) return c;
+    // a Python 3 with Pillow (the converters need it) beats one without
+    const r = spawnSync(c.cmd[0], [...c.cmd.slice(1), '-c', 'import sys\nassert sys.version_info[0] == 3\ntry:\n import PIL\nexcept ImportError:\n sys.exit(2)'], { encoding: 'utf8' });
+    if (r.error) continue;
+    if (r.status === 0) return c;
+    first ??= r.status === 2 ? c : undefined;
   }
-  return cands[0];
+  return first ?? cands[0];
 }
 const FOUND = findPython();
+/** The absolute path of that Python (what the extension host tests are told to use: its PATH may differ from ours). */
+export const PYTHON_ABS: string = (() => {
+  const r = spawnSync(FOUND.cmd[0], [...FOUND.cmd.slice(1), '-c', 'import sys;print(sys.executable)'], { encoding: 'utf8' });
+  return !r.error && r.status === 0 && r.stdout.trim() ? r.stdout.trim() : FOUND.cmd[0];
+})();
 export const PYTHON_SETTING = FOUND.setting;
 export const PYTHON: readonly string[] = FOUND.cmd;
 

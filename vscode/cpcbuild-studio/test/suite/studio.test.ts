@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { TEMPLATES } from '../../src/core/templates';
 import { parseProject } from '../../src/core/project';
-import { test, waitFor } from './harness';
+import { test, TRUE_EXE, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
@@ -152,7 +152,7 @@ test('emu setting without the emulator extension falls back and says why', async
   const cfg = vscode.workspace.getConfiguration('cpcbuild');
   const good = a.lastBuild()!;
   await cfg.update('run.emulator', 'emu', vscode.ConfigurationTarget.Workspace);
-  await cfg.update('run.caprice32Path', '/usr/bin/true', vscode.ConfigurationTarget.Workspace);
+  await cfg.update('run.caprice32Path', TRUE_EXE, vscode.ConfigurationTarget.Workspace);
   try {
     const before = Date.now();
     await vscode.commands.executeCommand('cpcbuild.runFile', vscode.Uri.file(good.artifacts.dsk!));

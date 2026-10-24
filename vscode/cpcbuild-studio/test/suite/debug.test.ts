@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { readSettings } from '../../src/ext/config';
 import type { EmuState } from '../../src/emuApi';
-import { test, waitFor } from './harness';
+import { test, TRUE_EXE, waitFor } from './harness';
 
 // the path as VS Code has it (the temp dir may be a symlink; project roots are compared as strings)
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
@@ -138,7 +138,7 @@ test('emulator extension missing: one warning per session, with install and exte
     const lines: string[] = [];
     const sink = { line: (t: string) => void lines.push(t) };
     // "/usr/bin/true" stands in for an installed external emulator: it exits at once and shows nothing
-    const base = { ...readSettings(ws), emulator: 'emu' as const, caprice32Path: '/usr/bin/true', libraryPath: '' };
+    const base = { ...readSettings(ws), emulator: 'emu' as const, caprice32Path: TRUE_EXE, libraryPath: '' };
     const first = await a.runIn(ws, run, sink, base, null);
     assert.strictEqual(first.used, 'caprice32', first.message);
     assert.strictEqual(calls.length, 1);
@@ -168,7 +168,7 @@ test('"Use external emulator" sets the setting for good; "Install" does not thro
   const before = cfg.inspect<string>('run.emulator')?.workspaceValue;
   const run = { file: path.join(ws, 'build', 'cpc6128.dsk'), kind: 'dsk' as const, name: 'TPLFW', model: '6128' as const };
   const sink = { line: () => undefined };
-  const base = { ...readSettings(ws), emulator: 'emu' as const, caprice32Path: '/usr/bin/true', libraryPath: '' };
+  const base = { ...readSettings(ws), emulator: 'emu' as const, caprice32Path: TRUE_EXE, libraryPath: '' };
   try {
     a.emuMissing.reset();
     a.emuMissing.setUi({ warn: async () => 'Use external emulator' });

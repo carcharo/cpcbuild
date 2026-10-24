@@ -7,7 +7,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import { newSprite, serialiseSprite } from '../../src/core/spriteDoc';
 import type { TmxDocument } from '../../src/ext/tmxViewer';
 import type { ConvertResult } from '../../src/shared/tmxProtocol';
-import { python, test, waitFor } from './harness';
+import { python, test, TRUE_EXE, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const REPO = path.resolve(__dirname, '../../../../..');
@@ -169,9 +169,9 @@ test('tmx viewer: a map the tool cannot read shows the tool\'s text; a change on
 test('Open in Tiled: starts the configured app on the map; says what is wrong when it cannot', async () => {
   copyIn('examples/assets/level.tmx', 'maps/level.tmx');
   const uri = vscode.Uri.file(path.join(ws, 'maps/level.tmx'));
-  const ok = (await vscode.commands.executeCommand('cpcbuild.openInTiled', { uri, tiledPath: '/usr/bin/true', quiet: true })) as { ok: boolean; command?: string[] };
+  const ok = (await vscode.commands.executeCommand('cpcbuild.openInTiled', { uri, tiledPath: TRUE_EXE, quiet: true })) as { ok: boolean; command?: string[] };
   assert.ok(ok.ok);
-  assert.deepStrictEqual(ok.command, ['/usr/bin/true', uri.fsPath]);
+  assert.deepStrictEqual(ok.command, [TRUE_EXE, uri.fsPath]);
   const bad = (await vscode.commands.executeCommand('cpcbuild.openInTiled', { uri, tiledPath: '/nonexistent/tiled', quiet: true })) as { ok: boolean; error?: string };
   assert.strictEqual(bad.ok, false);
   assert.match(bad.error ?? '', /could not start Tiled/);

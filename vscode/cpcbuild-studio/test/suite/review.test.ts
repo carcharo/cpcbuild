@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { argvToRecipe, serialiseRecipe } from '../../src/core/cpcimp';
-import { test, waitFor } from './harness';
+import { test, TRUE_EXE, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const REPO = path.resolve(__dirname, '../../../../..');
@@ -77,7 +77,7 @@ test('trust: in Restricted Mode Build, Regenerate, Convert, Open in Tiled and th
     assert.strictEqual(conv.ok, false);
     assert.match(conv.error ?? '', /Restricted Mode/);
     assert.ok(!fs.existsSync(path.join(ws, 'maps', 'trust.bas')), 'nothing was written');
-    const tiled = (await vscode.commands.executeCommand('cpcbuild.openInTiled', { uri: tmx, quiet: true, tiledPath: '/usr/bin/true' })) as { ok: boolean; error?: string };
+    const tiled = (await vscode.commands.executeCommand('cpcbuild.openInTiled', { uri: tmx, quiet: true, tiledPath: TRUE_EXE })) as { ok: boolean; error?: string };
     assert.strictEqual(tiled.ok, false);
     assert.match(tiled.error ?? '', /Open in Tiled is disabled in Restricted Mode/);
 

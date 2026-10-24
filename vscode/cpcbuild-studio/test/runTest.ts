@@ -3,7 +3,10 @@ import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { generateTemplate } from '../src/core/templates';
-import { findZxbasic } from '../src/core/testutil';
+import { findZxbasic, PYTHON_ABS } from '../src/core/testutil';
+
+/** `s` as it goes inside a JSON string (a Windows path has backslashes). */
+const jsonText = (s: string): string => JSON.stringify(s).slice(1, -1);
 
 /** The temp workspace the tests open: a firmware-template project plus a deliberately broken one and an invalid one. */
 function makeWorkspace(extRoot: string): string {
@@ -20,8 +23,11 @@ function makeWorkspace(extRoot: string): string {
   // the dev settings: how to start the compiler on this machine (a test settings file, never hardcoded in the extension)
   const settings = fs
     .readFileSync(path.join(extRoot, 'test', 'fixtures', 'dev-settings.json'), 'utf8')
-    .replace(/\$\{repo\}/g, repo)
-    .replace(/\$\{zxbasic\}/g, zxbasic);
+    .replace(/\$\{repo\}/g, () => jsonText(repo))
+    .replace(/\$\{zxbasic\}/g, () => jsonText(zxbasic))
+    .replace(/\$\{python\}/g, () => jsonText(PYTHON_ABS))
+    .replace(/\$\{node\}/g, () => jsonText(process.execPath))
+    .replace(/\$\{touch\}/g, () => jsonText(path.join(extRoot, 'test', 'fixtures', 'touch.js')));
   put('.vscode/settings.json', settings);
   put('broken/cpcbuild.json', JSON.stringify({ version: 1, name: 'broken', targets: [{ id: 'bad', main: 'src/main.bas', package: 'dsk' }] }));
   put('broken/src/main.bas', 'DIM a AS UBYTE\nb = 3\nPRINT a +\nPRINT "x"\n');
@@ -37,6 +43,8 @@ async function main(): Promise<void> {
   const extensionTestsPath = path.resolve(__dirname, './suite/index');
   const ws = makeWorkspace(extensionDevelopmentPath);
   process.env.CPCBUILD_TEST_WORKSPACE = ws;
+  // the Python (with Pillow) the tests call directly; the host's PATH may find another one first (a login shell's)
+  process.env.CPCBUILD_TEST_PYTHON = PYTHON_ABS;
   // a short user-data dir: the default under .vscode-test is too long for the IPC socket in a deep checkout
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcud-'));
   try {

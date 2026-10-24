@@ -34,5 +34,11 @@ export async function waitFor<T>(what: string, fn: () => T | undefined | false |
   }
 }
 
-/** The Python the tests call directly: `py -3` on Windows (there is no python3 there), python3 elsewhere. */
-export const python = (): { cmd: string; pre: string[] } => (process.platform === 'win32' ? { cmd: 'py', pre: ['-3'] } : { cmd: 'python3', pre: [] });
+import * as path from 'path';
+
+/** The Python the tests call directly: the one runTest.ts chose (with Pillow); else `py -3` on Windows, python3 elsewhere. */
+export const python = (): { cmd: string; pre: string[] } =>
+  process.env.CPCBUILD_TEST_PYTHON ? { cmd: process.env.CPCBUILD_TEST_PYTHON, pre: [] } : process.platform === 'win32' ? { cmd: 'py', pre: ['-3'] } : { cmd: 'python3', pre: [] };
+
+/** A program that starts, exits at once and shows nothing: stands in for an installed external emulator or Tiled. */
+export const TRUE_EXE = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'hostname.exe') : '/usr/bin/true';
