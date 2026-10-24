@@ -303,9 +303,8 @@ jobs:
       - name: Studio unit tests (vitest)
         working-directory: cpcbuild/vscode/cpcbuild-studio
         run: npm run test:unit
-      # macOS runners have a display, Windows needs no xvfb. Non-blocking until seen green on both.
+      # macOS runners have a display, Windows needs no xvfb.
       - name: Studio extension-host tests (npm run test:vscode)
-        continue-on-error: true
         working-directory: cpcbuild/vscode/cpcbuild-studio
         run: npm run test:vscode
 
