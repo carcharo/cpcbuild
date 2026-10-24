@@ -43,6 +43,10 @@ describe('package.json contributions', () => {
     expect([w[1], w[2], w[3], w[4], w[5]]).toEqual(['bad.bas', '3', 'warning', 'W100', "Using default implicit type 'float' for 'b'"]);
     const e = re.exec('/p/x/bad.bas:5: error: Unexpected end of line')!;
     expect([e[1], e[2], e[3], e[4], e[5]]).toEqual(['/p/x/bad.bas', '5', 'error', undefined, 'Unexpected end of line']);
+    // Windows: a drive-letter colon and backslashes in the path
+    const wl = re.exec("C:\\Users\\runner\\ws\\broken\\src\\main.bas:3: error: [E123] Unexpected end of line")!;
+    expect([wl[1], wl[2], wl[3], wl[4], wl[5]]).toEqual(['C:\\Users\\runner\\ws\\broken\\src\\main.bas', '3', 'error', 'E123', 'Unexpected end of line']);
+    expect(re.exec('D:/a/x/bad.bas:7: warning: w')?.[1]).toBe('D:/a/x/bad.bas');
     expect(re.test('Build failed: something')).toBe(false);
     expect(m.pattern).toMatchObject({ file: 1, line: 2, severity: 3, code: 4, message: 5 });
   });

@@ -7,7 +7,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import { newSprite, serialiseSprite } from '../../src/core/spriteDoc';
 import type { TmxDocument } from '../../src/ext/tmxViewer';
 import type { ConvertResult } from '../../src/shared/tmxProtocol';
-import { python, test, TRUE_EXE, waitFor } from './harness';
+import { mkdirp, python, rmrf, test, TRUE_EXE, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const REPO = path.resolve(__dirname, '../../../../..');
@@ -21,11 +21,11 @@ async function api(): Promise<StudioApi> {
 
 function copyIn(rel: string, as = rel): string {
   const dst = path.join(ws, as);
-  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  mkdirp(path.dirname(dst));
   fs.copyFileSync(path.join(REPO, rel), dst);
   return dst;
 }
-const rm = (...rels: string[]): void => rels.forEach((r) => fs.rmSync(path.join(ws, r), { recursive: true, force: true }));
+const rm = (...rels: string[]): void => rels.forEach((r) => rmrf(path.join(ws, r)));
 const read = (rel: string): string => fs.readFileSync(path.join(ws, rel), 'utf8');
 const setting = (k: string, v: unknown): Thenable<void> => vscode.workspace.getConfiguration('cpcbuild').update(k, v, vscode.ConfigurationTarget.Workspace);
 const closeAll = (): Thenable<unknown> => vscode.commands.executeCommand('workbench.action.closeAllEditors');

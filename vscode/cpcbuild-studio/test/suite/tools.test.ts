@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { makeTarGz, makeZip, FixEntry } from '../../src/core/archiveFixture';
 import { toolsPlatform, ToolsManifest, ToolsPlatform } from '../../src/core/tools';
-import { test } from './harness';
+import { rmrf, test } from './harness';
 
 const win = process.platform === 'win32';
 const x = (n: string): string => (win ? `${n}.exe` : n);
@@ -97,7 +97,7 @@ test('download tools: fetches both from a local server (redirect, checksum, unpa
       assert.deepStrictEqual(again.installed, []);
     });
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    rmrf(root);
   }
 });
 
@@ -112,7 +112,7 @@ test('download tools: a wrong checksum is refused with the exact text and instal
       assert.deepStrictEqual(fs.readdirSync(root), []);
     });
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    rmrf(root);
   }
 });
 
@@ -129,7 +129,7 @@ test('download tools: an unpinned entry is refused, and a dead server gives the 
     assert.match(dead.message, /^CPCBuild: could not download Arkos Tracker 9\.9: .*\. Check the connection or "http\.proxy", or download the SDK zip from the releases page\.$/);
     assert.deepStrictEqual(fs.readdirSync(root), []);
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    rmrf(root);
   }
 });
 
@@ -142,7 +142,7 @@ test('download tools: no Arkos tools for linux-arm64 is said plainly', async () 
     assert.strictEqual(r.ok, false);
     assert.strictEqual(r.message, 'CPCBuild: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
   } finally {
-    fs.rmSync(root, { recursive: true, force: true });
+    rmrf(root);
   }
 });
 
@@ -171,6 +171,6 @@ const bundle = process.env.CPCBUILD_SDK_BUNDLE;
     assert.ok(r.reportLines.length > 0);
   } finally {
     for (const [k, v] of saved) await cfg.update(k, v, vscode.ConfigurationTarget.Workspace);
-    fs.rmSync(sdk, { recursive: true, force: true });
+    rmrf(sdk);
   }
 });

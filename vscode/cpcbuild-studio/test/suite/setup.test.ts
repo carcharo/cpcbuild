@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import type { BuildResult } from '../../src/ext/build';
-import { test } from './harness';
+import { rmrf, samePath, test } from './harness';
 
 async function api(): Promise<StudioApi> {
   const ext = vscode.extensions.getExtension<StudioApi>('cpcbuild.cpcbuild-studio');
@@ -61,7 +61,7 @@ test('no compiler: one notice per session with the three buttons; none when a co
     assert.deepStrictEqual(calls[0].buttons, ['Download Tools', 'Get Started', 'Not Now']);
   } finally {
     process.env.PATH = path0;
-    fs.rmSync(emptyDir, { recursive: true, force: true });
+    rmrf(emptyDir);
     await cfg.update('zxbc.command', keep.cmd, vscode.ConfigurationTarget.Workspace);
     await cfg.update('zxbc.cwd', keep.cwd, vscode.ConfigurationTarget.Workspace);
     a.setup.setUi(undefined);
@@ -119,7 +119,7 @@ test('emulator install: downloads the vsix of Studio\'s version, installs it by 
       assert.strictEqual(ok.how, 'download');
       assert.strictEqual(ok.message, 'CPCBuild: CPCBuild Emulator installed. Run the program again.');
       assert.strictEqual(installed.length, 1);
-      assert.strictEqual(installed[0].fsPath, path.join(dir, 'cpcbuild-emu-9.9.9.vsix'));
+      assert.ok(samePath(installed[0].fsPath, path.join(dir, 'cpcbuild-emu-9.9.9.vsix')), installed[0].fsPath);
       assert.deepStrictEqual(fs.readFileSync(installed[0].fsPath), vsix);
       assert.deepStrictEqual(opened, []);
 
@@ -135,6 +135,6 @@ test('emulator install: downloads the vsix of Studio\'s version, installs it by 
     const ext = vscode.extensions.getExtension('cpcbuild.cpcbuild-studio');
     assert.strictEqual(ext?.packageJSON.version, '0.1.0');
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    rmrf(dir);
   }
 });

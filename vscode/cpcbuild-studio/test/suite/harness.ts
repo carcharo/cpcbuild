@@ -34,6 +34,7 @@ export async function waitFor<T>(what: string, fn: () => T | undefined | false |
   }
 }
 
+import * as fs from 'fs';
 import * as path from 'path';
 
 /** The Python the tests call directly: the one runTest.ts chose (with Pillow); else `py -3` on Windows, python3 elsewhere. */
@@ -42,3 +43,30 @@ export const python = (): { cmd: string; pre: string[] } =>
 
 /** A program that starts, exits at once and shows nothing: stands in for an installed external emulator or Tiled. */
 export const TRUE_EXE = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'hostname.exe') : '/usr/bin/true';
+
+const sleepSync = (ms: number): void => void Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/** Removes a file or folder; retries on Windows, where a watcher or an open editor can hold a handle for a moment (EPERM/EBUSY). */
+export function rmrf(p: string): void {
+  fs.rmSync(p, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+}
+
+/** mkdir -p; retries EPERM/EBUSY (Windows keeps a just-deleted folder until its last handle closes). */
+export function mkdirp(p: string): void {
+  for (let i = 0; ; i++) {
+    try {
+      fs.mkdirSync(p, { recursive: true });
+      return;
+    } catch (e) {
+      const c = (e as NodeJS.ErrnoException).code;
+      if (i >= 50 || (c !== 'EPERM' && c !== 'EBUSY' && c !== 'EACCES')) throw e;
+      sleepSync(100);
+    }
+  }
+}
+
+/** Two paths are the same file: compared resolved, and without case on Windows (`vscode.Uri.fsPath` has a lower-case drive letter). */
+export const samePath = (a: string, b: string): boolean => {
+  const n = (p: string): string => (process.platform === 'win32' ? path.resolve(p).toLowerCase() : path.resolve(p));
+  return n(a) === n(b);
+};

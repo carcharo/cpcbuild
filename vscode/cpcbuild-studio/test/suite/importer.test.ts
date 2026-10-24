@@ -6,7 +6,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import type { Recipe } from '../../src/core/cpcimp';
 import { argvToRecipe, serialiseRecipe } from '../../src/core/cpcimp';
 import type { StudioDocument } from '../../src/ext/customEditor';
-import { python, test, waitFor } from './harness';
+import { mkdirp, python, rmrf, samePath, test, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const REPO = path.resolve(__dirname, '../../../../..');
@@ -21,7 +21,7 @@ async function api(): Promise<StudioApi> {
 /** Copies a repo file into the test workspace at the same relative path. */
 function copyIn(rel: string): void {
   const dst = path.join(ws, rel);
-  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  mkdirp(path.dirname(dst));
   fs.copyFileSync(path.join(REPO, rel), dst);
 }
 
@@ -36,7 +36,7 @@ function recipeFor(committedRel: string): Recipe {
 
 function writeRecipe(rel: string, r: Recipe): vscode.Uri {
   const f = path.join(ws, rel);
-  fs.mkdirSync(path.dirname(f), { recursive: true });
+  mkdirp(path.dirname(f));
   fs.writeFileSync(f, serialiseRecipe(r));
   return vscode.Uri.file(f);
 }
@@ -54,16 +54,16 @@ async function openImporter(uri: vscode.Uri): Promise<{ a: StudioApi; doc: Studi
 const closeClean = (): Thenable<unknown> => vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
 const read = (rel: string): string => fs.readFileSync(path.join(ws, rel), 'utf8');
 const committed = (rel: string): string => fs.readFileSync(path.join(REPO, rel), 'utf8');
-const rm = (...rels: string[]): void => rels.forEach((r) => fs.rmSync(path.join(ws, r), { recursive: true, force: true }));
+const rm = (...rels: string[]): void => rels.forEach((r) => rmrf(path.join(ws, r)));
 const setting = (k: string, v: unknown): Thenable<void> => vscode.workspace.getConfiguration('cpcbuild').update(k, v, vscode.ConfigurationTarget.Workspace);
 
 test('importer: Import Image writes assets/<stem>.cpcimp, opens it, renders with no webview error', async () => {
   copyIn('tests/conformance/assets/spr1.png');
-  fs.mkdirSync(path.join(ws, 'art'), { recursive: true });
+  mkdirp(path.join(ws, 'art'));
   fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'art/hero.png'));
   const a = await api();
   const uri = (await vscode.commands.executeCommand('cpcbuild.importImage', vscode.Uri.file(path.join(ws, 'art/hero.png')))) as vscode.Uri;
-  assert.strictEqual(uri.fsPath, path.join(ws, 'assets/hero.cpcimp'));
+  assert.ok(samePath(uri.fsPath, path.join(ws, 'assets/hero.cpcimp')), uri.fsPath);
   const r = JSON.parse(read('assets/hero.cpcimp'));
   assert.deepStrictEqual({ format: r.format, version: r.version, source: r.source, output: r.output, target: r.target, mode: r.mode }, { format: 'cpcimp', version: 1, source: 'art/hero.png', output: 'assets/hero.bas', target: 'cpc', mode: 1 });
   const doc = await waitFor('importer document', () => a.importer.documents.get(uri.toString()));
@@ -82,10 +82,10 @@ test('importer: Import Image writes assets/<stem>.cpcimp, opens it, renders with
 
 test('importer: Import Image beside an image already in an assets folder puts the recipe there', async () => {
   const img = path.join(ws, 'game/assets/gfx/tiles.png');
-  fs.mkdirSync(path.dirname(img), { recursive: true });
+  mkdirp(path.dirname(img));
   fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), img);
   const uri = (await vscode.commands.executeCommand('cpcbuild.importImage', { uri: vscode.Uri.file(img), open: false })) as vscode.Uri;
-  assert.strictEqual(uri.fsPath, path.join(ws, 'game/assets/gfx/tiles.cpcimp'));
+  assert.ok(samePath(uri.fsPath, path.join(ws, 'game/assets/gfx/tiles.cpcimp')), uri.fsPath);
   const r = JSON.parse(read('game/assets/gfx/tiles.cpcimp'));
   assert.strictEqual(r.source, 'game/assets/gfx/tiles.png');
   assert.strictEqual(r.output, 'game/assets/gfx/tiles.bas');

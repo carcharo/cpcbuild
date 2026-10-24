@@ -4,7 +4,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
-import { test, waitFor } from './harness';
+import { mkdirp, rmrf, test, waitFor } from './harness';
 
 async function api(): Promise<StudioApi> {
   const ext = vscode.extensions.getExtension<StudioApi>('cpcbuild.cpcbuild-studio');
@@ -28,7 +28,7 @@ const textOf = (h: vscode.Hover): string =>
   h.contents.map((c) => (typeof c === 'string' ? c : 'value' in c ? c.value : '')).join('\n');
 
 async function openSource(file: string): Promise<vscode.TextDocument> {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  mkdirp(path.dirname(file));
   fs.writeFileSync(file, SOURCE);
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
   await vscode.window.showTextDocument(doc);
@@ -135,6 +135,6 @@ test('outside a cpcbuild project: no diagnostics and no hover or completion from
     const help = (await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', doc.uri, new vscode.Position(4, 11), '(')) as vscode.SignatureHelp | undefined;
     assert.ok(!help || help.signatures.length === 0);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    rmrf(dir);
   }
 });

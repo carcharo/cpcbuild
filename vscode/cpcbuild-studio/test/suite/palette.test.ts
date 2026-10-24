@@ -6,7 +6,7 @@ import type { StudioApi } from '../../src/ext/activate';
 import type { PaletteState } from '../../src/core/paletteDoc';
 import type { StudioDocument } from '../../src/ext/customEditor';
 import { encodePng, newImage, setPixel } from '../../src/core/image';
-import { test, waitFor } from './harness';
+import { mkdirp, test, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const VIEW_TYPE = 'cpcbuild.paletteEditor';
@@ -19,7 +19,7 @@ async function api(): Promise<StudioApi> {
 
 function put(rel: string, text: string): vscode.Uri {
   const f = path.join(ws, 'palettes', rel);
-  fs.mkdirSync(path.dirname(f), { recursive: true });
+  mkdirp(path.dirname(f));
   fs.writeFileSync(f, text);
   return vscode.Uri.file(f);
 }

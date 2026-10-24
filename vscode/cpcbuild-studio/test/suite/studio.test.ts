@@ -6,7 +6,7 @@ import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { TEMPLATES } from '../../src/core/templates';
 import { parseProject } from '../../src/core/project';
-import { test, TRUE_EXE, waitFor } from './harness';
+import { rmrf, samePath, test, TRUE_EXE, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
@@ -105,7 +105,7 @@ test('the $zxbc problem matcher catches a compiler error', async () => {
   assert.strictEqual(code, 1, 'a failed build exits 1');
   const file = path.join(fs.realpathSync(ws), 'broken', 'src', 'main.bas');
   const diags = await waitFor('problem-matcher diagnostics', () => {
-    const all = vscode.languages.getDiagnostics().flatMap(([u, ds]) => (fs.existsSync(u.fsPath) && fs.realpathSync(u.fsPath) === file ? ds : []));
+    const all = vscode.languages.getDiagnostics().flatMap(([u, ds]) => (fs.existsSync(u.fsPath) && samePath(fs.realpathSync(u.fsPath), file) ? ds : []));
     return all.some((d) => d.severity === vscode.DiagnosticSeverity.Error) ? all : undefined;
   }, 20000);
   const err = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Error)!;
@@ -120,7 +120,7 @@ test('an invalid cpcbuild.json gets diagnostics with the fix', async () => {
   await api();
   const file = path.join(fs.realpathSync(ws), 'invalid', 'cpcbuild.json');
   const ds = await waitFor('cpcbuild.json diagnostics', () => {
-    const all = vscode.languages.getDiagnostics().flatMap(([u, d]) => (fs.existsSync(u.fsPath) && fs.realpathSync(u.fsPath) === file ? d : []));
+    const all = vscode.languages.getDiagnostics().flatMap(([u, d]) => (fs.existsSync(u.fsPath) && samePath(fs.realpathSync(u.fsPath), file) ? d : []));
     return all.length ? all : undefined;
   }, 20000);
   assert.match(ds[0].message, /bare.*ownFont/);
@@ -187,6 +187,6 @@ for (const t of TEMPLATES) {
       if (target.arch === 'cpc') assert.ok(res.report && res.reportLines.length > 1, 'report');
       if (target.package === 'cpr') assert.strictEqual(fs.readFileSync(art).subarray(0, 4).toString(), 'RIFF');
     }
-    fs.rmSync(parent, { recursive: true, force: true });
+    rmrf(parent);
   });
 }

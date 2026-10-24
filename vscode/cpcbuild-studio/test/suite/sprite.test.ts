@@ -8,7 +8,7 @@ import type { SpriteEditorProvider } from '../../src/ext/spriteEditor';
 import { encodePng, newImage, setPixel } from '../../src/core/image';
 import { newSprite, resolvePalette, serialiseSprite, type SpriteState } from '../../src/core/spriteDoc';
 import { exportAsset } from '../../src/core/spriteExport';
-import { test, waitFor } from './harness';
+import { mkdirp, rmrf, test, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 
@@ -20,7 +20,7 @@ async function api(): Promise<StudioApi> {
 
 function put(rel: string, text: string | Uint8Array): vscode.Uri {
   const f = path.join(ws, 'sprites', rel);
-  fs.mkdirSync(path.dirname(f), { recursive: true });
+  mkdirp(path.dirname(f));
   fs.writeFileSync(f, text);
   return vscode.Uri.file(f);
 }
@@ -82,7 +82,7 @@ test('sprite: Generate Asset File command, with the output in a subfolder', asyn
   s.output = 'out/gen.bas';
   s.items[0][1][1] = 3;
   const uri = put('gen.cpcspr', serialiseSprite(s));
-  fs.rmSync(path.join(ws, 'sprites', 'out'), { recursive: true, force: true });
+  rmrf(path.join(ws, 'sprites', 'out'));
   const { doc } = await openSpr(uri);
   const r = (await vscode.commands.executeCommand('cpcbuild.generateAssetFile', uri)) as { ok: boolean; message: string };
   assert.ok(r.ok, r.message);
@@ -90,7 +90,7 @@ test('sprite: Generate Asset File command, with the output in a subfolder', asyn
   assert.strictEqual(doc.webviewErrors.length, 0);
   // a file that is not open is generated from disk
   await closeClean();
-  fs.rmSync(path.join(ws, 'sprites', 'out'), { recursive: true, force: true });
+  rmrf(path.join(ws, 'sprites', 'out'));
   const r2 = (await vscode.commands.executeCommand('cpcbuild.generateAssetFile', uri)) as { ok: boolean };
   assert.ok(r2.ok);
   assert.ok(fs.existsSync(path.join(ws, 'sprites', 'out', 'gen.bas')));

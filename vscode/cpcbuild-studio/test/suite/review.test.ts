@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { argvToRecipe, serialiseRecipe } from '../../src/core/cpcimp';
-import { test, TRUE_EXE, waitFor } from './harness';
+import { mkdirp, rmrf, samePath, test, TRUE_EXE, waitFor } from './harness';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const REPO = path.resolve(__dirname, '../../../../..');
@@ -24,7 +24,7 @@ const closeClean = (): Thenable<unknown> => vscode.commands.executeCommand('work
 test('revert: an Undo or Redo closure from before the Revert does nothing', async () => {
   const a = await api();
   const f = path.join(ws, 'palettes', 'revert.cpcpal');
-  fs.mkdirSync(path.dirname(f), { recursive: true });
+  mkdirp(path.dirname(f));
   fs.writeFileSync(f, '0, 26, 6, 18\n');
   const uri = vscode.Uri.file(f);
   await vscode.commands.executeCommand('vscode.openWith', uri, 'cpcbuild.paletteEditor');
@@ -71,7 +71,7 @@ test('trust: in Restricted Mode Build, Regenerate, Convert, Open in Tiled and th
     assert.strictEqual(await vscode.commands.executeCommand('cpcbuild.regenerateAssets'), undefined);
 
     const tmx = path.join(ws, 'maps', 'trust.tmx');
-    fs.mkdirSync(path.dirname(tmx), { recursive: true });
+    mkdirp(path.dirname(tmx));
     fs.copyFileSync(path.join(REPO, 'examples/assets/level.tmx'), tmx);
     const conv = (await vscode.commands.executeCommand('cpcbuild.tmx.generate', { uri: tmx, quiet: true })) as { ok: boolean; error?: string };
     assert.strictEqual(conv.ok, false);
@@ -101,7 +101,7 @@ test('trust: in Restricted Mode Build, Regenerate, Convert, Open in Tiled and th
 
 test('trust: the importer does not generate in Restricted Mode, and an editor still opens', async () => {
   const a = await api();
-  fs.mkdirSync(path.join(ws, 'assets'), { recursive: true });
+  mkdirp(path.join(ws, 'assets'));
   fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
   const rec = argvToRecipe(['--mode', '1', '--name', 'trusty', 'assets/spr1.png', '-o', 'assets/trusty.bas']).recipe;
   const f = path.join(ws, 'assets', 'trusty.cpcimp');
@@ -130,7 +130,7 @@ test('trust: the importer does not generate in Restricted Mode, and an editor st
 
 test('containment: a recipe naming ../ or an absolute output is a recipe problem and writes nothing', async () => {
   const a = await api();
-  fs.mkdirSync(path.join(ws, 'assets'), { recursive: true });
+  mkdirp(path.join(ws, 'assets'));
   fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
   const f = path.join(ws, 'assets', 'escape.cpcimp');
   fs.writeFileSync(f, serialiseRecipe(argvToRecipe(['--mode', '1', '--name', 'esc', 'assets/spr1.png', '-o', 'assets/esc.bas']).recipe));
@@ -155,7 +155,7 @@ test('containment: a recipe naming ../ or an absolute output is a recipe problem
 
 test('importer: the remembered generation outcome goes when its document closes', async () => {
   const a = await api();
-  fs.mkdirSync(path.join(ws, 'assets'), { recursive: true });
+  mkdirp(path.join(ws, 'assets'));
   fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
   const f = path.join(ws, 'assets', 'prune.cpcimp');
   fs.writeFileSync(f, serialiseRecipe(argvToRecipe(['--mode', '1', '--name', 'prune', 'assets/spr1.png', '-o', 'assets/prune.bas']).recipe));
@@ -180,7 +180,7 @@ test('not in a project: Import Image does not write a recipe beside a stray imag
     assert.strictEqual(r, undefined);
     assert.deepStrictEqual(fs.readdirSync(dir), ['stray.png']);
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
+    rmrf(dir);
   }
 });
 
@@ -202,7 +202,7 @@ test('symbols: only the active target\'s map file is watched', async () => {
   await vscode.window.showTextDocument(doc);
   await a.debug.reloadSymbols();
   const w = a.debug.watchedMap();
-  assert.ok(w && fs.realpathSync(path.dirname(w)) === fs.realpathSync(path.join(ws, 'build')) && path.basename(w) === 'cpc6128.map', String(w));
+  assert.ok(w && samePath(fs.realpathSync(path.dirname(w)), fs.realpathSync(path.join(ws, 'build'))) && path.basename(w) === 'cpc6128.map', String(w));
 });
 
 test('debug: toggling a breakpoint with a null argument does not throw', async () => {
