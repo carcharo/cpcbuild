@@ -85,19 +85,30 @@ export function assetFor(part: Part, m: ToolsManifest, platform: NodeJS.Platform
   return asset;
 }
 
-/** Extracts entries below `dest` (created): files with their unix mode, directories; symlinks are skipped. Returns how many symlinks were skipped. */
-export function extractEntries(entries: readonly ArchiveEntry[], dest: string, strip = 0): { files: number; skippedLinks: number } {
+/**
+ * Extracts entries below `dest` (created): files with their unix mode, directories, and symlinks whose target
+ * stays inside `dest` (macOS PyInstaller bundles link _internal/Python into Python.framework). A link that
+ * points outside, or an absolute one, refuses the archive. On Windows links are skipped (none are shipped).
+ */
+export function extractEntries(entries: readonly ArchiveEntry[], dest: string, strip = 0, platform: NodeJS.Platform = process.platform): { files: number; links: number; skippedLinks: number } {
   fs.mkdirSync(dest, { recursive: true });
   const root = path.resolve(dest);
+  const inside = (p: string): boolean => p === root || p.startsWith(root + path.sep);
   let files = 0;
   let skippedLinks = 0;
+  const links: [string, string][] = [];
   for (const e of entries) {
     const rel = e.path.split('/').slice(strip).join('/');
     if (!rel) continue;
     const target = path.resolve(root, ...rel.split('/'));
-    if (target !== root && !target.startsWith(root + path.sep)) throw new ArchiveError(`unsafe path in the archive: ${e.path}`);
+    if (!inside(target)) throw new ArchiveError(`unsafe path in the archive: ${e.path}`);
     if (e.kind === 'symlink') {
-      skippedLinks++;
+      const to = e.linkTarget ?? '';
+      if (!to || path.isAbsolute(to) || /^[A-Za-z]:/.test(to) || !inside(path.resolve(path.dirname(target), to))) {
+        throw new ArchiveError(`unsafe link in the archive: ${e.path} -> ${to}`);
+      }
+      if (platform === 'win32') skippedLinks++;
+      else links.push([target, to]);
       continue;
     }
     if (e.kind === 'dir') {
@@ -106,10 +117,16 @@ export function extractEntries(entries: readonly ArchiveEntry[], dest: string, s
     }
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, e.data());
-    if (process.platform !== 'win32') fs.chmodSync(target, (e.mode || 0o644) | 0o600);
+    if (platform !== 'win32') fs.chmodSync(target, (e.mode || 0o644) | 0o600);
     files++;
   }
-  return { files, skippedLinks };
+  // links last, so no file is ever written through one
+  for (const [at, to] of links) {
+    fs.mkdirSync(path.dirname(at), { recursive: true });
+    fs.rmSync(at, { force: true });
+    fs.symlinkSync(to, at);
+  }
+  return { files, links: links.length, skippedLinks };
 }
 
 /** The archive's entries (.zip or .tar.gz by the URL's ending). */

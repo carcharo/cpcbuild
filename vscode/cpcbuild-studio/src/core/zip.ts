@@ -1,7 +1,7 @@
 /**
  * zip.ts -- a small zip reader on node:zlib (stored and deflate entries; no zip64, no encryption).
- * Keeps the unix mode in the external attributes (macOS `ditto -c -k` and Info-ZIP write it) and flags
- * symlinks. Every entry name goes through safeEntryPath. No vscode import.
+ * Keeps the unix mode in the external attributes (macOS `ditto -c -k` and Info-ZIP write it) and returns
+ * symlinks with their target. Every entry name goes through safeEntryPath. No vscode import.
  */
 import * as zlib from 'node:zlib';
 import { ArchiveEntry, ArchiveError, S_IFDIR, S_IFLNK, S_IFMT, safeEntryPath } from './archive';
@@ -56,7 +56,8 @@ export function readZip(buf: Buffer): ArchiveEntry[] {
       if (d.length !== usize) throw new ArchiveError(`damaged zip (${rawName} has the wrong size)`);
       return d;
     };
-    out.push({ path: name, kind: isDir ? 'dir' : isLink ? 'symlink' : 'file', mode: unixMode & 0o777, data: isLink ? () => Buffer.alloc(0) : data });
+    if (isLink) out.push({ path: name, kind: 'symlink', mode: unixMode & 0o777, data: () => Buffer.alloc(0), linkTarget: data().toString('utf8') });
+    else out.push({ path: name, kind: isDir ? 'dir' : 'file', mode: unixMode & 0o777, data });
   }
   return out;
 }

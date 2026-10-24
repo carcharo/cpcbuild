@@ -10,6 +10,8 @@ export interface ArchiveEntry {
   mode: number;
   /** The file's bytes (empty for directories and symlinks). Decompresses on call. */
   data(): Buffer;
+  /** A symlink's target as stored (relative to the link's folder); the extractor checks it stays inside. */
+  linkTarget?: string;
 }
 
 /**

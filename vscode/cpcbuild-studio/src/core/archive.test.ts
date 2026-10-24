@@ -45,9 +45,10 @@ describe('zip reader', () => {
     expect(by('zxbasic/_internal/empty.txt')?.data().length).toBe(0);
     expect(by('zxbasic/stored.txt')?.data().toString()).toBe('kept as is');
   });
-  it('flags symlinks (the extractor skips them) and gives no mode when the zip is not from unix', () => {
+  it('returns symlinks with their target and gives no mode when the zip is not from unix', () => {
     const z = readZip(makeZip([{ name: 'a/l', link: '../../etc/passwd' }]));
     expect(z[0].kind).toBe('symlink');
+    expect(z[0].linkTarget).toBe('../../etc/passwd');
     expect(z[0].data().length).toBe(0);
     expect(readZip(makeZip([{ name: 'x.txt', data: 'x', mode: 0o755 }], { unix: false }))[0].mode).toBe(0);
   });
@@ -93,8 +94,8 @@ describe('tar.gz reader', () => {
     const e = readTarGz(makeTarGz([{ name, data: 'hi' }]));
     expect(e[0].path).toBe(name);
   });
-  it('flags symlinks and refuses traversal and absolute names', () => {
-    expect(readTarGz(makeTarGz([{ name: 'l', link: '/etc/passwd' }]))[0].kind).toBe('symlink');
+  it('returns symlinks with their target and refuses traversal and absolute names', () => {
+    expect(readTarGz(makeTarGz([{ name: 'l', link: '/etc/passwd' }]))[0]).toMatchObject({ kind: 'symlink', linkTarget: '/etc/passwd' });
     for (const name of ['../evil', 'a/../../evil', '/abs']) expect(() => readTarGz(makeTarGz([{ name, data: 'x' }])), name).toThrow(ArchiveError);
   });
   it('reports damage plainly', () => {

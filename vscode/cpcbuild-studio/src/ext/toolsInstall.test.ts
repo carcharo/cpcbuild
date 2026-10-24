@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ArchiveError } from '../core/archive';
 import { FixEntry, makeTarGz, makeZip } from '../core/archiveFixture';
+import { readTarGz } from '../core/tar';
 import { readZip } from '../core/zip';
 import { ToolsManifest } from '../core/tools';
 import { scratchDir } from '../core/testutil';
@@ -175,14 +176,39 @@ describe('install Arkos', () => {
 
 describe('extractEntries', () => {
   const entries = (files: FixEntry[]) => readZip(makeZip(files));
-  it('writes files with their modes, creates directories, skips symlinks and strips the top folder', () => {
+  it('writes files with their modes, creates directories and strips the top folder', () => {
     const d = fresh();
-    const r = extractEntries(entries([{ name: 'top/' }, { name: 'top/a/b.txt', data: 'b', mode: 0o755 }, { name: 'top/link', link: '/etc/passwd' }, { name: 'top/empty/' }]), d, 1);
-    expect(r).toEqual({ files: 1, skippedLinks: 1 });
+    const r = extractEntries(entries([{ name: 'top/' }, { name: 'top/a/b.txt', data: 'b', mode: 0o755 }, { name: 'top/empty/' }]), d, 1);
+    expect(r).toEqual({ files: 1, links: 0, skippedLinks: 0 });
     expect(fs.readFileSync(path.join(d, 'a', 'b.txt'), 'utf8')).toBe('b');
     if (unix) expect(fs.statSync(path.join(d, 'a', 'b.txt')).mode & 0o777).toBe(0o755);
-    expect(fs.existsSync(path.join(d, 'link'))).toBe(false);
     expect(fs.statSync(path.join(d, 'empty')).isDirectory()).toBe(true);
+  });
+  it('makes the links of a macOS PyInstaller bundle (_internal/Python -> Python.framework/...)', () => {
+    const files: FixEntry[] = [
+      { name: 'zxbasic/_internal/Python.framework/Versions/3.14/Python', data: 'lib', mode: 0o755 },
+      { name: 'zxbasic/_internal/Python.framework/Versions/Current', link: '3.14' },
+      { name: 'zxbasic/_internal/Python.framework/Python', link: 'Versions/Current/Python' },
+      { name: 'zxbasic/_internal/Python', link: 'Python.framework/Versions/3.14/Python' },
+    ];
+    for (const read of [entries, (f: FixEntry[]) => readTarGz(makeTarGz(f))]) {
+      const d = fresh();
+      if (!unix) {
+        expect(extractEntries(read(files), d, 1, 'win32')).toEqual({ files: 1, links: 0, skippedLinks: 3 });
+        continue;
+      }
+      expect(extractEntries(read(files), d, 1)).toEqual({ files: 1, links: 3, skippedLinks: 0 });
+      expect(fs.readFileSync(path.join(d, '_internal', 'Python'), 'utf8')).toBe('lib');
+      expect(fs.readFileSync(path.join(d, '_internal', 'Python.framework', 'Python'), 'utf8')).toBe('lib');
+      expect(fs.lstatSync(path.join(d, '_internal', 'Python')).isSymbolicLink()).toBe(true);
+    }
+  });
+  it('refuses links that are absolute or point outside the folder', () => {
+    for (const link of ['/etc/passwd', '../../outside', 'a/../../../x', 'C:\\Windows']) {
+      const d = fresh();
+      expect(() => extractEntries(entries([{ name: 'top/a/l', link }]), d, 1), link).toThrow(ArchiveError);
+      expect(fs.existsSync(path.join(d, 'a', 'l')), link).toBe(false);
+    }
   });
   it('refuses an entry that would land outside the folder even if a reader let it through', () => {
     const d = fresh();
