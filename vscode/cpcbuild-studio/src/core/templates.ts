@@ -35,14 +35,14 @@ export interface TemplateResult {
 
 const FIRMWARE_MAIN = `' main.bas -- a small CPCBuild program for the firmware: mode 1, four pens,
 ' one bouncing sprite. ESC quits.
-' Build and run: "CPCBuild: Build and Run" (target cpc6128 or cpc464).
+' Build and run: "CPC Game Studio: Build and Run" (target cpc6128 or cpc464).
 #include <cpc.bas>
 #include <cpcbuild.bas>
 
 ' The ball and its four pens come from the Studio documents in assets/:
 ' ball.cpcspr (the picture) and pens.cpcpal (firmware colours of pens 0-3:
 ' black, bright white, bright red, bright green). ball.bas is generated from
-' them. Double-click ball.cpcspr to open the CPCBuild Sprite Editor; edit it or
+' them. Double-click ball.cpcspr to open the CPC Sprite Editor; edit it or
 ' the palette and build again: the program changes with them.
 #include "../assets/ball.bas"      ' ball(), ball_W, ball_H, ball_pal(), ball_PENS
 
@@ -249,9 +249,9 @@ export function plusSpriteBas(): string {
 }
 
 function readme(title: string, lines: string[]): string {
-  return `# ${title}\n\nA CPCBuild Studio project. Three things to try:\n\n${lines.map((l, i) => `${i + 1}. ${l}`).join('\n')}\n\n` +
+  return `# ${title}\n\nA CPC Game Studio project. Three things to try:\n\n${lines.map((l, i) => `${i + 1}. ${l}`).join('\n')}\n\n` +
     'Targets and packaging are in `cpcbuild.json`; the build puts its output in `build/`.\n' +
-    'Set `cpcbuild.library.path` (and `cpcbuild.zxbc.command`) in the settings if "CPCBuild: Check Environment" reports something missing.\n';
+    'Set `cpcbuild.library.path` (and `cpcbuild.zxbc.command`) in the settings if "CPC Game Studio: Check Environment" reports something missing.\n';
 }
 
 export function generateTemplate(id: TemplateId, opts: TemplateOptions): TemplateResult {
@@ -276,8 +276,8 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
       files['assets/ball.cpcspr'] = json(CPC_SPR);
       files['assets/ball.bas'] = ballBas();
       common(name, [
-        'Run **CPCBuild: Build and Run** (the status bar shows the target).',
-        'Switch target with **CPCBuild: Select Target** (`cpc464` is the same program on a 464).',
+        'Run **CPC Game Studio: Build and Run** (the status bar shows the target).',
+        'Switch target with **CPC Game Studio: Select Target** (`cpc464` is the same program on a 464).',
         `At the BASIC prompt of a manual emulator session, type \`run"${disc}\`.`,
       ]);
       break;
@@ -293,9 +293,9 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
       files['assets/ball.cpcspr'] = json(CPC_SPR);
       files['assets/ball.bas'] = ballBas();
       common(name, [
-        'Run **CPCBuild: Build and Run**: the target is built with `-D CPC_BAREMETAL`.',
+        'Run **CPC Game Studio: Build and Run**: the target is built with `-D CPC_BAREMETAL`.',
         'Read the comment at the top of `src/main.bas` for what a bare program cannot call.',
-        'Open the build report (**CPCBuild: Show Build Report**) to see the headroom below the bare limits.',
+        'Open the build report (**CPC Game Studio: Show Build Report**) to see the headroom below the bare limits.',
       ]);
       break;
     }
@@ -337,7 +337,7 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
       files['assets/cpc/pens.cpcpal'] = CPC_PAL;
       files['assets/zx/.gitkeep'] = '';
       files['assets/README.md'] =
-        'Put one source PNG here and use "CPCBuild: Import Image" twice: once with target CPC (mode 0) writing into\n' +
+        'Put one source PNG here and use "CPC Game Studio: Import Image" twice: once with target CPC (mode 0) writing into\n' +
         '`assets/cpc/`, once with target Spectrum writing into `assets/zx/`. The .cpcimp recipes are regenerated before\n' +
         'each build. This template draws text only, so nothing is generated yet.\n';
       common(name, [

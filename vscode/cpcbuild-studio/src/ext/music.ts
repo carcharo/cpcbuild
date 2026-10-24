@@ -55,11 +55,11 @@ async function pickMusicFile(arg: vscode.Uri | MusicCommandArgs | undefined, qui
   if (active || quiet) return active;
   const found = await vscode.workspace.findFiles('**/*.{aks,vt2}', '**/node_modules/**', 100);
   if (!found.length) {
-    void vscode.window.showInformationMessage('CPCBuild: no .aks or .vt2 song in this workspace.');
+    void vscode.window.showInformationMessage('CPC Game Studio: no .aks or .vt2 song in this workspace.');
     return undefined;
   }
   if (found.length === 1) return found[0];
-  const pick = await vscode.window.showQuickPick(found.map((u) => ({ label: vscode.workspace.asRelativePath(u), uri: u })), { title: 'CPCBuild: song' });
+  const pick = await vscode.window.showQuickPick(found.map((u) => ({ label: vscode.workspace.asRelativePath(u), uri: u })), { title: 'CPC Game Studio: song' });
   return pick?.uri;
 }
 
@@ -72,7 +72,7 @@ export interface MusicConvertOutcome {
   error?: string;
 }
 
-/** CPCBuild: Convert Music. Never throws; returns the outcome. */
+/** CPC Game Studio: Convert Music. Never throws; returns the outcome. */
 export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): Promise<MusicConvertOutcome | undefined> {
   const a: MusicCommandArgs = arg instanceof vscode.Uri || !arg ? {} : arg;
   const quiet = a.quiet === true;
@@ -80,7 +80,7 @@ export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): 
   if (!uri) return undefined;
   const failEarly = (error: string): MusicConvertOutcome => {
     getChannel().appendLine(`Convert Music failed: ${error}`);
-    if (!quiet) void vscode.window.showErrorMessage(`CPCBuild: ${error}`);
+    if (!quiet) void vscode.window.showErrorMessage(`CPC Game Studio: ${error}`);
     return { ok: false, output: '', name: '', argv: [], error };
   };
   if (!isTrusted()) {
@@ -94,7 +94,7 @@ export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): 
   if (opts.sfx === undefined && !quiet) {
     const pick = await vscode.window.showQuickPick(
       [{ label: 'Song', description: 'SongToAkg: MusicInit(@name, 0)', sfx: false }, { label: 'Sound effects bank', description: 'SongToSoundEffects: SfxInit(@name)', sfx: true }],
-      { title: `CPCBuild: convert ${path.basename(uri.fsPath)} as...` },
+      { title: `CPC Game Studio: convert ${path.basename(uri.fsPath)} as...` },
     );
     if (!pick) return undefined;
     opts.sfx = pick.sfx;
@@ -107,7 +107,7 @@ export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): 
     getChannel().appendLine(`${inputRel} -> ${r.output}`);
     if (!quiet) {
       const snippet = opts.sfx ? `#include "${path.basename(r.output)}"\nSfxInit(@${r.name})` : `#include <music/music.bas>\n#include "${path.basename(r.output)}"\nMusicInit(@${r.name}, 0)`;
-      void vscode.window.showInformationMessage(`CPCBuild: wrote ${r.output}`, 'Copy usage', 'Open').then((c) => {
+      void vscode.window.showInformationMessage(`CPC Game Studio: wrote ${r.output}`, 'Copy usage', 'Open').then((c) => {
         if (c === 'Copy usage') void vscode.env.clipboard.writeText(snippet);
         else if (c === 'Open') void vscode.window.showTextDocument(vscode.Uri.file(path.resolve(root, r.output)));
       });
@@ -116,7 +116,7 @@ export async function musicConvertCommand(arg?: vscode.Uri | MusicCommandArgs): 
     getChannel().appendLine(`Convert Music failed: ${r.error}`);
     if (!quiet) {
       if (!t.toolsDir && r.error === arkosMissingText()) void notifyArkosMissing(r.error);
-      else void vscode.window.showErrorMessage(`CPCBuild: ${r.error}`);
+      else void vscode.window.showErrorMessage(`CPC Game Studio: ${r.error}`);
     }
   }
   return { ok: r.ok, output: r.output, name: r.name, argv: r.argv, error: r.error };
@@ -157,7 +157,7 @@ function previewTarget(): Target {
   return { id: 'preview', arch: 'cpc', main: 'preview.bas', model: '464', defines: [], bare: false, ownFont: false, package: 'dsk', disc: 'PREVIEW' };
 }
 
-/** CPCBuild: Play Music. */
+/** CPC Game Studio: Play Music. */
 export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promise<MusicPlayOutcome | undefined> {
   const a: MusicPlayArgs = arg instanceof vscode.Uri || !arg ? {} : arg;
   const quiet = a.quiet === true;
@@ -165,7 +165,7 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
   if (!uri) return undefined;
   const fail = (error: string): MusicPlayOutcome => {
     getChannel().appendLine(`Play Music failed: ${error}`);
-    if (!quiet) void vscode.window.showErrorMessage(`CPCBuild: ${error}`);
+    if (!quiet) void vscode.window.showErrorMessage(`CPC Game Studio: ${error}`);
     return { ok: false, error };
   };
   if (!isTrusted()) {
@@ -188,7 +188,7 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
   if (/\.bas$/i.test(file)) {
     const text = fs.readFileSync(file, 'utf8');
     const label = songLabelOf(text);
-    if (!label) return fail(`${path.basename(file)} is not a converted song or effect bank (made by "CPCBuild: Convert Music"); choose an .aks or .vt2 file.`);
+    if (!label) return fail(`${path.basename(file)} is not a converted song or effect bank (made by "CPC Game Studio: Convert Music"); choose an .aks or .vt2 file.`);
     includeFile = path.basename(file);
     fs.copyFileSync(file, path.join(dir, includeFile));
     plan = { kind: /SfxInit/.test(text.slice(0, 400)) ? 'sfx' : 'song', name: label, subsong: a.subsong ?? 0, effect: a.effect ?? 1 };
@@ -215,7 +215,7 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
   const out = await runInEmulator(root, b.run, sink, s, library);
   if (!out.ok) return fail(out.message ?? 'the emulator could not be started');
   current = { dsk: b.run.file, used: out.used, session: out.session, pid: out.pid, alive: out.alive };
-  if (!quiet) void vscode.window.showInformationMessage(`CPCBuild: playing ${plan.name} (${out.used}). ESC or "CPCBuild: Stop Music" ends it.`);
+  if (!quiet) void vscode.window.showInformationMessage(`CPC Game Studio: playing ${plan.name} (${out.used}). ESC or "CPC Game Studio: Stop Music" ends it.`);
   return { ok: true, dsk: b.run.file, program: posix(path.relative(root, path.join(dir, 'preview.bas'))), used: out.used, session: out.session, plan };
 }
 
@@ -238,7 +238,7 @@ async function stopCurrent(report: boolean): Promise<MusicStopOutcome> {
       reached = false; // the emulator extension is gone: nothing to reset
     }
     if (r && typeof r === 'object' && 'error' in r) {
-      if (report) void vscode.window.showWarningMessage(`CPCBuild: could not reset the emulator: ${(r as EmuError).error}`);
+      if (report) void vscode.window.showWarningMessage(`CPC Game Studio: could not reset the emulator: ${(r as EmuError).error}`);
       return { stopped: false, error: (r as EmuError).error };
     }
     if (reached) return { stopped: true, how: 'reset' };
@@ -253,10 +253,10 @@ async function stopCurrent(report: boolean): Promise<MusicStopOutcome> {
   return { stopped: true, how: 'killed' };
 }
 
-/** CPCBuild: Stop Music. */
+/** CPC Game Studio: Stop Music. */
 export async function musicStopCommand(): Promise<MusicStopOutcome> {
   const r = await stopCurrent(true);
-  if (r.how === 'nothing-to-stop') void vscode.window.showInformationMessage('CPCBuild: no music preview is playing.');
+  if (r.how === 'nothing-to-stop') void vscode.window.showInformationMessage('CPC Game Studio: no music preview is playing.');
   return r;
 }
 

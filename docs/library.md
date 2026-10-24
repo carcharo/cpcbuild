@@ -592,8 +592,7 @@ is always 0 (text scrolls in software).
 
 **WaitRetrace** waits for the start of `frames` frame flybacks. 0 counts as 1.
 Each wait first lets any flyback in progress finish, so every count is a new
-frame. Interrupts run during the wait. It then re-reads the scroll offset. (Name
-as NextBuild's `WaitRetrace`.)
+frame. Interrupts run during the wait. It then re-reads the scroll offset.
 
 **Bare-metal mode:** waits for `frames` frame changes from the frame counter
 (no scroll re-read).
@@ -786,8 +785,8 @@ LOOP UNTIL KeyDown(KEY_ESC)
 | `PalUpload(colours, count, first)` | as above; `first AS UBYTE`: first pen | sub |
 
 `SetPalette` gives pens 0 to `count - 1` the firmware colour numbers (0-26) found
-at `colours`. `PalUpload` does the same for pens `first` to `first + count - 1`
-(NextBuild's name). Entries above 26 are skipped, pens above 15 are not set
+at `colours`. `PalUpload` does the same for pens `first` to `first + count - 1`.
+Entries above 26 are skipped, pens above 15 are not set
 (upload stops after pen 15), and flashing inks are not set. A count of 0 does
 nothing. Each colour goes through the firmware (SCR_SET_INK, so its tables stay
 right) and also to the Gate Array, so it shows at once. Cost: one gate call per

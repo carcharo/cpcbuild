@@ -240,8 +240,8 @@ What this is
   A toolchain for writing Amstrad CPC programs in BASIC (Boriel BASIC, compiled): the compiler and disc
   tools (bin/), the CPCBuild library (lib/), the tutorial and guides (docs/), small examples (examples/),
   the Lamplighter game with its source (games/lamplighter/), and two Visual Studio Code extensions:
-    {studio}   CPCBuild Studio: project, build, asset editors
-    {emu}      CPCBuild Emulator: a CPC emulator inside VS Code
+    {studio}   CPC Game Studio: project, build, asset editors
+    {emu}      CPC Game Studio Emulator: a CPC emulator inside VS Code
   Nothing is installed system-wide and nothing needs Python: the programs in bin/ are self-contained.
 
 Set up (about two minutes)
@@ -249,7 +249,7 @@ Set up (about two minutes)
   2. In VS Code open the Extensions view, click the "..." menu at its top right, choose
      "Install from VSIX...", and pick {studio}. Do the same for {emu}.
   3. File > Open Folder... and open games/lamplighter in this folder. Build the lamp464 target from the
-     CPCBuild Studio view and run it. Or start your own project with the command "CPCBuild: New Project"
+     CPC Game Studio view and run it. Or start your own project with the command "CPC Game Studio: New Project"
      and create it inside this folder. Studio finds bin/ and lib/ of this SDK by itself for any project
      below the SDK folder; for a project elsewhere set "cpcbuild.sdk.path" in the VS Code settings to
      this folder.
@@ -273,11 +273,11 @@ def licenses_notice(cver: str) -> str:
     return f"""Licences in this SDK
 ====================
 
-cpcbuild-MIT.txt             CPCBuild itself: lib/, docs/, examples/, games/, CPCBuild Studio (the .vsix)
+cpcbuild-MIT.txt             CPCBuild itself: lib/, docs/, examples/, games/, CPC Game Studio (the .vsix)
 zxbasic-AGPL-3.0.txt         bin/: the Boriel BASIC compiler fork {cver} (zxbc, zxbasm, zxbpp, mkdsk) and the
                              Python runtime and libraries bundled with it (each under its own licence, see
                              bin/_internal). AGPL-3.0: the corresponding source is linked in SOURCES.txt.
-cpcbuild-emu-GPL-3.0.txt     CPCBuild Emulator (the .vsix): GPL-3.0-or-later, built on CPCEC by Cesar
+cpcbuild-emu-GPL-3.0.txt     CPC Game Studio Emulator (the .vsix): GPL-3.0-or-later, built on CPCEC by Cesar
                              Nicolas-Gonzalez. The extension carries its own corresponding source
                              (source/cpcbuild-emu-source.tar.gz inside the .vsix) and the CPC firmware ROM
                              images that come with CPCEC.
@@ -304,7 +304,7 @@ Compiler (bin/): version {cver}, the Boriel BASIC fork
   The files in bin/ are the release archive's zxbasic/ folder, unchanged. They are built by the fork's
   release workflow with PyInstaller from the tagged source above.
 
-CPCBuild Emulator (cpcbuild-emu-{ver}.vsix)
+CPC Game Studio Emulator (cpcbuild-emu-{ver}.vsix)
   corresponding source: inside the .vsix (a zip), extension/source/cpcbuild-emu-source.tar.gz
     (CPCEC unmodified, our patches, the build scripts and the extension's source, with BUILDING.txt)
   CPCEC         https://github.com/cpcitor/cpcec commit {cpcec_sha} (mirror of Cesar Nicolas-Gonzalez's CPCEC)

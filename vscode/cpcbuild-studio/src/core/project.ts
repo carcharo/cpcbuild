@@ -97,7 +97,7 @@ export function parseProject(text: string): ParseResult {
   try {
     raw = JSON.parse(text);
   } catch (e) {
-    err('', `cpcbuild.json is not valid JSON (${(e as Error).message}). Fix the syntax, or create a fresh project with "CPCBuild: New Project".`);
+    err('', `cpcbuild.json is not valid JSON (${(e as Error).message}). Fix the syntax, or create a fresh project with "CPC Game Studio: New Project".`);
     return { errors, notes };
   }
   if (!isObj(raw)) {

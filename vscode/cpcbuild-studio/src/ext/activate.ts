@@ -71,12 +71,12 @@ async function configTarget(): Promise<vscode.ConfigurationTarget> {
 async function projectAndTarget(): Promise<{ lp: LoadedProject; targetId?: string } | undefined> {
   const lp = pickProject(await findProjects());
   if (!lp) {
-    const a = await vscode.window.showInformationMessage('CPCBuild: no cpcbuild.json in this workspace.', 'New Project');
+    const a = await vscode.window.showInformationMessage('CPC Game Studio: no cpcbuild.json in this workspace.', 'New Project');
     if (a) void vscode.commands.executeCommand('cpcbuild.newProject');
     return undefined;
   }
   if (!lp.project) {
-    void vscode.window.showErrorMessage(`CPCBuild: ${lp.file} has problems: ${lp.errors[0]?.message ?? 'invalid'}`);
+    void vscode.window.showErrorMessage(`CPC Game Studio: ${lp.file} has problems: ${lp.errors[0]?.message ?? 'invalid'}`);
     void vscode.window.showTextDocument(vscode.Uri.file(lp.file));
     return undefined;
   }
@@ -112,17 +112,17 @@ async function discToRun(file: string, s: ReturnType<typeof readSettings>): Prom
   try {
     img = fs.readFileSync(file);
   } catch (e) {
-    void vscode.window.showErrorMessage(`CPCBuild: cannot read ${file}: ${(e as Error).message}`);
+    void vscode.window.showErrorMessage(`CPC Game Studio: cannot read ${file}: ${(e as Error).message}`);
     return undefined;
   }
   const c = runFromCatalogue(img);
   if (c.kind === 'one') return { name: c.name, model: s.model };
   if (c.kind === 'many') {
-    const pick = await (discTestApi.pick ?? ((cs: string[]) => vscode.window.showQuickPick(cs, { title: 'CPCBuild: which program to run from this disc?' })))(c.candidates);
+    const pick = await (discTestApi.pick ?? ((cs: string[]) => vscode.window.showQuickPick(cs, { title: 'CPC Game Studio: which program to run from this disc?' })))(c.candidates);
     return pick ? { name: pick, model: s.model } : undefined;
   }
   void vscode.window.showInformationMessage(
-    c.kind === 'none' ? 'CPCBuild: the disc has no .BIN or .BAS program to run.' : `CPCBuild: ${path.basename(file)} is not a readable CPC disc image.`,
+    c.kind === 'none' ? 'CPC Game Studio: the disc has no .BIN or .BAS program to run.' : `CPC Game Studio: ${path.basename(file)} is not a readable CPC disc image.`,
   );
   return undefined;
 }
@@ -131,7 +131,7 @@ async function discToRun(file: string, s: ReturnType<typeof readSettings>): Prom
 async function runFile(uri?: vscode.Uri): Promise<void> {
   const file = uri?.fsPath ?? vscode.window.activeTextEditor?.document.uri.fsPath;
   if (!file) {
-    void vscode.window.showInformationMessage('CPCBuild: choose a .dsk, .cpr or .bin file to run.');
+    void vscode.window.showInformationMessage('CPC Game Studio: choose a .dsk, .cpr or .bin file to run.');
     return;
   }
   const s = readSettings(path.dirname(file));
@@ -157,7 +157,7 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
     const lib = resolveLibrary(path.dirname(file), s);
     const mkdsk = resolveMkdsk(s, path.dirname(file), lib);
     if (!mkdsk) {
-      void vscode.window.showErrorMessage('CPCBuild: mkdsk was not found. Run "CPCBuild: Download Tools", or set "cpcbuild.zxbc.cwd" to your zxbasic checkout.');
+      void vscode.window.showErrorMessage('CPC Game Studio: mkdsk was not found. Run "CPC Game Studio: Download Tools", or set "cpcbuild.zxbc.cwd" to your zxbasic checkout.');
       return;
     }
     const stem = deriveDiscStem(path.basename(file, ext));
@@ -165,22 +165,22 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
     const hex = '0x' + load.toString(16).toUpperCase();
     const r = await runTool(mkdsk, ['-o', dsk, '--load', hex, '--exec', hex, '--name', `${stem}.BIN`, file], { sink });
     if (r.code !== 0) {
-      void vscode.window.showErrorMessage(`CPCBuild: packaging failed${r.error ? `: ${r.error}` : ` (mkdsk exited ${r.code})`}.`);
+      void vscode.window.showErrorMessage(`CPC Game Studio: packaging failed${r.error ? `: ${r.error}` : ` (mkdsk exited ${r.code})`}.`);
       return;
     }
     run = { file: dsk, kind: 'dsk', name: stem, model: s.model };
   } else {
-    void vscode.window.showInformationMessage(`CPCBuild: cannot run a ${ext || 'file without extension'}; use .dsk, .cpr or .bin.`);
+    void vscode.window.showInformationMessage(`CPC Game Studio: cannot run a ${ext || 'file without extension'}; use .dsk, .cpr or .bin.`);
     return;
   }
   const out = await runInEmulator(path.dirname(file), run, sink);
-  if (!out.ok) void vscode.window.showErrorMessage(`CPCBuild: ${out.message}`);
+  if (!out.ok) void vscode.window.showErrorMessage(`CPC Game Studio: ${out.message}`);
 }
 
 async function showReport(): Promise<void> {
   const b = state.lastBuild;
   if (!b) {
-    void vscode.window.showInformationMessage('CPCBuild: no build yet. Run "CPCBuild: Build" first.');
+    void vscode.window.showInformationMessage('CPC Game Studio: no build yet. Run "CPC Game Studio: Build" first.');
     return;
   }
   const ch = getChannel();
@@ -213,7 +213,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     const t = lp && selectedTarget(lp, s.targetDefault);
     if (lp && t) {
       status.text = `$(chip) ${t.id}`;
-      status.tooltip = `CPCBuild target (${t.package}); emulator: ${s.emulator}. Click to change the target.`;
+      status.tooltip = `CPC Game Studio target (${t.package}); emulator: ${s.emulator}. Click to change the target.`;
       status.show();
     } else if (lp) {
       status.text = '$(warning) cpcbuild.json';
@@ -268,7 +268,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     if (!pt?.lp.project) return;
     const pick = await vscode.window.showQuickPick(
       pt.lp.project.targets.map((t) => ({ label: t.id, description: `${t.arch}, ${t.package}${t.bare ? ', bare' : ''}`, picked: t.id === pt.targetId })),
-      { title: 'CPCBuild: target for Build and Run' },
+      { title: 'CPC Game Studio: target for Build and Run' },
     );
     if (pick) {
       await chooseTarget(pt.lp.root, pick.label);
@@ -277,17 +277,17 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   });
   reg('cpcbuild.selectEmulator', async () => {
     const items = [
-      { label: 'emu', description: 'CPCBuild Emulator extension (in a tab)' },
+      { label: 'emu', description: 'CPC Game Studio Emulator extension (in a tab)' },
       { label: 'caprice32', description: 'Caprice32 (patched build from `make cap32`)' },
       { label: 'cpcec', description: 'CPCEC (`make cpcec`)' },
       { label: 'rvm', description: 'Retro Virtual Machine' },
       { label: 'custom', description: 'cpcbuild.run.customCommand' },
     ];
-    const pick = await vscode.window.showQuickPick(items, { title: 'CPCBuild: emulator for Run' });
+    const pick = await vscode.window.showQuickPick(items, { title: 'CPC Game Studio: emulator for Run' });
     if (pick) await vscode.workspace.getConfiguration('cpcbuild').update('run.emulator', pick.label, await configTarget());
   });
   reg('cpcbuild.selectModel', async () => {
-    const pick = await vscode.window.showQuickPick([...MODELS], { title: 'CPCBuild: emulated model (overrides each target\'s model)' });
+    const pick = await vscode.window.showQuickPick([...MODELS], { title: 'CPC Game Studio: emulated model (overrides each target\'s model)' });
     if (pick) await vscode.workspace.getConfiguration('cpcbuild').update('model', pick, await configTarget());
   });
   // The emulator extension runs this on its pause/resume/close events (design section 2); for now just log.

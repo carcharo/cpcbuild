@@ -24,7 +24,7 @@ test('walkthrough: cpcbuild.getStarted has four steps with completion events and
   assert.ok(ext);
   const w = (ext.packageJSON.contributes.walkthroughs as any[]).find((x) => x.id === 'cpcbuild.getStarted');
   assert.ok(w, 'walkthrough contributed');
-  assert.strictEqual(w.title, 'Get started with CPCBuild');
+  assert.strictEqual(w.title, 'Get started with CPC Game Studio');
   assert.strictEqual(w.steps.length, 4);
   const commands = await vscode.commands.getCommands(true);
   for (const st of w.steps) {
@@ -57,7 +57,7 @@ test('no compiler: one notice per session with the three buttons; none when a co
     assert.strictEqual(await a.setup.offerToolsAtActivation(), false, 'only once per session');
     await new Promise((r) => setTimeout(r, 50));
     assert.strictEqual(calls.length, 1);
-    assert.strictEqual(calls[0].message, 'CPCBuild: the Boriel BASIC compiler is not installed yet.');
+    assert.strictEqual(calls[0].message, 'CPC Game Studio: the Boriel BASIC compiler is not installed yet.');
     assert.deepStrictEqual(calls[0].buttons, ['Download Tools', 'Get Started', 'Not Now']);
   } finally {
     process.env.PATH = path0;
@@ -76,10 +76,10 @@ test('build failure: a missing compiler gets a Download Tools button; other fail
   a.setup.setUi(ui(calls));
   try {
     const base = { root: '/x', targetId: 't', artifacts: {}, reportLines: [], ms: 1 };
-    await a.setup.notifyBuildFailure({ ...base, ok: false, message: 'zxbc: not found. Run "CPCBuild: Download Tools".', compilerMissing: true } as BuildResult);
+    await a.setup.notifyBuildFailure({ ...base, ok: false, message: 'zxbc: not found. Run "CPC Game Studio: Download Tools".', compilerMissing: true } as BuildResult);
     await a.setup.notifyBuildFailure({ ...base, ok: false, message: 'zxbc exited with 1' } as BuildResult);
     await a.setup.notifyBuildFailure({ ...base, ok: true } as BuildResult);
-    assert.deepStrictEqual(calls, [{ message: 'CPCBuild: zxbc: not found. Run "CPCBuild: Download Tools".', buttons: ['Download Tools'] }]);
+    assert.deepStrictEqual(calls, [{ message: 'CPC Game Studio: zxbc: not found. Run "CPC Game Studio: Download Tools".', buttons: ['Download Tools'] }]);
     await a.setup.notifyArkosMissing('The Arkos command-line tools were not found.');
     assert.deepStrictEqual(calls[1].buttons, ['Download Arkos Tools']);
   } finally {
@@ -117,7 +117,7 @@ test('emulator install: downloads the vsix of Studio\'s version, installs it by 
       const ok = await a.emuInstall.install({ ...common, version: '9.9.9' });
       assert.strictEqual(ok.ok, true, ok.message);
       assert.strictEqual(ok.how, 'download');
-      assert.strictEqual(ok.message, 'CPCBuild: CPCBuild Emulator installed. Run the program again.');
+      assert.strictEqual(ok.message, 'CPC Game Studio: CPC Game Studio Emulator installed. Run the program again.');
       assert.strictEqual(installed.length, 1);
       assert.ok(samePath(installed[0].fsPath, path.join(dir, 'cpcbuild-emu-9.9.9.vsix')), installed[0].fsPath);
       assert.deepStrictEqual(fs.readFileSync(installed[0].fsPath), vsix);
@@ -126,7 +126,7 @@ test('emulator install: downloads the vsix of Studio\'s version, installs it by 
       const bad = await a.emuInstall.install({ ...common, version: '8.8.8' });
       assert.strictEqual(bad.ok, false);
       assert.strictEqual(bad.how, 'fallback');
-      assert.match(bad.message, /could not download CPCBuild Emulator 8\.8\.8: HTTP 404/);
+      assert.match(bad.message, /could not download CPC Game Studio Emulator 8\.8\.8: HTTP 404/);
       assert.strictEqual(installed.length, 1, 'nothing installed');
       assert.deepStrictEqual(opened, ['https://github.com/carcharo/cpcbuild/releases']);
       assert.ok(!fs.existsSync(path.join(dir, 'cpcbuild-emu-8.8.8.vsix')), 'the failed download leaves no file');

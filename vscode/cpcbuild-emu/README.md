@@ -1,8 +1,9 @@
-# CPCBuild Emulator
+# CPC Game Studio Emulator
 
 Amstrad CPC 464, 664, 6128 and 6128 Plus emulator for VS Code, in an editor tab. The emulation is
 [CPCEC](https://github.com/cpcitor/cpcec) by Cesar Nicolas-Gonzalez compiled to WebAssembly; the page around it
 (video, sound, keyboard, the debugger commands) is CPCBuild's.
+It is the emulator half of CPC Game Studio and works with the CPC Game Studio extension.
 
 ## Use
 

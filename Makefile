@@ -95,16 +95,16 @@ test-cpcec: ## 6128 Plus on CPCEC (headless, needs `make cpcec`): smoke tests, c
 	$(PYTHON) tests/screens/run.py --emu cpcec --bare
 	$(PYTHON) games/shooter/tests/run.py --plus --emu cpcec
 
-test-vscode: ## CPCBuild Studio extension: vitest unit tests, then extension-host tests (zxbc from ZXBASIC; on Linux run as xvfb-run -a make test-vscode)
+test-vscode: ## CPC Game Studio extension: vitest unit tests, then extension-host tests (zxbc from ZXBASIC; on Linux run as xvfb-run -a make test-vscode)
 	@[ -d vscode/cpcbuild-studio/node_modules ] || (cd vscode/cpcbuild-studio && npm ci)
 	cd vscode/cpcbuild-studio && npm test
 
-wasm: ## Build the SDL-free CPCEC WebAssembly core for CPCBuild Emulator into vscode/cpcbuild-emu/wasm (needs make cpcec; EMSDK=path to an activated emsdk, default tools/cpcec/wasm/emsdk, or emcc on PATH)
+wasm: ## Build the SDL-free CPCEC WebAssembly core for CPC Game Studio Emulator into vscode/cpcbuild-emu/wasm (needs make cpcec; EMSDK=path to an activated emsdk, default tools/cpcec/wasm/emsdk, or emcc on PATH)
 	@if [ -f "$(EMSDK)/emsdk_env.sh" ]; then EMSDK=$(EMSDK) sh tools/cpcec/wasm/build-host.sh; \
 	elif [ -x "$(EMSDK)/upstream/emscripten/emcc" ]; then PATH="$(abspath $(EMSDK))/upstream/emscripten:$$PATH" EM_CONFIG="$(abspath $(EMSDK))/.emscripten" sh tools/cpcec/wasm/build-host.sh; \
 	else sh tools/cpcec/wasm/build-host.sh; fi
 
-test-wasm: wasm ## CPCBuild Emulator: vitest and extension-host tests, then the Node golden tests of the wasm core (needs make cpcec; on Linux run as xvfb-run -a make test-wasm)
+test-wasm: wasm ## CPC Game Studio Emulator: vitest and extension-host tests, then the Node golden tests of the wasm core (needs make cpcec; on Linux run as xvfb-run -a make test-wasm)
 	@[ -d vscode/cpcbuild-emu/node_modules ] || (cd vscode/cpcbuild-emu && npm ci)
 	cd vscode/cpcbuild-emu && npm test && npm run test:golden
 

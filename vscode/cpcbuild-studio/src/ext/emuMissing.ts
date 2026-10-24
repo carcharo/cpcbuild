@@ -1,5 +1,5 @@
 /**
- * emuMissing.ts -- what to say when the CPCBuild Emulator extension is not installed but the
+ * emuMissing.ts -- what to say when the CPC Game Studio Emulator extension is not installed but the
  * emulator setting asks for it: one warning per session (never one per Run), with two ways out.
  * No warning at all when the setting already names an external emulator (run.ts never gets here then).
  */
@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { installEmulator } from './emuInstall';
 
-export const INSTALL_BUTTON = 'Install CPCBuild Emulator';
+export const INSTALL_BUTTON = 'Install CPC Game Studio Emulator';
 export const EXTERNAL_BUTTON = 'Use external emulator';
 export const EMU_EXTENSION_ID = 'cpcbuild.cpcbuild-emu';
 
@@ -68,7 +68,7 @@ export async function notifyEmuMissing(c: MissingContext): Promise<void> {
   shownCount++;
   const used = c.external ? ` Running in ${c.external} this time.` : '';
   const buttons = [INSTALL_BUTTON, ...(c.external ? [EXTERNAL_BUTTON] : [])];
-  const pick = await ui.warn(`CPCBuild: ${c.why}.${used} CPCBuild Emulator runs the program in an editor tab and adds the debugger.`, ...buttons);
+  const pick = await ui.warn(`CPC Game Studio: ${c.why}.${used} CPC Game Studio Emulator runs the program in an editor tab and adds the debugger.`, ...buttons);
   if (pick === INSTALL_BUTTON) {
     await installEmulator({ library: c.library });
   } else if (pick === EXTERNAL_BUTTON && c.external) {

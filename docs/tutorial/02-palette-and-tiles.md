@@ -63,7 +63,7 @@ Pen 0 is black: the background of every room.
 
 ## Step 2: Open the palette in the palette editor
 
-In the Explorer, double-click `assets/lamp.cpcpal`. It opens in the **CPCBuild Palette Editor** instead of
+In the Explorer, double-click `assets/lamp.cpcpal`. It opens in the **CPC Palette Editor** instead of
 as text (the editor is the default for `.cpcpal` and `.cpcpal12` files; the tab's title bar has **Reopen as
 Text** if you want the raw file).
 
@@ -96,7 +96,7 @@ DIM pal(15) AS UBYTE => {0, 1, 3, 6, 15, 24, 12, 26, 13, 11, 20, 9, 18, 16, 5, 2
 SetPalette(@pal(0), 16)
 ```
 
-**Drawing your own palette instead.** Run **CPCBuild: New Palette**. It asks one question, **Firmware
+**Drawing your own palette instead.** Run **CPC Game Studio: New Palette**. It asks one question, **Firmware
 palette** (`.cpcpal`: pens as firmware colours 0 to 26, modes 0, 1 and 2) or **Plus palette** (`.cpcpal12`:
 12-bit colours, chapter 11), then a Save dialog for the file name. The mode is not asked: you choose it
 with the toolbar in the editor. A `.cpcpal` file is just a list of 0 to 26 numbers, one per pen.
@@ -123,10 +123,10 @@ side by side. (One PNG pixel is one CPC pixel: no scaling. For drawing your own,
 
 Now convert the PNG into data your program can include.
 
-1. Run **CPCBuild: Import Image** and choose `assets/tiles.png`. (You can also right-click the PNG in
+1. Run **CPC Game Studio: Import Image** and choose `assets/tiles.png`. (You can also right-click the PNG in
    the Explorer: the entry is there because your folder has a `cpcbuild.json`.)
 2. Studio creates `assets/tiles.cpcimp`, a small file called a **recipe** (an `img2cpc.py`
-   command line, as JSON), and opens it in the **CPCBuild Image Importer**. A new recipe starts with
+   command line, as JSON), and opens it in the **CPC Image Importer**. A new recipe starts with
    Mode 1 and Sprite, so you will change those. It already points its output at `assets/tiles.bas`
    (beside the recipe).
 3. The options are in the left column, in sections (in a narrow window the editor has tabs instead:
@@ -166,7 +166,7 @@ each firmware colour, so the mapping is exact. If you ever see an error like "th
 colours, mode 1 has only 4 pens", the picture uses more colours than the palette has pens.
 
 **The same recipe as text.** If you prefer, create `assets/tiles.cpcimp` yourself, with this
-content, and run **CPCBuild: Regenerate Assets**:
+content, and run **CPC Game Studio: Regenerate Assets**:
 
 ```json
 {
@@ -209,8 +209,8 @@ Why 32 bytes a tile? In mode 0 one screen byte is **2 pixels**, so an 8-pixel-wi
 
 ### The other way: draw the tiles yourself
 
-You do not have to import. Run **CPCBuild: New Tileset**, choose **Mode 0** from the quick-pick, and give
-the file a name such as `assets/mytiles.cpctil` in the Save dialog. The **CPCBuild Tile Editor** opens with
+You do not have to import. Run **CPC Game Studio: New Tileset**, choose **Mode 0** from the quick-pick, and give
+the file a name such as `assets/mytiles.cpctil` in the Save dialog. The **CPC Tile Editor** opens with
 one empty tile.
 
 - **Pick the palette.** In the **Palette** section of the right-hand panel, change the drop-down from
@@ -231,7 +231,7 @@ one empty tile.
   wide`, `32 B/tile`: the pixel under the mouse, the screen byte it lives in, its pen, and the sizes.
 - **Output.** In the **Output** section set **Output file** to `assets/mytiles.bas` (a path relative to the
   document). Save, or press **Generate** (in the title bar, or in that section): the file writes the same
-  arrays the importer writes. **CPCBuild: Insert Asset Use**, a button in the editor's title bar, writes the
+  arrays the importer writes. **CPC Game Studio: Insert Asset Use**, a button in the editor's title bar, writes the
   `#include` line and a starter call into the code editor that is open.
 
 If you have a PNG but want to touch it up, open the **...** menu in the toolbar: **Import PNG into this
@@ -339,7 +339,7 @@ the product would wrap at 255 and the room would be garbage. Second, `ROOM_W` an
 
 ## Build and run
 
-Run **CPCBuild: Build and Run** with the `cpc464` target. In the emulator tab you should see mode-0
+Run **CPC Game Studio: Build and Run** with the `cpc464` target. In the emulator tab you should see mode-0
 graphics: a brick border all round, a stone ledge across the left-centre, an orange ladder up to a
 small ledge near the right, a lamp sitting on the ledge, a window high up, and a row of cyan spikes
 on the floor. The strip below the room is black. `ESC` quits.
@@ -381,7 +381,7 @@ second (**Display**).
 2. Open `lamp.cpcpal` in the palette editor, change pen 7 (the white of the ledge's top row) to
    another colour, save, and build again. Do you need to run the importer again? (The tiles store pen
    *numbers*, not colours, but the generated `tiles.bas` also contains a copy of the palette.) Look in
-   the **CPCBuild** channel: the palette file is one of the inputs of the recipe, so when it is newer than
+   the **CPC Game Studio** channel: the palette file is one of the inputs of the recipe, so when it is newer than
    `tiles.bas` Studio regenerates the file before it compiles and prints `Regenerated 1 asset recipe.`
    (Put the pen back afterwards, and build again.)
 3. Draw a tile 13 of your own in the tile editor (a gravestone? a crate?), import or generate, and

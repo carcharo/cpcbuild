@@ -30,7 +30,7 @@ for f in "$ROOT"/tools/cpcec/wasm/*.sh "$ROOT"/tools/cpcec/wasm/*.h "$ROOT"/tool
   | tar -xf - -C "$D/cpcbuild/vscode/cpcbuild-emu"
 cp "$EXT/LICENSE" "$D/LICENSE" 2>/dev/null || cp "$SRC/gpl.txt" "$D/LICENSE"
 cat > "$D/BUILDING.txt" <<EOT
-CPCBuild Emulator: corresponding source (GNU GPL v3 or later)
+CPC Game Studio Emulator: corresponding source (GNU GPL v3 or later)
 
 cpcec/     CPCEC (c) Cesar Nicolas-Gonzalez, commit $SHA of https://github.com/cpcitor/cpcec, unmodified.
 cpcbuild/  CPCBuild's changes: tools/cpcec/cpcbuild.patch (long options, test hooks), tools/cpcec/wasm/host.patch

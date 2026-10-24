@@ -50,7 +50,7 @@ CPC, is drawn all yellow, and the window's panes blue. That is a design decision
 ## Step 2: Spectrum art from the same source
 
 You copied two PNGs, `zx_tiles.png` (the 16 tiles in Spectrum colours) and `zx_sprites.png` (the 12 frames as white
-silhouettes on transparent). Import each with **CPCBuild: Import Image**, as in chapters 2 and 4, but choose
+silhouettes on transparent). Import each with **CPC Game Studio: Import Image**, as in chapters 2 and 4, but choose
 the **Spectrum** target. The recipes:
 
 `assets/zx/zx_tiles.cpcimp`:
@@ -187,7 +187,7 @@ with `-S 32768`; `-S` and `--org` are two names for the same option (`zxbc --hel
 
 ## Build and run
 
-Select `zx48` (**CPCBuild: Select Target**) and run **CPCBuild: Build**. Then the same for `zx128`. Each produces
+Select `zx48` (**CPC Game Studio: Select Target**) and run **CPC Game Studio: Build**. Then the same for `zx128`. Each produces
 `build/zx48.tap` or `build/zx128.tap` (named after the target). Spectrum targets are build-only in Studio (no Spectrum emulator is bundled): load the
 tape in a Spectrum emulator of your own, or on a real machine, with `LOAD ""`. 48K targets the 48K model;
 `zx128` needs a 128K model for the AY music.

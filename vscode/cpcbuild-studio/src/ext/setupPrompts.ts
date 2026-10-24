@@ -67,12 +67,12 @@ export async function offerToolsAtActivation(): Promise<boolean> {
 /** A failed build whose compiler was not found gets a notification with "Download Tools" (other failures stay in the output). */
 export function notifyBuildFailure(res: BuildResult): Promise<void> {
   if (res.ok || !res.compilerMissing) return Promise.resolve();
-  return offer('error', `CPCBuild: ${res.message ?? 'the compiler was not found.'}`, [DOWNLOAD_TOOLS_BUTTON], () => vscode.commands.executeCommand('cpcbuild.downloadTools'));
+  return offer('error', `CPC Game Studio: ${res.message ?? 'the compiler was not found.'}`, [DOWNLOAD_TOOLS_BUTTON], () => vscode.commands.executeCommand('cpcbuild.downloadTools'));
 }
 
 /** Convert Music found no Arkos tools. */
 export function notifyArkosMissing(message: string): Promise<void> {
-  return offer('error', `CPCBuild: ${message}`, [DOWNLOAD_ARKOS_BUTTON], () => vscode.commands.executeCommand('cpcbuild.downloadTools', { parts: ['arkos'] }));
+  return offer('error', `CPC Game Studio: ${message}`, [DOWNLOAD_ARKOS_BUTTON], () => vscode.commands.executeCommand('cpcbuild.downloadTools', { parts: ['arkos'] }));
 }
 
 async function emuAnswers(): Promise<boolean> {

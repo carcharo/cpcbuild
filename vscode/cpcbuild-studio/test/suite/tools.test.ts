@@ -68,7 +68,7 @@ test('download tools: the command is contributed and registered', async () => {
   assert.ok(ext);
   await (ext.isActive ? Promise.resolve() : ext.activate());
   const cmd = (ext.packageJSON.contributes.commands as { command: string; title: string; category: string }[]).find((c) => c.command === 'cpcbuild.downloadTools');
-  assert.deepStrictEqual(cmd && [cmd.title, cmd.category], ['Download Tools', 'CPCBuild']);
+  assert.deepStrictEqual(cmd && [cmd.title, cmd.category], ['Download Tools', 'CPC Game Studio']);
   assert.ok((await vscode.commands.getCommands(true)).includes('cpcbuild.downloadTools'));
   assert.ok((ext.packageJSON.contributes.configuration.properties as Record<string, unknown>)['cpcbuild.sdk.path']);
 });
@@ -80,7 +80,7 @@ test('download tools: fetches both from a local server (redirect, checksum, unpa
     await withServer({ [`/zxbasic.${a.zxExt}`]: a.zx, '/arkos.zip': a.ar }, async (base) => {
       const r = await download({ manifest: manifest(base, a), root, quiet: true });
       assert.strictEqual(r.ok, true, r.message);
-      assert.strictEqual(r.message, 'CPCBuild: tools installed: Boriel BASIC 9.9.9-test, Arkos 9.9.');
+      assert.strictEqual(r.message, 'CPC Game Studio: tools installed: Boriel BASIC 9.9.9-test, Arkos 9.9.');
       assert.deepStrictEqual(r.installed, ['zxbasic', 'arkos']);
       const zx = path.join(root, 'zxbasic-9.9.9-test');
       for (const n of ['zxbc', 'zxbasm', 'zxbpp', 'mkdsk']) assert.ok(fs.existsSync(path.join(zx, x(n))), n);
@@ -108,7 +108,7 @@ test('download tools: a wrong checksum is refused with the exact text and instal
     await withServer({ [`/zxbasic.${a.zxExt}`]: a.zx, '/arkos.zip': a.ar }, async (base) => {
       const r = await download({ manifest: manifest(base, a, { zxSha: '0'.repeat(64) }), root, quiet: true, parts: ['zxbasic'] });
       assert.strictEqual(r.ok, false);
-      assert.strictEqual(r.message, 'CPCBuild: the download of Boriel BASIC 9.9.9-test did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
+      assert.strictEqual(r.message, 'CPC Game Studio: the download of Boriel BASIC 9.9.9-test did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
       assert.deepStrictEqual(fs.readdirSync(root), []);
     });
   } finally {
@@ -126,7 +126,7 @@ test('download tools: an unpinned entry is refused, and a dead server gives the 
     assert.match(r.message, /has no checksum for the Boriel BASIC 9\.9\.9-test download yet/);
     const dead = await download({ manifest: manifest('http://127.0.0.1:9', a), root, quiet: true, parts: ['arkos'] });
     assert.strictEqual(dead.ok, false);
-    assert.match(dead.message, /^CPCBuild: could not download Arkos Tracker 9\.9: .*\. Check the connection or "http\.proxy", or download the SDK zip from the releases page\.$/);
+    assert.match(dead.message, /^CPC Game Studio: could not download Arkos Tracker 9\.9: .*\. Check the connection or "http\.proxy", or download the SDK zip from the releases page\.$/);
     assert.deepStrictEqual(fs.readdirSync(root), []);
   } finally {
     rmrf(root);
@@ -140,7 +140,7 @@ test('download tools: no Arkos tools for linux-arm64 is said plainly', async () 
     const m = manifest('http://127.0.0.1:9', a);
     const r = await download({ manifest: m, root, quiet: true, parts: ['arkos'], platform: 'linux', arch: 'arm64' });
     assert.strictEqual(r.ok, false);
-    assert.strictEqual(r.message, 'CPCBuild: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
+    assert.strictEqual(r.message, 'CPC Game Studio: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
   } finally {
     rmrf(root);
   }

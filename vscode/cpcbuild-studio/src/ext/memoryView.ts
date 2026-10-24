@@ -148,7 +148,7 @@ export class MemoryView implements vscode.Disposable {
   }
 
   private empty(): MemEmpty {
-    return { title: 'No emulator session', text: 'Build and run the project in the CPCBuild Emulator, then this view shows the memory the Z80 sees.', action: { label: 'Build and Run', command: 'cpcbuild.buildAndRun' } };
+    return { title: 'No emulator session', text: 'Build and run the project in the CPC Game Studio Emulator, then this view shows the memory the Z80 sees.', action: { label: 'Build and Run', command: 'cpcbuild.buildAndRun' } };
   }
 
   /** Reads the window and posts it. Overlapping calls collapse into one more run. */
@@ -172,7 +172,7 @@ export class MemoryView implements vscode.Disposable {
   private async refreshOnce(): Promise<void> {
     const avail = await this.ctl.client.available();
     if (!avail.ok) {
-      this.post({ type: 'empty', empty: { title: 'The CPCBuild Emulator extension is missing', text: `${avail.why ?? 'Not installed'}. The live memory view reads memory from it.`, action: { label: 'Install CPCBuild Emulator', command: 'workbench.extensions.search' } }, status: this.status() });
+      this.post({ type: 'empty', empty: { title: 'The CPC Game Studio Emulator extension is missing', text: `${avail.why ?? 'Not installed'}. The live memory view reads memory from it.`, action: { label: 'Install CPC Game Studio Emulator', command: 'workbench.extensions.search' } }, status: this.status() });
       return;
     }
     if (!this.ctl.live) await this.ctl.poll('timer');

@@ -4,7 +4,7 @@ import type { Sink } from './runTool';
 let channel: vscode.OutputChannel | undefined;
 
 export function getChannel(): vscode.OutputChannel {
-  channel ??= vscode.window.createOutputChannel('CPCBuild');
+  channel ??= vscode.window.createOutputChannel('CPC Game Studio');
   return channel;
 }
 

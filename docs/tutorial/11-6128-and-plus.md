@@ -19,7 +19,7 @@ program as the 464. Then the CPC Plus (6128 Plus and GX4000), where the player a
 
 ## Step 1: Build it
 
-Select the `cpc6128` target (**CPCBuild: Select Target**) and run **CPCBuild: Build and Run**. The target's
+Select the `cpc6128` target (**CPC Game Studio: Select Target**) and run **CPC Game Studio: Build and Run**. The target's
 `defines` are `["CPC6128"]` and its `model` is `"6128"`, so the emulator tab starts a 6128.
 
 You should see exactly what you saw on the 464. That is the finding: **`lamp464` and `lamp6128` are the
@@ -133,7 +133,7 @@ bytes: 3,072 bytes. (Compare 1,536 for the CPC's masked frames.)
 `pl_pens.bas` holds the 16 playfield pens as **12-bit colours** (two bytes a pen, the format
 `SetPalette12Block` wants) and `pl_flame`, the four flame colours: amber, yellow, red-orange, pale yellow. It
 was written by `make_plus_art.py`, not by an importer (it has no recipe: the file is a 12-bit pen table with no
-PNG behind it); copy it. To make 12-bit colours yourself, run **CPCBuild: New Palette** and choose **Plus
+PNG behind it); copy it. To make 12-bit colours yourself, run **CPC Game Studio: New Palette** and choose **Plus
 palette** (it makes a `.cpcpal12`). The palette editor then shows **Entries**: pens 0 to 15, the border
 (entry 16) and the 15 sprite colours (17 to 31), each as a three-digit hex colour (`F80`) with red, green and
 blue from 0 to 15 in the **Entry details** panel. Its **Copy as** menu gives either **SetPalette12 lines** or
@@ -285,7 +285,7 @@ firmware font either: the game's text comes from its own `fontcpc.bas` anyway). 
 `tools/mkcpr.py`, which wraps the program in a cartridge image with a small boot stub that copies it to RAM at
 `&0040`. These are the finished game's `lamppluc` flags (`build_plus.sh`).
 
-Select `plus-cart` and run **CPCBuild: Build and Run**. The compiler flags are `--arch cpc --org 0x40 -D
+Select `plus-cart` and run **CPC Game Studio: Build and Run**. The compiler flags are `--arch cpc --org 0x40 -D
 PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,056-byte
 program, `lamppluc.bin`), and then `mkcpr.py` wraps it as `build/plus-cart.cpr`
 (the finished game's cartridge is 49,188 bytes, 3 pages). The report is the one for a bare target, with its

@@ -77,7 +77,7 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
   constructor(context: vscode.ExtensionContext, readonly docType: DocType) {
     super(context);
     this.viewType = docType === 'spr' ? SPRITE_VIEW_TYPE : TILE_VIEW_TYPE;
-    this.title = docType === 'spr' ? 'CPCBuild Sprite Editor' : 'CPCBuild Tile Editor';
+    this.title = docType === 'spr' ? 'CPC Sprite Editor' : 'CPC Tile Editor';
   }
 
   // ---------------------------------------------------------- the codec
@@ -461,7 +461,7 @@ export async function activeAssetUri(uri?: vscode.Uri): Promise<vscode.Uri | und
   if (seen.length <= 1) return seen[0];
   const pick = await vscode.window.showQuickPick(
     seen.map((u) => ({ label: path.posix.basename(u.path), description: vscode.workspace.asRelativePath(u), uri: u })),
-    { title: 'CPCBuild: which sprite or tile set?' },
+    { title: 'CPC Game Studio: which sprite or tile set?' },
   );
   return pick?.uri;
 }
@@ -505,11 +505,11 @@ export async function regenerateForPalette(ed: SpriteEditors, palette: vscode.Ur
   return done;
 }
 
-/** CPCBuild: Insert Asset Use -- writes the include and call lines for the open document into the code editor. */
+/** CPC Game Studio: Insert Asset Use -- writes the include and call lines for the open document into the code editor. */
 export async function insertAssetUse(ed: SpriteEditors, uri?: vscode.Uri): Promise<string | undefined> {
   const target = await activeAssetUri(uri);
   if (!target) {
-    void vscode.window.showInformationMessage('CPCBuild: open a sprite or tile set (.cpcspr, .cpctil) first.');
+    void vscode.window.showInformationMessage('CPC Game Studio: open a sprite or tile set (.cpcspr, .cpctil) first.');
     return undefined;
   }
   const open = docFor(ed, target);
@@ -526,7 +526,7 @@ export async function insertAssetUse(ed: SpriteEditors, uri?: vscode.Uri): Promi
     return insert;
   }
   await vscode.env.clipboard.writeText(insert);
-  void vscode.window.showInformationMessage('CPCBuild: no code editor is open, so the include and call lines were copied to the clipboard.');
+  void vscode.window.showInformationMessage('CPC Game Studio: no code editor is open, so the include and call lines were copied to the clipboard.');
   return insert;
 }
 
@@ -538,7 +538,7 @@ export interface NewAssetArgs {
   h?: number;
 }
 
-/** CPCBuild: New Sprite / New Tileset / New Plus Sprite. `args` lets tests and other commands skip the prompts. */
+/** CPC Game Studio: New Sprite / New Tileset / New Plus Sprite. `args` lets tests and other commands skip the prompts. */
 export async function newAssetCommand(what: 'sprite' | 'tileset' | 'plus', args: NewAssetArgs = {}): Promise<vscode.Uri | undefined> {
   const type: DocType = what === 'tileset' ? 'til' : 'spr';
   let mode = args.mode;
@@ -549,7 +549,7 @@ export async function newAssetCommand(what: 'sprite' | 'tileset' | 'plus', args:
         { label: 'Mode 1', description: '320 x 200, 4 pens, 4 pixels per byte', mode: 1 as Mode },
         { label: 'Mode 2', description: '640 x 200, 2 pens, 8 pixels per byte', mode: 2 as Mode },
       ],
-      { title: what === 'tileset' ? 'CPCBuild: new tile set, screen mode' : 'CPCBuild: new sprite, screen mode' },
+      { title: what === 'tileset' ? 'CPC Game Studio: new tile set, screen mode' : 'CPC Game Studio: new sprite, screen mode' },
     );
     if (!pick) return undefined;
     mode = pick.mode;

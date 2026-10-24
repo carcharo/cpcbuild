@@ -78,14 +78,14 @@ export async function runZxbc(command: readonly string[], args: readonly string[
   return { ...second, used: fb, fellBack: true };
 }
 
-export const DOWNLOAD_HINT = 'Run "CPCBuild: Download Tools".';
+export const DOWNLOAD_HINT = 'Run "CPC Game Studio: Download Tools".';
 
 /** The developer's way: `poetry run zxbc` from the zxbasic checkout, with the exact setting when poetry is known. */
 export function poetryAdvice(cmd: readonly string[], cwd: string, o: PoetryEnv = {}): string {
   const poetry = isDefaultZxbc(cmd) ? findPoetry(o) : undefined;
   const value = poetry ? [poetry, 'run', 'zxbc'] : ['poetry', 'run', 'zxbc'];
   const needCwd = !(o.exists ?? isFile)(path.join(cwd, 'pyproject.toml'));
-  return `Set "cpcbuild.zxbc.command" to ${settingText(value)} (for the fork${poetry ? '' : `; poetry was not found on PATH or in ${(o.platform ?? process.platform) === 'win32' ? '%APPDATA%\\Python\\Scripts' : '~/.local/bin'}`}) and ${needCwd ? '"cpcbuild.zxbc.cwd" to your zxbasic checkout' : 'keep "cpcbuild.zxbc.cwd" on your zxbasic checkout'}, then run "CPCBuild: Check Environment".`;
+  return `Set "cpcbuild.zxbc.command" to ${settingText(value)} (for the fork${poetry ? '' : `; poetry was not found on PATH or in ${(o.platform ?? process.platform) === 'win32' ? '%APPDATA%\\Python\\Scripts' : '~/.local/bin'}`}) and ${needCwd ? '"cpcbuild.zxbc.cwd" to your zxbasic checkout' : 'keep "cpcbuild.zxbc.cwd" on your zxbasic checkout'}, then run "CPC Game Studio: Check Environment".`;
 }
 
 /**

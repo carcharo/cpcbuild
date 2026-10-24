@@ -197,7 +197,7 @@ export class DebugController implements vscode.Disposable {
       const r = await this.client.setBreakpoint(addr, true);
       if (isError(r)) {
         if (/no such session|no emulator session/.test(r.error)) return;
-        void vscode.window.showWarningMessage(`CPCBuild: the emulator refused the breakpoint at ${hex4(addr)}: ${r.error}`);
+        void vscode.window.showWarningMessage(`CPC Game Studio: the emulator refused the breakpoint at ${hex4(addr)}: ${r.error}`);
       } else have.add(addr);
     }
     for (const addr of [...have]) {
@@ -224,7 +224,7 @@ export class DebugController implements vscode.Disposable {
       if (text === undefined) {
         const cur = this.state?.paused ? hex4(this.state.pc) : '';
         text = await vscode.window.showInputBox({
-          title: 'CPCBuild: toggle a breakpoint',
+          title: 'CPC Game Studio: toggle a breakpoint',
           prompt: 'A symbol (MoveSprites, MoveSprites+3) or an address (&4F2A, 0x4F2A). A breakpoint already there is removed.',
           value: cur,
         });
@@ -232,7 +232,7 @@ export class DebugController implements vscode.Disposable {
       }
       const r = resolveTarget(table, text);
       if ('error' in r) {
-        void vscode.window.showWarningMessage(`CPCBuild: ${r.error}`);
+        void vscode.window.showWarningMessage(`CPC Game Studio: ${r.error}`);
         return { applied: false, error: r.error };
       }
       rec = { addr: r.addr, ...(r.symbol ? { symbol: r.symbol.name, ...(r.addr > r.symbol.addr ? { offset: r.addr - r.symbol.addr } : {}) } : {}) };
@@ -244,10 +244,10 @@ export class DebugController implements vscode.Disposable {
     if (isError(r)) {
       const noSession = /no such session|no emulator session|not installed|unknown command|not found/.test(r.error) || !this.live;
       if (noSession) {
-        vscode.window.setStatusBarMessage(`CPCBuild: breakpoint ${added ? 'saved' : 'removed'} at ${breakpointText(rec)}; it is set when the emulator starts.`, 4000);
+        vscode.window.setStatusBarMessage(`CPC Game Studio: breakpoint ${added ? 'saved' : 'removed'} at ${breakpointText(rec)}; it is set when the emulator starts.`, 4000);
         return { added, addr: rec.addr, applied: false };
       }
-      void vscode.window.showWarningMessage(`CPCBuild: the emulator refused the breakpoint at ${hex4(rec.addr)}: ${r.error}`);
+      void vscode.window.showWarningMessage(`CPC Game Studio: the emulator refused the breakpoint at ${hex4(rec.addr)}: ${r.error}`);
       return { added, addr: rec.addr, applied: false, error: r.error };
     }
     const set = this.applied.get(key) ?? new Set<number>();
@@ -263,8 +263,8 @@ export class DebugController implements vscode.Disposable {
     const r = await this.client.control(cmd);
     if (isError(r)) {
       if (/no such session|no emulator session|not installed/.test(r.error) || !(await this.client.available()).ok) {
-        void vscode.window.showInformationMessage('CPCBuild: no emulator session is open. Use "CPCBuild: Build and Run" first.');
-      } else void vscode.window.showWarningMessage(`CPCBuild: ${cmd} failed: ${r.error}`);
+        void vscode.window.showInformationMessage('CPC Game Studio: no emulator session is open. Use "CPC Game Studio: Build and Run" first.');
+      } else void vscode.window.showWarningMessage(`CPC Game Studio: ${cmd} failed: ${r.error}`);
       return r;
     }
     this.setState(r.state);
@@ -302,7 +302,7 @@ export class RegistersView implements vscode.TreeDataProvider<RegisterNode>, vsc
 
   private update(): void {
     const s = this.ctl.state;
-    this.view.message = !s ? 'No emulator session. Build and run the project in the CPCBuild Emulator.' : s.paused ? `Paused: ${reasonText(s.reason)}.` : 'Running. Pause (or hit a breakpoint) to see the registers.';
+    this.view.message = !s ? 'No emulator session. Build and run the project in the CPC Game Studio Emulator.' : s.paused ? `Paused: ${reasonText(s.reason)}.` : 'Running. Pause (or hit a breakpoint) to see the registers.';
     this.emitter.fire();
   }
 

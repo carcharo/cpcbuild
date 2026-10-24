@@ -1,6 +1,6 @@
 # Install the emulator
 
-CPCBuild Emulator runs your program in an editor tab and adds the debugger.
+CPC Game Studio Emulator runs your program in an editor tab and adds the debugger.
 
 Choose **Install Emulator**. Studio downloads the emulator extension that matches this version of Studio and installs it.
 

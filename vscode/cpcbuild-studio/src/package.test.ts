@@ -20,7 +20,7 @@ describe('package.json contributions', () => {
     expect(ids.filter((i) => i.includes('.emu.'))).toEqual([]);
     expect(new Set(ids).size).toBe(ids.length);
   });
-  it('contributes the CPCBuild view container with the symbols, registers and breakpoints views', () => {
+  it('contributes the CPC Game Studio view container with the symbols, registers and breakpoints views', () => {
     expect(c.viewsContainers.activitybar.map((v: { id: string }) => v.id)).toContain('cpcbuild');
     expect(c.views.cpcbuild.map((v: { id: string }) => v.id)).toEqual(['cpcbuild.symbols', 'cpcbuild.registers', 'cpcbuild.breakpoints']);
     const ids: string[] = c.commands.map((x: { command: string }) => x.command);

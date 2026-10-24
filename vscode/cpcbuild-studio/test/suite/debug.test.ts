@@ -142,7 +142,7 @@ test('emulator extension missing: one warning per session, with install and exte
     const first = await a.runIn(ws, run, sink, base, null);
     assert.strictEqual(first.used, 'caprice32', first.message);
     assert.strictEqual(calls.length, 1);
-    assert.deepStrictEqual(calls[0].buttons, ['Install CPCBuild Emulator', 'Use external emulator']);
+    assert.deepStrictEqual(calls[0].buttons, ['Install CPC Game Studio Emulator', 'Use external emulator']);
     assert.match(calls[0].message, /cpcbuild-emu\) is not installed/);
     await a.runIn(ws, run, sink, base, null);
     await a.runIn(ws, run, sink, base, null);
@@ -182,7 +182,7 @@ test('"Use external emulator" sets the setting for good; "Install" does not thro
     assert.strictEqual(asked, 0);
 
     a.emuMissing.reset();
-    a.emuMissing.setUi({ warn: async () => 'Install CPCBuild Emulator' });
+    a.emuMissing.setUi({ warn: async () => 'Install CPC Game Studio Emulator' });
     // no network, no browser: the download goes to a dead port and the releases page "opens" into a stub
     const opened: string[] = [];
     a.emuInstall.setDefaults({ quiet: true, version: '9.9.9', releasesBase: 'http://127.0.0.1:9', dir: path.join(os.tmpdir(), 'cpcbuild-emu-dead'), open: async (u) => void opened.push(u) });

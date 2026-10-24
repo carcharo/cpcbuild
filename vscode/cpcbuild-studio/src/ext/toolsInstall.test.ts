@@ -222,10 +222,10 @@ describe('the messages (exact text)', () => {
   const m = manifestOf('1.19.0-cpc.1', {});
   const arkosM = { ...m, arkos: { ...m.arkos, version: '3.7' } };
   it('checksum, network, unpinned and no-Arkos', () => {
-    expect(failureText(new ChecksumError('a', 'b'), 'zxbasic', arkosM)).toBe('CPCBuild: the download of Boriel BASIC 1.19.0-cpc.1 did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
-    expect(failureText(new DownloadError('getaddrinfo ENOTFOUND github.com'), 'arkos', arkosM)).toBe('CPCBuild: could not download Arkos Tracker 3.7: getaddrinfo ENOTFOUND github.com. Check the connection or "http.proxy", or download the SDK zip from the releases page.');
+    expect(failureText(new ChecksumError('a', 'b'), 'zxbasic', arkosM)).toBe('CPC Game Studio: the download of Boriel BASIC 1.19.0-cpc.1 did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
+    expect(failureText(new DownloadError('getaddrinfo ENOTFOUND github.com'), 'arkos', arkosM)).toBe('CPC Game Studio: could not download Arkos Tracker 3.7: getaddrinfo ENOTFOUND github.com. Check the connection or "http.proxy", or download the SDK zip from the releases page.');
     expect(failureText(new UnpinnedError('zxbasic'), 'zxbasic', arkosM)).toMatch(/no checksum for the Boriel BASIC 1.19.0-cpc.1 download yet/);
-    expect(failureText(new NoToolsError('arkos', 'linux-arm64'), 'arkos', arkosM)).toBe('CPCBuild: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
+    expect(failureText(new NoToolsError('arkos', 'linux-arm64'), 'arkos', arkosM)).toBe('CPC Game Studio: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
   });
   it('the Done text lists what was installed', () => {
     expect(partName('zxbasic', arkosM)).toBe('Boriel BASIC 1.19.0-cpc.1');

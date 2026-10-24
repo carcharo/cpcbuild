@@ -39,7 +39,7 @@ export interface BuildResult {
   targetId: string;
   /** The failure, with the fix. */
   message?: string;
-  /** True when the failure is "no compiler found" (the caller may offer "CPCBuild: Download Tools"). */
+  /** True when the failure is "no compiler found" (the caller may offer "CPC Game Studio: Download Tools"). */
   compilerMissing?: boolean;
   artifacts: Artifacts;
   report?: MemoryReport;
@@ -75,7 +75,7 @@ export async function buildTarget(
   const s = settings;
   const library = resolveLibrary(root, s, project.library);
   if (!library) {
-    return done(), fail(res, `the cpcbuild library was not found (looked for lib/cpcbuild.bas${s.libraryPath ? ` under "${s.libraryPath}"` : ' above the project'}). Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/), then run "CPCBuild: Check Environment".`, sink);
+    return done(), fail(res, `the cpcbuild library was not found (looked for lib/cpcbuild.bas${s.libraryPath ? ` under "${s.libraryPath}"` : ' above the project'}). Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/), then run "CPC Game Studio: Check Environment".`, sink);
   }
   const main = absFrom(root, target.main);
   if (!fs.existsSync(main)) {
@@ -119,7 +119,7 @@ export async function buildTarget(
   const comp = resolveCompilerFor(root, s);
   if (comp.kind === 'none' && comp.problem) {
     res.compilerMissing = true;
-    return done(), fail(res, `${comp.problem}. Fix the setting or clear it, then run "CPCBuild: Check Environment".`, sink);
+    return done(), fail(res, `${comp.problem}. Fix the setting or clear it, then run "CPC Game Studio: Check Environment".`, sink);
   }
   const cr = await runZxbc(compilerCommand(comp, s), args, { cwd: zxCwd, token, sink });
   if (cr.cancelled) return done(), fail(res, 'cancelled.', sink);
@@ -163,14 +163,14 @@ export async function buildTarget(
   if (target.package === 'dsk') {
     const mkdsk = resolveMkdsk(s, root, library, comp);
     if (!mkdsk) {
-      return done(), fail(res, `mkdsk was not found (it comes with the compiler tools: run "CPCBuild: Download Tools"; or set "cpcbuild.zxbc.cwd" to your zxbasic checkout, which holds tools/cpc/mkdsk.py), then run "CPCBuild: Check Environment".`, sink);
+      return done(), fail(res, `mkdsk was not found (it comes with the compiler tools: run "CPC Game Studio: Download Tools"; or set "cpcbuild.zxbc.cwd" to your zxbasic checkout, which holds tools/cpc/mkdsk.py), then run "CPC Game Studio: Check Environment".`, sink);
     }
     const dsk = `${base}.dsk`;
     const r = await runTool(mkdsk, ['-o', dsk, '--load', loadHex, '--exec', loadHex, '--name', `${target.disc}.BIN`, bin as string], { cwd: root, token, sink });
     if (r.cancelled) return done(), fail(res, 'cancelled.', sink);
     if (r.error || r.code !== 0 || !fs.existsSync(dsk)) {
       const py = mkdsk[0] === s.pythonPath || mkdsk[0] === 'py';
-      return done(), fail(res, r.error ? `${r.error}.${py ? ' Set "cpcbuild.python.path" to a Python 3.' : ' Run "CPCBuild: Download Tools" again.'}` : `mkdsk exited with ${r.code}.`, sink);
+      return done(), fail(res, r.error ? `${r.error}.${py ? ' Set "cpcbuild.python.path" to a Python 3.' : ' Run "CPC Game Studio: Download Tools" again.'}` : `mkdsk exited with ${r.code}.`, sink);
     }
     a.dsk = dsk;
     res.run = { file: dsk, kind: 'dsk', name: target.disc, model };

@@ -50,7 +50,7 @@ masked frame is 4 x 16 x 2 = **128 bytes**.
 (Drawing your own sheet: the [art guide](../art-guide.md) covers frame layout and colours, and the
 Aseprite extension in `tools/aseprite` sets it up for you.)
 
-1. **CPCBuild: Import Image**, choose `assets/sprites.png`. The importer opens on a new
+1. **CPC Game Studio: Import Image**, choose `assets/sprites.png`. The importer opens on a new
    `assets/sprites.cpcimp`.
 2. Set:
 
@@ -119,7 +119,7 @@ byte are background).
 
 ### The other way: draw the frames in the sprite editor
 
-Run **CPCBuild: New Sprite**, choose **Mode 0**, and save as `assets/hero.cpcspr`. The **CPCBuild
+Run **CPC Game Studio: New Sprite**, choose **Mode 0**, and save as `assets/hero.cpcspr`. The **CPC
 Sprite Editor** opens. In the right-hand panel, under **Sprite**, set **Frame width** to 8 and **Frame
 height** to 16 (pixels), tick **Masked**; under **Palette** choose **Shared file...** and pick
 `assets/lamp.cpcpal`; under **Output** set **Output file** to `assets/hero.bas` (relative to the
@@ -367,7 +367,7 @@ would not exist.
 
 ## Build and run
 
-**CPCBuild: Build and Run**. Room 9 appears with the lamplighter standing at its left end, on the
+**CPC Game Studio: Build and Run**. Room 9 appears with the lamplighter standing at its left end, on the
 floor. Press `P` (or the right cursor key) and he walks right, legs animating; `O` walks left,
 facing left. He leaves no trail: the background is restored behind him. He walks through ledges,
 lamps and walls (there is no collision yet), and stops at the room's edges. `ESC` quits.

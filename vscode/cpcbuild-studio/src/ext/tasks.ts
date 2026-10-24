@@ -37,7 +37,7 @@ export async function executeBuild(def: CpcbuildTaskDefinition, sink: Sink, toke
   const projects = await findProjects();
   const lp = resolveProject(projects, def, wsFolder);
   if (!lp) {
-    sink.line(`No ${'cpcbuild.json'} found${def.project ? ` at "${def.project}"` : ' in this workspace'}. Create a project with "CPCBuild: New Project", or add a cpcbuild.json.`, true);
+    sink.line(`No ${'cpcbuild.json'} found${def.project ? ` at "${def.project}"` : ' in this workspace'}. Create a project with "CPC Game Studio: New Project", or add a cpcbuild.json.`, true);
     return 1;
   }
   if (!lp.project) {
@@ -66,7 +66,7 @@ export async function executeBuild(def: CpcbuildTaskDefinition, sink: Sink, toke
 export async function runLast(sink: Sink, library?: string | null): Promise<boolean> {
   const b = state.lastBuild;
   if (!b || !b.ok) {
-    sink.line('Nothing to run: build a target first ("CPCBuild: Build").', true);
+    sink.line('Nothing to run: build a target first ("CPC Game Studio: Build").', true);
     return false;
   }
   if (!b.run && b.artifacts.tap) {

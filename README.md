@@ -1,6 +1,8 @@
 # CPCBuild
 
-CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` compiler backend (in the zxbasic fork, branch `cpc-arch`) plus the `cpcbuild` platform library, asset tools and test tooling. It is modelled on the Spectrum Next's NextBuild.
+CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` compiler backend (in the zxbasic fork, branch `cpc-arch`) plus the `cpcbuild` platform library, asset tools and test tooling.
+
+**CPC Game Studio** is the VS Code front end of CPCBuild: project templates, palette, sprite and tile editors, an image importer, build and run, and an emulator tab with a debugger. It is two extensions, `cpcbuild-studio` and `cpcbuild-emu`, in `vscode/`.
 
 ## Status
 
@@ -30,15 +32,15 @@ Pick one route.
 
 1. From the Releases page, download `cpcbuild-studio-0.1.0.vsix` and `cpcbuild-emu-0.1.0.vsix`.
 2. In VS Code, open the Command Palette and run **Extensions: Install from VSIX...**. Do this once for each file.
-3. Run **Welcome: Open Walkthrough...** and choose **Get started with CPCBuild**.
+3. Run **Welcome: Open Walkthrough...** and choose **Get started with CPC Game Studio**.
 4. In the walkthrough, choose **Download Tools**. Studio asks what to download: the Boriel BASIC compiler
    1.19.0-cpc.2 (with `zxbasm` and `mkdsk`) and the Arkos Tracker 3.7 command-line tools (music conversion). It
-   checks each download against a known checksum. You can run **CPCBuild: Download Tools** from the Command
+   checks each download against a known checksum. You can run **CPC Game Studio: Download Tools** from the Command
    Palette later.
 5. The walkthrough's next steps create a project from a template, then build and run it. You can skip
    **Install Emulator**: it is for people who installed Studio without the emulator extension.
 
-Run **CPCBuild: Check Environment** at any time to see what Studio found and what to fix.
+Run **CPC Game Studio: Check Environment** at any time to see what Studio found and what to fix.
 
 ### Route B: the SDK folder
 

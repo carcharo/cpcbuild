@@ -1,4 +1,4 @@
-/** newProject.ts -- "CPCBuild: New Project" (spec 4.5). */
+/** newProject.ts -- "CPC Game Studio: New Project" (spec 4.5). */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -43,7 +43,7 @@ export async function newProjectCommand(args?: NewProjectArgs): Promise<NewProje
   if (!id) {
     const pick = await vscode.window.showQuickPick(
       TEMPLATES.map((t) => ({ label: t.label, description: t.description, id: t.id })),
-      { title: 'CPCBuild: New Project', placeHolder: 'Choose a template' },
+      { title: 'CPC Game Studio: New Project', placeHolder: 'Choose a template' },
     );
     if (!pick) return undefined;
     id = pick.id;
@@ -77,7 +77,7 @@ export async function newProjectCommand(args?: NewProjectArgs): Promise<NewProje
     }
     return r;
   } catch (e) {
-    void vscode.window.showErrorMessage(`CPCBuild: could not create the project: ${(e as Error).message}.`);
+    void vscode.window.showErrorMessage(`CPC Game Studio: could not create the project: ${(e as Error).message}.`);
     return undefined;
   }
 }

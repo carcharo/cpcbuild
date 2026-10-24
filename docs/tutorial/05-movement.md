@@ -466,7 +466,7 @@ END SUB
 
 ## Build and run
 
-**CPCBuild: Build and Run**. You are in room 9, standing on the floor at the left end. Walk with `O` and
+**CPC Game Studio: Build and Run**. You are in room 9, standing on the floor at the left end. Walk with `O` and
 `P` (or the cursor keys). Press `Space` to jump: he rises 25 lines and comes down. He can no longer
 walk through walls or the floor.
 

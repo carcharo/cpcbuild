@@ -45,12 +45,12 @@ export function viewRootOf(file: string): string {
   return projectRootOf(file) ?? path.dirname(file);
 }
 
-export const NOT_IN_PROJECT = 'not in a CPCBuild project: there is no cpcbuild.json in this folder or above it. Create one with "CPCBuild: New Project".';
+export const NOT_IN_PROJECT = 'not in a CPCBuild project: there is no cpcbuild.json in this folder or above it. Create one with "CPC Game Studio: New Project".';
 
 /** The project root for a write, or undefined after telling the user. */
 export function requireProjectRoot(file: string): string | undefined {
   const r = projectRootOf(file);
-  if (!r) void vscode.window.showWarningMessage(`CPCBuild: ${path.basename(file)} is ${NOT_IN_PROJECT}`);
+  if (!r) void vscode.window.showWarningMessage(`CPC Game Studio: ${path.basename(file)} is ${NOT_IN_PROJECT}`);
   return r;
 }
 
@@ -65,7 +65,7 @@ const MAX_TEXT = 120000;
 export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeOp, ImporterView> {
   readonly viewType = IMPORTER_VIEW_TYPE;
   readonly bundle = 'importer';
-  readonly title = 'CPCBuild Image Importer';
+  readonly title = 'CPC Image Importer';
 
   /** Test hooks: answer the dialogs without showing them. */
   dialogOverride?: vscode.Uri;
@@ -164,7 +164,7 @@ export class ImporterEditorProvider extends StudioEditorProvider<Recipe, RecipeO
     const out = await this.run(doc);
     if (!out.ok) {
       getChannel().appendLine(`${toRel(root, doc.uri.fsPath)}: ${out.error}`);
-      void vscode.window.showWarningMessage(`CPCBuild: could not generate ${effectiveOutput(doc.state)}: ${out.error}`);
+      void vscode.window.showWarningMessage(`CPC Game Studio: could not generate ${effectiveOutput(doc.state)}: ${out.error}`);
     }
   }
 
@@ -351,7 +351,7 @@ function defaultOutputFor(root: string, recipeFile: string, sourceRel: string): 
 // ------------------------------------------------------------------ commands
 
 /**
- * CPCBuild: Import Image. Writes assets/<stem>.cpcimp (beside the image when it already sits in a
+ * CPC Game Studio: Import Image. Writes assets/<stem>.cpcimp (beside the image when it already sits in a
  * folder called assets) with defaults and opens it; an existing recipe is opened, never overwritten.
  */
 export async function importImageCommand(arg?: vscode.Uri | { uri?: vscode.Uri; open?: boolean }): Promise<vscode.Uri | undefined> {
@@ -363,7 +363,7 @@ export async function importImageCommand(arg?: vscode.Uri | { uri?: vscode.Uri; 
   }
   const ext = path.extname(image.fsPath).slice(1).toLowerCase();
   if (!IMAGE_EXTS.includes(ext)) {
-    void vscode.window.showErrorMessage(`CPCBuild: ${path.basename(image.fsPath)} is not a PNG, GIF or BMP image.`);
+    void vscode.window.showErrorMessage(`CPC Game Studio: ${path.basename(image.fsPath)} is not a PNG, GIF or BMP image.`);
     return undefined;
   }
   const root = requireProjectRoot(image.fsPath);
@@ -382,7 +382,7 @@ export async function importImageCommand(arg?: vscode.Uri | { uri?: vscode.Uri; 
   return uri;
 }
 
-/** CPCBuild: Regenerate Assets: every recipe the project's assets globs match, with the selected engine. */
+/** CPC Game Studio: Regenerate Assets: every recipe the project's assets globs match, with the selected engine. */
 export async function regenerateAssetsCommand(args?: { root?: string }): Promise<GenResult[] | undefined> {
   if (!requireTrust('Regenerate Assets')) return undefined;
   let root = args?.root;
@@ -393,7 +393,7 @@ export async function regenerateAssetsCommand(args?: { root?: string }): Promise
   } else {
     const lp = pickProject(await findProjects());
     if (!lp?.project) {
-      void vscode.window.showInformationMessage('CPCBuild: no valid cpcbuild.json in this workspace.');
+      void vscode.window.showInformationMessage('CPC Game Studio: no valid cpcbuild.json in this workspace.');
       return undefined;
     }
     root = lp.root;
@@ -405,24 +405,24 @@ export async function regenerateAssetsCommand(args?: { root?: string }): Promise
   sink.line(`--- regenerate assets (${s.assetsEngine} engine) in ${root} ---`);
   const results = await regenerateAll(root, globs, genSettings(root, s), { sink });
   const bad = results.filter((r) => !r.ok);
-  if (!results.length) void vscode.window.showInformationMessage('CPCBuild: no .cpcimp recipes match the "assets" globs of cpcbuild.json.');
-  else if (bad.length) void vscode.window.showErrorMessage(`CPCBuild: ${bad.length} of ${results.length} asset recipes failed: ${bad[0].error}`);
-  else void vscode.window.showInformationMessage(`CPCBuild: regenerated ${results.length} asset recipe${results.length === 1 ? '' : 's'}.`);
+  if (!results.length) void vscode.window.showInformationMessage('CPC Game Studio: no .cpcimp recipes match the "assets" globs of cpcbuild.json.');
+  else if (bad.length) void vscode.window.showErrorMessage(`CPC Game Studio: ${bad.length} of ${results.length} asset recipes failed: ${bad[0].error}`);
+  else void vscode.window.showInformationMessage(`CPC Game Studio: regenerated ${results.length} asset recipe${results.length === 1 ? '' : 's'}.`);
   return results;
 }
 
-/** CPCBuild: Copy Importer Command, for the importer editor that is active. */
+/** CPC Game Studio: Copy Importer Command, for the importer editor that is active. */
 export async function copyImporterCommandCommand(provider: ImporterEditorProvider): Promise<boolean> {
   const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
   const uri = input instanceof vscode.TabInputCustom && input.viewType === IMPORTER_VIEW_TYPE ? input.uri : undefined;
   const doc = uri && provider.documents.get(uri.toString());
   if (!doc) {
-    void vscode.window.showInformationMessage('CPCBuild: open a .cpcimp recipe (the image importer) first.');
+    void vscode.window.showInformationMessage('CPC Game Studio: open a .cpcimp recipe (the image importer) first.');
     return false;
   }
   const r = await provider.copyCommand(doc);
-  if (!r.copied) void vscode.window.showInformationMessage(`CPCBuild: ${r.reason ?? 'there is no command to copy.'}`);
-  else void vscode.window.setStatusBarMessage('CPCBuild: command copied', 2500);
+  if (!r.copied) void vscode.window.showInformationMessage(`CPC Game Studio: ${r.reason ?? 'there is no command to copy.'}`);
+  else void vscode.window.setStatusBarMessage('CPC Game Studio: command copied', 2500);
   return r.copied;
 }
 

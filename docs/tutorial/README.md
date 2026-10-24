@@ -26,8 +26,7 @@ as you go, and compare with it at the end of each chapter.
 
 You know some BASIC (Locomotive BASIC on the CPC, Sinclair BASIC on the Spectrum, or similar) and
 you want to write a real game. You do not need to know Z80 assembly, Boriel BASIC, or the CPCBuild
-tools. If you have used NextBuild on the Spectrum Next, the workflow will feel familiar: CPCBuild
-Studio's workflow is inspired by NextBuild Studio, though it shares no code with it.
+tools.
 
 ## The chapters
 
@@ -53,11 +52,11 @@ can be done in either order, or skipped.
 | You need | For | Check with |
 |---|---|---|
 | VS Code | everything | |
-| The **CPCBuild Studio** extension (`cpcbuild.cpcbuild-studio`) | editors, importer, build and run | the **CPCBuild** icon in the Activity Bar, once a folder with a `cpcbuild.json` is open |
-| The **CPCBuild Emulator** extension (`cpcbuild.cpcbuild-emu`) | running the game in an editor tab | **CPC Emulator: Open File...** in the Command Palette |
-| The Boriel BASIC compiler with the CPC backend, with `mkdsk` (the disc packager) | compiling and making `.dsk` files | **CPCBuild: Check Environment** (chapter 1) |
+| The **CPC Game Studio** extension (`cpcbuild.cpcbuild-studio`) | editors, importer, build and run | the **CPC Game Studio** icon in the Activity Bar, once a folder with a `cpcbuild.json` is open |
+| The **CPC Game Studio Emulator** extension (`cpcbuild.cpcbuild-emu`) | running the game in an editor tab | **CPC Emulator: Open File...** in the Command Palette |
+| The Boriel BASIC compiler with the CPC backend, with `mkdsk` (the disc packager) | compiling and making `.dsk` files | **CPC Game Studio: Check Environment** (chapter 1) |
 | The Lamplighter files: the finished game, the art files and `split_rooms.py` | comparing with your own copy, and the files you copy in | `games/lamplighter/` exists |
-| [Tiled](https://www.mapeditor.org/) (chapter 3) | editing the tower map | **CPCBuild: Open in Tiled** |
+| [Tiled](https://www.mapeditor.org/) (chapter 3) | editing the tower map | **CPC Game Studio: Open in Tiled** |
 | Python 3 (chapter 3, step 5 only) | running `split_rooms.py`, which cuts the map into rooms | `python3 --version` |
 
 You do not need Python for anything else. Python is only for chapter 3, step 5, and you can skip it: that
@@ -75,7 +74,7 @@ pre-release). There are two ways to get them. Chapter 1 walks through the first.
 
 - **The two extensions.** Download `cpcbuild-studio-0.1.0.vsix` and `cpcbuild-emu-0.1.0.vsix`. In VS Code, run
   **Extensions: Install from VSIX...** from the Command Palette, once for each file. Then let Studio fetch the
-  compiler with **CPCBuild: Download Tools** (chapter 1, step 2). For the Lamplighter files, clone or download
+  compiler with **CPC Game Studio: Download Tools** (chapter 1, step 2). For the Lamplighter files, clone or download
   the [cpcbuild repository](https://github.com/carcharo/cpcbuild) and look in `games/lamplighter/`.
 - **The SDK folder.** Download `cpcbuild-sdk-0.1.0-<platform>.zip` (or `.tar.gz` on Linux) for your system. It
   holds the compiler, both `.vsix` files and `games/lamplighter/`. See the
@@ -104,7 +103,7 @@ Conventions:
   `games/lamplighter/` on the `platformer` branch.
 - Code marked **(simplified)** is a cut-down version of the real thing. The text says what was left out.
 - Commands in the Command Palette (press `Ctrl+Shift+P`, or `Cmd+Shift+P` on a Mac) are written
-  with the exact title, for example **CPCBuild: Build and Run**.
+  with the exact title, for example **CPC Game Studio: Build and Run**.
 - Boriel BASIC variable names are case-insensitive; the game uses a mixture. Copy what you see.
 
 ### Where your files go
@@ -173,7 +172,7 @@ where Build, Run and asset generation refuse until you trust the workspace (chap
 
 ### If something does not build
 
-1. Run **CPCBuild: Check Environment**. It lists what it found and what is missing.
-2. Open **View > Output** and choose **CPCBuild** in the drop-down: the compiler's messages are there.
+1. Run **CPC Game Studio: Check Environment**. It lists what it found and what is missing.
+2. Open **View > Output** and choose **CPC Game Studio** in the drop-down: the compiler's messages are there.
 3. Open the **Problems** panel: compiler errors and warnings appear there with file and line.
 4. Compare your file with the finished one in `games/lamplighter/`.

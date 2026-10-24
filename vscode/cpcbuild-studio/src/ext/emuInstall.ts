@@ -1,5 +1,5 @@
 /**
- * emuInstall.ts -- "CPCBuild: Install Emulator": the CPCBuild Emulator extension from the release of Studio's own
+ * emuInstall.ts -- "CPC Game Studio: Install Emulator": the CPC Game Studio Emulator extension from the release of Studio's own
  * version. A local cpcbuild checkout's .vsix comes first (as before); else the .vsix is downloaded to global storage
  * and installed with workbench.extensions.installExtension; if the download fails the releases page opens.
  * Shared by the missing-emulator warning (emuMissing.ts) and walkthrough step 2.
@@ -71,7 +71,7 @@ async function run(a: InstallEmuArgs): Promise<InstallEmuResult> {
   const vsix = findLocalVsix(a.library);
   if (vsix) {
     if (!a.quiet) await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(vsix));
-    const message = `CPCBuild: the emulator package is ${vsix}. Install it with "Extensions: Install from VSIX..." from the Extensions view menu.`;
+    const message = `CPC Game Studio: the emulator package is ${vsix}. Install it with "Extensions: Install from VSIX..." from the Extensions view menu.`;
     say(message);
     show('info', message);
     return { ok: true, how: 'local', message, file: vsix };
@@ -80,7 +80,7 @@ async function run(a: InstallEmuArgs): Promise<InstallEmuResult> {
   const url = emuVsixUrl(version, a.releasesBase);
   const open = a.open ?? ((u: string) => vscode.env.openExternal(vscode.Uri.parse(u)));
   const fallback = async (error: string): Promise<InstallEmuResult> => {
-    const message = `CPCBuild: could not download CPCBuild Emulator ${version}: ${error}. Opening the releases page; download ${emuVsixName(version)} there and use "Extensions: Install from VSIX...".`;
+    const message = `CPC Game Studio: could not download CPC Game Studio Emulator ${version}: ${error}. Opening the releases page; download ${emuVsixName(version)} there and use "Extensions: Install from VSIX...".`;
     say(message);
     show('error', message);
     if (!a.quiet || a.open) await open(RELEASES_PAGE);
@@ -96,7 +96,7 @@ async function run(a: InstallEmuArgs): Promise<InstallEmuResult> {
     const work = (onProgress: (r: number, t: number | undefined) => void, token?: vscode.CancellationToken) => download({ url, dest, proxy, token, onProgress });
     if (a.quiet) await work(() => undefined);
     else {
-      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `CPCBuild: downloading CPCBuild Emulator ${version}`, cancellable: true }, (progress, token) => {
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `CPC Game Studio: downloading CPC Game Studio Emulator ${version}`, cancellable: true }, (progress, token) => {
         let last = 0;
         return work((r, t) => {
           const pct = t ? Math.floor((r / t) * 100) : 0;
@@ -111,12 +111,12 @@ async function run(a: InstallEmuArgs): Promise<InstallEmuResult> {
   try {
     await (a.install ?? ((f: vscode.Uri) => vscode.commands.executeCommand('workbench.extensions.installExtension', f)))(vscode.Uri.file(dest));
   } catch (e) {
-    const message = `CPCBuild: the downloaded emulator package could not be installed: ${(e as Error).message}. It is at ${dest}; use "Extensions: Install from VSIX...".`;
+    const message = `CPC Game Studio: the downloaded emulator package could not be installed: ${(e as Error).message}. It is at ${dest}; use "Extensions: Install from VSIX...".`;
     say(message);
     show('error', message);
     return { ok: false, how: 'download', message, file: dest };
   }
-  const message = 'CPCBuild: CPCBuild Emulator installed. Run the program again.';
+  const message = 'CPC Game Studio: CPC Game Studio Emulator installed. Run the program again.';
   say(message);
   show('info', message);
   return { ok: true, how: 'download', message, file: dest };

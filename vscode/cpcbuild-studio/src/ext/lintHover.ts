@@ -13,7 +13,7 @@ import { Finding, lint, RULES, RuleId, Severity } from '../core/lint';
 import { readSettings } from './config';
 import { includedUserNames, invalidateLibraries, LibraryInfo, libraryFor, targetFacts } from './library';
 
-/** Language ids the Boriel / NextBuild extensions use for .bas files; the file pattern covers the rest. */
+/** Language ids the Boriel BASIC extensions use for .bas files; the file pattern covers the rest. */
 const LANGUAGES = ['zxbasic', 'boriel', 'boriel-basic', 'cpcbuild-basic'];
 export const SELECTOR: vscode.DocumentSelector = [
   { scheme: 'file', pattern: '**/*.bas' },
@@ -265,7 +265,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     const cfg = vscode.workspace.getConfiguration('cpcbuild');
     const on = !cfg.get<boolean>('lint.enable', true);
     await cfg.update('lint.enable', on, vscode.workspace.workspaceFolders ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global);
-    void vscode.window.showInformationMessage(`CPCBuild lint is now ${on ? 'on' : 'off'}.`);
+    void vscode.window.showInformationMessage(`CPC Game Studio lint is now ${on ? 'on' : 'off'}.`);
     return { enabled: on };
   });
   reg('cpcbuild.docs.open', async (name?: unknown) => {
@@ -273,7 +273,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     const file = ed && isBasic(ed.document) ? ed.document.uri.fsPath : undefined;
     const info = file ? libraryFor(file) : undefined;
     if (!info?.index || !info.docs || !info.docsFile) {
-      void vscode.window.showInformationMessage('CPCBuild: library docs not found. Open a .bas file in a cpcbuild project, or set "cpcbuild.library.path".');
+      void vscode.window.showInformationMessage('CPC Game Studio: library docs not found. Open a .bas file in a cpcbuild project, or set "cpcbuild.library.path".');
       return undefined;
     }
     let target = typeof name === 'string' ? name : undefined;
@@ -285,7 +285,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     if (!target) {
       const pickItem = await vscode.window.showQuickPick(
         info.index.routines.filter((r) => r.doc).map((r) => ({ label: r.name, description: r.signature, detail: r.doc.split('\n')[0] })),
-        { title: 'CPCBuild: library routine', matchOnDescription: true },
+        { title: 'CPC Game Studio: library routine', matchOnDescription: true },
       );
       target = pickItem?.label;
     }
@@ -293,7 +293,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     const r = info.index.byName.get(target.toLowerCase())?.[0];
     const sec = sectionFor(info.docs, target, r?.file);
     if (!sec) {
-      void vscode.window.showInformationMessage(`CPCBuild: ${target} is not in docs/library.md; its header in ${r?.file ?? 'the library'} is the reference.`);
+      void vscode.window.showInformationMessage(`CPC Game Studio: ${target} is not in docs/library.md; its header in ${r?.file ?? 'the library'} is the reference.`);
       return undefined;
     }
     const pos = new vscode.Position(sec.line, 0);

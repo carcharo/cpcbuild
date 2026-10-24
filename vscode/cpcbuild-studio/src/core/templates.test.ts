@@ -20,7 +20,7 @@ describe('templates', () => {
     }
   });
   it('firmware template points at the Sprite Editor', () => {
-    expect(generateTemplate('firmware', { name: 'x' }).files['src/main.bas'] ?? '').toContain('CPCBuild Sprite Editor');
+    expect(generateTemplate('firmware', { name: 'x' }).files['src/main.bas'] ?? '').toContain('CPC Sprite Editor');
   });
   it('plus has a cartridge and a disc; shared has both machines', () => {
     const plus = parseProject(generateTemplate('plus', { name: 'x' }).files['cpcbuild.json']).project!;

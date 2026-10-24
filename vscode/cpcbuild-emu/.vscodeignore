@@ -10,6 +10,7 @@
 !wasm/cpcec.wasm
 !wasm/gpl.txt
 !wasm/package.json
+!media/icon.png
 !media/roms/*.rom
 !media/codicons/codicon.css
 !media/codicons/codicon.ttf

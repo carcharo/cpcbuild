@@ -4,7 +4,7 @@
 # img2cpc.py and split_rooms.py (over tools/tmx2bas.py) convert them.
 # The outputs are committed.
 #
-# This is a CPCBuild Studio project (cpcbuild.json), and every img2cpc line
+# This is a CPC Game Studio project (cpcbuild.json), and every img2cpc line
 # below is also an assets/*.cpcimp recipe (Studio's "Regenerate Assets").
 # Studio runs img2cpc.py from the project root, so this script does too: the
 # generated headers then name the same project-relative paths either way

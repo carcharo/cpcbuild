@@ -1,6 +1,6 @@
 /**
  * tmxViewer.ts -- the Tiled .tmx viewer (spec 5.1): a read-only custom editor (priority "option":
- * "Open With... CPCBuild Map Viewer"), the convert command (tmx2bas) and "Open in Tiled".
+ * "Open With... CPC Map Viewer"), the convert command (tmx2bas) and "Open in Tiled".
  * Tiled stays the editor; this only shows the map, lets you pick tiles and writes the .bas.
  *
  * The map model and the rendering are in src/core/tmx.ts and tmxView.ts; the host reads the tileset
@@ -208,7 +208,7 @@ export function buildView(doc: TmxDocument, text: string): void {
 export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<TmxDocument> {
   readonly viewType = TMX_VIEW_TYPE;
   readonly bundle = 'tmx';
-  readonly title = 'CPCBuild Map Viewer';
+  readonly title = 'CPC Map Viewer';
   readonly documents = new Map<string, TmxDocument>();
   /** Test hook: the Tiled executable to use instead of the setting / the usual places. */
   tiledOverride?: string;
@@ -473,15 +473,15 @@ async function pickTmx(arg: vscode.Uri | TmxCommandArgs | undefined, quiet: bool
   if (active || quiet) return active;
   const found = await vscode.workspace.findFiles('**/*.tmx', '**/node_modules/**', 50);
   if (!found.length) {
-    void vscode.window.showInformationMessage('CPCBuild: no .tmx file in this workspace.');
+    void vscode.window.showInformationMessage('CPC Game Studio: no .tmx file in this workspace.');
     return undefined;
   }
   if (found.length === 1) return found[0];
-  const pick = await vscode.window.showQuickPick(found.map((u) => ({ label: vscode.workspace.asRelativePath(u), uri: u })), { title: 'CPCBuild: Tiled map to convert' });
+  const pick = await vscode.window.showQuickPick(found.map((u) => ({ label: vscode.workspace.asRelativePath(u), uri: u })), { title: 'CPC Game Studio: Tiled map to convert' });
   return pick?.uri;
 }
 
-/** CPCBuild: Convert Tiled Map to BASIC. */
+/** CPC Game Studio: Convert Tiled Map to BASIC. */
 export async function tmxGenerateCommand(arg?: vscode.Uri | TmxCommandArgs): Promise<ConvertResult | undefined> {
   const a: TmxCommandArgs = arg instanceof vscode.Uri || !arg ? {} : arg;
   const quiet = a.quiet === true;
@@ -492,7 +492,7 @@ export async function tmxGenerateCommand(arg?: vscode.Uri | TmxCommandArgs): Pro
     try {
       const map = parseTmx(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'));
       if (map.layers.length > 1) {
-        const pick = await vscode.window.showQuickPick(map.layers.map((l) => ({ label: l.name })), { title: 'CPCBuild: tile layer to convert' });
+        const pick = await vscode.window.showQuickPick(map.layers.map((l) => ({ label: l.name })), { title: 'CPC Game Studio: tile layer to convert' });
         if (!pick) return undefined;
         opts.layer = pick.label;
       }
@@ -504,24 +504,24 @@ export async function tmxGenerateCommand(arg?: vscode.Uri | TmxCommandArgs): Pro
   if (r.ok) {
     const root = projectRootOf(uri.fsPath) ?? path.dirname(uri.fsPath);
     const out = vscode.Uri.file(path.resolve(root, r.output));
-    if (!quiet) void vscode.window.showInformationMessage(`CPCBuild: wrote ${r.output}`, 'Open').then((c) => c && vscode.window.showTextDocument(out));
+    if (!quiet) void vscode.window.showInformationMessage(`CPC Game Studio: wrote ${r.output}`, 'Open').then((c) => c && vscode.window.showTextDocument(out));
   } else {
-    void vscode.window.showErrorMessage(`CPCBuild: ${r.error}`);
+    void vscode.window.showErrorMessage(`CPC Game Studio: ${r.error}`);
   }
   return r;
 }
 
-/** CPCBuild: Open in Tiled. `tiledPath` is for tests. */
+/** CPC Game Studio: Open in Tiled. `tiledPath` is for tests. */
 export async function openInTiledCommand(arg?: vscode.Uri | (TmxCommandArgs & { tiledPath?: string })): Promise<{ ok: boolean; error?: string; command?: string[] } | undefined> {
   const quiet = !(arg instanceof vscode.Uri) && arg?.quiet === true;
   const uri = await pickTmx(arg, quiet);
   if (!uri) return undefined;
   const r = await openInTiled(uri.fsPath, !(arg instanceof vscode.Uri) ? arg?.tiledPath : undefined);
-  if (!r.ok && !quiet) void vscode.window.showErrorMessage(`CPCBuild: ${r.error}`);
+  if (!r.ok && !quiet) void vscode.window.showErrorMessage(`CPC Game Studio: ${r.error}`);
   return r;
 }
 
-/** The generator for "CPCBuild: Generate Asset File": a .tmx (open in any editor) converts; other files are not ours. */
+/** The generator for "CPC Game Studio: Generate Asset File": a .tmx (open in any editor) converts; other files are not ours. */
 export async function generateTmxAsset(uri: vscode.Uri | undefined): Promise<unknown | undefined> {
   const u = uri ?? activeTmxUri();
   if (!u || !/\.tmx$/i.test(u.path)) return undefined;

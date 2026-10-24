@@ -22,7 +22,7 @@ game's files.
 
 ## Step 1: Read the build report
 
-Run **CPCBuild: Build** with the `cpc464` target. At the end of the **CPCBuild** output channel is
+Run **CPC Game Studio: Build** with the `cpc464` target. At the end of the **CPC Game Studio** output channel is
 the build report. The report is plain text (a graphical report with a memory bar was planned and is not
 built). For the finished game, whose size is 26,749 bytes (the finished game's
 `build_cpc.sh` prints the same size), it reads:
@@ -36,7 +36,7 @@ Build report for cpc464:
 
 (The layout is `formatReport` in Studio's `map.ts`, checked against a screenshot of a real run; the
 numbers are worked out from the 26,749 bytes: &0040 + 26,749 = &68BD, and &68BD - &4000 = 10,429.) Run
-**CPCBuild: Show Build Report** to print the last one again. Your own build will be a few hundred bytes
+**CPC Game Studio: Show Build Report** to print the last one again. Your own build will be a few hundred bytes
 different. The lines mean:
 
 - **`26749 bytes, &0040-&68BD`**: the program's size and address range. Studio reads the start from the `.map`
@@ -82,10 +82,10 @@ your head: the program's code comes first, the data arrays after. The library's 
 is your code and data.
 
 Studio also has views you can use once the emulator is running; this tutorial does not need them, but they
-are worth a look. The **CPCBuild** icon in the Activity Bar opens three: **Symbols** (the map's labels,
+are worth a look. The **CPC Game Studio** icon in the Activity Bar opens three: **Symbols** (the map's labels,
 grouped, with their addresses and, for variables, live values), **Registers** (the Z80's registers when the
 program is stopped; its toolbar has Pause, Resume, Step, Step Over, Step Out and **Show Memory**) and
-**Breakpoints** (a breakpoint is set on a symbol, with an offset). **CPCBuild: Show Memory** opens a
+**Breakpoints** (a breakpoint is set on a symbol, with an offset). **CPC Game Studio: Show Memory** opens a
 read-only hex view of 512 bytes with the changed bytes marked. While a program is stopped the status bar
 says `CPC paused at PutSprite` (a symbol and offset); while it runs it says `CPC running`. A watch list and memory writes are not built yet.
 
@@ -128,7 +128,7 @@ saved a copy). Then add a target to `cpcbuild.json`, beside `cpc464`:
   "defines": ["CPC464", "BENCH"], "package": "dsk", "disc": "LAMPLIGH" }
 ```
 
-Select it (**CPCBuild: Select Target**) and run **CPCBuild: Build and Run**. The game does not draw a title:
+Select it (**CPC Game Studio: Select Target**) and run **CPC Game Studio: Build and Run**. The game does not draw a title:
 it plays the script, which takes about ten seconds at 25 steps a second, and then the screen shows:
 
 ```
@@ -187,7 +187,7 @@ build both and measure the difference.
    "defines": ["CPC464", "BENCH", "LAMP_BASIC"]
    ```
 
-2. Run **CPCBuild: Build and Run**. The line is:
+2. Run **CPC Game Studio: Build and Run**. The line is:
 
    ```
    INFO steps=250 frames=552 per second=22.6 late=51 longest=4

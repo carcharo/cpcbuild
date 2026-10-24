@@ -32,7 +32,7 @@ Enemies move 2 pixels every *second* step (more on that below), so they are half
 
 ## Step 2: Put them in the map
 
-Open `assets/tower.tmx` in Tiled (**CPCBuild: Open in Tiled**) and look at the object layer from chapter 3. Every
+Open `assets/tower.tmx` in Tiled (**CPC Game Studio: Open in Tiled**) and look at the object layer from chapter 3. Every
 enemy is an object of class `enemy` (the file stores it as `type="enemy"`) with two integer properties, `kind` (1, 2 or 3) and `range`
 (in cells; walkers ignore it, so it is 0).
 
@@ -457,7 +457,7 @@ How it works:
 
 ## Build and run
 
-**CPCBuild: Build and Run**. In room 9 a purple walker patrols the platform above the floor, turning back at each end. Walk into it and you are back at the start, with the enemy back at its start.
+**CPC Game Studio: Build and Run**. In room 9 a purple walker patrols the platform above the floor, turning back at each end. Walk into it and you are back at the start, with the enemy back at its start.
 Go through rooms and meet floaters and bats (the finished game has them in rooms 0, 1, 3, 5, 8 and 10).
 To visit them quickly, change `GameInit(9)` to another room (rooms 0, 5, 6 and 11 have no door; the
 others will keep you in until chapter 7). The finished game's

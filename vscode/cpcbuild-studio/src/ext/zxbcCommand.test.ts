@@ -39,7 +39,7 @@ describe('zxbc fallback', () => {
   it('ends with the Download Tools hint, and keeps the Poetry advice for developers (zxbc.cwd set) only', () => {
     const user = compilerHint('"zxbc" was not found');
     expect(user).toBe(`"zxbc" was not found. ${DOWNLOAD_HINT}`);
-    expect(DOWNLOAD_HINT).toBe('Run "CPCBuild: Download Tools".');
+    expect(DOWNLOAD_HINT).toBe('Run "CPC Game Studio: Download Tools".');
     expect(user).not.toContain('poetry');
     const dev = compilerHint('"zxbc" was not found', ['zxbc'], '/zx', { env: { PATH: '' }, home, platform: 'linux', exists: has() });
     expect(dev).toContain('poetry');

@@ -4,12 +4,11 @@
 '   ScreenInit()            re-reads the screen state; call after Mode
 '                           or anything else that changes the screen
 '   WaitRetrace(frames)     waits for the start of that many frame
-'                           flybacks (as NextBuild's WaitRetrace)
+'                           flybacks
 '   EnableDoubleBuffer()    draw on a hidden screen at &4000 from now on
 '   DisableDoubleBuffer()   back to drawing on the shown screen (&C000)
 '   FlipBuffer()            at the next flyback, show what was drawn and
-'                           draw on the other screen (as NextBuild's
-'                           FlipBuffer); with double buffering off it
+'                           draw on the other screen; with double buffering off it
 '                           just waits for the flyback
 '   PokeScreen(x, y, b)     writes byte b at byte column x (0-79), pixel
 '                           line y (0-199), top-left origin; ignored off

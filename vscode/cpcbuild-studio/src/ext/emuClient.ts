@@ -23,7 +23,7 @@ export class EmuClient {
     let r: { ok: boolean; why?: string };
     // cpcbuild-emu loads on its commands, so call one: "command not found" means it is not installed
     const v = await this.raw<{ api: number }>('cpcbuild.emu.version');
-    if (isError(v)) r = { ok: false, why: /command '.*' not found/i.test(v.error) ? 'the CPCBuild Emulator extension (cpcbuild-emu) is not installed' : v.error };
+    if (isError(v)) r = { ok: false, why: /command '.*' not found/i.test(v.error) ? 'the CPC Game Studio Emulator extension (cpcbuild-emu) is not installed' : v.error };
     else if (v.api !== EMU_API_VERSION) r = { ok: false, why: `cpcbuild-emu speaks API ${v.api}, Studio needs API ${EMU_API_VERSION}` };
     else r = { ok: true };
     this.apiOk = { at: now, ...r };

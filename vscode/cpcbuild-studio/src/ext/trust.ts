@@ -39,7 +39,7 @@ export function notifyUntrusted(what: string): void {
   const now = Date.now();
   if (now - lastShown < 4000) return;
   lastShown = now;
-  void vscode.window.showWarningMessage(`CPCBuild: ${restrictedText(what)}`, 'Manage Workspace Trust').then((c) => {
+  void vscode.window.showWarningMessage(`CPC Game Studio: ${restrictedText(what)}`, 'Manage Workspace Trust').then((c) => {
     if (c) void vscode.commands.executeCommand('workbench.trust.manage');
   });
 }

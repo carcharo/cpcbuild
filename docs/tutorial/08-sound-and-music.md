@@ -209,7 +209,7 @@ END SUB
 
 ## Build and run
 
-**CPCBuild: Build and Run**. The emulator tab needs its sound switched on: click the screen and the
+**CPC Game Studio: Build and Run**. The emulator tab needs its sound switched on: click the screen and the
 **Click for sound** button, once.
 
 You should hear the title tune on the title screen, a different tune when the game starts, a
@@ -242,10 +242,10 @@ playing (the comment on `PlatSfx` says so).
 ## Writing your own music
 
 The tutorial does not need you to, but if you want to: write a song in **Arkos Tracker 3**, save it as
-`.aks`, and run **CPCBuild: Convert Music** on it (right-click the `.aks` in the Explorer, or run the command
+`.aks`, and run **CPC Game Studio: Convert Music** on it (right-click the `.aks` in the Explorer, or run the command
 from the Command Palette with the song open; Studio also takes Vortex Tracker `.vt2` files, which is what
-the repository's own songs are). **CPCBuild: Open in Arkos Tracker** opens the application: set
-`cpcbuild.arkos.trackerPath`, and for the converter run **CPCBuild: Download Tools** and tick the Arkos
+the repository's own songs are). **CPC Game Studio: Open in Arkos Tracker** opens the application: set
+`cpcbuild.arkos.trackerPath`, and for the converter run **CPC Game Studio: Download Tools** and tick the Arkos
 command-line tools (or set `cpcbuild.arkos.toolsPath` to a folder that holds them). **Check Environment** lists
 them as optional. That runs `tools/aks2bas.py`, the same tool as on the command line:
 
@@ -254,9 +254,9 @@ python3 tools/aks2bas.py tune.aks tune.bas --name tune
 python3 tools/aks2bas.py --sfx sfx.aks sfx.bas --name sfx
 ```
 
-and you get a `.bas` like the ones you copied. **CPCBuild: Play Music** (also in the Explorer menu for `.aks`
+and you get a `.bas` like the ones you copied. **CPC Game Studio: Play Music** (also in the Explorer menu for `.aks`
 and `.vt2`) builds a tiny preview program around the real player and plays your song in the emulator tab:
-what you hear is what the library plays. **CPCBuild: Stop Music** ends it. The tutorial did not run these
+what you hear is what the library plays. **CPC Game Studio: Stop Music** ends it. The tutorial did not run these
 commands (they need the Arkos tools), so treat this paragraph as read from the Studio's source, not as tried.
 
 ## Try this

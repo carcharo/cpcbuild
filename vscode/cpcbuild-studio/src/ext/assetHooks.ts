@@ -1,5 +1,5 @@
 /**
- * assetHooks.ts -- "CPCBuild: Generate Asset File" is one command for every document type that has an
+ * assetHooks.ts -- "CPC Game Studio: Generate Asset File" is one command for every document type that has an
  * output file (sprites, tile sets, importer recipes). Each owner registers a generator that returns
  * undefined for files it does not handle; the command asks them in turn.
  */
@@ -23,6 +23,6 @@ export async function generateAssetFileCommand(uri?: vscode.Uri): Promise<unknow
     const r = await g(uri);
     if (r !== undefined) return r;
   }
-  void vscode.window.showInformationMessage('CPCBuild: open a sprite, tile set or import recipe to generate its file.');
+  void vscode.window.showInformationMessage('CPC Game Studio: open a sprite, tile set or import recipe to generate its file.');
   return { unsupported: true };
 }

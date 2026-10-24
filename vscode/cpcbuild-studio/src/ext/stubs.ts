@@ -8,7 +8,7 @@ export const STUB_COMMANDS: Record<string, string> = {
 export function registerStubs(reg: (id: string, fn: (...a: any[]) => unknown) => void): void {
   for (const [id, what] of Object.entries(STUB_COMMANDS)) {
     reg(id, () => {
-      void vscode.window.showInformationMessage(`CPCBuild: ${what} is coming soon.`);
+      void vscode.window.showInformationMessage(`CPC Game Studio: ${what} is coming soon.`);
       return { comingSoon: id };
     });
   }

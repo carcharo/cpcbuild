@@ -516,7 +516,7 @@ or, after 30, on fire.
 
 ## Build and run
 
-**CPCBuild: Build and Run**. You should see the title: `LAMPLIGHTER`, a lit and an unlit lamp, the player and an
+**CPC Game Studio: Build and Run**. You should see the title: `LAMPLIGHTER`, a lit and an unlit lamp, the player and an
 enemy animating, `PRESS FIRE`. Press any key.
 
 In room 9: `LAMPS 00 OF 28` and three hearts at the bottom, with the room name under them. Walk into the

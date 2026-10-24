@@ -30,7 +30,7 @@ export const PALETTE_VIEW_TYPE = 'cpcbuild.paletteEditor';
 export class PaletteEditorProvider extends StudioEditorProvider<PaletteState, PaletteOp, PaletteView> {
   readonly viewType = PALETTE_VIEW_TYPE;
   readonly bundle = 'palette';
-  readonly title = 'CPCBuild Palette Editor';
+  readonly title = 'CPC Palette Editor';
 
   /** Test hook: answers the "Load from PNG" file dialog without showing it. */
   pngOverride?: vscode.Uri;
@@ -97,7 +97,7 @@ export class PaletteEditorProvider extends StudioEditorProvider<PaletteState, Pa
 
 const DIALOG_FILTER = { Palette: ['cpcpal', 'cpcpal12'] };
 
-/** CPCBuild: New Palette. `args` lets tests and other commands skip the prompts. */
+/** CPC Game Studio: New Palette. `args` lets tests and other commands skip the prompts. */
 export async function newPaletteCommand(args?: { uri?: vscode.Uri; plus?: boolean }): Promise<vscode.Uri | undefined> {
   let plus = args?.plus;
   if (plus === undefined && !args?.uri) {
@@ -106,7 +106,7 @@ export async function newPaletteCommand(args?: { uri?: vscode.Uri; plus?: boolea
         { label: 'Firmware palette', description: '.cpcpal: pens as firmware colours 0-26 (modes 0, 1, 2)', plus: false },
         { label: 'Plus palette', description: '.cpcpal12: 12-bit colours (CPC Plus)', plus: true },
       ],
-      { title: 'CPCBuild: new palette' },
+      { title: 'CPC Game Studio: new palette' },
     );
     if (!pick) return undefined;
     plus = pick.plus;

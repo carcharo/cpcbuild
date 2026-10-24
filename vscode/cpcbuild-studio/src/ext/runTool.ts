@@ -1,7 +1,7 @@
 /**
  * runTool.ts -- the one way Studio starts external programs (zxbc, mkdsk.py,
  * mkcpr.py, emulators): spawn with an argument array and no shell, cancel
- * through a token, and report every line to a sink (the "CPCBuild" output
+ * through a token, and report every line to a sink (the "CPC Game Studio" output
  * channel and/or a task terminal). No vscode import: unit-testable in node.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';

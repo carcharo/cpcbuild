@@ -1,4 +1,4 @@
-/** doctor.ts -- "CPCBuild: Check Environment" (spec 2.5). */
+/** doctor.ts -- "CPC Game Studio: Check Environment" (spec 2.5). */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { absFrom, compilerCommand, manifest, readSettings, resolveArkos, resolveCompilerFor, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
@@ -91,7 +91,7 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
     add({
       id: 'emulator', label: 'Emulator: cpcbuild-emu extension', ok: has, optional: true,
       detail: has ? 'cpcbuild.emu.version answers' : 'not installed (Run falls back to an external emulator)',
-      fix: 'Install the CPCBuild Emulator extension, or set "cpcbuild.run.emulator" to caprice32, cpcec or rvm.',
+      fix: 'Install the CPC Game Studio Emulator extension, or set "cpcbuild.run.emulator" to caprice32, cpcec or rvm.',
     });
   } else if (emu === 'caprice32' || emu === 'cpcec' || emu === 'rvm') {
     const found = emu === 'caprice32' ? findCap32(s, lib) : emu === 'cpcec' ? findCpcec(s, lib) : findRvm(s);
@@ -116,7 +116,7 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   const tiled = findTiled(s.tiledPath);
   add({ id: 'tiled', label: 'Tiled map editor', ok: !!tiled, optional: true, detail: tiled ?? 'not found', fix: 'Install Tiled (mapeditor.org) for "Open in Tiled".' });
 
-  sink.line('CPCBuild environment check');
+  sink.line('CPC Game Studio environment check');
   for (const i of items) {
     sink.line(`  [${i.ok ? 'ok' : i.optional ? 'optional' : 'MISSING'}] ${i.label}: ${i.detail}`);
     if (!i.ok && i.fix) sink.line(`        fix: ${i.fix}`);
@@ -125,14 +125,14 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
 }
 
 export async function doctorCommand(projectDir: string | undefined, sink: Sink, channelShow: () => void): Promise<DoctorItem[]> {
-  const items = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CPCBuild: checking the environment' }, () => checkEnvironment(projectDir, sink));
+  const items = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'CPC Game Studio: checking the environment' }, () => checkEnvironment(projectDir, sink));
   channelShow();
   const bad = items.filter((i) => !i.ok && !i.optional);
   if (bad.length === 0) {
-    void vscode.window.showInformationMessage('CPCBuild: the environment looks fine (details in the CPCBuild output).');
+    void vscode.window.showInformationMessage('CPC Game Studio: the environment looks fine (details in the CPC Game Studio output).');
   } else {
     const first = bad[0];
-    void vscode.window.showWarningMessage(`CPCBuild: ${bad.length} missing: ${bad.map((b) => b.label).join(', ')}. ${first.fix ?? ''}`, 'Open Settings').then((c) => {
+    void vscode.window.showWarningMessage(`CPC Game Studio: ${bad.length} missing: ${bad.map((b) => b.label).join(', ')}. ${first.fix ?? ''}`, 'Open Settings').then((c) => {
       if (c) void vscode.commands.executeCommand('workbench.action.openSettings', 'cpcbuild');
     });
   }

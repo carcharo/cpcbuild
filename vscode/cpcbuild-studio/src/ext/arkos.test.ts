@@ -246,7 +246,7 @@ describe('finding the tools: the new lookup order', () => {
   });
   it('says plainly when the platform has no Arkos tools (linux-arm64), and otherwise how to get them', async () => {
     expect(arkosMissingText('linux', 'arm64')).toMatch(/^Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here\./);
-    expect(arkosMissingText('linux', 'x64')).toContain('Run "CPCBuild: Download Tools"');
-    expect(arkosMissingText('win32', 'x64')).toContain('Run "CPCBuild: Download Tools"');
+    expect(arkosMissingText('linux', 'x64')).toContain('Run "CPC Game Studio: Download Tools"');
+    expect(arkosMissingText('win32', 'x64')).toContain('Run "CPC Game Studio: Download Tools"');
   });
 });

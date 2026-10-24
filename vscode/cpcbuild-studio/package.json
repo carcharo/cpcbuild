@@ -1,7 +1,8 @@
 {
   "name": "cpcbuild-studio",
-  "displayName": "CPCBuild Studio",
-  "description": "Amstrad CPC tools for CPCBuild (Boriel BASIC --arch cpc): palette, sprite and tile editors, image importer, build and run.",
+  "displayName": "CPC Game Studio",
+  "icon": "media/icon.png",
+  "description": "Amstrad CPC game studio for Boriel BASIC (CPCBuild): palette, sprite and tile editors, image importer, build and run.",
   "version": "0.1.0",
   "publisher": "cpcbuild",
   "license": "MIT",
@@ -47,249 +48,249 @@
       {
         "command": "cpcbuild.newProject",
         "title": "New Project",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.newSprite",
         "title": "New Sprite",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.newTileset",
         "title": "New Tileset",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.newPalette",
         "title": "New Palette",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.newPlusSprite",
         "title": "New Plus Sprite",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.importImage",
         "title": "Import Image",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.copyImporterCommand",
         "title": "Copy Importer Command",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.regenerateAssets",
         "title": "Regenerate Assets",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.generateAssetFile",
         "title": "Generate Asset File",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(run)"
       },
       {
         "command": "cpcbuild.insertAssetUse",
         "title": "Insert Asset Use",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(symbol-snippet)"
       },
       {
         "command": "cpcbuild.build",
         "title": "Build",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.buildAndRun",
         "title": "Build and Run",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.run",
         "title": "Run Last Build",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.selectTarget",
         "title": "Select Target",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.selectEmulator",
         "title": "Select Emulator",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.selectModel",
         "title": "Select Model",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.runFile",
         "title": "Run in Emulator",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.showBuildReport",
         "title": "Show Build Report",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.tmx.generate",
         "title": "Convert Tiled Map to BASIC",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.openInTiled",
         "title": "Open in Tiled",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.music.convert",
         "title": "Convert Music",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.music.play",
         "title": "Play Music",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.music.stop",
         "title": "Stop Music",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.music.openTracker",
         "title": "Open in Arkos Tracker",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.symbols.refresh",
         "title": "Refresh Symbols",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(refresh)"
       },
       {
         "command": "cpcbuild.memory.show",
         "title": "Show Memory",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(chip)"
       },
       {
         "command": "cpcbuild.debug.pause",
         "title": "Debug: Pause",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(debug-pause)"
       },
       {
         "command": "cpcbuild.debug.resume",
         "title": "Debug: Resume",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(debug-continue)"
       },
       {
         "command": "cpcbuild.debug.step",
         "title": "Debug: Step (One Instruction)",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(debug-step-into)"
       },
       {
         "command": "cpcbuild.debug.toggleBreakpoint",
         "title": "Debug: Toggle Breakpoint",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(debug-breakpoint)"
       },
       {
         "command": "cpcbuild.lint.toggle",
         "title": "Toggle Lint",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.docs.open",
         "title": "Open Library Docs",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.downloadTools",
         "title": "Download Tools",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.installEmulator",
         "title": "Install Emulator",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.checkEnvironment",
         "title": "Check Environment",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.openAsText",
         "title": "Reopen as Text",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.openSettings",
         "title": "Open Settings",
-        "category": "CPCBuild"
+        "category": "CPC Game Studio"
       },
       {
         "command": "cpcbuild.symbols.filter",
         "title": "Filter Symbols",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(filter)"
       },
       {
         "command": "cpcbuild.symbols.toggleRuntime",
         "title": "Show or Hide Runtime Symbols",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(eye)"
       },
       {
         "command": "cpcbuild.symbols.copyAddress",
         "title": "Copy Symbol Address",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(copy)"
       },
       {
         "command": "cpcbuild.symbols.goToDefinition",
         "title": "Go to Symbol Definition",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(go-to-file)"
       },
       {
         "command": "cpcbuild.debug.stepOver",
         "title": "Debug: Step Over",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(debug-step-over)"
       },
       {
         "command": "cpcbuild.debug.stepOut",
         "title": "Debug: Step Out",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(debug-step-out)"
       },
       {
         "command": "cpcbuild.debug.removeBreakpoint",
         "title": "Remove Breakpoint",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(close)"
       },
       {
         "command": "cpcbuild.debug.showRegisters",
         "title": "Debug: Show Registers",
-        "category": "CPCBuild",
+        "category": "CPC Game Studio",
         "icon": "$(symbol-numeric)"
       }
     ],
     "customEditors": [
       {
         "viewType": "cpcbuild.paletteEditor",
-        "displayName": "CPCBuild Palette Editor",
+        "displayName": "CPC Palette Editor",
         "selector": [
           {
             "filenamePattern": "*.cpcpal"
@@ -302,7 +303,7 @@
       },
       {
         "viewType": "cpcbuild.spriteEditor",
-        "displayName": "CPCBuild Sprite Editor",
+        "displayName": "CPC Sprite Editor",
         "selector": [
           {
             "filenamePattern": "*.cpcspr"
@@ -312,7 +313,7 @@
       },
       {
         "viewType": "cpcbuild.tileEditor",
-        "displayName": "CPCBuild Tile Editor",
+        "displayName": "CPC Tile Editor",
         "selector": [
           {
             "filenamePattern": "*.cpctil"
@@ -322,7 +323,7 @@
       },
       {
         "viewType": "cpcbuild.importer",
-        "displayName": "CPCBuild Image Importer",
+        "displayName": "CPC Image Importer",
         "selector": [
           {
             "filenamePattern": "*.cpcimp"
@@ -332,7 +333,7 @@
       },
       {
         "viewType": "cpcbuild.tmxViewer",
-        "displayName": "CPCBuild Map Viewer",
+        "displayName": "CPC Map Viewer",
         "selector": [
           {
             "filenamePattern": "*.tmx"
@@ -524,14 +525,14 @@
       ]
     },
     "configuration": {
-      "title": "CPCBuild",
+      "title": "CPC Game Studio",
       "properties": {
         "cpcbuild.zxbc.command": {
           "type": "array",
           "default": [
             "zxbc"
           ],
-          "description": "How to start the compiler. Leave it at the default to use the SDK folder, the tools that \"CPCBuild: Download Tools\" installed, or zxbc on PATH. For the Boriel fork run through poetry: [\"poetry\", \"run\", \"zxbc\"].",
+          "description": "How to start the compiler. Leave it at the default to use the SDK folder, the tools that \"CPC Game Studio: Download Tools\" installed, or zxbc on PATH. For the Boriel fork run through poetry: [\"poetry\", \"run\", \"zxbc\"].",
           "items": {
             "type": "string"
           },
@@ -546,7 +547,7 @@
         "cpcbuild.sdk.path": {
           "type": "string",
           "default": "",
-          "description": "The CPCBuild SDK folder (the one holding bin/zxbc, lib/ and tools/). Empty = look for one at or above the project, then use the tools that \"CPCBuild: Download Tools\" installed.",
+          "description": "The CPCBuild SDK folder (the one holding bin/zxbc, lib/ and tools/). Empty = look for one at or above the project, then use the tools that \"CPC Game Studio: Download Tools\" installed.",
           "scope": "resource"
         },
         "cpcbuild.zxbc.args": {
@@ -597,7 +598,7 @@
         "cpcbuild.target.default": {
           "type": "string",
           "default": "",
-          "description": "Id of the target used by Build and Run when none was chosen with \"CPCBuild: Select Target\" (empty = the first target). Select Target remembers its choice per project in the workspace state, not in this setting.",
+          "description": "Id of the target used by Build and Run when none was chosen with \"CPC Game Studio: Select Target\" (empty = the first target). Select Target remembers its choice per project in the workspace state, not in this setting.",
           "scope": "resource"
         },
         "cpcbuild.model": {
@@ -615,7 +616,7 @@
         "cpcbuild.run.emulator": {
           "type": "string",
           "default": "emu",
-          "description": "Where Run goes. \"emu\" needs the CPCBuild Emulator extension and falls back to an external emulator with a message.",
+          "description": "Where Run goes. \"emu\" needs the CPC Game Studio Emulator extension and falls back to an external emulator with a message.",
           "enum": [
             "emu",
             "caprice32",
@@ -827,7 +828,7 @@
           ".cpcspr"
         ],
         "aliases": [
-          "CPCBuild sprite"
+          "CPC sprite"
         ],
         "icon": {
           "light": "./media/icons/sprite.svg",
@@ -840,7 +841,7 @@
           ".cpctil"
         ],
         "aliases": [
-          "CPCBuild tile set"
+          "CPC tile set"
         ],
         "icon": {
           "light": "./media/icons/tile.svg",
@@ -853,7 +854,7 @@
           ".cpcpal"
         ],
         "aliases": [
-          "CPCBuild palette"
+          "CPC palette"
         ],
         "icon": {
           "light": "./media/icons/palette.svg",
@@ -866,7 +867,7 @@
           ".cpcpal12"
         ],
         "aliases": [
-          "CPCBuild Plus palette"
+          "CPC Plus palette"
         ],
         "icon": {
           "light": "./media/icons/palette.svg",
@@ -879,7 +880,7 @@
           ".cpcimp"
         ],
         "aliases": [
-          "CPCBuild import recipe"
+          "CPC import recipe"
         ],
         "icon": {
           "light": "./media/icons/importer.svg",
@@ -890,7 +891,7 @@
     "iconThemes": [
       {
         "id": "cpcbuild-file-icons",
-        "label": "CPCBuild File Icons",
+        "label": "CPC Game Studio File Icons",
         "path": "./media/icon-theme.json"
       }
     ],
@@ -898,7 +899,7 @@
       "activitybar": [
         {
           "id": "cpcbuild",
-          "title": "CPCBuild",
+          "title": "CPC Game Studio",
           "icon": "$(chip)"
         }
       ]
@@ -909,7 +910,7 @@
           "id": "cpcbuild.symbols",
           "name": "Symbols",
           "when": "cpcbuild.active",
-          "contextualTitle": "CPCBuild Symbols"
+          "contextualTitle": "CPC Game Studio Symbols"
         },
         {
           "id": "cpcbuild.registers",
@@ -939,7 +940,7 @@
     "walkthroughs": [
       {
         "id": "cpcbuild.getStarted",
-        "title": "Get started with CPCBuild",
+        "title": "Get started with CPC Game Studio",
         "description": "Install the tools, create a project, build it and run it on an Amstrad CPC.",
         "steps": [
           {
@@ -957,7 +958,7 @@
           {
             "id": "cpcbuild.step.emulator",
             "title": "Install the emulator",
-            "description": "Download CPCBuild Emulator to run programs in an editor tab.\n[Install Emulator](command:cpcbuild.installEmulator)",
+            "description": "Download CPC Game Studio Emulator to run programs in an editor tab.\n[Install Emulator](command:cpcbuild.installEmulator)",
             "completionEvents": [
               "onContext:cpcbuild.emuInstalled"
             ],

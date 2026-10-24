@@ -48,7 +48,7 @@ neighbour, the edge is a wall. (The names are the map's own: you will find them 
 
 ## Step 2: Open the map in Studio's viewer
 
-In the Explorer, right-click `assets/tower.tmx` and choose **Open With...** then **CPCBuild Map
+In the Explorer, right-click `assets/tower.tmx` and choose **Open With...** then **CPC Map
 Viewer**. (The viewer is registered as an option, never the default, so a double-click still opens the
 file as text, and Tiled still works normally.)
 
@@ -77,7 +77,7 @@ the background.
 
 ## Step 3: Look at the map in Tiled
 
-Run **CPCBuild: Open in Tiled** (or use the **Open in Tiled** button in the viewer or in the editor's
+Run **CPC Game Studio: Open in Tiled** (or use the **Open in Tiled** button in the viewer or in the editor's
 title bar; the viewer's button is greyed out when Studio cannot find Tiled). It opens `tower.tmx` in the Tiled
 application. If Studio cannot find Tiled, set `cpcbuild.tiled.path` to the application. (The Tiled
 screens below are from Tiled 1.9 or later, where the old "Type" field is called **Class**; the file itself
@@ -119,11 +119,11 @@ Some notes for when you edit the map yourself:
 ## Step 4: Convert the whole map
 
 Studio can turn a tile layer into a Boriel array in one click: with the map viewer (or the `.tmx`
-text) active, run **CPCBuild: Convert Tiled Map to BASIC** (it is also a button in the editor's title
+text) active, run **CPC Game Studio: Convert Tiled Map to BASIC** (it is also a button in the editor's title
 bar), or press **Generate .bas** in the viewer. If the map has more than one tile layer the command asks
 which one; Lamplighter has one (`tiles`). The output goes beside the map, with the map's file name and
 `.bas`, so here `assets/tower.bas`, with the array named after the file (`tower`). A message says
-`CPCBuild: wrote assets/tower.bas`, with an **Open** button. (The **Array name** box in the viewer
+`CPC Game Studio: wrote assets/tower.bas`, with an **Open** button. (The **Array name** box in the viewer
 changes the name.)
 
 Open the file. It holds the whole map as one array, 60 x 92 = 5,520 bytes, one tile number per cell,
@@ -308,7 +308,7 @@ not define its arrays twice.
 
 ## Build and run
 
-Run **CPCBuild: Build and Run** (target `cpc464`). The screen shows room 9, **THE CELLAR**, with its
+Run **CPC Game Studio: Build and Run** (target `cpc464`). The screen shows room 9, **THE CELLAR**, with its
 name at the bottom. Click the screen, then press `P`: the screen blanks for a moment and room 10 appears.
 `O` goes back. Walk through all twelve. You should recognise the snake: lamps (a small unlit
 lantern), ladders, spikes, windows, and doors (orange blocks) on most rooms.

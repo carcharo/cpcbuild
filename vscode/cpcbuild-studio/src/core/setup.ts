@@ -21,7 +21,7 @@ export class Once {
   }
 }
 
-export const NO_COMPILER_TEXT = 'CPCBuild: the Boriel BASIC compiler is not installed yet.';
+export const NO_COMPILER_TEXT = 'CPC Game Studio: the Boriel BASIC compiler is not installed yet.';
 export const DOWNLOAD_TOOLS_BUTTON = 'Download Tools';
 export const GET_STARTED_BUTTON = 'Get Started';
 export const NOT_NOW_BUTTON = 'Not Now';

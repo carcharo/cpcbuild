@@ -163,7 +163,7 @@ With the Aseprite extension:
    project (a `cpcbuild.json` above the folder) Export also writes a recipe,
    `assets/hero.cpcimp`, naming only the image and `assets/hero.bas`; an existing
    recipe is kept. The export summary says which.
-2. In `main.bas`: `#include "../assets/hero.bas"` (**CPCBuild: Insert Asset Use**
+2. In `main.bas`: `#include "../assets/hero.bas"` (**CPC Game Studio: Insert Asset Use**
    writes the lines).
 3. Build. Every build turns the PNG into `hero.bas` with the settings file's
    mode, frames, palette and tags, so after changing the art (or its settings) in
@@ -171,10 +171,10 @@ With the Aseprite extension:
    `"assets"` list (a new project has `assets/**/*.cpcimp`) is what makes the
    build find the recipe; the summary warns if it doesn't match.
 
-Maps are not built automatically: convert `NAME_map.tmx` with **CPCBuild:
+Maps are not built automatically: convert `NAME_map.tmx` with **CPC Game Studio:
 Convert Tiled Map to BASIC** or `tmx2bas.py` after changing the level.
 
-Without Aseprite: put the PNG in `assets/`, right-click it, **CPCBuild: Import
+Without Aseprite: put the PNG in `assets/`, right-click it, **CPC Game Studio: Import
 Image**, choose the settings and save; the recipe it writes is built the same
 way.
 

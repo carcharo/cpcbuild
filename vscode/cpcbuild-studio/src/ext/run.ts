@@ -133,7 +133,7 @@ async function viaEmuExtension(run: RunInfo, sink: Sink): Promise<RunOutcome & {
   try {
     v = await vscode.commands.executeCommand<EmuVersion | EmuError>('cpcbuild.emu.version');
   } catch (e) {
-    if (isCommandNotFound(e)) return { ok: false, fallbackWhy: 'the CPCBuild Emulator extension (cpcbuild-emu) is not installed, so its commands are missing' };
+    if (isCommandNotFound(e)) return { ok: false, fallbackWhy: 'the CPC Game Studio Emulator extension (cpcbuild-emu) is not installed, so its commands are missing' };
     return { ok: false, fallbackWhy: `cpcbuild.emu.version failed: ${e instanceof Error ? e.message : String(e)}` };
   }
   if (!v || 'error' in v) return { ok: false, fallbackWhy: `cpcbuild.emu.version failed${v && 'error' in v ? `: ${v.error}` : ''}` };
@@ -169,7 +169,7 @@ export async function runInEmulator(root: string, run: RunInfo, sink: Sink, sett
   // the emulator extension only plays the file it is given; every other emulator is a program named by settings
   if (!isTrusted()) {
     notifyUntrusted('Run in an external emulator');
-    return { ok: false, message: restrictedText('Running in an external emulator') + ' The CPCBuild Emulator extension still runs in Restricted Mode.' };
+    return { ok: false, message: restrictedText('Running in an external emulator') + ' The CPC Game Studio Emulator extension still runs in Restricted Mode.' };
   }
   switch (choice) {
     case 'caprice32': {

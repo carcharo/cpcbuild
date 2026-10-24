@@ -189,7 +189,7 @@ export function registerSymbolCommands(reg: (id: string, fn: (...a: any[]) => un
     return l ? { count: l.table.symbols.length, map: l.mapFile } : { count: 0, message: ctl.symbols.missing };
   });
   reg('cpcbuild.symbols.filter', async (args?: { filter?: string }) => {
-    const text = args?.filter ?? (await vscode.window.showInputBox({ title: 'CPCBuild: filter symbols', prompt: 'Part of a name or address (&4F2A). Empty shows everything.', value: view.filter }));
+    const text = args?.filter ?? (await vscode.window.showInputBox({ title: 'CPC Game Studio: filter symbols', prompt: 'Part of a name or address (&4F2A). Empty shows everything.', value: view.filter }));
     if (text === undefined) return undefined;
     view.setFilter(text);
     return view.filter;
@@ -200,7 +200,7 @@ export function registerSymbolCommands(reg: (id: string, fn: (...a: any[]) => un
     if (!s) return undefined;
     const text = hex4(s.addr);
     await vscode.env.clipboard.writeText(text);
-    vscode.window.setStatusBarMessage(`CPCBuild: copied ${text} (${s.name})`, 3000);
+    vscode.window.setStatusBarMessage(`CPC Game Studio: copied ${text} (${s.name})`, 3000);
     return text;
   });
   reg('cpcbuild.symbols.goToDefinition', async (arg?: unknown) => {
@@ -209,7 +209,7 @@ export function registerSymbolCommands(reg: (id: string, fn: (...a: any[]) => un
     if (!s || !root) return undefined;
     const loc = await findDefinition(root, s.name);
     if (!loc) {
-      void vscode.window.showInformationMessage(`CPCBuild: no SUB, FUNCTION or DIM named ${s.name} in the sources of ${path.basename(root)}.`);
+      void vscode.window.showInformationMessage(`CPC Game Studio: no SUB, FUNCTION or DIM named ${s.name} in the sources of ${path.basename(root)}.`);
       return undefined;
     }
     await vscode.window.showTextDocument(loc.uri, { selection: loc.range });

@@ -1,5 +1,5 @@
 /**
- * toolsInstall.ts -- "CPCBuild: Download Tools" without the UI: download the compiler bundle and the Arkos
+ * toolsInstall.ts -- "CPC Game Studio: Download Tools" without the UI: download the compiler bundle and the Arkos
  * command-line tools from the manifest, verify their SHA-256, extract them with Node built-ins only and move
  * them into <globalStorage>/tools/ atomically (rename), deleting older versions. No vscode import (unit-testable).
  */
@@ -233,12 +233,12 @@ export async function installArkos(o: InstallOptions): Promise<Installed> {
 /** The text for a failed download, per kind of failure (exact wording is part of the spec). */
 export function failureText(e: unknown, part: Part, m: ToolsManifest): string {
   const name = part === 'zxbasic' ? `Boriel BASIC ${m.zxbasic.version}` : `Arkos Tracker ${m.arkos.version}`;
-  if (e instanceof ChecksumError) return `CPCBuild: the download of ${name} did not match its checksum and was deleted. Try again; if it keeps failing, report it.`;
-  if (e instanceof UnpinnedError) return `CPCBuild: this version of Studio has no checksum for the ${name} download yet, so it will not download it. Download the SDK zip from the releases page.`;
-  if (e instanceof NoToolsError) return `CPCBuild: ${part === 'arkos' ? arkosUnavailableText(e.platform) : `there are no compiler tools for ${e.platform}. Download the SDK zip from the releases page.`}`;
-  if (e instanceof ArchiveError) return `CPCBuild: the download of ${name} could not be unpacked: ${e.message}. Try again; if it keeps failing, report it.`;
+  if (e instanceof ChecksumError) return `CPC Game Studio: the download of ${name} did not match its checksum and was deleted. Try again; if it keeps failing, report it.`;
+  if (e instanceof UnpinnedError) return `CPC Game Studio: this version of Studio has no checksum for the ${name} download yet, so it will not download it. Download the SDK zip from the releases page.`;
+  if (e instanceof NoToolsError) return `CPC Game Studio: ${part === 'arkos' ? arkosUnavailableText(e.platform) : `there are no compiler tools for ${e.platform}. Download the SDK zip from the releases page.`}`;
+  if (e instanceof ArchiveError) return `CPC Game Studio: the download of ${name} could not be unpacked: ${e.message}. Try again; if it keeps failing, report it.`;
   const msg = e instanceof DownloadError || e instanceof Error ? e.message : String(e);
-  return `CPCBuild: could not download ${name}: ${msg}. Check the connection or "http.proxy", or download the SDK zip from the releases page.`;
+  return `CPC Game Studio: could not download ${name}: ${msg}. Check the connection or "http.proxy", or download the SDK zip from the releases page.`;
 }
 
 export function sha256File(file: string): string {
