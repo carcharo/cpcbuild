@@ -22,7 +22,7 @@ CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` co
 
 ## Install
 
-Version 0.1.0 is a pre-release. Everything is on the
+Version 0.1.1 is a pre-release. Everything is on the
 [Releases page](https://github.com/carcharo/cpcbuild/releases). You need [VS Code](https://code.visualstudio.com/).
 You do not need Python.
 
@@ -30,7 +30,7 @@ Pick one route.
 
 ### Route A: the two extensions
 
-1. From the Releases page, download `cpcbuild-studio-0.1.0.vsix` and `cpcbuild-emu-0.1.0.vsix`.
+1. From the Releases page, download `cpcbuild-studio-0.1.1.vsix` and `cpcbuild-emu-0.1.1.vsix`.
 2. In VS Code, open the Command Palette and run **Extensions: Install from VSIX...**. Do this once for each file.
 3. Run **Welcome: Open Walkthrough...** and choose **Get started with CPC Game Studio**.
 4. In the walkthrough, choose **Download Tools**. Studio asks what to download: the Boriel BASIC compiler
@@ -49,12 +49,12 @@ Lamplighter game and both `.vsix` files. Download the one for your computer:
 
 | Computer | File |
 |---|---|
-| Windows x64 | `cpcbuild-sdk-0.1.0-windows-x64.zip` |
-| Windows on ARM | `cpcbuild-sdk-0.1.0-windows-arm64.zip` |
-| Linux x64 | `cpcbuild-sdk-0.1.0-linux-x64.tar.gz` |
-| Linux arm64 | `cpcbuild-sdk-0.1.0-linux-arm64.tar.gz` |
-| macOS, Apple silicon | `cpcbuild-sdk-0.1.0-macos-arm64.zip` |
-| macOS, Intel | `cpcbuild-sdk-0.1.0-macos-x64.zip` |
+| Windows x64 | `cpcbuild-sdk-0.1.1-windows-x64.zip` |
+| Windows on ARM | `cpcbuild-sdk-0.1.1-windows-arm64.zip` |
+| Linux x64 | `cpcbuild-sdk-0.1.1-linux-x64.tar.gz` |
+| Linux arm64 | `cpcbuild-sdk-0.1.1-linux-arm64.tar.gz` |
+| macOS, Apple silicon | `cpcbuild-sdk-0.1.1-macos-arm64.zip` |
+| macOS, Intel | `cpcbuild-sdk-0.1.1-macos-x64.zip` |
 
 Unpack it anywhere, install the two `.vsix` files from inside it as in route A, and read `README-FIRST.txt`.
 Studio finds the SDK by itself for any project inside the SDK folder. For a project somewhere else, set
@@ -62,10 +62,12 @@ Studio finds the SDK by itself for any project inside the SDK folder. For a proj
 
 ### Notes for each system
 
-- **macOS.** The binaries are meant to be signed and notarised, but until that is set up they are unsigned. If
-  macOS refuses to open a program from an SDK you downloaded in a browser, run
-  `xattr -dr com.apple.quarantine <folder>` on the unpacked folder. Unpack with Finder or `ditto -x -k`. Tools
-  that Studio downloads itself are not affected.
+- **macOS.** The binaries are meant to be signed and notarised, but until that is set up they are unsigned. The
+  first build from an SDK you downloaded in a browser may show **"zxbc" Not Opened** ("Apple could not verify
+  "zxbc" is free of malware..."). Choose **Done**, not **Move to Bin**, then run
+  `xattr -dr com.apple.quarantine <folder>` in Terminal on the unpacked SDK folder (type the command, then drag
+  the folder into the window for its path) and build again. Unpack with Finder or `ditto -x -k`. Tools that
+  Studio downloads itself are not affected.
 - **Windows.** The binaries are unsigned. SmartScreen may warn about the SDK zip: choose **More info**, then
   **Run anyway**. Tools that Studio downloads itself are not affected.
 - **Linux.** Unpack with `tar -xzf`, which keeps file permissions. Arkos Tracker has no command-line tools for

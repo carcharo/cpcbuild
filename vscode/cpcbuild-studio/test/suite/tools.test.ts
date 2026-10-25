@@ -146,6 +146,22 @@ test('download tools: no Arkos tools for linux-arm64 is said plainly', async () 
   }
 });
 
+test('download tools: Windows on ARM is offered the x64 tools (they run under emulation)', async () => {
+  const a = archives();
+  const root = tmpRoot();
+  try {
+    const x64 = { url: 'http://127.0.0.1:9/arkos.zip', sha256: sha(a.ar) };
+    const m: ToolsManifest = { zxbasic: { version: '9.9.9-test', assets: { 'windows-x64': x64 } }, arkos: { version: '9.9', assets: { 'windows-x64': x64 } } };
+    // quiet and no parts: what the walkthrough runs. Both parts are chosen, so both downloads are tried (and the dead server fails them).
+    const r = await download({ manifest: m, root, quiet: true, platform: 'win32', arch: 'arm64' });
+    assert.strictEqual(r.ok, false);
+    assert.doesNotMatch(r.message, /no command-line tools/);
+    assert.match(r.message, /could not download/);
+  } finally {
+    rmrf(root);
+  }
+});
+
 // Runs only when CPCBUILD_SDK_BUNDLE names an unpacked compiler bundle (the `zxbasic/` folder of a release zip):
 // the whole path of a user who has no Python and no checkout, through an SDK folder (bin/ = the bundle, lib/ = the library).
 const bundle = process.env.CPCBUILD_SDK_BUNDLE;

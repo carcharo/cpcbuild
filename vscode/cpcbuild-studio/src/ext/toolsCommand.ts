@@ -1,7 +1,7 @@
 /** toolsCommand.ts -- "CPC Game Studio: Download Tools": the pick, the progress notification and the messages (toolsInstall.ts does the work). */
 import * as vscode from 'vscode';
 import { ArchiveError } from '../core/archive';
-import { toolsPlatform, ToolsManifest } from '../core/tools';
+import { assetForKey, toolsPlatform, ToolsManifest } from '../core/tools';
 import { arkosUnavailableText } from './arkos';
 import { getChannel } from './channel';
 import { manifest as shipped, toolsRoot } from './config';
@@ -55,8 +55,8 @@ async function run(args: DownloadToolsArgs): Promise<DownloadToolsResult> {
   if (!root) return fail('CPC Game Studio: there is no storage folder to install the tools into.');
 
   const key = toolsPlatform(platform, arch);
-  const hasArkos = !!key && !!m.arkos.assets[key];
-  const hasZx = !!key && !!m.zxbasic.assets[key];
+  const hasArkos = !!key && !!assetForKey(m.arkos, key);
+  const hasZx = !!key && !!assetForKey(m.zxbasic, key);
   let parts = args.parts;
   if (!parts) {
     const items = [

@@ -5,6 +5,7 @@
  * channel and/or a task terminal). No vscode import: unit-testable in node.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -35,10 +36,19 @@ export interface ToolResult {
   stdout: string;
   stderr: string;
   cancelled: boolean;
+  /** The signal that ended the program (macOS Gatekeeper's SIGKILL, a crash), when it did not exit by itself. */
+  signal?: NodeJS.Signals;
   /** True when `error` is "program not found" (ENOENT); the zxbc fallback keys on this, not on the text. */
   notFound?: boolean;
   /** Set when the program could not be started (not found, bad cwd, ...). */
   error?: string;
+}
+
+/** A tool the system stopped (a signal, no exit code): on macOS that is almost always Gatekeeper refusing an unnotarised download. */
+export function stoppedText(tool: string, signal: string, platform: NodeJS.Platform = process.platform): string {
+  return `${tool} was stopped by the system (${signal}) before it finished.` + (platform === 'darwin'
+    ? ' If macOS showed "Not Opened" ("Apple could not verify ..."), choose Done (not Move to Bin), run `xattr -dr com.apple.quarantine <the SDK folder>` in Terminal (README-FIRST.txt in the SDK says more), and build again.'
+    : ' Build again; if it keeps happening, run "CPC Game Studio: Check Environment".');
 }
 
 /** Environment for child processes: poetry lives in ~/.local/bin, which a GUI-launched VS Code may lack (as cpcrun.py does). */
@@ -80,6 +90,29 @@ export const PY_LAUNCHER = 'py -3';
 /** The command for a Python setting: `py -3` is two words, anything else (a path may hold spaces) is one program. */
 export const pythonCmd = (p: string): string[] => (p === PY_LAUNCHER ? ['py', '-3'] : [p]);
 
+/**
+ * True when `python` would run macOS's placeholder /usr/bin/python3, which only works once the Command Line Tools
+ * (or Xcode) are installed and otherwise opens Apple's "install the developer tools" dialog. `xcode-select -p`
+ * answers without prompting.
+ */
+export function isMacPythonStub(
+  python: string,
+  o: { platform?: NodeJS.Platform; pathDirs?: string[]; exists?: (p: string) => boolean; devDir?: () => string | undefined } = {},
+): boolean {
+  if ((o.platform ?? process.platform) !== 'darwin') return false;
+  const exists = o.exists ?? ((p: string) => fs.existsSync(p));
+  // macOS paths whatever the host (the tests run everywhere)
+  const dirs = o.pathDirs ?? (toolEnv().PATH ?? '').split(':').filter(Boolean);
+  const resolved = python.includes('/') ? python : dirs.map((d) => path.posix.join(d, python)).find(exists);
+  if (resolved !== '/usr/bin/python3' && resolved !== '/usr/bin/python') return false;
+  const devDir = o.devDir ?? (() => {
+    const r = spawnSync('/usr/bin/xcode-select', ['-p'], { encoding: 'utf8' });
+    return r.status === 0 ? r.stdout.trim() : undefined;
+  });
+  const d = devDir();
+  return !d || !exists(d);
+}
+
 export function runTool(command: readonly string[], args: readonly string[], opts: ToolOptions = {}): Promise<ToolResult> {
   const [exe, ...pre] = command;
   const all = [...pre, ...args];
@@ -105,13 +138,13 @@ export function runTool(command: readonly string[], args: readonly string[], opt
     }
 
     let killTimer: NodeJS.Timeout | undefined;
-    const finish = (code: number | null): void => {
+    const finish = (code: number | null, signal?: NodeJS.Signals | null): void => {
       if (settled) return;
       settled = true;
       sub?.dispose();
       if (killTimer) clearTimeout(killTimer);
       for (const [buf, err] of [[outBuf, false], [errBuf, true]] as const) if (buf.s) sink?.line(buf.s, err);
-      resolve({ code, stdout, stderr, cancelled, error: spawnError, notFound: notFound || undefined });
+      resolve({ code, stdout, stderr, cancelled, error: spawnError, notFound: notFound || undefined, signal: signal ?? undefined });
     };
     const kill = (): void => {
       if (cancelled) return;
@@ -153,7 +186,7 @@ export function runTool(command: readonly string[], args: readonly string[], opt
       spawnError = e.code === 'ENOENT' ? `"${exe}" was not found${opts.cwd ? ` (working directory ${opts.cwd})` : ''}` : e.message;
       finish(null);
     });
-    child.on('close', (code) => finish(code));
+    child.on('close', (code, signal) => finish(code, signal));
   });
 }
 

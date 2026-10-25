@@ -39,7 +39,9 @@ export function readZip(buf: Buffer): ArchiveEntry[] {
     p += 46 + nameLen + extraLen + commentLen;
     if (flags & 1) throw new ArchiveError(`encrypted zip entries are not supported (${rawName})`);
     const unixMode = madeBy >> 8 === 3 ? attr >>> 16 : 0;
-    const isDir = rawName.endsWith('/') || (unixMode & S_IFMT) === S_IFDIR;
+    // Windows PowerShell's Compress-Archive writes `\` separators, so a folder can end in either; MS-DOS
+    // attributes (made by 0) mark folders with 0x10.
+    const isDir = /[/\\]$/.test(rawName) || (unixMode & S_IFMT) === S_IFDIR || (madeBy >> 8 === 0 && (attr & 0x10) !== 0);
     const isLink = (unixMode & S_IFMT) === S_IFLNK;
     const name = safeEntryPath(rawName);
     if (!name) continue; // "./" or the like

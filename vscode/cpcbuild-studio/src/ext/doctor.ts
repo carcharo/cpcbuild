@@ -3,7 +3,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { absFrom, compilerCommand, manifest, readSettings, resolveArkos, resolveCompilerFor, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
 import { findCap32, findCpcec, findRvm } from './run';
-import { pythonCmd, runTool, Sink } from './runTool';
+import { isMacPythonStub, pythonCmd, runTool, Sink } from './runTool';
 import { describeCompiler } from './toolpaths';
 import { compilerHint, DOWNLOAD_HINT, poetryAdvice, runZxbc } from './zxbcCommand';
 import { arkosUnavailableText } from './arkos';
@@ -55,7 +55,9 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
       detail: z.code === 0 ? `${where}${z.used.join(' ')}${z.fellBack ? ' (fallback: the default "zxbc" was not found)' : ''}: ${zOut}` : comp.kind === 'none' && comp.problem ? comp.problem : z.error ?? `exited ${z.code}: ${zOut}`,
       fix: s.zxbcCwd ? `${DOWNLOAD_HINT} Or, with a zxbasic checkout: ${poetryAdvice(s.zxbcCommand, cwd)}` : compilerHint('zxbc could not be run', s.zxbcCommand),
     });
-    const py = await runTool(pythonCmd(s.pythonPath), ['--version'], { quiet: true });
+    // never run macOS's placeholder python3: it pops Apple's "install the developer tools" dialog at a newcomer
+    const stub = isMacPythonStub(s.pythonPath);
+    const py = stub ? { code: null, stdout: '', stderr: '', error: 'not installed (macOS offers to install its developer tools for it; CPC Game Studio does not need them)' } : await runTool(pythonCmd(s.pythonPath), ['--version'], { quiet: true });
     const pyOut = (py.stdout + py.stderr).trim();
     add({
       id: 'python', label: 'Python 3', ok: py.code === 0 && /Python 3/.test(pyOut), optional: !pyNeeded,

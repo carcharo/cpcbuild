@@ -248,5 +248,6 @@ describe('finding the tools: the new lookup order', () => {
     expect(arkosMissingText('linux', 'arm64')).toMatch(/^Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here\./);
     expect(arkosMissingText('linux', 'x64')).toContain('Run "CPC Game Studio: Download Tools"');
     expect(arkosMissingText('win32', 'x64')).toContain('Run "CPC Game Studio: Download Tools"');
+    expect(arkosMissingText('win32', 'arm64')).toContain('Run "CPC Game Studio: Download Tools"'); // x64 tools under emulation
   });
 });

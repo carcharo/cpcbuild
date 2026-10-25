@@ -10,7 +10,7 @@ import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
 import { assetFailure, regenerateAll } from './assetsGen';
 import { absFrom, compilerCommand, readSettings, resolveCompilerFor, resolveLibrary, resolveMkdsk, Settings } from './config';
 import { makeCpr } from './mkcprGen';
-import { CancelToken, runTool, Sink } from './runTool';
+import { CancelToken, runTool, Sink, stoppedText } from './runTool';
 import { describeCompiler } from './toolpaths';
 import { compilerHint, runZxbc } from './zxbcCommand';
 import { isTrusted, notifyUntrusted, restrictedText } from './trust';
@@ -129,7 +129,7 @@ export async function buildTarget(
   }
   sink.line(`Compiler: ${cr.used.join(' ')}${cr.fellBack ? ' (fallback)' : comp.kind !== 'none' ? ` (${describeCompiler(comp).split(':')[0]})` : ''}`);
   if (cr.code !== 0 || !fs.existsSync(out)) {
-    return done(), fail(res, `zxbc exited with ${cr.code} (the errors above are in the Problems panel). Fix them and build again.`, sink);
+    return done(), fail(res, cr.signal ? stoppedText('zxbc', cr.signal) : `zxbc exited with ${cr.code} (the errors above are in the Problems panel). Fix them and build again.`, sink);
   }
   if (isTap) {
     a.tap = out;
@@ -170,7 +170,7 @@ export async function buildTarget(
     if (r.cancelled) return done(), fail(res, 'cancelled.', sink);
     if (r.error || r.code !== 0 || !fs.existsSync(dsk)) {
       const py = mkdsk[0] === s.pythonPath || mkdsk[0] === 'py';
-      return done(), fail(res, r.error ? `${r.error}.${py ? ' Set "cpcbuild.python.path" to a Python 3.' : ' Run "CPC Game Studio: Download Tools" again.'}` : `mkdsk exited with ${r.code}.`, sink);
+      return done(), fail(res, r.error ? `${r.error}.${py ? ' Set "cpcbuild.python.path" to a Python 3.' : ' Run "CPC Game Studio: Download Tools" again.'}` : r.signal ? stoppedText('mkdsk', r.signal) : `mkdsk exited with ${r.code}.`, sink);
     }
     a.dsk = dsk;
     res.run = { file: dsk, kind: 'dsk', name: target.disc, model };
