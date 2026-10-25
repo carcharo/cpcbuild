@@ -209,9 +209,10 @@ export interface ArgOptions {
   extra?: string[];
 }
 
-/** Path join with forward slashes for the library include path (zxbc accepts both). */
+/** The library include path, with the separator `dir` already uses (zxbc accepts both; a mix just reads oddly). */
 function libInclude(dir: string): string {
-  return dir.replace(/[\\/]+$/, '') + '/lib';
+  const sep = dir.includes('\\') && !dir.includes('/') ? '\\' : '/';
+  return dir.replace(/[\\/]+$/, '') + sep + 'lib';
 }
 
 /** The zxbc arguments for a target (everything after the compiler command). Golden-tested. */

@@ -3,7 +3,7 @@
   "displayName": "CPC Game Studio Emulator",
   "icon": "media/icon.png",
   "description": "Amstrad CPC and CPC Plus emulator (CPCEC compiled to WebAssembly) in a VS Code tab.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "cpcbuild",
   "license": "GPL-3.0-or-later",
   "engines": {

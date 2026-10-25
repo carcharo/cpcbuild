@@ -18,7 +18,7 @@ same code. By the end you know the edit, build, run loop that every later chapte
 ## Step 1: Install the two extensions
 
 Go to the [Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild` and download
-`cpcbuild-studio-0.1.1.vsix` and `cpcbuild-emu-0.1.1.vsix` (version 0.1.1 is a pre-release). Then, in VS Code,
+`cpcbuild-studio-0.1.2.vsix` and `cpcbuild-emu-0.1.2.vsix`. Then, in VS Code,
 open the Command Palette and run **Extensions: Install from VSIX...**, once for each file. (Or open the
 Extensions view, choose its **...** menu and then **Install from VSIX...**.) Reload the window if VS Code asks.
 

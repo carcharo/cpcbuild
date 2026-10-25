@@ -3,7 +3,7 @@
   "displayName": "CPC Game Studio",
   "icon": "media/icon.png",
   "description": "Amstrad CPC game studio for Boriel BASIC (CPCBuild): palette, sprite and tile editors, image importer, build and run.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "cpcbuild",
   "license": "MIT",
   "engines": {

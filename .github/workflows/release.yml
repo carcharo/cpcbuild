@@ -2,7 +2,8 @@ name: Release
 
 # Builds the CPCBuild release: both .vsix, six SDK archives (cpcbuild-sdk-<ver>-<platform>) and SHA256SUMS.
 #
-#   tag v0.1.0, v0.1.0-rc1 ...   build, smoke-test on every platform, publish a GitHub PRE-release
+#   tag v0.1.0, v0.1.0-rc1 ...   build, smoke-test on every platform, publish a GitHub release (a PRE-release
+#                                when the tag has a suffix such as -rc1)
 #                                (compiler-style tags such as v1.19.0-cpc.1 belong to carcharo/zxbasic and are ignored)
 #   push to release-*            build + smoke test, artifacts only (version 0.0.0-<sha7>)
 #   workflow_dispatch            the same; the file must be on the default branch for the button to appear
@@ -13,7 +14,7 @@ name: Release
 #               checked against its SHA256SUMS) + docs, lib, examples, Lamplighter + both .vsix, all six platforms
 #        smoke (needs sdk, reference) each platform's runner unpacks its archive and builds lamp464 with the SDK's own
 #               bin/zxbc and bin/mkdsk (packaging/smoke.py): the .bin must equal the reference byte for byte
-#        publish (tags only, needs smoke) gh release create --prerelease
+#        publish (tags only, needs smoke) gh release create (--prerelease for v*-suffix tags)
 # The compiler release (carcharo/zxbasic, tag v<zxbasic.version of vscode/cpcbuild-studio/tools-manifest.json>)
 # must exist before this runs.
 
@@ -192,7 +193,7 @@ jobs:
       - name: Create the pre-release
         run: |
           cat > notes.md <<EOF
-          CPCBuild $VER (pre-release).
+          CPCBuild $VER.
 
           - CPCBuild tag: \`$GITHUB_REF_NAME\` (commit \`$GITHUB_SHA\`)
           - Compiler: carcharo/zxbasic \`v$CVER\` (pinned in CPCBuild Studio's tools-manifest.json), unchanged in each SDK's \`bin/\`
@@ -203,5 +204,6 @@ jobs:
 
           Each SDK was unpacked on its own platform's runner and built Lamplighter's lamp464 byte-identical to the source compiler's output.
           EOF
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --prerelease \
+          pre=""; case "$GITHUB_REF_NAME" in *-*) pre="--prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag $pre \
             --title "CPCBuild $VER" --notes-file notes.md out/*
