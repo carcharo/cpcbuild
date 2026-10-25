@@ -133,7 +133,7 @@ test('emulator install: downloads the vsix of Studio\'s version, installs it by 
     });
     // the default version is Studio's own (package.json)
     const ext = vscode.extensions.getExtension('cpcbuild.cpcbuild-studio');
-    assert.strictEqual(ext?.packageJSON.version, '0.1.0');
+    assert.strictEqual(ext?.packageJSON.version, '0.1.1');
   } finally {
     rmrf(dir);
   }
