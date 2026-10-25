@@ -224,10 +224,12 @@ tests check pixel for pixel that the sound switches change no pixel of room 9).
 ## How it works
 
 **What sound costs.** In memory: the finished game is **26,749 bytes** on the 464 with sound
-and **22,335** built with `-D NOSOUND` (measured by compiling the finished game with
-`build_cpc.sh`'s flags plus `-D NOSOUND`): about 4.4 KB for the player, two tunes and the effects. In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**;
+and **22,335** built with `-D NOSOUND`. Those are the finished game as shipped, which has the assembly routines of
+chapter 9. Your game, all in plain BASIC, is 200 bytes bigger: the same finished game built with `-D LAMP_BASIC` is
+**26,949** and with `-D LAMP_BASIC -D NOSOUND` **22,535** (compiled with `-D CPC464`, plus the switches named). Either way sound is
+about 4.4 KB: the player, two tunes and the effects. In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**;
 the library's own figure is about 5 % (16 scan lines a frame).
-The 464 build had only about 8 % headroom before sound, so chapter 9 shows what had to be optimised to afford it.
+The 464 build had only about 8 % headroom before sound, so chapter 9 looks at how fast your game really runs and what to do about it.
 
 **Why no bank on the 6128?** The library can keep songs in the 6128's extra RAM
 (**Extra RAM banks (6128)**, `MusicInitBank`), but Lamplighter's songs are small (the finished game's notes say "a few hundred bytes of song"), so they live in main RAM on both models, and the 464 and 6128 builds are the same program.
@@ -247,7 +249,7 @@ from the Command Palette with the song open; Studio also takes Vortex Tracker `.
 the repository's own songs are). **CPC Game Studio: Open in Arkos Tracker** opens the application: set
 `cpcbuild.arkos.trackerPath`, and for the converter run **CPC Game Studio: Download Tools** and tick the Arkos
 command-line tools (or set `cpcbuild.arkos.toolsPath` to a folder that holds them). **Check Environment** lists
-them as optional. That runs `tools/aks2bas.py`, the same tool as on the command line:
+them as optional. That runs `tools/aks2bas.py`, the same tool as on the command line (the two lines below are for a terminal in a checkout of the cpcbuild repository; the Studio command needs no terminal):
 
 ```sh
 python3 tools/aks2bas.py tune.aks tune.bas --name tune

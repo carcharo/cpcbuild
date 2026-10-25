@@ -26,7 +26,8 @@ as you go, and compare with it at the end of each chapter.
 
 You know some BASIC (Locomotive BASIC on the CPC, Sinclair BASIC on the Spectrum, or similar) and
 you want to write a real game. You do not need to know Z80 assembly, Boriel BASIC, or the CPCBuild
-tools.
+tools. You write the whole game in plain BASIC; chapter 9 is where assembly appears, and it hands you each
+routine ready to paste in, with a measurement for why.
 
 ## The chapters
 
@@ -40,7 +41,7 @@ tools.
 | 6 | [Enemies](06-enemies.md) | add walkers, floaters and bats | things that move and want to hurt you |
 | 7 | [Lamps, doors, lives and the HUD](07-lamps-doors-lives-hud.md) | make it a game: lamps, doors, lives, title, win and game over | the whole game, silent |
 | 8 | [Sound and music](08-sound-and-music.md) | add a tune and effects through `lib/music` | music and a jump sound |
-| 9 | [Measuring](09-measuring.md) | read the build report, run the bench, hold 25 steps a second | numbers, and why they are what they are |
+| 9 | [Measuring](09-measuring.md) | read the build report, run the bench on your all-BASIC game, then add six assembly routines one at a time | numbers, and what each routine bought |
 | 10 | [The Spectrum build](10-the-spectrum-build.md) | build the same game for the Spectrum 48K and 128K | two `.tap` files |
 | 11 | [The 6128 and the Plus](11-6128-and-plus.md) (optional) | build for the 6128, then the CPC Plus with hardware sprites and flickering flames | a Plus cartridge |
 

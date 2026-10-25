@@ -14,9 +14,14 @@ or climbing off an edge.
 
 **Time:** about 60 minutes. This is the longest chapter: most of the game's rules are here.
 
-**Before you start.** Chapter 4 is working. This chapter changes `game.bas` (the movement
-functions are copied from the finished game; the ones marked simplified are cut down) and adds
-one empty sub to `platform_cpc.bas`.
+**Before you start.** Chapter 4 is working. This chapter changes `game.bas` and adds one empty sub to
+`platform_cpc.bas`. Everything you write from here to chapter 8 is plain Boriel BASIC: no assembly. (The
+finished `game.bas` also holds assembly versions of six routines; chapter 9 brings them in one at a time,
+and only after it has measured why.) The listings are the finished game's own plain BASIC code; the ones marked
+**(simplified)** are cut down.
+
+You run **CPC Game Studio** commands from the Command Palette: `Ctrl+Shift+P` on Windows and Linux,
+`Cmd+Shift+P` on macOS. Studio does not bind keys to its commands.
 
 ---
 
@@ -45,7 +50,7 @@ ladder top, is `6` = one-way platform plus ladder**: you can stand on the ledge 
 down the ladder under it. Tile 6 (lit lamp), 8 (open door), 9 (heart), 10 (window) and 11 (wall)
 have no attributes: they are scenery.
 
-(`game.bas:49-50, 96`. In the default build the real table sits inside an assembly routine, `TA_TAB` at line 105; the `taTab` line at 96 is the BASIC version.)
+(`game.bas:49-50, 96`.)
 
 ## Step 2: Constants, tables and variables
 
@@ -111,17 +116,22 @@ of the body: the player is 8 pixels wide and 16 lines tall, so his head, middle 
 `y`, `y + 8` and `y + 15`. Across, his **hit box** is `x + 1` to `x + 6`, one pixel narrower than the
 sprite on each side, so he fits through gaps a cell wide.
 
-The finished `game.bas` has exactly this plain BASIC version of `TileAttr` and `ColSolid`
-(`game.bas:94-100` and `500-507`, under `#ifdef LAMP_BASIC`), next to the faster Z80 assembly one
-the game uses by default (`game.bas:102-155` and `509-542`), so you can compare them line by line.
-In BASIC `TileAttr` costs about 2,560 T-states a call, and a step makes many such calls; chapter 9
-has you measure both and shows why the game uses the assembly. The BASIC version here is the same
-logic, a little slower: on a 464 it may make a step take longer than two frames at first. That is
-fine for learning.
+(`game.bas:98-100` and `503-507`.) These two are the whole of the game's tile test: every rule in this
+chapter, and the enemies' rules in chapter 6, ask `TileAttr`. Keep them as they are. In BASIC `TileAttr`
+costs about 2,560 T-states a call (the figure comes from chapter 9, where you measure it), and a step
+makes many such calls. That does not matter yet, and chapter 9 comes back to it.
 
 ## Step 4: Entering a room, and starting a game
 
 ```basic
+' cur = the ROOM_SIZE bytes at src (a room of `rooms`).
+SUB CopyRoom(src AS UINTEGER)
+  DIM i AS UINTEGER
+  FOR i = 0 TO ROOM_SIZE - 1
+    cur(i) = PEEK(src + i)
+  NEXT i
+END SUB
+
 ' Finds the room's start cell in the object list (record type 1).
 SUB FindStart(id AS UBYTE)
   DIM o AS UINTEGER
@@ -137,12 +147,8 @@ END SUB
 
 ' Enters room id with the player's top left at (x, y); x = 255: its start cell.
 SUB EnterRoom(id AS UBYTE, x AS UBYTE, y AS UBYTE)
-  DIM base, i AS UINTEGER
   pRoom = id
-  base = CAST(UINTEGER, id) * ROOM_SIZE
-  FOR i = 0 TO ROOM_SIZE - 1
-    cur(i) = rooms(base + i)
-  NEXT i
+  CopyRoom(@rooms(0) + CAST(UINTEGER, id) * ROOM_SIZE)
   FindStart(id)
   IF x = 255 THEN
     x = startC << 3
@@ -163,6 +169,10 @@ SUB GameInit(room AS UBYTE)
   EnterRoom(room, 255, 0)
 END SUB
 ```
+
+`CopyRoom(src)` copies one room's 460 bytes (`ROOM_SIZE`) from the `rooms` array into `cur`, the current
+room, one byte at a time with `PEEK`. It is a sub of its own, and not a loop inside `EnterRoom`, so that
+chapter 9 can swap it for something faster without touching its callers.
 
 `EnterRoom(id, x, y)` puts the player at `(x, y)` in room `id`. Passing `x = 255` means "at this
 room's start cell". When you leave a room by an edge you arrive at the opposite edge at the same
@@ -462,7 +472,7 @@ SUB PlatSfx(n AS UBYTE)
 END SUB
 ```
 
-(`GameInit` and `EnterRoom` are simplified from `game.bas:419-453`; the finished game also resets enemies and lamps there.)
+(**Simplified:** `EnterRoom` and `GameInit` are cut down from `game.bas:419-453` (`FindStart` is a cut-down `LoadRoom`); the finished game also resets enemies and lamps there. `CopyRoom` is `game.bas:261-266`.)
 
 ## Build and run
 
@@ -485,8 +495,8 @@ Try these, in this order:
 The finished game's [ladder picture](../../games/lamplighter/tests/golden/464/climb.png) shows the
 player climbing in room 10.
 
-If he falls through the floor, check `pY >= 168` in `Ground` and that `pRoom` is 9 or more. If the
-game seems slow, see the note in step 3; chapter 9 explains how to measure it.
+If he falls through the floor, check `pY >= 168` in `Ground` and that `pRoom` is 9 or more. If you
+think the game is slow, wait until chapter 9: it measures the speed instead of guessing.
 
 ## How it works
 

@@ -322,8 +322,8 @@ comment lists them, `game.bas:1-18`); `main.bas` adds the calls of the main loop
 | `PlatSfx(n)` | a sound effect |
 
 The finished `game.bas` also writes a few speed-critical routines in Z80 assembly (inside `ASM ... END ASM`).
-You will not need to write any assembly: the tutorial has you write those routines in plain BASIC, and
-chapter 9 explains the swap.
+The tutorial has you write those routines in plain BASIC (chapters 5 to 7), so the whole game works with no
+assembly. Chapter 9 measures that game and then brings the assembly in, one routine at a time, each with the figure that justifies it.
 
 ## Step 7: Change something
 
