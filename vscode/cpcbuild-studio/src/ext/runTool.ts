@@ -101,8 +101,9 @@ export function isMacPythonStub(
 ): boolean {
   if ((o.platform ?? process.platform) !== 'darwin') return false;
   const exists = o.exists ?? ((p: string) => fs.existsSync(p));
-  const dirs = o.pathDirs ?? (toolEnv().PATH ?? '').split(path.delimiter).filter(Boolean);
-  const resolved = python.includes('/') ? python : dirs.map((d) => path.join(d, python)).find(exists);
+  // macOS paths whatever the host (the tests run everywhere)
+  const dirs = o.pathDirs ?? (toolEnv().PATH ?? '').split(':').filter(Boolean);
+  const resolved = python.includes('/') ? python : dirs.map((d) => path.posix.join(d, python)).find(exists);
   if (resolved !== '/usr/bin/python3' && resolved !== '/usr/bin/python') return false;
   const devDir = o.devDir ?? (() => {
     const r = spawnSync('/usr/bin/xcode-select', ['-p'], { encoding: 'utf8' });
