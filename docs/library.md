@@ -371,6 +371,19 @@ SfxInit(@sfx)
 SfxPlay(1, 0, 0)                    ' play effect 1 on channel A at full volume
 ```
 
+CPC Game Studio can also make the effects for you: **New Sound Effects Bank** creates `assets/sfx.cpcsfx`, which
+its sound-effects editor draws and plays. Each build converts the bank into `sfx.bas` (and `sfx_zx.bas` for a
+Spectrum target) with a constant per effect, numbered from 1 in the bank's order:
+
+```basic
+#include <music/music.bas>
+#include "../assets/sfx.bas"            ' sfx data, SFX_JUMP = 1, SFX_COIN = 2, ...
+
+MusicInit(@tune, 0)                     ' effects only advance while a song plays
+SfxInit(@sfx)
+SfxPlay(SFX_JUMP, 2, 0)                 ' effect, channel C, full volume
+```
+
 The Arkos Tracker tools are MIT licensed (see `tools/arkos/README.md` for versions and sources).
 Test songs come from the Arkos Tracker repository with its MIT licence notice; the bundled
 example songs have no licence and are not used in cpcbuild.

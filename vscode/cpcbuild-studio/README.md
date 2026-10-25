@@ -44,6 +44,11 @@ Run **CPC Game Studio: Check Environment** to see what is found and what to set.
   (`tools/img2cpc.py`, `tools/tmx2bas.py`), on save if you like.
 - **Image importer**: PNG, GIF or BMP to a sprite, tile or screen asset, with a live preview of what the CPC shows.
 - **Music**: convert Arkos Tracker songs and effect banks, and play them through the real player.
+- **Sound effects editor** for `.cpcsfx` banks (**CPC Game Studio: New Sound Effects Bank**): up to 9 effects, each
+  drawn as pitch, volume and noise over time or made from a preset (blip, jump, coin, laser, hit, explosion, door,
+  alarm). Space plays the effect at once through a model of the AY sound chip; **Play in emulator** plays it
+  through the real player. Builds convert the bank with the Arkos tools into `NAME.bas` (CPC) and `NAME_zx.bas`
+  (Spectrum), with a constant per effect such as `SFX_JUMP`.
 - **Language help** for the CPCBuild library in `.bas` files: lint rules, hover, completion and signature help.
 - **Debugging** with the CPC Game Studio Emulator: symbols from the compiler map, registers, breakpoints, a memory view.
 
