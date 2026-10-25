@@ -13,6 +13,7 @@ import * as vscode from 'vscode';
 import type { Project, Target } from '../core/project';
 import type { EmuError } from '../emuApi';
 import { arkosMissingText, convertMusic, MusicConvertOptions, previewProgram, songLabelOf, songName, PreviewPlan } from './arkos';
+import { quietSongVt2 } from '../core/sfxBuild';
 import { buildTarget } from './build';
 import { channelSink, getChannel, tee } from './channel';
 import { absFrom, readSettings, resolveArkos, resolveLibrary, Settings } from './config';
@@ -201,6 +202,16 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
     const c = await convertMusic(root, posix(path.relative(root, file)), { name, sfx: a.sfx, subsongs: a.subsongs, psg: a.psg, output: outRel }, { engine: s.assetsEngine, pythonPath: s.pythonPath, library, toolsDir: t.toolsDir }, { sink });
     if (!c.ok) return fail(c.error ?? 'conversion failed');
     plan = { kind: a.sfx ? 'sfx' : 'song', name, subsong: a.subsong ?? 0, effect: a.effect ?? 1 };
+  }
+
+  // 1b. effects only sound while a song plays: run an empty one under them
+  if (plan.kind === 'sfx') {
+    const t = toolsFor(root, s, a.toolsPath);
+    if (!t.toolsDir) return fail(arkosMissingText());
+    fs.writeFileSync(path.join(dir, 'cpcb_quiet.vt2'), quietSongVt2());
+    const q = await convertMusic(root, posix(path.relative(root, path.join(dir, 'cpcb_quiet.vt2'))), { name: 'cpcb_quiet', output: posix(path.relative(root, path.join(dir, 'cpcb_quiet.bas'))) }, { engine: s.assetsEngine, pythonPath: s.pythonPath, library, toolsDir: t.toolsDir }, { sink });
+    if (!q.ok) return fail(q.error ?? 'the silent song did not convert');
+    plan.quiet = { file: 'cpcb_quiet.bas', name: 'cpcb_quiet' };
   }
 
   // 2. the program, built like a user target

@@ -107,7 +107,7 @@ export interface SfxView extends ViewBase {
 
 export interface SfxRequests extends BaseRequests {
   edit: { args: { baseVersion: number; op: SfxOp }; result: { version: number } };
-  /** Play the effect with the real player in the emulator (after the build step; today the host answers with an error). */
+  /** Play the effect with the real player in the emulator (the CPC build of the bank as it is in the editor, saved or not; an error text when it cannot). */
   playInEmulator: { args: { effect: number }; result: { ok: true } };
 }
 

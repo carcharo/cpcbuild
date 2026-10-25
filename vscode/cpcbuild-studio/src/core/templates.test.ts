@@ -60,11 +60,11 @@ describe('template assets are used by the program', () => {
 });
 
 describe('template asset globs', () => {
-  it('every template lists globs that Regenerate Assets can find (recipe or palette files)', () => {
+  it('every template lists globs that Regenerate Assets can find (recipe, palette or sound-effects files)', () => {
     for (const { id } of TEMPLATES) {
       const r = generateTemplate(id, { name: 'demo' });
       const cfg = JSON.parse(r.files['cpcbuild.json']);
-      for (const g of cfg.assets) expect(g).toMatch(/\.(cpcimp|cpcspr|cpcpal|cpcpal12)$/);
+      for (const g of cfg.assets) expect(g).toMatch(/\.(cpcimp|cpcspr|cpcpal|cpcpal12|cpcsfx)$/);
     }
   });
 });

@@ -428,7 +428,7 @@
         },
         {
           "command": "cpcbuild.insertAssetUse",
-          "when": "cpcbuild.inProject && (activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor)",
+          "when": "cpcbuild.inProject && (activeCustomEditorId == cpcbuild.spriteEditor || activeCustomEditorId == cpcbuild.tileEditor || activeCustomEditorId == cpcbuild.sfxEditor)",
           "group": "navigation@20"
         },
         {

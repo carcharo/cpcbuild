@@ -5,8 +5,15 @@ import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { SfxDoc, parseSfx, serialiseSfx } from '../../src/core/sfxDoc';
 import { newBank, presetEffect } from '../../src/core/sfxPresets';
+import { withSfxConstants } from '../../src/core/sfxBuild';
 import type { StudioDocument } from '../../src/ext/customEditor';
 import { mkdirp, rmrf, test, waitFor } from './harness';
+
+const REPO = path.resolve(__dirname, '../../../../..');
+/** The Arkos tools, wherever they are (a worktree has no tools/arkos/work of its own). */
+const TOOLS = [process.env.AT3_TOOLS, path.join(REPO, 'tools/arkos/work/bin'), path.resolve(REPO, '../../tools/arkos/work/bin')].find(
+  (d) => d && fs.existsSync(path.join(d, 'SongToAkg')) && fs.existsSync(path.join(d, 'SongToSoundEffects')),
+);
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const VIEW_TYPE = 'cpcbuild.sfxEditor';
@@ -97,7 +104,7 @@ test('sfx: drawing frames by hand removes the preset and undo brings it back', a
   await closeClean();
 });
 
-test('sfx: a bad op is refused with its message, a stale edit from a webview is rejected, Play in emulator waits for the build step', async () => {
+test('sfx: a bad op is refused with its message, a stale edit from a webview is rejected, Play in emulator refuses a bad effect', async () => {
   const uri = put('bad.cpcsfx', serialiseSfx(bank()));
   const { a, doc } = await openSfx(uri);
   assert.throws(() => a.sfx.commit(doc, { op: 'rename', effect: 1, name: 'BLIP' }), /already used by effect 1/);
@@ -106,7 +113,7 @@ test('sfx: a bad op is refused with its message, a stale edit from a webview is 
   const r = (await p.request(doc, 'edit', { baseVersion: doc.version, op: { op: 'addBlank' } })) as { version: number };
   assert.strictEqual(r.version, doc.version);
   assert.strictEqual(doc.state.effects.length, 3);
-  await assert.rejects(p.request(doc, 'playInEmulator', { effect: 0 }), /after the build step/);
+  await assert.rejects(p.request(doc, 'playInEmulator', { effect: 7 }), /choose an effect of the bank/);
   a.sfx.undoLast(doc);
   await closeClean();
 });
@@ -154,4 +161,110 @@ test('sfx: the editor is contributed as the default for *.cpcsfx, with its comma
   assert.deepStrictEqual(ce.selector.map((s: { filenamePattern: string }) => s.filenamePattern), ['*.cpcsfx']);
   const cmd = pkg.contributes.commands.find((c: { command: string }) => c.command === 'cpcbuild.newSfxBank');
   assert.deepStrictEqual([cmd.category, cmd.title], ['CPC Game Studio', 'New Sound Effects Bank']);
+});
+
+// ----------------------------------------------------------------------- build integration
+
+function coinBank(): SfxDoc {
+  const b = newBank();
+  b.effects.push(presetEffect('coin', 'coin'));
+  return b;
+}
+
+const MAIN_BAS = `#include <cpc.bas>
+#include <cpcbuild.bas>
+#include <music/music.bas>
+#include "../assets/sfx.bas"
+SfxInit(@sfx)
+SfxPlay(SFX_COIN, 2, 0)
+`;
+
+function sfxProject(name: string): string {
+  const root = path.join(ws, name);
+  rmrf(root);
+  mkdirp(path.join(root, 'assets'));
+  mkdirp(path.join(root, 'src'));
+  fs.writeFileSync(path.join(root, 'cpcbuild.json'), JSON.stringify({ version: 1, name, targets: [{ id: 'cpc6128', arch: 'cpc', main: 'src/main.bas', package: 'dsk' }], assets: ['assets/**/*.cpcsfx'] }, null, 2));
+  fs.writeFileSync(path.join(root, 'src/main.bas'), MAIN_BAS);
+  fs.writeFileSync(path.join(root, 'assets/sfx.cpcsfx'), serialiseSfx(coinBank()));
+  return root;
+}
+
+test('sfx: Regenerate Assets writes sfx.vt2 and sfx.bas with the constants, and a build with them compiles', async () => {
+  if (!TOOLS) return console.log('       (skipped: no Arkos tools)');
+  const a = await api();
+  const root = sfxProject('sfxbuild');
+  const res = (await vscode.commands.executeCommand('cpcbuild.regenerateAssets', { root })) as { recipe: string; ok: boolean; error?: string; written: string[] }[];
+  const mine = res.filter((r) => r.recipe === 'assets/sfx.cpcsfx');
+  assert.deepStrictEqual(mine.map((r) => r.error ?? 'ok'), ['ok']);
+  const bas = fs.readFileSync(path.join(root, 'assets/sfx.bas'), 'utf8');
+  assert.ok(bas.includes('CONST SFX_BLIP AS UBYTE = 1\nCONST SFX_COIN AS UBYTE = 2'), 'the constants');
+  assert.ok(fs.existsSync(path.join(root, 'assets/sfx.vt2')));
+  assert.ok(!fs.existsSync(path.join(root, 'assets/sfx_zx.bas')), 'a CPC-only project has no Spectrum include');
+  // the pre-build pass: remove the output, build, and it is back (stale = missing)
+  fs.rmSync(path.join(root, 'assets/sfx.bas'));
+  const b = await a.build(fs.realpathSync(root), 'cpc6128');
+  assert.ok(b.ok, b.message);
+  assert.ok(fs.existsSync(path.join(root, 'assets/sfx.bas')), 'regenerated before the build');
+  rmrf(root);
+});
+
+test('sfx: a build without the Arkos tools keeps the committed sfx.bas and warns instead of failing', async () => {
+  const a = await api();
+  const root = sfxProject('sfxnotools');
+  // a stand-in for a committed include: bounce's real one, renamed, with the constants
+  const real = fs.readFileSync(path.join(REPO, 'examples/assets/bounce_sfx.bas'), 'utf8').split('bounce_sfx').join('sfx').split('BOUNCE_SFX').join('SFX');
+  const kept = withSfxConstants(real, coinBank(), 'sfx');
+  const f = path.join(root, 'assets/sfx.bas');
+  fs.writeFileSync(f, kept);
+  const old = new Date(Date.now() - 60000);
+  fs.utimesSync(f, old, old);
+  const cfg = vscode.workspace.getConfiguration('cpcbuild');
+  await cfg.update('arkos.toolsPath', '/nonexistent/arkos', vscode.ConfigurationTarget.Workspace);
+  try {
+    const b = await a.build(fs.realpathSync(root), 'cpc6128');
+    assert.ok(b.ok, b.message);
+    assert.strictEqual(fs.readFileSync(f, 'utf8'), kept, 'the committed include is untouched');
+    assert.ok(!fs.existsSync(path.join(root, 'assets/sfx.vt2')), 'nothing is written without the tools');
+  } finally {
+    await cfg.update('arkos.toolsPath', undefined, vscode.ConfigurationTarget.Workspace);
+    rmrf(root);
+  }
+});
+
+test('sfx: Insert Asset Use writes the include, SfxInit and SfxPlay of the first effect', async () => {
+  const root = sfxProject('sfxuse');
+  const code = vscode.Uri.file(path.join(root, 'src/main.bas'));
+  fs.writeFileSync(code.fsPath, "' code\n");
+  const uri = vscode.Uri.file(path.join(root, 'assets/sfx.cpcsfx'));
+  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(code));
+  const text = (await vscode.commands.executeCommand('cpcbuild.insertAssetUse', uri)) as string;
+  assert.ok(text.includes('#include "../assets/sfx.bas"'), text);
+  assert.ok(text.includes('SfxInit(@sfx)'));
+  assert.ok(text.includes('SfxPlay(SFX_BLIP, 2, 0)'));
+  assert.ok(text.includes('only advance while a song plays'));
+  assert.ok(vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === code.toString())?.document.getText().includes('SfxInit(@sfx)'));
+  await vscode.commands.executeCommand('workbench.action.files.revert');
+  await closeClean();
+  rmrf(root);
+});
+
+test('sfx: Play in emulator converts the bank with a silent song and runs the preview', async () => {
+  if (!TOOLS) return console.log('       (skipped: no Arkos tools)');
+  const a = await api();
+  const root = sfxProject('sfxplay');
+  const uri = vscode.Uri.file(path.join(root, 'assets/sfx.cpcsfx'));
+  const { doc } = await openSfx(uri);
+  const p = a.sfx as unknown as { request(d: unknown, name: string, args: unknown): Promise<unknown> };
+  assert.deepStrictEqual(await p.request(doc, 'playInEmulator', { effect: 1 }), { ok: true });
+  const prog = fs.readFileSync(path.join(root, 'build/.preview/preview.bas'), 'utf8');
+  assert.match(prog, /SfxPlay\(2, 0, 0\)/);
+  assert.match(prog, /MusicInit\(@cpcb_quiet, 0\)/);
+  assert.match(prog, /SfxInit\(@sfx\)/);
+  assert.ok(fs.existsSync(path.join(root, 'build/.preview/sfx.vt2')));
+  const dsk = path.join(root, 'build/.preview/preview.dsk');
+  await waitFor('the custom "emulator" ran', () => fs.existsSync(`${dsk}.ran`), 15000);
+  await vscode.commands.executeCommand('cpcbuild.music.stop');
+  await closeClean();
+  rmrf(root);
 });

@@ -269,7 +269,7 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
           { id: 'cpc6128', arch: 'cpc', main: 'src/main.bas', model: '6128', defines: ['CPC6128'], package: 'dsk', disc },
           { id: 'cpc464', arch: 'cpc', main: 'src/main.bas', model: '464', defines: ['CPC464'], package: 'dsk', disc },
         ],
-        assets: ['assets/**/*.cpcimp', 'assets/**/*.cpcspr', 'assets/**/*.cpcpal'],
+        assets: ['assets/**/*.cpcimp', 'assets/**/*.cpcspr', 'assets/**/*.cpcpal', 'assets/**/*.cpcsfx'],
       });
       files['src/main.bas'] = FIRMWARE_MAIN;
       files['assets/pens.cpcpal'] = CPC_PAL;
@@ -286,7 +286,7 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
       files['cpcbuild.json'] = json({
         version: 1, name,
         targets: [{ id: 'bare6128', arch: 'cpc', main: 'src/main.bas', model: '6128', defines: ['CPC6128'], bare: true, package: 'dsk', disc }],
-        assets: ['assets/**/*.cpcimp', 'assets/**/*.cpcspr', 'assets/**/*.cpcpal'],
+        assets: ['assets/**/*.cpcimp', 'assets/**/*.cpcspr', 'assets/**/*.cpcpal', 'assets/**/*.cpcsfx'],
       });
       files['src/main.bas'] = BARE_NOTES + FIRMWARE_MAIN;
       files['assets/pens.cpcpal'] = CPC_PAL;

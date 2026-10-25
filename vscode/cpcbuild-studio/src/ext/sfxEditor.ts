@@ -9,9 +9,14 @@ import * as vscode from 'vscode';
 import { SfxDoc, describeError, parseSfx, serialiseSfx, validateSfx } from '../core/sfxDoc';
 import { SfxOp, applyOp } from '../core/sfxOps';
 import { newBank } from '../core/sfxPresets';
+import { sfxBankName, sfxOutputs, sfxTargetsOf, sfxUseSnippet, SFX_GLOB, withSfxGlob } from '../core/sfxBuild';
+import { Vt2Error, sfxToVt2 } from '../core/vt2';
 import type { SfxView } from '../shared/protocol';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
-import { findProjects, pickProject } from './projects';
+import { absFrom, readSettings } from './config';
+import { NOT_IN_PROJECT, projectRootOf } from './importer';
+import { musicPlayCommand } from './music';
+import { findProjects, loadProjectFile, pickProject, PROJECT_FILE } from './projects';
 
 export const SFX_VIEW_TYPE = 'cpcbuild.sfxEditor';
 
@@ -46,8 +51,36 @@ export class SfxEditorProvider extends StudioEditorProvider<SfxDoc, SfxOp, SfxVi
   }
 
   protected async handleRequest(doc: StudioDocument<SfxDoc>, name: string, args: unknown): Promise<unknown> {
-    if (name === 'playInEmulator') throw new Error('Play in emulator is available after the build step');
+    if (name === 'playInEmulator') return this.playInEmulator(doc, (args as { effect: number }).effect);
     return super.handleRequest(doc, name, args);
+  }
+
+  /**
+   * Plays one effect of the bank as it is in the editor (saved or not) with the real player: the bank is
+   * written as a .vt2 under the build folder's .preview and goes through Play Music. The emulator is a CPC,
+   * so the module is the CPC one whatever clock the AY preview is set to.
+   */
+  private async playInEmulator(doc: StudioDocument<SfxDoc>, effect: number): Promise<{ ok: true }> {
+    const file = doc.uri.fsPath;
+    if (!Number.isInteger(effect) || effect < 0 || effect >= doc.state.effects.length) throw new Error('choose an effect of the bank first');
+    const root = projectRootOf(file);
+    if (!root) throw new Error(`${path.basename(file)} is ${NOT_IN_PROJECT}`);
+    const bank = sfxBankName(file);
+    let vt2: string;
+    try {
+      vt2 = sfxToVt2(doc.state, 'cpc', bank);
+    } catch (e) {
+      if (e instanceof Vt2Error) throw new Error(e.message);
+      throw e;
+    }
+    const dir = path.join(absFrom(root, readSettings(root).outputDir), '.preview');
+    fs.mkdirSync(dir, { recursive: true });
+    const input = path.join(dir, `${bank}.vt2`);
+    fs.writeFileSync(input, vt2, 'utf8');
+    const r = await musicPlayCommand({ uri: vscode.Uri.file(input), sfx: true, name: bank, effect: effect + 1, quiet: true });
+    if (!r?.ok) throw new Error(r?.error ?? 'the emulator preview did not start');
+    void vscode.window.setStatusBarMessage(`CPC Game Studio: playing effect ${effect + 1} (${doc.state.effects[effect].name}) in the emulator; ESC or Stop Music ends it`, 5000);
+    return { ok: true };
   }
 }
 
@@ -73,6 +106,58 @@ export async function newSfxCommand(args?: { uri?: vscode.Uri; root?: string }):
     uri = vscode.Uri.file(path.join(dir, freeBankName(dir)));
   }
   await vscode.workspace.fs.writeFile(uri, Buffer.from(serialiseSfx(newBank()), 'utf8'));
+  await coverInProject(uri.fsPath);
   await vscode.commands.executeCommand('vscode.openWith', uri, SFX_VIEW_TYPE);
   return uri;
+}
+
+export const SFX_FILE = /\.cpcsfx$/i;
+
+/** The .cpcsfx shown by a tab (custom editor or text), if it is one. */
+export function sfxTabUri(tab: vscode.Tab | undefined): vscode.Uri | undefined {
+  const input = tab?.input;
+  const u = input instanceof vscode.TabInputCustom || input instanceof vscode.TabInputText ? input.uri : undefined;
+  return u && SFX_FILE.test(u.path) ? u : undefined;
+}
+
+/**
+ * Insert Asset Use for a bank: the includes, SfxInit and a SfxPlay of the first effect, written into the code
+ * editor (or copied when none is open). The include is the CPC one, or the Spectrum one in a Spectrum-only project.
+ */
+export async function insertSfxUse(target: vscode.Uri): Promise<string | undefined> {
+  const text = Buffer.from(await vscode.workspace.fs.readFile(target)).toString('utf8');
+  const r = parseSfx(text);
+  if (!r.doc) {
+    void vscode.window.showErrorMessage(`CPC Game Studio: ${r.errors.slice(0, 2).map(describeError).join('; ')}`);
+    return undefined;
+  }
+  const code = vscode.window.visibleTextEditors.find((e) => /\.(bas|zxb|zxbas)$/i.test(e.document.fileName)) ?? vscode.window.visibleTextEditors.find((e) => e.document.uri.scheme === 'file' && !SFX_FILE.test(e.document.fileName) && !/\.(cpcspr|cpctil)$/i.test(e.document.fileName));
+  const root = projectRootOf(target.fsPath);
+  const archs = root ? loadProjectFile(path.join(root, PROJECT_FILE)).project?.targets.map((t) => t.arch) : undefined;
+  const out = sfxOutputs(target.fsPath, archs ? sfxTargetsOf(archs).slice(0, 1) : ['cpc'])[0].bas;
+  const rel = code ? path.relative(path.dirname(code.document.uri.fsPath), out).split(path.sep).join('/') : path.basename(out);
+  const insert = sfxUseSnippet(r.doc, sfxBankName(target.fsPath), rel);
+  if (code) {
+    await code.edit((b) => b.insert(code.selection.active, insert));
+    return insert;
+  }
+  await vscode.env.clipboard.writeText(insert);
+  void vscode.window.showInformationMessage('CPC Game Studio: no code editor is open, so the include and call lines were copied to the clipboard.');
+  return insert;
+}
+
+/** Adds the .cpcsfx glob to the nearest cpcbuild.json above `file` when its "assets" do not cover it, so builds convert the bank. */
+async function coverInProject(file: string): Promise<void> {
+  for (let dir = path.dirname(file); ; dir = path.dirname(dir)) {
+    const json = path.join(dir, 'cpcbuild.json');
+    if (fs.existsSync(json)) {
+      const next = withSfxGlob(fs.readFileSync(json, 'utf8'), path.relative(dir, file).split(path.sep).join('/'));
+      if (next !== undefined) {
+        fs.writeFileSync(json, next);
+        void vscode.window.showInformationMessage(`CPC Game Studio: added "${SFX_GLOB}" to cpcbuild.json's assets, so builds convert the bank.`);
+      }
+      return;
+    }
+    if (path.dirname(dir) === dir) return;
+  }
 }

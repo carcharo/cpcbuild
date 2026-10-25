@@ -280,7 +280,6 @@ function SfxApp({ client, view }: Host) {
   };
 
   // ------------------------------------------------------------- toolbar
-  const emulatorWhy = 'Available after the build step';
   const groups: ToolbarGroup[] = [
     {
       label: 'History',
@@ -316,7 +315,7 @@ function SfxApp({ client, view }: Host) {
       items: [
         { kind: 'button', id: 'play', label: 'Play', text: 'Play', icon: 'play', shortcut: 'Space', onActivate: play },
         { kind: 'button', id: 'stop', label: 'Stop', icon: 'debug-stop', shortcut: 'Esc', disabled: playFrame === null, why: 'nothing is playing', onActivate: stop },
-        { kind: 'button', id: 'emu', label: 'Play in emulator', text: 'Play in emulator', icon: 'vm-running', disabled: true, why: emulatorWhy, onActivate: () => void client.request('playInEmulator', { effect: si }).catch((e: Error) => setMsg({ severity: 'info', text: e.message })) },
+        { kind: 'button', id: 'emu', label: 'Play in emulator', text: 'Play in emulator', icon: 'vm-running', onActivate: () => void client.request('playInEmulator', { effect: si }).catch((e: Error) => setMsg({ severity: 'error', text: e.message })) },
       ],
     },
     {

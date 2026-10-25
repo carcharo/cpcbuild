@@ -23,6 +23,10 @@ import { globBase, matchesAny } from '../core/glob';
 import { insideRoot, insideRootFrom, PathEscapeError } from '../core/paths';
 import { parseSprite, resolvePalette, type DocType, type SpriteState } from '../core/spriteDoc';
 import { exportAsset } from '../core/spriteExport';
+import { parseSfx, describeError as describeSfxError, type SfxTarget } from '../core/sfxDoc';
+import { sfxBankName, sfxOutputs, sfxStale, withSfxConstants } from '../core/sfxBuild';
+import { sfxToVt2, Vt2Error } from '../core/vt2';
+import { arkosMissingText, convertMusic } from './arkos';
 import { pythonCmd, runTool, type CancelToken, type Sink } from './runTool';
 
 export type AssetEngine = 'builtin' | 'python';
@@ -33,6 +37,8 @@ export interface GenSettings {
   pythonPath: string;
   /** The cpcbuild checkout (holds tools/img2cpc.py); needed for the python engine. */
   library?: string;
+  /** The folder with the Arkos command-line tools (needed for .cpcsfx banks); undefined when they are not installed. */
+  toolsDir?: string;
 }
 
 export interface GenResult {
@@ -48,11 +54,14 @@ export interface GenResult {
   doc?: boolean;
   /** For a failed document: its (first) output file already exists, so the build can go on with it. */
   outputExists?: boolean;
+  /** Never stops a build, whatever exists (the Arkos tools are missing: a committed .bas is kept). */
+  warnOnly?: boolean;
 }
 
 /** What a failed regenerate means for the build: documents with an existing output only warn. */
 export function assetFailure(g: GenResult): { fatal: boolean; message: string } {
   const why = g.error ?? 'failed';
+  if (g.warnOnly) return { fatal: false, message: `asset ${g.recipe}: ${why}` };
   if (!g.doc) return { fatal: true, message: `asset ${g.recipe}: ${why}. Fix the recipe (open it in the importer) or turn off "cpcbuild.assets.regenerateBeforeBuild".` };
   const fix = 'Fix the sprite/tile document or its palette file (open it in the sprite editor)';
   return g.outputExists
@@ -94,6 +103,11 @@ export function findRecipes(root: string, globs: readonly string[]): string[] {
 /** Every sprite / tile document (`.cpcspr`, `.cpctil`) matched by the project's asset globs, relative to the root, sorted. */
 export function findSpriteDocs(root: string, globs: readonly string[]): string[] {
   return findByExt(root, globs, /\.(cpcspr|cpctil)$/);
+}
+
+/** Every sound-effects bank (`.cpcsfx`) matched by the project's asset globs, relative to the root, sorted. */
+export function findSfxBanks(root: string, globs: readonly string[]): string[] {
+  return findByExt(root, globs, /\.cpcsfx$/);
 }
 
 const mtime = (p: string): number => {
@@ -346,7 +360,50 @@ export async function generateFile(root: string, recipeRel: string, s: GenSettin
   return generate(root, recipeRel, r, s, extra);
 }
 
+// ---------------------------------------------------------------- sound-effects banks
+
+/** A bank's generated includes are missing or older than it. */
+export function isSfxStale(root: string, bankRel: string, targets: readonly SfxTarget[]): boolean {
+  return sfxStale(mtime(path.resolve(root, bankRel)), sfxOutputs(bankRel, targets).map((o) => mtime(path.resolve(root, o.bas))));
+}
+
+/**
+ * Writes the .vt2 beside a .cpcsfx for each target and converts it into the include (with the effect constants).
+ * No --psg: the module carries its chip clock (ChipFreq), which sfxToVt2 sets per target.
+ */
+export async function generateSfxBank(
+  root: string,
+  bankRel: string,
+  targets: readonly SfxTarget[],
+  s: GenSettings,
+  extra: { sink?: Sink; token?: CancelToken } = {},
+): Promise<GenResult> {
+  const res: GenResult = { recipe: bankRel, ok: false, written: [], doc: true };
+  const outs = sfxOutputs(bankRel, targets);
+  res.outputExists = outs.length > 0 && mtime(path.resolve(root, outs[0].bas)) >= 0;
+  try {
+    const r = parseSfx(fs.readFileSync(path.resolve(root, bankRel), 'utf8'));
+    if (!r.doc) throw new Error(r.errors.slice(0, 3).map(describeSfxError).join('; '));
+    const bank = sfxBankName(bankRel);
+    for (const o of outs) {
+      const vt2 = sfxToVt2(r.doc, o.target, bank);
+      fs.writeFileSync(path.resolve(root, o.vt2), vt2, 'utf8');
+      const c = await convertMusic(root, o.vt2, { name: bank, sfx: true, output: o.bas }, { engine: s.engine, pythonPath: s.pythonPath, library: s.library, toolsDir: s.toolsDir }, extra);
+      if (!c.ok) throw new Error(c.error ?? 'conversion failed');
+      const abs = path.resolve(root, o.bas);
+      fs.writeFileSync(abs, withSfxConstants(fs.readFileSync(abs, 'utf8'), r.doc, bank), 'utf8');
+      res.written.push(o.vt2, o.bas);
+    }
+    res.ok = true;
+  } catch (e) {
+    res.error = e instanceof Vt2Error ? `${bankRel}: ${e.message}` : describeError(e);
+  }
+  return res;
+}
+
 export interface RegenOptions {
+  /** The machines the project builds for (default: the CPC only); one include per machine is written for each bank. */
+  sfxTargets?: readonly SfxTarget[];
   /** Only recipes whose output is older than their inputs (the pre-build pass). */
   onlyStale?: boolean;
   sink?: Sink;
@@ -403,6 +460,32 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
     }
     if (res.ok) o.sink?.line(`${docRel} -> ${res.written.join(', ')}`);
     else o.sink?.line(`${docRel}: ${res.error}`, true);
+    results.push(res);
+  }
+  // sound-effects banks: converted with the Arkos tools; without them a committed .bas is kept and one warning says so
+  const targets = o.sfxTargets ?? ['cpc'];
+  const missing: string[] = [];
+  for (const bankRel of findSfxBanks(root, globs)) {
+    if (o.token?.isCancellationRequested) break;
+    if (o.onlyStale && !isSfxStale(root, bankRel, targets)) {
+      results.push({ recipe: bankRel, ok: true, skipped: true, written: [] });
+      continue;
+    }
+    if (!s.toolsDir) {
+      missing.push(bankRel);
+      continue;
+    }
+    const res = await generateSfxBank(root, bankRel, targets, s, { sink: o.sink, token: o.token });
+    if (res.ok) o.sink?.line(`${bankRel} -> ${res.written.join(', ')}`);
+    else o.sink?.line(`${bankRel}: ${res.error}`, true);
+    results.push(res);
+  }
+  if (missing.length) {
+    const res: GenResult = {
+      recipe: missing[0], ok: false, written: [], doc: true, warnOnly: true,
+      error: `${missing.length === 1 ? 'the sound-effects bank was' : `${missing.length} sound-effects banks (${missing.join(', ')}) were`} not converted, and any committed .bas is kept. ${arkosMissingText()}`,
+    };
+    o.sink?.line(`${res.recipe}: ${res.error}`, true);
     results.push(res);
   }
   return results;

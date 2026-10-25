@@ -20,6 +20,7 @@ import { getChannel } from './channel';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
 import { NOT_IN_PROJECT, projectRootOf, viewRootOf } from './importer';
 import { isTrusted, restrictedText } from './trust';
+import { SFX_FILE, insertSfxUse, sfxTabUri } from './sfxEditor';
 
 export const SPRITE_VIEW_TYPE = 'cpcbuild.spriteEditor';
 export const TILE_VIEW_TYPE = 'cpcbuild.tileEditor';
@@ -452,6 +453,15 @@ export function visibleAssetUris(): vscode.Uri[] {
   return out;
 }
 
+/** A sound-effects bank shown by the active tab of some visible editor group. */
+function visibleSfxUri(): vscode.Uri | undefined {
+  for (const g of vscode.window.tabGroups.all) {
+    const u = sfxTabUri(g.activeTab);
+    if (u) return u;
+  }
+  return undefined;
+}
+
 /** The sprite / tile file shown by the active tab, or the given one; else the one in another visible group (several: ask). */
 export async function activeAssetUri(uri?: vscode.Uri): Promise<vscode.Uri | undefined> {
   if (uri && SPRITE_FILE.test(uri.path)) return uri;
@@ -507,9 +517,14 @@ export async function regenerateForPalette(ed: SpriteEditors, palette: vscode.Ur
 
 /** CPC Game Studio: Insert Asset Use -- writes the include and call lines for the open document into the code editor. */
 export async function insertAssetUse(ed: SpriteEditors, uri?: vscode.Uri): Promise<string | undefined> {
+  // a sound-effects bank (.cpcsfx): given, or in the active tab
+  const sfx = uri && SFX_FILE.test(uri.path) ? uri : sfxTabUri(vscode.window.tabGroups.activeTabGroup.activeTab);
+  if (sfx) return insertSfxUse(sfx);
   const target = await activeAssetUri(uri);
   if (!target) {
-    void vscode.window.showInformationMessage('CPC Game Studio: open a sprite or tile set (.cpcspr, .cpctil) first.');
+    const other = visibleSfxUri();
+    if (other) return insertSfxUse(other);
+    void vscode.window.showInformationMessage('CPC Game Studio: open a sprite or tile set (.cpcspr, .cpctil) or a sound effects bank (.cpcsfx) first.');
     return undefined;
   }
   const open = docFor(ed, target);
