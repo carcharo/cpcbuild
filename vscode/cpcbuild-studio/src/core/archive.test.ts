@@ -52,6 +52,10 @@ describe('zip reader', () => {
     expect(z[0].data().length).toBe(0);
     expect(readZip(makeZip([{ name: 'x.txt', data: 'x', mode: 0o755 }], { unix: false }))[0].mode).toBe(0);
   });
+  it('reads zips with Windows separators (Compress-Archive): folders are folders', () => {
+    const z = readZip(makeZip([{ name: 'zxbasic\\' }, { name: 'zxbasic\\_internal\\src\\' }, { name: 'zxbasic\\_internal\\src\\a.txt', data: 'a' }], { unix: false }));
+    expect(z.map((e) => [e.path, e.kind])).toEqual([['zxbasic', 'dir'], ['zxbasic/_internal/src', 'dir'], ['zxbasic/_internal/src/a.txt', 'file']]);
+  });
   it('refuses traversal and absolute names while reading', () => {
     for (const name of ['../evil.txt', 'a/../../evil.txt', '/abs.txt', 'C:\\win.txt']) {
       expect(() => readZip(makeZip([{ name, data: 'x' }])), name).toThrow(ArchiveError);

@@ -35,7 +35,7 @@ export function makeZip(entries: FixEntry[], opts: { unix?: boolean } = {}): Buf
   let off = 0;
   for (const e of entries) {
     const name = Buffer.from(e.name);
-    const isDir = e.name.endsWith('/');
+    const isDir = /[/\\]$/.test(e.name);
     const raw = e.link !== undefined ? Buffer.from(e.link) : Buffer.from(e.data ?? '');
     const method = e.stored || isDir || raw.length === 0 ? 0 : 8;
     const body = method === 8 ? zlib.deflateRawSync(raw) : raw;
@@ -79,7 +79,7 @@ const oct = (n: number, len: number): string => n.toString(8).padStart(len - 1, 
 export function makeTar(entries: FixEntry[]): Buffer {
   const blocks: Buffer[] = [];
   for (const e of entries) {
-    const isDir = e.name.endsWith('/');
+    const isDir = /[/\\]$/.test(e.name);
     const data = e.link !== undefined ? Buffer.alloc(0) : Buffer.from(e.data ?? '');
     const h = Buffer.alloc(512);
     // long names: a GNU 'L' record first
