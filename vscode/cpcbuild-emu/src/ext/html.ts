@@ -5,6 +5,9 @@ import { nonce } from './nonce';
 export const ROMS = ['cpc464.rom', 'cpc664.rom', 'cpc6128.rom', 'cpcplus.rom', 'cpcados.rom'];
 
 /** The page: strict CSP (wasm needs 'wasm-unsafe-eval'), codicons, toolbar, the canvas. */
+/** The keys that leave the keyboard trap (both work everywhere): Windows keeps Ctrl+Shift+Esc for Task Manager. */
+export const LEAVE_KEY = process.platform === 'win32' ? 'Ctrl+Shift+F6' : 'Ctrl+Shift+Esc';
+
 export function pageHtml(webview: vscode.Webview, ext: vscode.Uri, runHidden: boolean): string {
   const u = (...p: string[]): string => webview.asWebviewUri(vscode.Uri.joinPath(ext, ...p)).toString();
   const boot: WebviewBoot = {
@@ -40,10 +43,10 @@ export function pageHtml(webview: vscode.Webview, ext: vscode.Uri, runHidden: bo
   <span id="model">CPC</span>
   <span id="status" role="status">No program loaded</span>
   <span class="grow"></span>
-  <span id="hint">Ctrl+Shift+Esc leaves the keyboard</span>
+  <span id="hint">${LEAVE_KEY} leaves the keyboard</span>
   <button id="sound" type="button" title="Browsers allow sound only after a click" aria-label="Click for sound"><span class="codicon codicon-unmute" aria-hidden="true"></span><span class="lbl">Click for sound</span></button>
 </div>
-<div id="stage"><canvas id="screen" width="768" height="536" tabindex="0" role="application" aria-label="Amstrad CPC screen. Click to focus; your keys go to the CPC. Ctrl+Shift+Escape returns to the toolbar."></canvas></div>
+<div id="stage"><canvas id="screen" width="768" height="536" tabindex="0" role="application" aria-label="Amstrad CPC screen. Click to focus; your keys go to the CPC. ${LEAVE_KEY} returns to the toolbar."></canvas></div>
 <script type="application/json" id="boot">${JSON.stringify(boot).replace(/</g, '\\u003c')}</script>
 <script nonce="${n}" src="${u('dist', 'webview.js')}"></script>
 </body>

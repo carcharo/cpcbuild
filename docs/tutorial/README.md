@@ -70,14 +70,13 @@ sprite manager and palette cycling that chapter 11 uses, so no setting is needed
 ### Installing the tools
 
 The two extensions and the compiler are on the
-[Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild` (version 0.1.1 is a
-pre-release). There are two ways to get them. Chapter 1 walks through the first.
+[Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild`. There are two ways to get them. Chapter 1 walks through the first.
 
-- **The two extensions.** Download `cpcbuild-studio-0.1.1.vsix` and `cpcbuild-emu-0.1.1.vsix`. In VS Code, run
+- **The two extensions.** Download `cpcbuild-studio-0.1.2.vsix` and `cpcbuild-emu-0.1.2.vsix`. In VS Code, run
   **Extensions: Install from VSIX...** from the Command Palette, once for each file. Then let Studio fetch the
   compiler with **CPC Game Studio: Download Tools** (chapter 1, step 2). For the Lamplighter files, clone or download
   the [cpcbuild repository](https://github.com/carcharo/cpcbuild) and look in `games/lamplighter/`.
-- **The SDK folder.** Download `cpcbuild-sdk-0.1.1-<platform>.zip` (on Linux, the `.tar.gz`) for your system. It
+- **The SDK folder.** Download `cpcbuild-sdk-0.1.2-<platform>.zip` (on Linux, the `.tar.gz`) for your system. It
   holds the compiler, both `.vsix` files and `games/lamplighter/`. See the
   [README](../../README.md#install) for the platform names and the notes for each system.
 

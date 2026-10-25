@@ -18,7 +18,7 @@ same code. By the end you know the edit, build, run loop that every later chapte
 ## Step 1: Install the two extensions
 
 Go to the [Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild` and download
-`cpcbuild-studio-0.1.1.vsix` and `cpcbuild-emu-0.1.1.vsix` (version 0.1.1 is a pre-release). Then, in VS Code,
+`cpcbuild-studio-0.1.2.vsix` and `cpcbuild-emu-0.1.2.vsix`. Then, in VS Code,
 open the Command Palette and run **Extensions: Install from VSIX...**, once for each file. (Or open the
 Extensions view, choose its **...** menu and then **Install from VSIX...**.) Reload the window if VS Code asks.
 
@@ -78,8 +78,7 @@ same button: run **Welcome: Open Walkthrough...** and choose it.) A list asks wh
 Both are ticked unless they are already installed. You need the compiler now. The Arkos tools are only for
 converting your own songs in chapter 8, so you may leave them out and add them later. Studio checks each
 download against a known checksum before it uses it. The download shows no security dialog
-on any system. On Linux arm64 (a Raspberry Pi, an ARM virtual machine) Arkos has no command-line tools: Studio
-says so, and **Convert Music** (chapter 8) is not available there. Everything else works.
+on any system.
 
 You do not need a cpcbuild checkout for the library: Studio carries a copy of `lib/` inside the extension and
 uses it when nothing else is found (chapter 11's Plus library is in it too). The setting
@@ -181,7 +180,8 @@ The **CPC Game Studio** output channel shows the steps: the compiler runs, `mkds
 into a disc image, a report says how big the program is, and the emulator opens.
 
 A new editor tab opens with a CPC screen in it. **Click on the screen** once: that gives the CPC your
-keyboard (press `Ctrl+Shift+Esc` to give it back to VS Code; on a Mac that is the `Control` key, not `Cmd`), and the **Click for sound** button
+keyboard (press `Ctrl+Shift+Esc` to give it back to VS Code, `Ctrl+Shift+F6` on Windows, where Windows keeps
+`Ctrl+Shift+Esc` for Task Manager; on a Mac it is the `Control` key, not `Cmd`), and the **Click for sound** button
 starts the audio, because browsers only allow sound after a click.
 
 You should see a CPC text screen with `HELLO FROM CPCBUILD` at the top and an `O` bouncing around.

@@ -86,6 +86,10 @@ describe('helpers', () => {
 describe('zxbcArgs (golden)', () => {
   const o = { libraryDir: '/repo', main: '/p/src/main.bas', out: '/p/build/t.bin', map: '/p/build/t.map' };
   const tgt = (t: object) => parseProject(base(t)).project!.targets[0];
+  it('keeps a Windows library folder in backslashes', () => {
+    const args = zxbcArgs(tgt({ defines: ['CPC6128'] }), { ...o, libraryDir: 'c:\\cpcbuild-sdk\\' });
+    expect(args[args.indexOf('-I') + 1]).toBe('c:\\cpcbuild-sdk\\lib');
+  });
   it('firmware', () => {
     expect(zxbcArgs(tgt({ defines: ['CPC6128'], org: '0x40' }), o)).toEqual([
       '--arch', 'cpc', '--org', '0x40', '-I', '/repo/lib', '-D', 'CPC6128', '-M', '/p/build/t.map', '-o', '/p/build/t.bin', '/p/src/main.bas',

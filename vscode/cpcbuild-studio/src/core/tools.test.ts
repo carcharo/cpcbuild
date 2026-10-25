@@ -55,10 +55,10 @@ describe('tools manifest', () => {
     bad((m) => (m.arkos.assets['macos-x64'] = 'macos-x64'), /not an entry/);
     expect(() => parseManifest(null)).toThrow(ManifestError);
   });
-  it('the manifest that ships is valid, covers every platform for the compiler and all but linux-arm64 for Arkos', () => {
+  it('the manifest that ships is valid, covers every platform for the compiler and for Arkos', () => {
     const m = parseManifest(JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'tools-manifest.json'), 'utf8')));
     expect(Object.keys(m.zxbasic.assets).sort()).toEqual(['linux-arm64', 'linux-x64', 'macos-arm64', 'macos-x64', 'windows-arm64', 'windows-x64']);
-    expect(Object.keys(m.arkos.assets).sort()).toEqual(['linux-x64', 'macos-arm64', 'macos-x64', 'windows-x64']);
+    expect(Object.keys(m.arkos.assets).sort()).toEqual(['linux-arm64', 'linux-x64', 'macos-arm64', 'macos-x64', 'windows-x64']);
     for (const [k, a] of Object.entries(m.zxbasic.assets)) {
       expect(a?.url).toBe(`https://github.com/carcharo/zxbasic/releases/download/v${m.zxbasic.version}/zxbasic-${m.zxbasic.version}-${k}.${k.startsWith('linux') ? 'tar.gz' : 'zip'}`);
     }

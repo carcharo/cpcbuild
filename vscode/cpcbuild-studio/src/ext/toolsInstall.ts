@@ -29,7 +29,7 @@ export class UnpinnedError extends Error {
     super(`the checksum of the ${part === 'zxbasic' ? 'compiler' : 'Arkos'} download is not pinned in this version of Studio`);
   }
 }
-/** No download for this platform (Arkos on linux-arm64, or an unsupported OS). */
+/** No download for this platform (an unsupported OS or processor). */
 export class NoToolsError extends Error {
   constructor(readonly part: Part, readonly platform: string) {
     super(`no ${part} tools for ${platform}`);

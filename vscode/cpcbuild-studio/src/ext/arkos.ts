@@ -26,7 +26,7 @@ export const ARKOS_MISSING =
 export const arkosUnavailableText = (platform: string): string =>
   `Arkos Tracker has no command-line tools for ${platform}, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".`;
 
-/** Why the Arkos tools are missing: the platform has none (linux-arm64), or they are not installed yet. */
+/** Why the Arkos tools are missing: the platform has none, or they are not installed yet. */
 export function arkosMissingText(platform: NodeJS.Platform = process.platform, arch: string = process.arch): string {
   const key = toolsPlatform(platform, arch);
   return key && assetForKey(manifest.arkos, key) ? ARKOS_MISSING : arkosUnavailableText(`${platform}-${arch}`);

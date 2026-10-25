@@ -376,7 +376,8 @@ btnPause.addEventListener('click', () => {
 canvas.addEventListener('pointerdown', () => { void enableSound(); });
 canvas.addEventListener('keydown', (e) => {
   void enableSound();
-  if (e.ctrlKey && e.shiftKey && e.code === 'Escape') { btnPause.focus(); e.preventDefault(); return; } // leave the keyboard trap
+  // leave the keyboard trap: Ctrl+Shift+Esc, or Ctrl+Shift+F6 (Windows keeps Ctrl+Shift+Esc for Task Manager)
+  if (e.ctrlKey && e.shiftKey && (e.code === 'Escape' || e.code === 'F6')) { btnPause.focus(); e.preventDefault(); return; }
   if (e.metaKey || !M) return;
   const usb = usbFromCode(e.code);
   if (usb === undefined) return;
