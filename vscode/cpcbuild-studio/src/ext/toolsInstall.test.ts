@@ -168,7 +168,7 @@ describe('install Arkos', () => {
     await expect(installArkos({ manifest: bad, root, platform: 'linux', arch: 'x64' })).rejects.toBeInstanceOf(ChecksumError);
     expect(left(root)).toEqual([]);
   });
-  it('is not offered for linux-arm64', async () => {
+  it('is not offered where its manifest has no entry', async () => {
     const m = manifestOf('3.10', {});
     await expect(installArkos({ manifest: m, root: fresh(), platform: 'linux', arch: 'arm64' })).rejects.toBeInstanceOf(NoToolsError);
   });

@@ -78,8 +78,7 @@ same button: run **Welcome: Open Walkthrough...** and choose it.) A list asks wh
 Both are ticked unless they are already installed. You need the compiler now. The Arkos tools are only for
 converting your own songs in chapter 8, so you may leave them out and add them later. Studio checks each
 download against a known checksum before it uses it. The download shows no security dialog
-on any system. On Linux arm64 (a Raspberry Pi, an ARM virtual machine) Arkos has no command-line tools: Studio
-says so, and **Convert Music** (chapter 8) is not available there. Everything else works.
+on any system.
 
 You do not need a cpcbuild checkout for the library: Studio carries a copy of `lib/` inside the extension and
 uses it when nothing else is found (chapter 11's Plus library is in it too). The setting

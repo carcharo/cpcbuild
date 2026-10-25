@@ -81,8 +81,7 @@ Studio finds the SDK by itself for any project inside the SDK folder. For a proj
 - **Linux.** Unpack with `tar -xzf`, which keeps file permissions. On an ARM computer (a Raspberry Pi, an ARM
   laptop or virtual machine) VS Code's website offers the x64 `.deb` by default, which will not install: choose
   the **Arm64** `.deb` and install it in a terminal with `sudo apt install ./code_*_arm64.deb` (Ubuntu's App
-  Center can hang on downloaded `.deb` files). Arkos Tracker has no command-line tools for linux-arm64, so music
-  conversion is not available there.
+  Center can hang on downloaded `.deb` files).
 
 ## Screenshots
 

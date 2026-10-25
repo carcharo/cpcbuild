@@ -20,7 +20,7 @@ toolchain built on Boriel BASIC.
   cartridge and music converters are built in.
 - Optional: the **CPC Game Studio Emulator** extension (`cpcbuild.cpcbuild-emu`) to run in an editor tab and debug
   (**CPC Game Studio: Install Emulator** downloads it); Caprice32, CPCEC or Retro Virtual Machine as external emulators;
-  the Arkos Tracker command-line tools for music (also in **Download Tools**, not available for linux-arm64);
+  the Arkos Tracker command-line tools for music (also in **Download Tools**);
   Tiled for maps.
 - Only for developers: Python 3 (with Pillow) for `cpcbuild.assets.engine: "python"`, and Python with Poetry to
   run the compiler from a zxbasic checkout (`cpcbuild.zxbc.cwd`). With a checkout, `mkdsk.py` comes from its

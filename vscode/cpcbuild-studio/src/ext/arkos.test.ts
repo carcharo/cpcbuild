@@ -244,8 +244,9 @@ describe('finding the tools: the new lookup order', () => {
     fs.writeFileSync(path.join(half, process.platform === 'win32' ? 'SongToAkg.exe' : 'SongToAkg'), '#');
     expect(findArkosTools({ env: half })).toBeUndefined();
   });
-  it('says plainly when the platform has no Arkos tools (linux-arm64), and otherwise how to get them', async () => {
-    expect(arkosMissingText('linux', 'arm64')).toMatch(/^Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here\./);
+  it('says plainly when the platform has no Arkos tools, and otherwise how to get them', async () => {
+    expect(arkosMissingText('freebsd', 'x64')).toMatch(/^Arkos Tracker has no command-line tools for freebsd-x64, so music conversion is not available here\./);
+    expect(arkosMissingText('linux', 'arm64')).toContain('Run "CPC Game Studio: Download Tools"');
     expect(arkosMissingText('linux', 'x64')).toContain('Run "CPC Game Studio: Download Tools"');
     expect(arkosMissingText('win32', 'x64')).toContain('Run "CPC Game Studio: Download Tools"');
     expect(arkosMissingText('win32', 'arm64')).toContain('Run "CPC Game Studio: Download Tools"'); // x64 tools under emulation

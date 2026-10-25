@@ -15,6 +15,7 @@
     "assets": {
       "windows-x64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/windows/ArkosTracker-windows-3.7.zip", "sha256": "15412b090f147b95abadd3cac5a57ac9dbc69163271d8f46c1d12b5f0a43236c" },
       "linux-x64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/linux64/ArkosTracker-linux64-3.7.zip", "sha256": "7e22d5762a611a09f21e83fa07cef0aeddc37fc28e159b67e2e0a949617024cf" },
+      "linux-arm64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/linux64arm/ArkosTracker-linux64arm-3.7.zip", "sha256": "67e4374e434ff6b82610898a05edb2f4c2a1a019a9e74d061bf0de455fc7b06e" },
       "macos-arm64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/macosx/ArkosTracker-macosx-3.7.zip", "sha256": "cf00cdfba8d09bfaea2b46a01c6db1f9fff521f608a80d04ec99c3d4991ed217" },
       "macos-x64": "macos-arm64"
     }
