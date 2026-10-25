@@ -79,6 +79,9 @@ Aseprite extension in `tools/aseprite` sets it up for you.)
 python3 tools/img2cpc.py --mode 0 --name sprites --sprite --frame 8x16 --masked --palette-file assets/lamp.cpcpal --no-palette assets/sprites.png -o assets/sprites.bas
 ```
 
+   As in chapter 2, this line is the same on every system and you do not run it: Studio does the conversion
+   itself, without Python.
+
 4. Save. If you prefer to write the recipe as text:
 
 ```json

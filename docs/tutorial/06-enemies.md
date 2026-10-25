@@ -13,7 +13,7 @@ down, and bats that flutter sideways. Touching one sends you back to where you e
 **Time:** about 50 minutes.
 
 **Before you start.** Chapter 5 is working. This chapter changes `game.bas` and the sprite part of
-`platform_cpc.bas`.
+`platform_cpc.bas`. It is still all plain BASIC.
 
 ---
 
@@ -45,10 +45,11 @@ the doors and the exits. To add a second one:
 1. Select the `objects` layer and insert a rectangle object (Tiled's **Insert Rectangle** tool, `R`).
 2. Give it **Class** `enemy`, **width** 8, **height** 16, and position x = 80, y = 688 (cell (10, 17) of room 9, on the same platform).
 3. Add custom properties `kind` (int) = 1 and `range` (int) = 0 (the `+` at the bottom of the Properties panel).
-4. Save, run `split_rooms.py` as in chapter 3 (it is a script, not a Studio command), build.
+4. Save, run the `split_rooms.py` command from chapter 3, step 5 again (it is a script, not a Studio command; it needs Python 3), build.
 
 The rules the splitter enforces: at most **four enemies** per room (the game has four enemy slots) and
-exactly one `start` object. A second check lives in `tests/reach.py` (`make reach-lamp`): it works out the whole
+exactly one `start` object. A second check lives in the repository's `tests/reach.py` (`make reach-lamp`, a
+terminal command in the repository that needs `make` and a Unix shell and that you do not need to run): it works out the whole
 area each enemy can sweep, and fails if that touches a door, the cells next to an exit or the start cell. So the first
 room can always be left without timing a pass through an enemy.
 <!-- CHECK (Tiled UI wording, from memory): Insert Rectangle (R), the Class field and the "+" for custom properties, as in chapter 3. -->
@@ -96,26 +97,24 @@ the platform layer; `eTick` counts steps. `entX`, `entY` are where the player en
 
 ## Step 4: Load, reset and die
 
-Replace `FindStart`, `EnterRoom` and `GameInit` with these (`GameInit` is repeated unchanged):
+Replace `FindStart`, `EnterRoom` and `GameInit` with these (`GameInit` is repeated unchanged). Keep
+`CopyRoom` from chapter 5:
 
 ```basic
 ' Reads room id into cur, and its start cell and its enemies from the object list.
 SUB LoadRoom(id AS UBYTE)
-  DIM base, i, o AS UINTEGER
-  DIM ty AS UBYTE
-  base = CAST(UINTEGER, id) * ROOM_SIZE
-  FOR i = 0 TO ROOM_SIZE - 1
-    cur(i) = rooms(base + i)
-  NEXT i
+  DIM o AS UINTEGER
+  DIM t AS UBYTE
+  CopyRoom(@rooms(0) + CAST(UINTEGER, id) * ROOM_SIZE)
   nEn = 0
   o = roff(id)
   DO
-    ty = robj(o)
-    IF ty = 0 THEN EXIT DO
-    IF ty = 1 THEN
+    t = robj(o)
+    IF t = 0 THEN EXIT DO
+    IF t = 1 THEN
       startC = robj(o + 1)
       startR = robj(o + 2)
-    ELSEIF ty = 2 THEN
+    ELSEIF t = 2 THEN
       eK(nEn) = robj(o + 1)
       eX0(nEn) = robj(o + 2) << 3
       eY0(nEn) = robj(o + 3) << 3
@@ -179,7 +178,7 @@ SUB Die()
 END SUB
 ```
 
-- `LoadRoom` reads the object list `robj` (chapter 3) for room `id`: a type 1 record is the start
+- `LoadRoom` copies room `id` into `cur` with `CopyRoom`, then reads the object list `robj` (chapter 3) for it: a type 1 record is the start
   cell; a type 2 record is an enemy: kind, start cell and range in cells, which are multiplied by 8
   (`<< 3`) to pixels. **(simplified:** `LoadRoom` in `game.bas:361-400` also finds the room's lamps, chapter 7.)
 - `ResetEnemies` puts every enemy back on its start square and hides the unused slots (frame 255: "no
@@ -260,9 +259,9 @@ SUB MoveEnemies()
 END SUB
 ```
 
-(The finished `game.bas` has this exact `WalkOK` under `#ifdef LAMP_BASIC` (`game.bas:736-743`), next to
-the faster assembly one that the game uses by default (`game.bas:745-801`, chapter 9), so you can
-compare them line by line. `MoveEnemies` is `game.bas:808-859` unchanged.)
+(This is the finished game's own `WalkOK`, `game.bas:736-743`, and `MoveEnemies` is `game.bas:808-859`
+unchanged. In BASIC, one `WalkOK` call costs about 15,200 T-states, and every walking enemy makes one
+each time it moves; chapter 9 measures what that adds up to.)
 
 Read `MoveEnemies` from the top.
 

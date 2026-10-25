@@ -26,7 +26,8 @@ as you go, and compare with it at the end of each chapter.
 
 You know some BASIC (Locomotive BASIC on the CPC, Sinclair BASIC on the Spectrum, or similar) and
 you want to write a real game. You do not need to know Z80 assembly, Boriel BASIC, or the CPCBuild
-tools.
+tools. You write the whole game in plain BASIC; chapter 9 is where assembly appears, and it hands you each
+routine ready to paste in, with a measurement for why.
 
 ## The chapters
 
@@ -40,7 +41,7 @@ tools.
 | 6 | [Enemies](06-enemies.md) | add walkers, floaters and bats | things that move and want to hurt you |
 | 7 | [Lamps, doors, lives and the HUD](07-lamps-doors-lives-hud.md) | make it a game: lamps, doors, lives, title, win and game over | the whole game, silent |
 | 8 | [Sound and music](08-sound-and-music.md) | add a tune and effects through `lib/music` | music and a jump sound |
-| 9 | [Measuring](09-measuring.md) | read the build report, run the bench, hold 25 steps a second | numbers, and why they are what they are |
+| 9 | [Measuring](09-measuring.md) | read the build report, run the bench on your all-BASIC game, then add six assembly routines one at a time | numbers, and what each routine bought |
 | 10 | [The Spectrum build](10-the-spectrum-build.md) | build the same game for the Spectrum 48K and 128K | two `.tap` files |
 | 11 | [The 6128 and the Plus](11-6128-and-plus.md) (optional) | build for the 6128, then the CPC Plus with hardware sprites and flickering flames | a Plus cartridge |
 
@@ -57,9 +58,9 @@ can be done in either order, or skipped.
 | The Boriel BASIC compiler with the CPC backend, with `mkdsk` (the disc packager) | compiling and making `.dsk` files | **CPC Game Studio: Check Environment** (chapter 1) |
 | The Lamplighter files: the finished game, the art files and `split_rooms.py` | comparing with your own copy, and the files you copy in | `games/lamplighter/` exists |
 | [Tiled](https://www.mapeditor.org/) (chapter 3) | editing the tower map | **CPC Game Studio: Open in Tiled** |
-| Python 3 (chapter 3, step 5 only) | running `split_rooms.py`, which cuts the map into rooms | `python3 --version` |
+| Python 3 (chapter 3, step 5 only) | running `split_rooms.py`, which cuts the map into rooms | `python3 --version` on macOS and Linux, `py -3 --version` on Windows |
 
-You do not need Python for anything else. Python is only for chapter 3, step 5, and you can skip it: that
+You do not need Python for anything else (on a Mac, do not install Apple's developer tools just for it). Python is only for chapter 3, step 5, and you can skip it: that
 step also says how to copy the finished `rooms.bas` instead. Tiled is optional too: you can follow chapter 3
 without editing, because the finished map is in the repository.
 
@@ -76,7 +77,7 @@ pre-release). There are two ways to get them. Chapter 1 walks through the first.
   **Extensions: Install from VSIX...** from the Command Palette, once for each file. Then let Studio fetch the
   compiler with **CPC Game Studio: Download Tools** (chapter 1, step 2). For the Lamplighter files, clone or download
   the [cpcbuild repository](https://github.com/carcharo/cpcbuild) and look in `games/lamplighter/`.
-- **The SDK folder.** Download `cpcbuild-sdk-0.1.1-<platform>.zip` (or `.tar.gz` on Linux) for your system. It
+- **The SDK folder.** Download `cpcbuild-sdk-0.1.1-<platform>.zip` (on Linux, the `.tar.gz`) for your system. It
   holds the compiler, both `.vsix` files and `games/lamplighter/`. See the
   [README](../../README.md#install) for the platform names and the notes for each system.
 
@@ -104,6 +105,11 @@ Conventions:
 - Code marked **(simplified)** is a cut-down version of the real thing. The text says what was left out.
 - Commands in the Command Palette (press `Ctrl+Shift+P`, or `Cmd+Shift+P` on a Mac) are written
   with the exact title, for example **CPC Game Studio: Build and Run**.
+- Other VS Code shortcuts are given for Windows and Linux (`Ctrl+S`). On macOS use `Cmd` in place of `Ctrl`
+  (`Cmd+S`).
+- Commands you type in a terminal are for macOS and Linux (`python3 ...`). On Windows the Python launcher is
+  `py -3`. Lines that need a cpcbuild checkout and a Unix shell (`make`, `build_*.sh`, `bench.sh`) are marked
+  as such, and the tutorial never needs them.
 - Boriel BASIC variable names are case-insensitive; the game uses a mixture. Copy what you see.
 
 ### Where your files go
@@ -122,6 +128,9 @@ lamplighter/
     lamp.cpcpal  tiles.png  tiles.cpcimp  tiles.bas  ...
     zx/  plus/
 ```
+
+On Windows, keep the project folder on a local drive such as `C:\`. VS Code refuses the `\\Mac\...` network
+paths through which a Windows virtual machine sees its host's folders ("UNC host 'mac' access is not allowed").
 
 The Studio's **New Project** template puts the `.bas` files in a `src/` folder instead; chapter 1, step 5
 moves them to the root. Everything after that has the same paths as the finished game, so

@@ -15,7 +15,7 @@ a win and a game over.
 **Time:** about 60 minutes.
 
 **Before you start.** Chapter 6 is working. This chapter changes `game.bas` and `platform_cpc.bas`
-and replaces `main.bas`.
+and replaces `main.bas`. It is the last chapter of game code in plain BASIC: when it is done you have the whole game with no assembly in it.
 
 ---
 
@@ -30,7 +30,7 @@ and replaces `main.bas`.
   ladders up; 0 is the top.)
 
 The map decides all of this. The table below is what `tower.tmx` holds (counted from the map; the
-code you are about to write finds the lamps itself):
+code you are about to write finds the lamps itself, and `rooms.bas` carries the total):
 
 | Room | Name | Lamps | Enemies |
 |---|---|---|---|
@@ -77,6 +77,11 @@ In the variables, add (and remove the old `DIM pRoom` if you have one):
 DIM bitTab(7) AS UBYTE => {1, 2, 4, 8, 16, 32, 64, 128}
 DIM cur(459) AS UBYTE                 ' the current room's tiles
 DIM litMask(11) AS UBYTE              ' lit lamps of each room, one bit per lamp
+' the current room's lamp and door cells (cell indices, in cell order; at
+' most 8 of each, split_rooms.py checks), found once by LoadRoom
+DIM nLamp, nDoor AS UBYTE
+DIM lampCell(7) AS UINTEGER
+DIM doorCell(7) AS UINTEGER
 DIM gState, gLives, pRoom AS UBYTE
 DIM gLit, gTotal, gRoomLamps, gRoomLit AS UBYTE
 DIM pX, pY, pAir, pJt, pClimb, pFace, pAnim, pMove AS UBYTE
@@ -89,38 +94,58 @@ DIM entX, entY AS UBYTE
 - `gLit` and `gTotal`: lamps lit in the tower, and lamps in the tower. `gRoomLit` and `gRoomLamps`:
   the same for the current room.
 - `gLives`, `gState` (`S_PLAY`, `S_OVER` or `S_WON`).
+- `lampCell` and `doorCell` list the cells of the current room that hold a lamp or a door, as cell numbers
+  (row times 20 plus column), and `nLamp` and `nDoor` say how many. The splitter checks that no room has more than
+  8 of either, which is why the arrays have 8 entries.
 
 ## Step 3: Loading a room with its history
 
-Replace `LoadRoom` with the finished game's:
+Two subs. `ScanRoom` finds the lamps and the doors of the room in `cur`, once, when it loads; put it
+before `LoadRoom`, which you replace with the finished game's:
 
 ```basic
+' Lists the lamp cells (tile 5) and the door cells (tile 7) of cur, in cell
+' order, into lampCell/doorCell with their counts.
+SUB ScanRoom()
+  DIM i AS UINTEGER
+  DIM t AS UBYTE
+  nLamp = 0
+  nDoor = 0
+  FOR i = 0 TO ROOM_SIZE - 1
+    t = cur(i)
+    IF t = T_LAMP THEN
+      lampCell(nLamp) = i
+      nLamp = nLamp + 1
+    ELSEIF t = T_DOOR THEN
+      doorCell(nDoor) = i
+      nDoor = nDoor + 1
+    END IF
+  NEXT i
+END SUB
+
 ' Reads room id into cur (lit lamps and open doors applied), its start cell
 ' and its enemies.
 SUB LoadRoom(id AS UBYTE)
-  DIM base, i, o AS UINTEGER
+  DIM o AS UINTEGER
   DIM n, t AS UBYTE
-  base = CAST(UINTEGER, id) * ROOM_SIZE
-  FOR i = 0 TO ROOM_SIZE - 1
-    cur(i) = rooms(base + i)
-  NEXT i
-  n = 0
-  gRoomLamps = 0
+  CopyRoom(@rooms(0) + CAST(UINTEGER, id) * ROOM_SIZE)
+  ScanRoom()
+  gRoomLamps = nLamp
   gRoomLit = 0
-  FOR i = 0 TO ROOM_SIZE - 1
-    IF cur(i) = T_LAMP THEN
-      IF (litMask(id) BAND bitTab(n)) <> 0 THEN
-        cur(i) = T_LIT
-        gRoomLit = gRoomLit + 1
-      END IF
-      n = n + 1
-      gRoomLamps = gRoomLamps + 1
+  n = 0
+  DO WHILE n < nLamp
+    IF (litMask(id) BAND bitTab(n)) <> 0 THEN
+      cur(lampCell(n)) = T_LIT
+      gRoomLit = gRoomLit + 1
     END IF
-  NEXT i
+    n = n + 1
+  LOOP
   IF gRoomLit = gRoomLamps THEN
-    FOR i = 0 TO ROOM_SIZE - 1
-      IF cur(i) = T_DOOR THEN cur(i) = T_OPEN
-    NEXT i
+    n = 0
+    DO WHILE n < nDoor
+      cur(doorCell(n)) = T_OPEN
+      n = n + 1
+    LOOP
   END IF
   nEn = 0
   o = roff(id)
@@ -143,18 +168,16 @@ END SUB
 
 ```
 
-(The finished `LoadRoom`, `game.bas:361-400`, is a little different: it hands the block copy and the
-lamp and door scan to two routines, `CopyRoom` and `ScanRoom`. The loops above are their plain BASIC
-logic, and the finished file has them as BASIC under `#ifdef LAMP_BASIC` (`game.bas:261-266` and
-`284-299`), next to the faster assembly ones the game uses by default (`game.bas:268-276` and
-`301-356`; chapter 9).) Now `LoadRoom` does the whole job:
+(`ScanRoom` is `game.bas:284-299` and `LoadRoom` is `game.bas:361-400`, exactly as printed.) Now `LoadRoom` does the whole job:
 
-1. Copies the room into `cur`.
-2. **Scans for lamps.** Every cell holding tile 5 (`T_LAMP`) is a lamp. Lamps are numbered 0, 1, 2 in
-   reading order (`n`). If `litMask` says lamp *n* is lit, the tile is changed to a lit lamp (`T_LIT`).
-   There are no lamp objects in the map: the *tiles* are the lamps.
-3. If every lamp is lit (`gRoomLit = gRoomLamps`), turns every door tile into an open door.
-4. Reads the objects (start and enemies) as in chapter 6.
+1. Copies the room into `cur` (`CopyRoom`, chapter 5).
+2. **Scans for lamps and doors.** `ScanRoom` walks all 460 cells. Every cell holding tile 5 (`T_LAMP`) is a
+   lamp and every cell holding tile 7 (`T_DOOR`) is a door; their cell numbers go into `lampCell` and
+   `doorCell`, in reading order. There are no lamp objects in the map: the *tiles* are the lamps.
+3. Lamps are numbered 0, 1, 2 in that order (`n`). If `litMask` says lamp *n* is lit, its tile is changed
+   to a lit lamp (`T_LIT`).
+4. If every lamp is lit (`gRoomLit = gRoomLamps`), turns every door tile into an open door.
+5. Reads the objects (start and enemies) as in chapter 6.
 
 ## Step 4: Starting, lighting, dying
 
@@ -163,15 +186,11 @@ Replace `GameInit` and `Die`, and add `LightLamp` between them:
 ```basic
 ' A game starting in `room` (9: the cellar) with all lamps unlit.
 SUB GameInit(room AS UBYTE)
-  DIM i AS UINTEGER
   DIM n AS UBYTE
   FOR n = 0 TO 11
     litMask(n) = 0
   NEXT n
-  gTotal = 0
-  FOR i = 0 TO 12 * ROOM_SIZE - 1
-    IF rooms(i) = T_LAMP THEN gTotal = gTotal + 1
-  NEXT i
+  gTotal = LAMPS_TOTAL
   gLit = 0
   gLives = 3
   gState = S_PLAY
@@ -187,13 +206,13 @@ END SUB
 ' Lamp at cell (cx, cy) is touched: light it, remember it, open the doors
 ' when the room is done.
 SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
-  DIM idx, i AS UINTEGER
-  DIM n AS UBYTE
+  DIM idx AS UINTEGER
+  DIM n, i AS UBYTE
   idx = CAST(UINTEGER, cy) * ROOM_W + cx
   n = 0
-  FOR i = 0 TO idx - 1
-    IF cur(i) = T_LAMP OR cur(i) = T_LIT THEN n = n + 1
-  NEXT i
+  DO WHILE lampCell(n) <> idx AND n < nLamp
+    n = n + 1
+  LOOP
   cur(idx) = T_LIT
   litMask(pRoom) = litMask(pRoom) BOR bitTab(n)
   gRoomLit = gRoomLit + 1
@@ -201,13 +220,14 @@ SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
   PlatTile(cx, cy, T_LIT)
   PlatSfx(2)
   IF gRoomLit = gRoomLamps THEN
-    FOR i = 0 TO ROOM_SIZE - 1
-      IF cur(i) = T_DOOR THEN
-        cur(i) = T_OPEN
-        PlatTile(CAST(UBYTE, i MOD ROOM_W), CAST(UBYTE, i / ROOM_W), T_OPEN)
-        PlatSfx(4)
-      END IF
-    NEXT i
+    i = 0
+    DO WHILE i < nDoor
+      idx = doorCell(i)
+      cur(idx) = T_OPEN
+      PlatTile(CAST(UBYTE, idx MOD ROOM_W), CAST(UBYTE, idx / ROOM_W), T_OPEN)
+      PlatSfx(4)
+      i = i + 1
+    LOOP
   END IF
   IF gLit = gTotal THEN gState = S_WON
 END SUB
@@ -228,42 +248,73 @@ SUB Die()
 END SUB
 ```
 
-- `GameInit` clears `litMask`, **counts the lamps in the whole tower** by scanning the `rooms`
-  array for tile 5 (that is how it knows there are 28), and starts a game: three lives, state `S_PLAY`.
-- `LightLamp(cx, cy)` works out which lamp number this cell is (counting lamps before it in the
-  room: `n`), sets the tile to lit in `cur`, sets bit `n` of `litMask(pRoom)`, adds one to the counters,
+- `GameInit` clears `litMask`, takes the number of lamps in the whole tower from `LAMPS_TOTAL` (28), and
+  starts a game: three lives, state `S_PLAY`. `LAMPS_TOTAL` is a constant that `split_rooms.py` counts
+  and writes at the top of `rooms.bas`, next to `ROOM_SIZE` (chapter 3).
+- `LightLamp(cx, cy)` works out which lamp number this cell is (its place in `lampCell`: `n`), sets the tile to lit in `cur`, sets bit `n` of `litMask(pRoom)`, adds one to the counters,
   and asks the platform to redraw that one cell with `PlatTile`. If the room is done it changes
   every door tile to an open door, in `cur` *and* on the screen, and plays the door sound (chapter 8's
   `PlatSfx(4)`). If that was the 28th lamp the state becomes `S_WON`.
 - `Die` takes a life and plays the death sound (`PlatSfx(3)`); at zero lives the state is `S_OVER`;
   otherwise it puts the player back where he entered, and resets the enemies.
 
-(`game.bas:457-497`, unchanged.)
+(`GameInit`, `LightLamp` and `Die` are `game.bas:437-497`, as printed.)
 
 ## Step 5: Touching things
 
+Two functions ask which attributes are under the body. They go after `TileAttr` and before `Touch`:
+
+```basic
+' The lamps and the spikes the player is on, in one call: the attributes of
+' cells l..r of the three rows the body is probed on (y, y+8, y+15), OR'd,
+' masked with 16 (lamp: any of the rows) and 8 (hazard: the lower two rows
+' only). TouchRow ORs the attributes of cells l..r of one row (l <= r).
+FUNCTION TouchRow(l AS UBYTE, r AS UBYTE, row AS UBYTE) AS UBYTE
+  DIM c, a AS UBYTE
+  a = 0
+  FOR c = l TO r
+    a = a BOR TileAttr(c, row)
+  NEXT c
+  RETURN a
+END FUNCTION
+
+FUNCTION TouchAttr(l AS UBYTE, r AS UBYTE, y AS UBYTE) AS UBYTE
+  DIM a AS UBYTE
+  a = TouchRow(l, r, y >> 3) BAND 16          ' the top row: lamps only
+  a = a BOR TouchRow(l, r, (y + 8) >> 3)
+  a = a BOR TouchRow(l, r, (y + 15) >> 3)
+  RETURN a BAND 24
+END FUNCTION
+```
+
+(`game.bas:167-181`.) `TouchAttr(l, r, y)` ORs the attributes of the cells in columns `l` to `r` over the
+three rows the body is probed on. From the top row it keeps only the lamp bit (16), because a spike
+there is above the feet and does not hurt; from the other two it keeps lamps and hazards. It answers
+the common case, "nothing here", in one call. Now `Touch`, `GameStep` and `GameDraw`:
+
 ```basic
 ' Lamps, spikes and enemies against the player; returns 1 on a hit.
-' (the game's checks the tiles in one call, TouchAttr)
 FUNCTION Touch() AS UBYTE
-  DIM k, c, l, r, row, hit, ex, ey, a AS UBYTE
+  DIM k, c, l, r, row, t, hit, ex, ey, a AS UBYTE
   l = (pX + 1) >> 3
   r = (pX + 6) >> 3
   hit = 0
-  FOR k = 0 TO 2                      ' the body is probed at y, y + 8 and y + 15
-    IF k = 0 THEN
-      row = pY >> 3
-    ELSEIF k = 1 THEN
-      row = (pY + 8) >> 3
-    ELSE
-      row = (pY + 15) >> 3
-    END IF
-    FOR c = l TO r
-      a = TileAttr(c, row)
-      IF (a BAND 16) <> 0 THEN LightLamp(c, row)
-      IF k > 0 AND (a BAND 8) <> 0 THEN hit = 1    ' spikes: the lower two rows only
-    NEXT c
-  NEXT k
+  a = TouchAttr(l, r, pY)
+  IF (a BAND 8) <> 0 THEN hit = 1
+  IF (a BAND 16) <> 0 THEN
+    FOR k = 0 TO 2
+      IF k = 0 THEN
+        row = pY >> 3
+      ELSEIF k = 1 THEN
+        row = (pY + 8) >> 3
+      ELSE
+        row = (pY + 15) >> 3
+      END IF
+      FOR c = l TO r
+        IF (TileAttr(c, row) BAND 16) <> 0 THEN LightLamp(c, row)
+      NEXT c
+    NEXT k
+  END IF
   IF nEn = 0 THEN RETURN hit
   FOR k = 0 TO nEn - 1
     ex = eX(k)
@@ -308,13 +359,10 @@ SUB GameDraw()
 END SUB
 ```
 
-- `Touch` probes the body at lines `y`, `y + 8` and `y + 15` (as in chapter 5), and for every cell
-  under the hit box (`l` to `r`): a lamp tile lights it, and spikes (hazard) hurt only if they are in the
-  lower two rows. Then the enemies, as in chapter 6. The finished game does the
-  tile part in a single call, `TouchAttr`, which ORs the attributes of the cells in the same way. Its
-  plain BASIC version is under `#ifdef LAMP_BASIC` (`game.bas:163-182`), next to the faster
-  assembly one the game uses by default (`game.bas:184-252`, chapter 9); `Touch` itself is
-  `game.bas:862-890`.
+- `Touch` first asks `TouchAttr` once. Spikes in the answer (bit 8) mean a hit. A lamp in the answer (bit 16)
+  means one of the cells under the hit box (columns `l` to `r`, the three rows `y`, `y + 8`, `y + 15`)
+  is a lamp, so only then does `Touch` go looking for which cell and call `LightLamp` for it. Then the enemies,
+  as in chapter 6. (`Touch` is `game.bas:862-890`.)
 - `GameStep` now returns the state and does nothing once the game is over.
 - `GameDraw` also calls `PlatHud` with the numbers to show.
 
@@ -540,14 +588,15 @@ do not appear, check `DoTile8(17 + i, 23, 9)` is in `PlatHud` and that tile 9 is
 **Is the tower finishable?** The finished game's test suite proves it by search: a Python port of the
 movement rules walks the whole tower in the intended order (9 10 11 8 7 6 3 4 5 2 1 0) and finds
 every lamp reachable and every door usable, in 1,085 steps, without losing a life; the recorded
-sequence is then played on the real `game.bas` and wins (`tests/reach.py`, `make reach-lamp`). You do not need to run it, but it is why you can trust the map.
+sequence is then played on the real `game.bas` and wins (`tests/reach.py`, run by `make reach-lamp` in a terminal in the repository; it needs `make` and a Unix shell, we have not tried it on Windows, and the tutorial never needs it). It is why you can trust the map.
 
 ## How it works
 
 **Why scan for lamps instead of listing them?** An object list would need a second place to keep
 in step with the picture. With tiles as lamps, the map you see in Tiled *is* the data: move a lamp
-and the game follows. The price is one pass over 460 cells when a room loads, which is nothing next to
-drawing it.
+and the game follows. The price is one pass over 460 cells when a room loads. In BASIC that pass takes about 6 frames
+(chapter 9 measures it: 117 frames for 20 passes). You will probably not notice it as a pause, but it is one
+of the things chapter 9 looks at.
 
 **State as bits.** `litMask` is twelve bytes for the whole tower. `bitTab(n)` is a table of `1, 2, 4,
 8, 16, 32, 64, 128`: `litMask(room) BOR bitTab(n)` sets bit `n`, `litMask(room) BAND bitTab(n)` tests
@@ -571,6 +620,6 @@ the call. The HUD draws only what changed so a step in which nothing changes cos
 
 ## What you have now
 
-A silent but complete game: title, 12 rooms, 28 lamps, enemies, lives, win and game over. Your
-build is about 22 KB (22,227 bytes when this chapter's code was checked; the finished game built with
-`-D NOSOUND` is 22,335). Next: [Chapter 8, Sound and music](08-sound-and-music.md).
+A silent but complete game, written entirely in plain Boriel BASIC: title, 12 rooms, 28 lamps, enemies,
+lives, win and game over. Your build is about 22.5 KB (the finished game built with `-D NOSOUND -D LAMP_BASIC` is 22,535 bytes). Whether it is fast enough
+on a 464 is the question for chapter 9. Next: [Chapter 8, Sound and music](08-sound-and-music.md).
