@@ -62,10 +62,12 @@ Studio finds the SDK by itself for any project inside the SDK folder. For a proj
 
 ### Notes for each system
 
-- **macOS.** The binaries are meant to be signed and notarised, but until that is set up they are unsigned. If
-  macOS refuses to open a program from an SDK you downloaded in a browser, run
-  `xattr -dr com.apple.quarantine <folder>` on the unpacked folder. Unpack with Finder or `ditto -x -k`. Tools
-  that Studio downloads itself are not affected.
+- **macOS.** The binaries are meant to be signed and notarised, but until that is set up they are unsigned. The
+  first build from an SDK you downloaded in a browser may show **"zxbc" Not Opened** ("Apple could not verify
+  "zxbc" is free of malware..."). Choose **Done**, not **Move to Bin**, then run
+  `xattr -dr com.apple.quarantine <folder>` in Terminal on the unpacked SDK folder (type the command, then drag
+  the folder into the window for its path) and build again. Unpack with Finder or `ditto -x -k`. Tools that
+  Studio downloads itself are not affected.
 - **Windows.** The binaries are unsigned. SmartScreen may warn about the SDK zip: choose **More info**, then
   **Run anyway**. Tools that Studio downloads itself are not affected.
 - **Linux.** Unpack with `tar -xzf`, which keeps file permissions. Arkos Tracker has no command-line tools for

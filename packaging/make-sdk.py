@@ -221,11 +221,13 @@ def readme_first(ver: str, platform: str, root: str, studio: str, emu: str, cver
         ),
         "macos": (
             "MACOS\n"
-            "  The programs in bin/ are signed and notarised once the release is set up for it. If macOS says a\n"
-            "  program cannot be opened because the developer cannot be verified, open Terminal and run:\n"
-            f"      xattr -dr com.apple.quarantine {root}\n"
-            "  (use the real path of the folder), then try again. Unzip with Finder or `ditto -x -k`, not with\n"
-            "  tools that drop file permissions.\n"
+            "  The programs in bin/ are signed and notarised once the release is set up for it. Until then, the\n"
+            "  first build may show \"zxbc\" Not Opened (\"Apple could not verify ... is free of malware\"). Choose\n"
+            "  Done, not Move to Bin. Then open Terminal, type the line below with a space at the end, drag this\n"
+            "  folder into the Terminal window (that types its path) and press Return:\n"
+            "      xattr -dr com.apple.quarantine\n"
+            "  It prints nothing. Build again. Unzip with Finder or `ditto -x -k`, not with tools that drop\n"
+            "  file permissions.\n"
         ),
         "linux": (
             "LINUX\n"

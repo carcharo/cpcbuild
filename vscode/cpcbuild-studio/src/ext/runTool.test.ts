@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { launchDetached, runTool, Sink, toolEnv } from './runTool';
+import { launchDetached, runTool, Sink, stoppedText, toolEnv } from './runTool';
 
 const collect = (): { sink: Sink; lines: string[] } => {
   const lines: string[] = [];
@@ -19,6 +19,16 @@ describe('runTool', () => {
     const r = await runTool([process.execPath], ['-e', 'console.error("bad"); process.exit(3)'], { sink, quiet: true });
     expect(r.code).toBe(3);
     expect(lines).toEqual(['!bad']);
+  });
+  it.skipIf(process.platform === 'win32')('gives the signal when the system stops the program (as macOS Gatekeeper does)', async () => {
+    const r = await runTool([process.execPath], ['-e', 'process.kill(process.pid, "SIGKILL")'], { quiet: true });
+    expect(r.code).toBeNull();
+    expect(r.signal).toBe('SIGKILL');
+    expect(r.error).toBeUndefined();
+  });
+  it('explains a stopped tool, with the Gatekeeper way out on macOS', () => {
+    expect(stoppedText('zxbc', 'SIGKILL', 'darwin')).toMatch(/^zxbc was stopped by the system \(SIGKILL\) before it finished\. If macOS showed "Not Opened".*choose Done \(not Move to Bin\).*xattr -dr com\.apple\.quarantine/);
+    expect(stoppedText('mkdsk', 'SIGSEGV', 'linux')).toBe('mkdsk was stopped by the system (SIGSEGV) before it finished. Build again; if it keeps happening, run "CPC Game Studio: Check Environment".');
   });
   it('says when the program is missing', async () => {
     const r = await runTool(['definitely-not-a-program-xyz'], []);
