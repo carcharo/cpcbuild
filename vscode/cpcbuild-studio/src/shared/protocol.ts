@@ -8,6 +8,8 @@
  * webview echoes in its edits). The webview never encodes CPC bytes: it holds what the host
  * sends and sends back semantic edit operations.
  */
+import type { SfxDoc } from '../core/sfxDoc';
+import type { SfxOp } from '../core/sfxOps';
 import type { PaletteError, PaletteKind, PaletteOp, Snippet } from '../core/paletteDoc';
 
 export type { PaletteError, PaletteKind, PaletteOp, Snippet };
@@ -92,3 +94,22 @@ export interface PaletteRequests extends BaseRequests {
 
 export type PaletteToHost = WebToHost<PaletteRequests>;
 export type PaletteToWeb = HostToWeb<PaletteView>;
+
+// ------------------------------------------------------- sound-effects editor
+
+export type { SfxDoc, SfxOp };
+
+export interface SfxView extends ViewBase {
+  doc: SfxDoc;
+  /** The tool's message that stops saving, if any. */
+  saveProblem?: string;
+}
+
+export interface SfxRequests extends BaseRequests {
+  edit: { args: { baseVersion: number; op: SfxOp }; result: { version: number } };
+  /** Play the effect with the real player in the emulator (after the build step; today the host answers with an error). */
+  playInEmulator: { args: { effect: number }; result: { ok: true } };
+}
+
+export type SfxToHost = WebToHost<SfxRequests>;
+export type SfxToWeb = HostToWeb<SfxView>;

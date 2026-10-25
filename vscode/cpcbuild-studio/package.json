@@ -66,6 +66,11 @@
         "category": "CPC Game Studio"
       },
       {
+        "command": "cpcbuild.newSfxBank",
+        "title": "New Sound Effects Bank",
+        "category": "CPC Game Studio"
+      },
+      {
         "command": "cpcbuild.newPlusSprite",
         "title": "New Plus Sprite",
         "category": "CPC Game Studio"
@@ -302,6 +307,16 @@
         "priority": "default"
       },
       {
+        "viewType": "cpcbuild.sfxEditor",
+        "displayName": "CPC Sound Effects Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.cpcsfx"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "cpcbuild.spriteEditor",
         "displayName": "CPC Sprite Editor",
         "selector": [
@@ -379,6 +394,11 @@
         {
           "command": "cpcbuild.openAsText",
           "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.paletteEditor",
+          "group": "navigation@90"
+        },
+        {
+          "command": "cpcbuild.openAsText",
+          "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.sfxEditor",
           "group": "navigation@90"
         },
         {
