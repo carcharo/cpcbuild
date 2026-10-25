@@ -119,7 +119,8 @@ importer's target button is **Plus sprites**:
 }
 ```
 
-These are the finished game's two commands (`build_assets.sh`):
+These are the finished game's two commands (`build_assets.sh`). You do not run them: they are what the
+recipes above do, and Studio does it for you on any system.
 
 ```
 python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/plus/plus_tiles.png -o assets/plus/tiles.bas
@@ -282,12 +283,12 @@ In `cpcbuild.json` add the Plus targets (these are the Studio **Plus cartridge**
 
 `bare` adds `-D CPC_BAREMETAL` (the cartridge has no firmware) and `ownFont` adds `-D CPC_OWNFONT` (so it has no
 firmware font either: the game's text comes from its own `fontcpc.bas` anyway). `package: cpr` runs
-`tools/mkcpr.py`, which wraps the program in a cartridge image with a small boot stub that copies it to RAM at
-`&0040`. These are the finished game's `lamppluc` flags (`build_plus.sh`).
+Studio's built-in cartridge packer (the same job as `tools/mkcpr.py`; no Python is needed), which wraps the program in a cartridge image with a small boot stub that copies it to RAM at
+`&0040`. These are the finished game's `lamppluc` flags (`build_plus.sh`, a shell script in the repository that you do not need).
 
 Select `plus-cart` and run **CPC Game Studio: Build and Run**. The compiler flags are `--arch cpc --org 0x40 -D
 PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,056-byte
-program, `lamppluc.bin`), and then `mkcpr.py` wraps it as `build/plus-cart.cpr`
+program, `lamppluc.bin`), and then the packer wraps it as `build/plus-cart.cpr`
 (the finished game's cartridge is 49,188 bytes, 3 pages). The report is the one for a bare target, with its
 own reference lines:
 
@@ -332,7 +333,7 @@ firmware build on a model other than `plus`; the cartridge target has no such ch
 ### What is not covered here
 
 The finished game also builds a **disc** for the Plus: `lampplus.dsk`, started with `RUN"PLUS`, where `PLUS.BIN`
-is a small loader that starts the program (`build_plus.sh` makes it). That disc stays **outside Studio**:
+is a small loader that starts the program (`build_plus.sh` makes it; it is a shell script for a cpcbuild checkout, so it needs macOS or Linux, and we have not tried it on Windows). That disc stays **outside Studio**:
 Studio's `dsk` packaging makes a plain disc that runs one binary with `run"NAME`, and the finished project's
 `lampplus` target is the cartridge only. Whether a plain Studio disc build of the Plus
 program (a target with `PLUS` defined, not `bare`) starts correctly on a Plus has not been checked: use the

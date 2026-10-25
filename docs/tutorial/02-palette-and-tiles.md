@@ -79,7 +79,7 @@ You should see:
 
 Click a pen in the strip, then a colour in the grid, and that pen takes the colour. Try it on pen 5
 (bright yellow, the lamp's glow). Make it something else, and look at the colour swatch. **Undo**
-(`Ctrl+Z`) puts it back, and so does **Reset** ("Reset to the last loaded palette"). Do not save a change you
+(`Ctrl+Z`, `Cmd+Z` on macOS) puts it back, and so does **Reset** ("Reset to the last loaded palette"). Do not save a change you
 do not want: the game's art assumes these exact pens.
 
 Open the **Copy as** menu (or the **Copy as** panel on the right). It offers the palette as:
@@ -154,8 +154,10 @@ python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lam
 
    That is the very command the finished game's `build_assets.sh` runs for these tiles. The editor
    never hides the command line, so you always know what the tool is doing. **Copy** puts it on the
-   clipboard.
-5. **Save** (`Ctrl+S`). Studio writes `assets/tiles.bas`, because the setting
+   clipboard. The line is printed the same way on Windows, macOS and Linux, and you do not run it: Studio does
+   the conversion itself, with no Python installed. (The line is the equivalent for the `tools/img2cpc.py`
+   script in a cpcbuild checkout, which needs a Unix shell and Python 3.)
+5. **Save** (`Ctrl+S`, `Cmd+S` on macOS). Studio writes `assets/tiles.bas`, because the setting
    `cpcbuild.assets.generateOnSave` is on by default. (The **Generate** button at the top right does
    the same without saving; a line under the header says when the output is missing or out of date.)
    If Studio is in Restricted Mode (chapter 1) nothing is written: trust the workspace first.
@@ -219,7 +221,7 @@ one empty tile.
   the drop-down opens it).
 - **Draw.** Click a pen at the bottom for your left mouse button (badge **L**) and another for the right
   button (**R**), then draw with the pencil (`B`). The other tools, along the top row: line `L`, rectangle
-  `R`, ellipse `E`, flood fill `F`, replace colour `K`, picker `I` and select `S`. `Ctrl+Z` undoes. The
+  `R`, ellipse `E`, flood fill `F`, replace colour `K`, picker `I` and select `S`. `Ctrl+Z` (`Cmd+Z` on macOS) undoes. The
   toolbar also has **Filled**, mirror **X** and **Y**, flip **H** and **V**, and **Shift**.
 - **Neighbours.** The editor shows your tile with its neighbours dimmed around it, so you can match
   edges. The **8x8** and **16x16** buttons change the view.

@@ -21,7 +21,7 @@ your project's `assets/` folder:
 `tower.tmx` refers to its tileset image as `tiles.png`, so keep it in the same folder as the map
 (you copied `tiles.png` to `assets/` in chapter 2). Step 5 runs a Python script from the cpcbuild
 repository, so for that step you need Python 3 and a checkout of the repository (or you can skip it, as step 5
-explains).
+explains). Python 3 is started as `py -3` on Windows and as `python3` on macOS and Linux; step 5 shows both.
 
 ---
 
@@ -106,7 +106,7 @@ Room 9 is in column 0 of row 3, so in the big map its pixel position is x = 0 x 
 y = 3 x 184 + 160 = **712**. Find the object `start` at x = 8, y = 712 in the object layer.
 The room's walker is at room cell (7, 17).
 
-Try moving that enemy: select it, change **x** (keep it a multiple of 8), and save the map (`Ctrl+S`).
+Try moving that enemy: select it, change **x** (keep it a multiple of 8), and save the map (`Ctrl+S`, `Cmd+S` on macOS).
 
 Some notes for when you edit the map yourself:
 
@@ -155,10 +155,24 @@ conversion above. The script reads the `.tmx`, uses `tools/tmx2bas.py` to get th
 file with everything the game needs. It finds `tmx2bas.py` relative to its own place in the repository, so
 run the script from the repository's copy, in your project folder, giving it your project's paths:
 
+On macOS and Linux, in a terminal:
+
 ```sh
 cd /path/to/lamplighter
 python3 /path/to/cpcbuild/games/lamplighter/assets/split_rooms.py assets/tower.tmx -o assets/rooms.bas
 ```
+
+On Windows, in PowerShell or Command Prompt:
+
+```
+cd C:\path\to\lamplighter
+py -3 C:\path\to\cpcbuild\games\lamplighter\assets\split_rooms.py assets\tower.tmx -o assets\rooms.bas
+```
+
+`/path/to/lamplighter` (`C:\path\to\lamplighter`) is the `lamplighter/` folder you created in chapter 1, and
+`/path/to/cpcbuild` is the folder where you cloned the cpcbuild repository. We have not tried the Windows form
+of the command. On a Mac, do not install Apple's developer tools just to get `python3`: copy the finished
+`rooms.bas` instead (below).
 
 (No Python on your machine, or no checkout (the SDK folder does not include `tools/`)? Copy the finished `games/lamplighter/assets/rooms.bas`
 instead; it is the output of exactly this command. You will only need to run the script if you edit the
@@ -174,6 +188,7 @@ CONST ROOMS_N AS UBYTE = 12
 CONST ROOM_W AS UBYTE = 20
 CONST ROOM_H AS UBYTE = 23
 CONST ROOM_SIZE AS UINTEGER = 460
+CONST LAMPS_TOTAL AS UBYTE = 28
 
 DIM rooms(5519) AS UBYTE => { _
     $01, $01, $01, ...

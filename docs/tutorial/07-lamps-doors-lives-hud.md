@@ -250,9 +250,7 @@ END SUB
 
 - `GameInit` clears `litMask`, takes the number of lamps in the whole tower from `LAMPS_TOTAL` (28), and
   starts a game: three lives, state `S_PLAY`. `LAMPS_TOTAL` is a constant that `split_rooms.py` counts
-  and writes at the top of `rooms.bas`, next to `ROOM_SIZE`. (The listing of `rooms.bas` in chapter 3
-  stops before it. If your `rooms.bas` has no such line, add `CONST LAMPS_TOTAL AS UBYTE = 28` below
-  `ROOM_SIZE`, or copy the finished file.)
+  and writes at the top of `rooms.bas`, next to `ROOM_SIZE` (chapter 3).
 - `LightLamp(cx, cy)` works out which lamp number this cell is (its place in `lampCell`: `n`), sets the tile to lit in `cur`, sets bit `n` of `litMask(pRoom)`, adds one to the counters,
   and asks the platform to redraw that one cell with `PlatTile`. If the room is done it changes
   every door tile to an open door, in `cur` *and* on the screen, and plays the door sound (chapter 8's

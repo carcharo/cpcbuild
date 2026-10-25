@@ -19,12 +19,32 @@ same code. By the end you know the edit, build, run loop that every later chapte
 
 Go to the [Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild` and download
 `cpcbuild-studio-0.1.1.vsix` and `cpcbuild-emu-0.1.1.vsix` (version 0.1.1 is a pre-release). Then, in VS Code,
-open the Command Palette and run **Extensions: Install from VSIX...**, once for each file. Reload the window
-if VS Code asks.
+open the Command Palette and run **Extensions: Install from VSIX...**, once for each file. (Or open the
+Extensions view, choose its **...** menu and then **Install from VSIX...**.) Reload the window if VS Code asks.
+
+You run **CPC Game Studio** commands from the Command Palette: `Ctrl+Shift+P` on Windows and Linux,
+`Cmd+Shift+P` on macOS. Studio does not bind keys to its commands, so this is the only shortcut you need.
+Where the tutorial gives another VS Code shortcut, such as `Ctrl+S`, macOS uses `Cmd` in place of `Ctrl`.
 
 (If you downloaded the SDK folder instead, the two `.vsix` files are inside it. Install them the same way.
 Studio then finds the compiler in that folder by itself, as long as your project is inside the folder, so you
 can skip step 2 except for the check.)
+
+Notes for your system (skip the ones that are not yours):
+
+- **Windows.** Extract the SDK zip with **Extract All** and keep the folder on a local drive, with a short path
+  such as `C:\cpcbuild-sdk`. In a Windows virtual machine (Parallels and the like), a folder shared from the host
+  shows up as a `\\Mac\...` network path, and VS Code refuses it ("UNC host 'mac' access is not allowed"). Keep
+  the `.vsix` files and your projects on a local drive such as `C:\`.
+- **macOS.** Until the SDK is notarised, the first build may stop with `"zxbc" Not Opened. Apple could not
+  verify "zxbc" is free of malware...` and two buttons, **Done** and **Move to Bin**. Choose **Done**, not
+  **Move to Bin**. Then open Terminal, type `xattr -dr com.apple.quarantine ` (with a space at the end), drag
+  the SDK folder into the Terminal window, press Return, and build again. Studio prints this advice too when
+  the system stops one of its tools. This applies to the SDK zip; the compiler that **Download Tools** fetches
+  (step 2) gives no such dialog.
+- **Linux.** VS Code's website offers the x64 `.deb` by default. On an ARM machine (a Raspberry Pi, an ARM
+  virtual machine) download the **Arm64** `.deb` and install it in a terminal with
+  `sudo apt install ./code_*_arm64.deb`; Ubuntu's App Center can hang on `.deb` files.
 
 The two extensions are separate on purpose. Studio does the editing, building and debugging.
 The Emulator extension is the CPC in a tab. They talk only through VS Code commands, and Studio
@@ -41,7 +61,8 @@ Two things to know about where Studio shows up:
   whether you trust its authors. Until you answer **Yes, I trust the authors**, Studio is limited: the
   editors open, but **Build**, **Run**, asset generation and the tool checks refuse with a message that
   points at **Manage Workspace Trust**. A project you create in step 3 and open yourself is yours, so
-  trust it. (The Emulator extension runs in Restricted Mode: it starts no program.)
+  trust it: when VS Code asks whether to trust the new folder, choose **Trust**, because Studio needs it to
+  build. (The Emulator extension runs in Restricted Mode: it starts no program.)
 
 ## Step 2: Get the compiler
 
@@ -56,7 +77,9 @@ same button: run **Welcome: Open Walkthrough...** and choose it.) A list asks wh
 
 Both are ticked unless they are already installed. You need the compiler now. The Arkos tools are only for
 converting your own songs in chapter 8, so you may leave them out and add them later. Studio checks each
-download against a known checksum before it uses it. On linux-arm64 there are no Arkos tools, and Studio says so.
+download against a known checksum before it uses it. The download shows no security dialog
+on any system. On Linux arm64 (a Raspberry Pi, an ARM virtual machine) Arkos has no command-line tools: Studio
+says so, and **Convert Music** (chapter 8) is not available there. Everything else works.
 
 You do not need a cpcbuild checkout for the library: Studio carries a copy of `lib/` inside the extension and
 uses it when nothing else is found (chapter 11's Plus library is in it too). The setting
@@ -68,8 +91,12 @@ downloaded, `zxbc` on your `PATH`, and last `poetry run zxbc`.
 
 > **Using a zxbasic checkout?** If you build the compiler yourself, set `cpcbuild.zxbc.cwd` to your `zxbasic`
 > checkout (branch `cpc-arch`). Studio then runs `poetry run zxbc` from there and takes `mkdsk.py` from the
-> checkout's `tools/cpc/`. That route needs Python 3 and Poetry, and **Check Environment** will list Python 3.
+> checkout's `tools/cpc/`. That route needs Python 3 and Poetry, and **Check Environment** will list Python 3. Python's launcher is
+> `py -3` on Windows and `python3` on macOS and Linux (Studio's `cpcbuild.python.path` setting defaults to that).
 > Everything else in the tutorial is the same.
+>
+> **Everyone else can ignore Python.** On a Mac, do not install Apple's developer tools just for it:
+> **Check Environment** shows Python as `[optional]` and does not start Apple's installer.
 
 Now run **CPC Game Studio: Check Environment**. It writes a list to the **CPC Game Studio** channel of the Output view and
 shows a message when something required is missing. Each line is `[ok]`, `[optional]` or `[MISSING]`, then
@@ -154,7 +181,7 @@ The **CPC Game Studio** output channel shows the steps: the compiler runs, `mkds
 into a disc image, a report says how big the program is, and the emulator opens.
 
 A new editor tab opens with a CPC screen in it. **Click on the screen** once: that gives the CPC your
-keyboard (press `Ctrl+Shift+Esc` to give it back to VS Code), and the **Click for sound** button
+keyboard (press `Ctrl+Shift+Esc` to give it back to VS Code; on a Mac that is the `Control` key, not `Cmd`), and the **Click for sound** button
 starts the audio, because browsers only allow sound after a click.
 
 You should see a CPC text screen with `HELLO FROM CPCBUILD` at the top and an `O` bouncing around.
@@ -338,7 +365,7 @@ second tab.
 Errors are how you learn the compiler's voice. Change `PlatQuit()` in `game.bas` to `PlatQuitt()`
 (an extra `t`), save, and run **CPC Game Studio: Build**.
 
-The build stops and the **Problems** panel (`Ctrl+Shift+M`) shows an entry like this, with `zxbc` as its
+The build stops and the **Problems** panel (`Ctrl+Shift+M`, `Cmd+Shift+M` on macOS) shows an entry like this, with `zxbc` as its
 source:
 
 ```

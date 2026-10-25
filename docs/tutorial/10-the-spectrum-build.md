@@ -80,7 +80,8 @@ the **Spectrum** target. The recipes:
 }
 ```
 
-These are the finished game's two commands (`build_assets.sh`):
+These are the finished game's two commands (`build_assets.sh`). You do not run them: they are what the
+recipes above do, and Studio does it for you on any system.
 
 ```
 python3 tools/img2cpc.py --spectrum --name zx_tiles assets/zx/zx_tiles.png -o assets/zx/zx_tiles.bas
@@ -158,7 +159,7 @@ assembly one costs less than a frame".
 ## Step 4: Set up the Spectrum targets
 
 The Shared template already has targets `zx128` and `zx48` (chapter 1). The finished game's build script
-(`build_zx.sh`) uses these settings, which you must match:
+(`build_zx.sh`, a shell script in the repository that you do not need) uses these settings, which you must match:
 
 ```json
 { "id": "zx128", "arch": "zx48k", "main": "main.bas",
@@ -211,6 +212,8 @@ bench: 250 steps). The unpaced figures (frames for 250 steps, 500 is the budget)
 48K and 295 on the 128K**: (the 464 build with music measured 431 in chapter 9; the library's notes say the 128K's
 music player costs about 0.2 frame a step). To run the bench for the
 Spectrum you need the repository's headless runner: `games/lamplighter/tests/bench.sh` does it for both models.
+It is a shell script in a cpcbuild checkout, so it runs on macOS and Linux and we have not tried it on Windows;
+the tutorial never needs it.
 
 **Sound.** `lib/music` works on the 128K exactly as on the CPC (the library says: "the same `music.bas` works on
 `--arch zx48k`... on the 128K the player runs on the IM2 frame hook") and stubs out on the 48K, where the layer
