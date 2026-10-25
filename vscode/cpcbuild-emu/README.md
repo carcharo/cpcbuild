@@ -9,7 +9,7 @@ It is the emulator half of CPC Game Studio and works with the CPC Game Studio ex
 
 - **CPC Emulator: Open File...** (Command Palette), or right-click a `.dsk`, `.cpr` or `.sna` file and choose
   **Run in CPC Emulator**.
-- Click the screen to give it the keyboard (your keys go to the CPC). **Ctrl+Shift+Esc** returns focus to the
+- Click the screen to give it the keyboard (your keys go to the CPC). **Ctrl+Shift+Esc** (or **Ctrl+Shift+F6**, which Windows needs) returns focus to the
   toolbar. Click **Click for sound** once: browsers allow audio only after a click in the page.
 - The toolbar resets the machine and pauses or resumes it. The emulator pauses by itself while its tab is hidden;
   set `cpcbuild.emu.runHidden` to keep it running (hidden pages are throttled by the browser, so it may run slowly).

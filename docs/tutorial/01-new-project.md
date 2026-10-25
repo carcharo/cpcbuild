@@ -181,7 +181,8 @@ The **CPC Game Studio** output channel shows the steps: the compiler runs, `mkds
 into a disc image, a report says how big the program is, and the emulator opens.
 
 A new editor tab opens with a CPC screen in it. **Click on the screen** once: that gives the CPC your
-keyboard (press `Ctrl+Shift+Esc` to give it back to VS Code; on a Mac that is the `Control` key, not `Cmd`), and the **Click for sound** button
+keyboard (press `Ctrl+Shift+Esc` to give it back to VS Code, `Ctrl+Shift+F6` on Windows, where Windows keeps
+`Ctrl+Shift+Esc` for Task Manager; on a Mac it is the `Control` key, not `Cmd`), and the **Click for sound** button
 starts the audio, because browsers only allow sound after a click.
 
 You should see a CPC text screen with `HELLO FROM CPCBUILD` at the top and an `O` bouncing around.
