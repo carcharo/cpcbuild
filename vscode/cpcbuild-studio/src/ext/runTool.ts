@@ -5,6 +5,7 @@
  * channel and/or a task terminal). No vscode import: unit-testable in node.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -88,6 +89,28 @@ export const PY_LAUNCHER = 'py -3';
 
 /** The command for a Python setting: `py -3` is two words, anything else (a path may hold spaces) is one program. */
 export const pythonCmd = (p: string): string[] => (p === PY_LAUNCHER ? ['py', '-3'] : [p]);
+
+/**
+ * True when `python` would run macOS's placeholder /usr/bin/python3, which only works once the Command Line Tools
+ * (or Xcode) are installed and otherwise opens Apple's "install the developer tools" dialog. `xcode-select -p`
+ * answers without prompting.
+ */
+export function isMacPythonStub(
+  python: string,
+  o: { platform?: NodeJS.Platform; pathDirs?: string[]; exists?: (p: string) => boolean; devDir?: () => string | undefined } = {},
+): boolean {
+  if ((o.platform ?? process.platform) !== 'darwin') return false;
+  const exists = o.exists ?? ((p: string) => fs.existsSync(p));
+  const dirs = o.pathDirs ?? (toolEnv().PATH ?? '').split(path.delimiter).filter(Boolean);
+  const resolved = python.includes('/') ? python : dirs.map((d) => path.join(d, python)).find(exists);
+  if (resolved !== '/usr/bin/python3' && resolved !== '/usr/bin/python') return false;
+  const devDir = o.devDir ?? (() => {
+    const r = spawnSync('/usr/bin/xcode-select', ['-p'], { encoding: 'utf8' });
+    return r.status === 0 ? r.stdout.trim() : undefined;
+  });
+  const d = devDir();
+  return !d || !exists(d);
+}
 
 export function runTool(command: readonly string[], args: readonly string[], opts: ToolOptions = {}): Promise<ToolResult> {
   const [exe, ...pre] = command;
