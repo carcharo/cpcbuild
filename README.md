@@ -23,22 +23,25 @@ CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` co
 ## Install
 
 Version 0.1.1 is a pre-release. Everything is on the
-[Releases page](https://github.com/carcharo/cpcbuild/releases). You need [VS Code](https://code.visualstudio.com/).
-You do not need Python.
+[Releases page](https://github.com/carcharo/cpcbuild/releases). You need [VS Code](https://code.visualstudio.com/)
+(on Linux with an ARM processor, see the note for Linux below). You do not need Python.
 
 Pick one route.
 
 ### Route A: the two extensions
 
 1. From the Releases page, download `cpcbuild-studio-0.1.1.vsix` and `cpcbuild-emu-0.1.1.vsix`.
-2. In VS Code, open the Command Palette and run **Extensions: Install from VSIX...**. Do this once for each file.
+2. In VS Code, open the Command Palette (Ctrl+Shift+P; Cmd+Shift+P on macOS) and run
+   **Extensions: Install from VSIX...**. Do this once for each file.
 3. Run **Welcome: Open Walkthrough...** and choose **Get started with CPC Game Studio**.
 4. In the walkthrough, choose **Download Tools**. Studio asks what to download: the Boriel BASIC compiler
    1.19.0-cpc.2 (with `zxbasm` and `mkdsk`) and the Arkos Tracker 3.7 command-line tools (music conversion). It
    checks each download against a known checksum. You can run **CPC Game Studio: Download Tools** from the Command
    Palette later.
-5. The walkthrough's next steps create a project from a template, then build and run it. You can skip
-   **Install Emulator**: it is for people who installed Studio without the emulator extension.
+5. The walkthrough's next steps create a project from a template, then build and run it. When VS Code asks
+   whether you trust the authors of the project folder, choose **Trust**: Studio cannot build in a folder VS Code
+   does not trust. You can skip **Install Emulator**: it is for people who installed Studio without the emulator
+   extension.
 
 Run **CPC Game Studio: Check Environment** at any time to see what Studio found and what to fix.
 
@@ -68,10 +71,18 @@ Studio finds the SDK by itself for any project inside the SDK folder. For a proj
   `xattr -dr com.apple.quarantine <folder>` in Terminal on the unpacked SDK folder (type the command, then drag
   the folder into the window for its path) and build again. Unpack with Finder or `ditto -x -k`. Tools that
   Studio downloads itself are not affected.
-- **Windows.** The binaries are unsigned. SmartScreen may warn about the SDK zip: choose **More info**, then
-  **Run anyway**. Tools that Studio downloads itself are not affected.
-- **Linux.** Unpack with `tar -xzf`, which keeps file permissions. Arkos Tracker has no command-line tools for
-  linux-arm64, so music conversion is not available there.
+- **Windows.** The binaries are unsigned. SmartScreen may warn about the SDK's programs: choose **More info**,
+  then **Run anyway** (in our tests on Windows 11 it did not appear). Unpack with **Extract All** to a folder on a
+  local drive, such as `C:\cpcbuild-sdk`. Tools that Studio downloads itself are not affected. Windows on ARM gets
+  a native compiler; the Arkos tools run under Windows' x64 emulation.
+- **Windows in a virtual machine** (Parallels, for example): folders shared from the host appear as network paths
+  (`\\Mac\...`), and VS Code refuses to open files there ("UNC host ... access is not allowed"). Copy the `.vsix`
+  files and keep your projects on the virtual machine's own drive.
+- **Linux.** Unpack with `tar -xzf`, which keeps file permissions. On an ARM computer (a Raspberry Pi, an ARM
+  laptop or virtual machine) VS Code's website offers the x64 `.deb` by default, which will not install: choose
+  the **Arm64** `.deb` and install it in a terminal with `sudo apt install ./code_*_arm64.deb` (Ubuntu's App
+  Center can hang on downloaded `.deb` files). Arkos Tracker has no command-line tools for linux-arm64, so music
+  conversion is not available there.
 
 ## Screenshots
 
@@ -94,11 +105,13 @@ This section is for working on CPCBuild itself. To use it, see [Install](#instal
 
 ### Prerequisites
 
-- macOS dev environment
+- macOS or Linux. CI runs the `make` targets on Ubuntu; Windows is untested (WSL may work)
 - Python 3 + Pillow (`pip install Pillow`), for the Python asset tools in `tools/` and the test scripts
 - Poetry (`pipx install poetry` or Homebrew)
 - zxbasic fork checked out as `../zxbasic` on branch `cpc-arch` with `poetry install` (the compiler the `make` targets use)
-- Caprice32 built from source in `../caprice32` (needs SDL2, `brew install sdl2`; used for `make run` and `make test`)
+- Caprice32 built from source in `../caprice32`, or with `make cap32` (used for `make run` and `make test`). It needs
+  SDL2, FreeType and libpng: on macOS `brew install sdl2 freetype libpng pkg-config`; on Debian/Ubuntu
+  `sudo apt install g++ make pkg-config libsdl2-dev libfreetype6-dev zlib1g-dev libpng-dev`
 - A C compiler for chipsrun, the headless runner used by `make test-chips` and CI (no other dependencies; `make chips` fetches and builds it)
 
 ### Commands
