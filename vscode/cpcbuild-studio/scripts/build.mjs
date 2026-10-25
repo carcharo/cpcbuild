@@ -1,6 +1,7 @@
 // build.mjs -- builds the host bundle and one bundle per webview (src/webview/<name>/main.tsx).
 //   dist/extension.js            the extension host (node, cjs, vscode external)
 //   dist/webview/<name>.js/.css  one per editor (browser, iife; preact bundled in)
+//   dist/webview/ayWorklet.js    the sound-preview AudioWorklet (loaded by audioWorklet.addModule, not a page script)
 //   dist/webview/cb.css          the shared stylesheet
 //   dist/webview/codicon.css/.ttf  the icon font (webviews have a CSP: no CDN)
 // Prints the sizes. Pass --watch to rebuild on change.
@@ -30,7 +31,10 @@ const host = {
   sourcemap: watch,
 };
 const web = {
-  entryPoints: Object.fromEntries(names.map((n) => [n, join(root, 'src/webview', n, 'main.tsx')])),
+  entryPoints: {
+    ...Object.fromEntries(names.map((n) => [n, join(root, 'src/webview', n, 'main.tsx')])),
+    ayWorklet: join(root, 'src/webview/shared/audio/ayWorklet.ts'),
+  },
   bundle: true,
   platform: 'browser',
   format: 'iife',

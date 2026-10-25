@@ -20,6 +20,13 @@ describe('webview html', () => {
     expect(html).toContain('<title>A &lt;b&gt; title</title>');
     expect(html).toContain('<link rel="stylesheet" href="vscode-webview://abc/cb.css">');
   });
+  it('a worklet page lets script-src load the webview\'s own files and carries the worklet URL', () => {
+    const w = buildHtml({ cspSource: 'vscode-webview://abc', nonce, title: 'T', scriptUri: 'vscode-webview://abc/sfx.js', styleUris: [], workletUri: 'vscode-webview://abc/ayWorklet.js' });
+    expect(w).toContain(`script-src &#39;nonce-${nonce}&#39; vscode-webview://abc`);
+    expect(w).toContain('{"worklet":"vscode-webview://abc/ayWorklet.js"}');
+    expect(buildCsp('vscode-webview://abc', nonce, true)).not.toContain('unsafe');
+    expect(html).not.toContain('id="boot"');
+  });
   it('nonces differ', () => {
     expect(newNonce()).not.toBe(newNonce());
   });

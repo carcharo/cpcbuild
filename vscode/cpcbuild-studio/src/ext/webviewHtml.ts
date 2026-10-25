@@ -13,17 +13,19 @@ export interface HtmlParts {
   title: string;
   scriptUri: string;
   styleUris: string[];
+  /** An AudioWorklet bundle the page may load (dist/webview/<name>.js): adds the webview's own resources to script-src and a boot block {worklet}. */
+  workletUri?: string;
 }
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
-export function buildCsp(cspSource: string, nonce: string): string {
+export function buildCsp(cspSource: string, nonce: string, worklet = false): string {
   return [
     "default-src 'none'",
     `img-src ${cspSource} data:`,
     `style-src ${cspSource}`,
     `font-src ${cspSource}`,
-    `script-src 'nonce-${nonce}'`,
+    `script-src 'nonce-${nonce}'${worklet ? ` ${cspSource}` : ''}`,
   ].join('; ');
 }
 
@@ -32,14 +34,14 @@ export function buildHtml(p: HtmlParts): string {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="${esc(buildCsp(p.cspSource, p.nonce))}">
+<meta http-equiv="Content-Security-Policy" content="${esc(buildCsp(p.cspSource, p.nonce, p.workletUri !== undefined))}">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(p.title)}</title>
 ${p.styleUris.map((u) => `<link rel="stylesheet" href="${esc(u)}">`).join('\n')}
 </head>
 <body>
 <div id="root"></div>
-<script nonce="${p.nonce}" src="${esc(p.scriptUri)}"></script>
+${p.workletUri === undefined ? '' : `<script type="application/json" id="boot">${JSON.stringify({ worklet: p.workletUri }).replace(/</g, '\\u003c')}</script>\n`}<script nonce="${p.nonce}" src="${esc(p.scriptUri)}"></script>
 </body>
 </html>
 `;
@@ -52,9 +54,9 @@ export function webviewRoot(vs: typeof vscode, extensionUri: vscode.Uri): vscode
   return vs.Uri.joinPath(extensionUri, 'dist', 'webview');
 }
 
-/** The page for bundle dist/webview/<bundle>.js (plus cb.css and the codicon font stylesheet). */
-export function webviewHtml(vs: typeof vscode, webview: vscode.Webview, extensionUri: vscode.Uri, bundle: string, title: string): string {
+/** The page for bundle dist/webview/<bundle>.js (plus cb.css and the codicon font stylesheet). `worklet` names an AudioWorklet bundle (e.g. 'ayWorklet') the page may load. */
+export function webviewHtml(vs: typeof vscode, webview: vscode.Webview, extensionUri: vscode.Uri, bundle: string, title: string, worklet?: string): string {
   const root = webviewRoot(vs, extensionUri);
   const uri = (f: string): string => webview.asWebviewUri(vs.Uri.joinPath(root, f)).toString();
-  return buildHtml({ cspSource: webview.cspSource, nonce: newNonce(), title, scriptUri: uri(`${bundle}.js`), styleUris: [uri('codicon.css'), uri('cb.css'), uri(`${bundle}.css`)] });
+  return buildHtml({ cspSource: webview.cspSource, nonce: newNonce(), title, scriptUri: uri(`${bundle}.js`), styleUris: [uri('codicon.css'), uri('cb.css'), uri(`${bundle}.css`)], workletUri: worklet === undefined ? undefined : uri(`${worklet}.js`) });
 }
