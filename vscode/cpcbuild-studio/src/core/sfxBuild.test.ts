@@ -64,9 +64,8 @@ describe('sfxBuild: constants', () => {
 describe('sfxBuild: Insert Asset Use', () => {
   it('has the includes, SfxInit and a SfxPlay of the first effect with the library.md 9.9 signatures', () => {
     expect(sfxUseSnippet(two(), 'sfx', 'sfx.bas')).toBe(
-      '#include <music/music.bas>\n#include "sfx.bas"\n' +
-        "' Effects only advance while a song plays: call MusicInit(...) first. A program with\n" +
-        "' effects and no music plays an empty song.\n" +
+      "#include <music/music.bas>\n#include <music/quiet.bas>    ' an empty song, for a program with no music\n#include \"sfx.bas\"\n" +
+        "MusicInit(@quiet, 0)    ' effects only advance while a song plays (or start your own song instead)\n" +
         'SfxInit(@sfx)\n' +
         "SfxPlay(SFX_BLIP, 2, 0)    ' effect, channel 0-2 (A, B, C), inverted volume 0 (full) to 16 (mute)\n",
     );

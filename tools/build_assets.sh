@@ -34,6 +34,8 @@ if [ -x "${AT3_TOOLS:-tools/arkos/work/bin}/SongToAkg" ] && [ -x "${AT3_TOOLS:-t
   python3 tools/aks2bas.py $A/bounce_music.vt2 $A/bounce_music.bas --name bounce_music
   python3 tools/aks2bas.py $A/bounce_quiet.vt2 $A/bounce_quiet.bas --name bounce_quiet
   python3 tools/aks2bas.py --sfx $A/bounce_sfx.vt2 $A/bounce_sfx.bas --name bounce_sfx
+  # the library's empty song, for programs with effects and no music
+  python3 tools/aks2bas.py lib/music/quiet.vt2 lib/music/quiet.bas --name quiet
 else
   echo "build_assets: Arkos tools not found (run tools/arkos/fetch.sh); keeping the committed bounce_*.bas"
 fi

@@ -76,9 +76,8 @@ export function withSfxConstants(bas: string, doc: SfxDoc, bank: string): string
 export function sfxUseSnippet(doc: SfxDoc, bank: string, rel: string): string {
   const first = doc.effects[0] ? sfxConstName(bank, doc.effects[0].name) : '1';
   return (
-    `#include <music/music.bas>\n#include "${rel}"\n` +
-    `' Effects only advance while a song plays: call MusicInit(...) first. A program with\n` +
-    `' effects and no music plays an empty song.\n` +
+    `#include <music/music.bas>\n#include <music/quiet.bas>    ' an empty song, for a program with no music\n#include "${rel}"\n` +
+    `MusicInit(@quiet, 0)    ' effects only advance while a song plays (or start your own song instead)\n` +
     `SfxInit(@${bank})\n` +
     `SfxPlay(${first}, 2, 0)    ' effect, channel 0-2 (A, B, C), inverted volume 0 (full) to 16 (mute)\n`
   );
