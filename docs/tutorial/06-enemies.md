@@ -460,7 +460,7 @@ How it works:
 Go through rooms and meet floaters and bats (the finished game has them in rooms 0, 1, 3, 5, 8 and 10).
 To visit them quickly, change `GameInit(9)` to another room (rooms 0, 5, 6 and 11 have no door; the
 others will keep you in until chapter 7). The finished game's
-[room 9 picture](../../games/lamplighter/tests/golden/464/room09.png) shows the walker.
+[room 9 picture](../images/lamplighter-room09.png) shows the walker.
 
 If enemies leave trails, check `sOF(s) = sNF(s)` in `PlatFlush` ran for every dirty slot. If the player
 vanishes when an enemy walks past, the overlap test is missing.

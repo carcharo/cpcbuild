@@ -17,7 +17,7 @@ and it lights; light them all and the room's door opens. The tower has 12 rooms 
 (28 lamps in all). You walk, jump, climb ladders and avoid spikes and three kinds of enemy. You
 have three lives. Walk off the edge of a room and you flip to the next one.
 
-![Room 9, the cellar, on a CPC 464](../../games/lamplighter/tests/golden/464/room09.png)
+![Room 9, the cellar, on a CPC 464](../images/lamplighter-room09.png)
 
 The finished source is in [`games/lamplighter/`](../../games/lamplighter/). You write your own copy
 as you go, and compare with it at the end of each chapter.

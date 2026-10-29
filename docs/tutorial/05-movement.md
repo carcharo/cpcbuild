@@ -492,7 +492,7 @@ Try these, in this order:
    (down) and walk off the top of the screen: you arrive at the bottom of room 8, at the same x.
    Walk off the left or right edge of a room that has a neighbour and you flip to it.
 
-The finished game's [ladder picture](../../games/lamplighter/tests/golden/464/climb.png) shows the
+The finished game's [ladder picture](../images/lamplighter-climb.png) shows the
 player climbing in room 10.
 
 If he falls through the floor, check `pY >= 168` in `Ground` and that `pRoom` is 9 or more. If you

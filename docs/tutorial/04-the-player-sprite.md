@@ -375,7 +375,7 @@ floor. Press `P` (or the right cursor key) and he walks right, legs animating; `
 facing left. He leaves no trail: the background is restored behind him. He walks through ledges,
 lamps and walls (there is no collision yet), and stops at the room's edges. `ESC` quits.
 
-The finished game's [walking picture](../../games/lamplighter/tests/golden/464/walk.png) shows the
+The finished game's [walking picture](../images/lamplighter-walk.png) shows the
 same sprite mid-stride, with the HUD and an enemy added.
 
 If the player leaves bits of himself behind, `TileRestore` is erasing the wrong rectangle: check

@@ -329,7 +329,7 @@ name at the bottom. Click the screen, then press `P`: the screen blanks for a mo
 lantern), ladders, spikes, windows, and doors (orange blocks) on most rooms.
 <!-- CHECK: the room name at the bottom of the screen is partly cut off in the headless screenshots of this stage (the capture is 272 lines high); in the real emulator tab check it is fully visible. -->
 
-For comparison, the finished game's room 9 is [this picture](../../games/lamplighter/tests/golden/464/room09.png)
+For comparison, the finished game's room 9 is [this picture](../images/lamplighter-room09.png)
 (the golden test image, with the player, HUD and enemy of later chapters).
 
 If the build stops with `Undeclared function "RoomName"` or similar, check that `rooms.bas` is in

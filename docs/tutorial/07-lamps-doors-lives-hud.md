@@ -576,8 +576,8 @@ Touch the spikes or the walker: you lose a heart and are back at the start. Lose
 OVER`.
 
 For comparison, the finished game with room 9 lit is
-[this picture](../../games/lamplighter/tests/golden/464/lit09.png), and its
-[title](../../games/lamplighter/tests/golden/464/title.png).
+[this picture](../images/lamplighter-lit09.png), and its
+[title](../images/lamplighter-title.png).
 
 To check your lamp totals without playing the whole tower, change `GameInit(9)` in `RunGame` to the
 number of another room and play just that one.
