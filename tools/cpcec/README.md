@@ -31,6 +31,11 @@ loop, exit status), `cpcec-rt.h` (the PNG saver takes an exact path; skip the
 frame-rate delay; skip the config file). PNGs come from CPCEC's own screenshot
 code (768x536 RGB with border on the Plus).
 
+The shots have one row per scanline (768x272 on the 464/6128), so they look
+half height on a page: for the docs, run them through `tools/docshot.py`, which
+doubles the rows into `docs/images` (`make unit` fails on a squashed or golden
+shot linked from a doc).
+
 `tools/cpcrun.py --emu cpcec` uses these; `make test-cpcec` runs the Plus
 smoke tests, conformance (firmware and `--bare`) and screenshots on it.
 Goldens are in `tests/screens/golden/cpcec-plus/`, separate from Caprice32's
