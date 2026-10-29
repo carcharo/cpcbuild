@@ -6,19 +6,47 @@ CPCBuild is an Amstrad CPC toolchain built on Boriel BASIC — a `--arch cpc` co
 
 ## Status
 
-**Done:**
-- Compiler backend: `--arch cpc` in the zxbasic fork (Phases 0-3: bootstrap, firmware gate, integers, floats, strings, arrays, DATA/READ).
-- Text, input and graphics: PRINT/INK/PAPER/BORDER, INKEY$/INPUT, PLOT/DRAW/CIRCLE (4a); UDGs, fonts and SCREEN$ (4b).
-- The `cpcbuild` library: screen addressing, double buffering, sprites (plain and masked), tiles and tile maps, fills, keyboard matrix scan, palettes. Written clean-room, MIT (4c).
-- Asset pipeline: `img2cpc.py`, `tmx2bas.py` (4c).
-- Interrupts always on through our own &0038 handler, firmware sound without blocking, AY register access, the Play library (4d).
-- A headless reference emulator on floooh/chips that runs the whole test suite (pre-5a).
+Version 0.1.2 is released: the two VS Code extensions and ready-to-run SDK folders for Windows, macOS and
+Linux, on the [Releases page](https://github.com/carcharo/cpcbuild/releases).
 
-**Done:** Phase 5a — tests, CI, documentation. Phase 5b — music player (Arkos Tracker 3.7), sound effects, opt-in game mode. Phase 5c — single-screen shooter (Starfall) for CPC 6128/464 and Spectrum 128K/48K, cross-platform build machinery. Phase 6 — bare-metal mode (no firmware), Starfall bare builds. Phase 7 — CPC Plus/ASIC library: 16 hardware sprites, 12-bit palette, soft scroll and split screen, raster interrupts (bare only), DMA sound; Plus feature demo and Starfall Plus cartridge with multiplexed sprite formation; CI on Caprice32 and CPCEC.
+**Compiler and runtime**
+- `--arch cpc` in the zxbasic fork: integers, floats, strings, arrays, DATA/READ; PRINT/INK/PAPER/BORDER,
+  INKEY$/INPUT, PLOT/DRAW/CIRCLE, UDGs, fonts and SCREEN$.
+- Firmware mode (the default) goes through the firmware jumpblock for text, graphics, sound and files, with
+  interrupts always on through our own &0038 handler.
+- Bare-metal mode (`-D CPC_BAREMETAL`) never calls the firmware: the runtime boots the machine and does its own
+  text, keyboard, sound and graphics, pixel-identical to firmware mode, with 6656 bytes more room (up to &B7FF).
+  It also starts from a cold machine, which is how cartridges run. See the compiler's
+  [Bare-metal mode](https://github.com/carcharo/zxbasic/blob/cpc-arch/docs/architectures/amstrad_cpc.md#bare-metal-mode)
+  section.
 
-**Phase 6 (bare-metal mode):** `-D CPC_BAREMETAL` builds a program that never calls the firmware: the runtime boots the machine itself and does its own text, keyboard, sound and graphics, pixel-identical to firmware mode, with 6656 bytes more room for code and data (up to &B7FF). It also starts from a cold machine (no firmware), rehearsed by chipsrun's `--cold` mode as a step towards cartridges. The conformance and screenshot suites pass bare on chips (464, 6128; disc and cold start) and Caprice32 (464, 664, 6128), and run in CI (`make test-bare`). Starfall builds both ways from the same source: `RUN"DISC` starts the firmware builds, `RUN"BARE` the bare ones, at the same 25.0 steps/s. See the compiler's [Bare-metal mode](https://github.com/carcharo/zxbasic/blob/cpc-arch/docs/architectures/amstrad_cpc.md#bare-metal-mode) section.
+**The `cpcbuild` library** (clean-room, MIT; [docs/library.md](docs/library.md))
+- Screen addressing, double buffering, sprites (plain and masked), tiles and tile maps, fills, keyboard matrix
+  scan, palettes, extra RAM banks on the 6128.
+- Sound: AY register access, the Play library, the Arkos Tracker 3 music player, sound effects, an opt-in game
+  mode.
+- CPC Plus: 16 hardware sprites, the 12-bit palette, soft scroll and split screen, raster interrupts (bare-metal
+  only), DMA sound, cartridges (`.cpr`).
 
-**Supported models:** Amstrad CPC 464, 664, 6128, and the CPC Plus range (6128 Plus; GX4000 cartridges). The runtime is firmware-first (text, graphics, sound and files go through the jumpblock at &BB00-&BDxx); the `cpcbuild` library drives the screen, keyboard and palette directly for speed. Phase 6 adds firmware-free bare-metal mode. Phase 7 adds CPC Plus ASIC support: hardware sprites, 12-bit palette, split screen and soft scroll, raster interrupts (bare only), and DMA sound.
+**Tools**
+- **CPC Game Studio** for VS Code: project templates, build and run, palette, sprite and tile editors, an image
+  importer, a Tiled map viewer, music conversion, language help, and an emulator tab (CPCEC compiled to
+  WebAssembly) with a debugger.
+- Command-line asset tools: `img2cpc.py`, `tmx2bas.py`, `aks2bas.py`, `mkcpr.py` ([art guide](docs/art-guide.md)).
+- Tests: language conformance and screenshot comparisons in firmware and bare-metal modes, on a headless
+  emulator built on floooh/chips (464, 6128) and on Caprice32 and CPCEC (6128 Plus), all in CI.
+
+**Games**
+- **Lamplighter**, a flip-screen platformer, and a [tutorial](docs/tutorial/README.md) that builds it chapter by
+  chapter in plain BASIC, measures it, then brings in six assembly routines. Builds for the CPC 464 and 6128,
+  the Spectrum 48K and 128K, and the CPC Plus.
+- **Starfall**, a single-screen shooter for the CPC 6128 and 464 (firmware and bare-metal builds), the Spectrum
+  128K and 48K, and a CPC Plus cartridge with a multiplexed hardware-sprite formation.
+
+**In progress:** a sound-effect editor in Studio.
+
+**Supported models:** Amstrad CPC 464, 664 and 6128, and the CPC Plus range (6128 Plus; GX4000 cartridges). Both
+games also build for the ZX Spectrum from the same BASIC source, through Boriel BASIC's own Spectrum target.
 
 ## Install
 
@@ -85,7 +113,7 @@ Studio finds the SDK by itself for any project inside the SDK folder. For a proj
 
 ## Screenshots
 
-**Starfall (Phase 5c):** a single-screen shooter for CPC and Spectrum.
+**Starfall:** a single-screen shooter for CPC and Spectrum.
 
 ![Starfall on CPC 6128](docs/images/starfall-cpc-2x.png)
 ![Starfall on Spectrum 128K](docs/images/starfall-zx.png)
