@@ -165,6 +165,8 @@ END FUNCTION
 
 REM The move, then at once what PRI and RI_IDX are (printing takes longer than a line).
 DIM gIdx, gPri AS UBYTE
+REM PRI is write-only: read back only where the emulator allows it (see WoReadable)
+DIM woRd AS UBYTE
 FUNCTION Mv(o AS UBYTE, n AS UBYTE) AS UBYTE
   DIM r AS UBYTE
   r = RasterIntMove(o, n)
@@ -205,6 +207,7 @@ tgt(6) = 200: tgt(7) = 243: tgt(8) = 250
 
 PlusUnlock()
 CHK("avail", STR$(PlusAvailable()), "1")
+woRd = WoReadable()
 FrameHook(HookAddr())
 
 IntOff()
@@ -290,7 +293,7 @@ FOR p = 0 TO 4
           fails = fails + 1
           IF first$ = "" THEN first$ = "idx p=" + STR$(p) + " t=" + STR$(nl) + " I=" + STR$(I) + " got=" + STR$(RiIdx()) + " want=" + STR$(newI)
         END IF
-        IF Pri() <> PEEK(LineAddr() + RiIdx()) THEN
+        IF woRd AND Pri() <> PEEK(LineAddr() + RiIdx()) THEN
           fails = fails + 1
           IF first$ = "" THEN first$ = "pri p=" + STR$(p) + " t=" + STR$(nl) + " I=" + STR$(I)
         END IF
@@ -320,7 +323,7 @@ ok = Mv(40, 70)
 CHK("b_inplace_ret", STR$(ok), "1")
 CHK("b_inplace_table", Tbl(), "70,100,160,243")
 CHK("b_inplace_idx", STR$(gIdx), "0")
-CHK("b_inplace_pri", STR$(gPri), "70")
+WCHK("b_inplace_pri", STR$(gPri), "70")
 WaitTick(): WaitTick(): WaitTick()
 CHK("b_inplace_order", STR$(LogNum()), "123")
 
@@ -330,7 +333,7 @@ ok = Mv(70, 130)
 CHK("b_across_ret", STR$(ok), "1")
 CHK("b_across_table", Tbl(), "100,130,160,243")
 CHK("b_across_idx", STR$(gIdx), "0")
-CHK("b_across_pri", STR$(gPri), "100")
+WCHK("b_across_pri", STR$(gPri), "100")
 WaitTick(): WaitTick(): WaitTick()
 CHK("b_across_order", STR$(LogNum()), "213")
 
@@ -349,7 +352,7 @@ WaitTick()
 ok = Mv(243, 20)
 CHK("b_front_ret", STR$(ok), "1")
 CHK("b_front_table", Tbl(), "20,100,130,243")
-CHK("b_front_pri", STR$(gPri), "20")
+WCHK("b_front_pri", STR$(gPri), "20")
 CHK("b_front_idx", STR$(gIdx), "0")
 WaitTick(): WaitTick(): WaitTick()
 CHK("b_front_order", STR$(LogNum()), "321")
@@ -446,7 +449,7 @@ CHK("random_order_ok", STR$(bads), "0")
 CHK("random_table_n", STR$(RiN()), "4")
 
 RasterIntClear()
-CHK("clear_pri", STR$(PlusPeek($6800)), "0")
+WCHK("clear_pri", STR$(PlusPeek($6800)), "0")
 FrameHookOff()
 PRINT "DONE"
 END
