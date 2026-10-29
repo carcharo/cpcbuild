@@ -360,12 +360,9 @@
 ' music player, BEEP, Play or AyWrite on the same registers while it runs, and
 ' in firmware mode do not queue sounds (SoundQueue, BEEP: the firmware's
 ' sound manager writes the AY from its own interrupt) on the chip while DMA
-' lists run. DmaActive() reads the status register (DCSR): on a real ASIC and
-' in CPCEC a channel's bit goes off when its list reaches STOP; Caprice32
-' updates DCSR in RAM instead of the register when the ASIC page is out
-' (it also writes the channel address registers there, &6C00-&6C0F: keep
-' those 16 bytes free when testing on it), so there DmaActive() only reflects
-' DmaStart/DmaStop.
+' lists run. DmaActive() reads the status register (DCSR): a channel's bit
+' goes off when its list reaches STOP. (Stock Caprice32 writes DCSR into RAM
+' at &6C00-&6C0F when the ASIC page is out; `make cap32` builds it with a fix.)
 '
 ' Both modes (firmware, -D CPC_BAREMETAL). Written from scratch for this
 ' project (MIT).

@@ -9,7 +9,7 @@ inputs:
   # Pinned: ROMs come from this caprice32 commit (rom/ only). Keep in sync with SHA in
   # tools/caprice32/fetch_build.sh, which the plus job uses to build the patched cap32.
   caprice32-sha:
-    default: 6c12c4c92360065cdc229ac9ada7551f941436b8
+    default: 8c778bf072a06fb7c23b9cccd179041db7f79a52
   # Keep in sync with SHA in tools/chipsrun/fetch_chips.sh (cache key only).
   chips-sha:
     default: 9e88298ce56319953ac7a43213a1120359f7a3a6

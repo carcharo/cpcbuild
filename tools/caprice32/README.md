@@ -1,10 +1,10 @@
 # Caprice32 (patched, for the Plus tests)
 
 `fetch_build.sh` downloads Caprice32 (Colin Pitrat, **GPLv2**,
-github.com/ColinPitrat/caprice32) at the pinned commit `6c12c4c`, applies
+github.com/ColinPitrat/caprice32) at the pinned commit `8c778bf`, applies
 `caprice32-asic-regs.patch` and builds `cap32` into the git-ignored `work/src/`
 (`make cap32`). We do not vendor Caprice32: the repo holds only this script and
-the patch (GPLv2 like Caprice32, 2 files, 7 lines changed plus 1 added). Caprice32 stays
+the patch (GPLv2 like Caprice32, 2 lines changed in one file). Caprice32 stays
 a separate program run as a subprocess. If the pin is moved (also in
 `.github/actions/setup/action.yml`) the patch may need rebasing; the script
 stops with an error if it does not apply.
@@ -13,16 +13,16 @@ stops with an error if it does not apply.
 
 On a CPC Plus the ASIC registers (sprites, palette, DMA, `&6C00`-`&6C0F`) live
 in a 16 KB register page that can be mapped over `&4000-&7FFF`. Caprice32 keeps
-that page in a buffer (`pbRegisterPage`), but writes the DMA address,
-prescaler and DCSR registers (`&6C00-&6C0B`, `&6C0F`) through `membank_write[]`,
-i.e. into whatever is mapped at `&4000`. With the ASIC page out that is
-program RAM: every raster interrupt ORs `&80` into `&6C0F` (`crtc.cpp`) and
-every DMA cycle rewrites `&6C00-&6C0B`/`&6C0F` (`asic.cpp`). Code or data that
-happens to sit there is corrupted. Starfall Plus crashed this way at one
+that page in a buffer (`pbRegisterPage`), but reads and writes the DMA control
+register DCSR (`&6C0F`, mirrored over `&6C00-&6C0F`) through `membank_write[]`
+(`asic_read_dcsr()` and `asic_update_dcsr()` in `asic.cpp`), i.e. in whatever
+is mapped at `&4000`. With the ASIC page out that is program RAM: every raster
+interrupt, DMA cycle and interrupt acknowledge rewrites `&6C00-&6C0F`. Code or
+data that happens to sit there is corrupted. Starfall Plus crashed this way at one
 memory layout (PRINT's CR routine hit), so the Plus tests passed or failed
 depending on where the linker put things.
 
-The patch reads and writes those registers in `pbRegisterPage` instead.
+The patch makes those two functions use `pbRegisterPage` instead.
 Behaviour with the ASIC page mapped in is unchanged.
 
 ## Use

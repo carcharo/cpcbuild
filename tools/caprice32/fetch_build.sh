@@ -13,7 +13,7 @@
 # (macOS: brew install sdl2 freetype libpng pkg-config;
 #  Debian/Ubuntu: apt-get install g++ make pkg-config libsdl2-dev libfreetype6-dev zlib1g-dev libpng-dev).
 set -e
-SHA=6c12c4c92360065cdc229ac9ada7551f941436b8   # keep in sync with caprice32-sha in .github/actions/setup/action.yml
+SHA=8c778bf072a06fb7c23b9cccd179041db7f79a52   # keep in sync with caprice32-sha in .github/actions/setup/action.yml
 PATCH=caprice32-asic-regs.patch
 cd "$(dirname "$0")"
 HERE=$(pwd)

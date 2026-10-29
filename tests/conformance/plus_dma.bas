@@ -5,8 +5,8 @@ REM AY read (the DMA writes the chip by itself), start/stop/active bits of the t
 REM refused starts, lists in &4000-&7FFF, the prescaler (PAUSE n takes n x (prescaler + 1)
 REM lines), and that the frame hook and the library calls coexist with a running channel.
 REM The lists are word data in asm blocks (ALIGN 2: the ASIC ignores bit 0 of the address).
-REM The checks of the status after a list's own STOP are left out: Caprice32 leaves the
-REM channel's DCSR enable bit set, CPCEC clears it.
+REM The address and prescaler registers are write-only (a real ASIC reads DCSR there):
+REM they are read back only where the emulator allows it (WCHK).
 
 #include <cpc.bas>
 #include <framehook.bas>
@@ -35,8 +35,8 @@ DT_SKIPA:
 END FUNCTION
 
 REM List B (channel 1): sets AY register 11 (envelope period low) to $5A, then waits forever
-REM in a loop (REPEAT/PAUSE/LOOP, hours long: the channel stays active until DmaStop, on
-REM the real ASIC and CPCEC too, which clear the bit when a list reaches STOP).
+REM in a loop (REPEAT/PAUSE/LOOP, hours long: the channel stays active until DmaStop, although
+REM the ASIC clears the bit when a list reaches STOP).
 FUNCTION FASTCALL ListB() AS UINTEGER
   ASM
   ld hl, DT_LISTB
@@ -128,18 +128,19 @@ REM ---- list A on channel 0 with a prescaler of 9: PAUSE 40 = 400 lines
 FrameHook(HookAddr())
 DmaPrescaler(0, 9)
 CHK("start_a", STR$(DmaStart(0, a)), "1")
-CHK("address_register", STR$(PlusPeek($6C00) + 256 * PlusPeek($6C01) >= a), "1")
-CHK("prescaler_register", STR$(PlusPeek($6C02)), "9")
+WCHK("address_register", STR$(PlusPeek($6C00) + 256 * PlusPeek($6C01) >= a), "1")
+WCHK("prescaler_register", STR$(PlusPeek($6C02)), "9")
 WaitF(8)
 CHK("ay_reg9_set", STR$(PEEK(AyBase() + 1)), "12")
 CHK("ay_reg10_set", STR$(PEEK(AyBase() + 2)), "13")
 CHK("ay_reg8_second_write", STR$(PEEK(AyBase())), "1")
 CHK("hook_kept_running", STR$(HookN() >= 6), "1")
+REM list A has reached its STOP: the channel's active bit is off by itself
+CHK("list_a_stopped", STR$(DmaActive() BAND 1), "0")
 DmaStop(0)
 CHK("stop_0", STR$(DmaActive()), "0")
 CHK("iff_on", STR$(Iff()), "1")
-REM the active bit, on a list that cannot reach its STOP (Caprice32 never clears the bit, CPCEC
-REM and the real ASIC do when a list ends, so list A's own bit is not checked)
+REM the active bit, on a list that cannot reach its STOP
 CHK("start_loop_0", STR$(DmaStart(0, ListB())), "1")
 CHK("active_0", STR$(DmaActive()), "1")
 DmaStop(0)
@@ -192,7 +193,7 @@ DmaStop(1)
 CHK("stop_1_macro", STR$(DmaActive()), "0")
 
 REM ---- registers of an unstarted channel and the library state are back to quiet
-CHK("pri_untouched", STR$(PlusPeek($6800)), "0")
+WCHK("pri_untouched", STR$(PlusPeek($6800)), "0")
 CHK("iff_still_on", STR$(Iff()), "1")
 FrameHookOff()
 SoundStop()
