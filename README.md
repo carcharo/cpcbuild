@@ -87,7 +87,7 @@ Studio finds the SDK by itself for any project inside the SDK folder. For a proj
 
 **Starfall (Phase 5c):** a single-screen shooter for CPC and Spectrum.
 
-![Starfall on CPC 6128](docs/images/starfall-cpc.png)
+![Starfall on CPC 6128](docs/images/starfall-cpc-2x.png)
 ![Starfall on Spectrum 128K](docs/images/starfall-zx.png)
 
 See [games/shooter/README.md](games/shooter/README.md) for how to play and build all four versions (CPC 6128/464, Spectrum 128K/48K).
