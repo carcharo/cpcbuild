@@ -9,7 +9,7 @@ import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart 
 import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
 import { assetFailure, regenerateAll } from './assetsGen';
 import { absFrom, compilerCommand, readSettings, resolveArkos, resolveCompilerFor, resolveLibrary, resolveMkdsk, Settings } from './config';
-import { sfxTargetsOf } from '../core/sfxBuild';
+import { sfxTargetsOf, soundSetupHint } from '../core/sfxBuild';
 import { makeCpr } from './mkcprGen';
 import { CancelToken, runTool, Sink, stoppedText } from './runTool';
 import { describeCompiler } from './toolpaths';
@@ -130,7 +130,8 @@ export async function buildTarget(
   }
   sink.line(`Compiler: ${cr.used.join(' ')}${cr.fellBack ? ' (fallback)' : comp.kind !== 'none' ? ` (${describeCompiler(comp).split(':')[0]})` : ''}`);
   if (cr.code !== 0 || !fs.existsSync(out)) {
-    return done(), fail(res, cr.signal ? stoppedText('zxbc', cr.signal) : `zxbc exited with ${cr.code} (the errors above are in the Problems panel). Fix them and build again.`, sink);
+    const sound = cr.signal ? undefined : soundSetupHint(`${cr.stdout}\n${cr.stderr}`);
+    return done(), fail(res, cr.signal ? stoppedText('zxbc', cr.signal) : `zxbc exited with ${cr.code} (the errors above are in the Problems panel). ${sound ? `${sound} ` : ''}Fix them and build again.`, sink);
   }
   if (isTap) {
     a.tap = out;

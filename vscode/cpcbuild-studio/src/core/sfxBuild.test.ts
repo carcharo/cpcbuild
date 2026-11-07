@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { quietSongVt2, sfxBankName, sfxConstants, sfxConstName, sfxOutputs, sfxStale, sfxTargetsOf, sfxUseEdits, sfxUseSnippet, SFX_GLOB, withSfxConstants, withSfxGlob } from './sfxBuild';
+import { quietSongVt2, sfxBankName, sfxConstants, sfxConstName, sfxOutputs, sfxStale, sfxTargetsOf, sfxUseEdits, sfxUseSnippet, soundSetupHint, SFX_GLOB, withSfxConstants, withSfxGlob } from './sfxBuild';
 import { SfxDoc } from './sfxDoc';
 import { newBank, presetEffect } from './sfxPresets';
 import { toBoriel } from './aks2bas';
@@ -116,6 +116,18 @@ describe('sfxBuild: Insert Asset Use into code', () => {
   it('a commented-out include does not count', () => {
     const [head] = sfxUseEdits("' #include \"sfx.bas\"\nCLS\n", two(), 'sfx', 'sfx.bas', 0, { line: 1, col: 0 });
     expect(head.text).toContain('#include "sfx.bas"');
+  });
+});
+
+describe('sfxBuild: the build hint for a missing sound library', () => {
+  it('names the call and Insert in code when zxbc reports a sound call undeclared', () => {
+    const out = 'main.bas:41: warning: [W100] Using default implicit type \'float\' for \'SFX_TEST1\'\nmain.bas:41: error: Undeclared function "SfxPlay"\n';
+    expect(soundSetupHint(out)).toMatch(/^SfxPlay is in the sound library.*Insert in code.*#include <music\/music\.bas>/);
+    expect(soundSetupHint('error: Undeclared function "MusicInit"')).toMatch(/^MusicInit /);
+  });
+  it('says nothing for other errors', () => {
+    expect(soundSetupHint('main.bas:3: error: Undeclared function "PutSprite"')).toBeUndefined();
+    expect(soundSetupHint('')).toBeUndefined();
   });
 });
 

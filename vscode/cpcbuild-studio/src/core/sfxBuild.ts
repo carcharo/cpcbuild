@@ -156,3 +156,16 @@ export function sfxUseEdits(code: string, doc: SfxDoc, bank: string, rel: string
   edits.push({ line: cursor.line, col: cursor.col, text: `SfxPlay(${n}, 2, 0)` });
   return edits;
 }
+
+/**
+ * The line a failed build adds when zxbc reports a sound call as undeclared (the program calls SfxPlay,
+ * MusicInit, ... without the music library): what is missing and how Studio adds it. Undefined otherwise.
+ */
+export function soundSetupHint(compilerOutput: string): string | undefined {
+  const m = /Undeclared (?:function|sub) "(Sfx(?:Play|Init|Stop)|Music(?:Init|InitBank|Frame|Stop))"/i.exec(compilerOutput);
+  if (!m) return undefined;
+  return (
+    `${m[1]} is in the sound library, which this program does not include. Open your .cpcsfx bank, put the cursor in your .bas ` +
+    `and click "Insert in code": it adds #include <music/music.bas>, the bank's include, MusicInit and SfxInit (once, below your #include lines).`
+  );
+}
