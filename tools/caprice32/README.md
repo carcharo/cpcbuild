@@ -1,7 +1,7 @@
 # Caprice32 (patched, for the Plus tests)
 
 `fetch_build.sh` downloads Caprice32 (Colin Pitrat, **GPLv2**,
-github.com/ColinPitrat/caprice32) at the pinned commit `8c778bf`, applies
+github.com/ColinPitrat/caprice32) at the pinned commit `a0d78f0`, applies
 `caprice32-asic-regs.patch` and builds `cap32` into the git-ignored `work/src/`
 (`make cap32`). We do not vendor Caprice32: the repo holds only this script and
 the patch (GPLv2 like Caprice32, 2 lines changed in one file). Caprice32 stays

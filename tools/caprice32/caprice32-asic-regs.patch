@@ -1,4 +1,4 @@
-cpcbuild patch for Caprice32 (ColinPitrat/caprice32 8c778bf, GPLv2 like Caprice32).
+cpcbuild patch for Caprice32 (ColinPitrat/caprice32 a0d78f0, GPLv2 like Caprice32).
 
 Bug: Caprice32 keeps the Plus ASIC's DMA registers (&6C00-&6C0B address and
 prescaler, &6C0F DCSR) in the ASIC register page buffer, but
