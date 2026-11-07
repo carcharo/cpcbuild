@@ -12,6 +12,7 @@ import { downloadToolsCommand } from './toolsCommand';
 import { newProjectCommand } from './newProject';
 import { ImporterEditorProvider, copyImporterCommandCommand, importImageCommand, regenerateAssetsCommand } from './importer';
 import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
+import { SfxEditorProvider, newSfxCommand } from './sfxEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
 import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand, regenerateForPalette } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
@@ -39,6 +40,8 @@ export interface StudioApi {
   emuEvents(): EmuEvent[];
   /** The palette editor's provider (documents, edit, undo: used by the extension-host tests). */
   palette: PaletteEditorProvider;
+  /** The sound-effects editor's provider (.cpcsfx documents). */
+  sfx: SfxEditorProvider;
   /** The image importer's provider (.cpcimp documents). */
   importer: ImporterEditorProvider;
   /** The sprite (.cpcspr) and tile (.cpctil) editors' providers. */
@@ -300,6 +303,9 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   const palette = new PaletteEditorProvider(context);
   context.subscriptions.push(palette.register());
   reg('cpcbuild.newPalette', (args) => newPaletteCommand(args));
+  const sfx = new SfxEditorProvider(context);
+  context.subscriptions.push(sfx.register());
+  reg('cpcbuild.newSfxBank', (args) => newSfxCommand(args));
   const importer = new ImporterEditorProvider(context);
   context.subscriptions.push(importer.register());
   reg('cpcbuild.importImage', (arg) => importImageCommand(arg));
@@ -342,6 +348,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     lintRuns: (uri) => lint.runs(uri),
     trust: trustTestApi,
     palette,
+    sfx,
     importer,
     sprite,
     tile,

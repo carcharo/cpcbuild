@@ -327,6 +327,8 @@ export interface PreviewPlan {
   subsong: number;
   /** Effect to play over and over (sfx banks), 1-based. */
   effect: number;
+  /** An empty song to run under the effects (sfx banks): effects only advance while a song plays. Its include file and label. */
+  quiet?: { file: string; name: string };
 }
 
 /** The BASIC program that plays the song (or effects) through the library's real player until ESC. */
@@ -342,9 +344,10 @@ export function previewProgram(p: PreviewPlan, includeFile: string): string {
       'DO\n  WaitRetrace(1)\n  ScanKeys()\nLOOP UNTIL KeyDown(KEY_ESC)\nMusicStop()\n'
     );
   }
+  const q = p.quiet;
   return (
-    head +
-    `PRINT "effects ${p.name}, effect ${p.effect} every 2 seconds"\nPRINT "ESC stops"\nSfxInit(@${p.name})\n` +
-    'DIM i AS UBYTE\nDIM q AS UBYTE\nq = 0\nDO\n  SfxPlay(' + p.effect + ', 0, 0)\n  FOR i = 1 TO 100\n    WaitRetrace(1)\n    ScanKeys()\n    IF KeyDown(KEY_ESC) THEN\n      q = 1\n      EXIT FOR\n    END IF\n  NEXT i\nLOOP UNTIL q\nSfxStop(0)\n'
+    (q ? head.replace('\nCLS\n', `#include "${q.file}"\n\nCLS\n`) : head) +
+    `PRINT "effects ${p.name}, effect ${p.effect} every 2 seconds"\nPRINT "ESC stops"\n${q ? `MusicInit(@${q.name}, 0)\n` : ''}SfxInit(@${p.name})\n` +
+    'DIM i AS UBYTE\nDIM q AS UBYTE\nq = 0\nDO\n  SfxPlay(' + p.effect + ', 0, 0)\n  FOR i = 1 TO 100\n    WaitRetrace(1)\n    ScanKeys()\n    IF KeyDown(KEY_ESC) THEN\n      q = 1\n      EXIT FOR\n    END IF\n  NEXT i\nLOOP UNTIL q\nSfxStop(0)\n' + (q ? 'MusicStop()\n' : '')
   );
 }

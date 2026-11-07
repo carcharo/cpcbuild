@@ -1,0 +1,41 @@
+/* sfx.css -- layout of the sound-effects editor. */
+.sx { display: flex; flex-direction: column; min-height: 100vh; }
+.sx-body { display: grid; grid-template-columns: 200px minmax(0, 1fr) var(--cb-panel-w); flex: 1; min-height: 0; }
+.sx-list-wrap { padding: var(--cb-space-2); border-right: 1px solid var(--vscode-panel-border); }
+.sx-side { border-left: 1px solid var(--vscode-panel-border); overflow-y: auto; }
+.sx-main { padding: var(--cb-space-3); min-width: 0; display: flex; flex-direction: column; gap: var(--cb-space-2); }
+.sx-h { font-weight: 600; margin: 0 0 var(--cb-space-2); font-size: 1em; }
+.sx-list { display: flex; flex-direction: column; gap: 1px; }
+.sx-eff { display: flex; align-items: baseline; gap: var(--cb-space-2); padding: var(--cb-space-1) var(--cb-space-2); border: 1px solid transparent; border-radius: var(--cb-radius); cursor: pointer; }
+.sx-eff:hover { background: var(--vscode-list-hoverBackground); }
+.sx-eff-on { background: var(--vscode-list-inactiveSelectionBackground); }
+.sx-eff:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.sx-eff-on:focus-visible { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
+.sx-eff-n { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; min-width: 1.2em; color: var(--vscode-descriptionForeground); }
+.sx-eff-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sx-eff-len { font-size: 0.85em; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+.sx-audio { min-height: 1.4em; color: var(--vscode-descriptionForeground); }
+
+.sx-lanes { display: flex; align-items: flex-start; min-width: 0; }
+.sx-axes, .sx-plot-col { display: flex; flex-direction: column; gap: 8px; flex: none; }
+.sx-axes canvas { display: block; }
+.sx-scroll { display: flex; flex-direction: column; gap: 8px; overflow-x: auto; min-width: 0; flex: 1; padding-bottom: 2px; }
+.sx-scroll canvas { display: block; flex: none; }
+.sx-canvas { cursor: crosshair; touch-action: none; border-radius: var(--cb-radius); }
+.sx-canvas:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+
+.sx-range { width: 100%; accent-color: var(--vscode-button-background); }
+.sx-length { margin: 0; font-variant-numeric: tabular-nums; }
+.sx-help { margin: var(--cb-space-2) var(--cb-gutter) 0; padding: var(--cb-space-3); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: var(--cb-radius); }
+.sx-help-h { display: flex; justify-content: space-between; align-items: center; }
+.sx-help dl { margin: var(--cb-space-2) 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--cb-space-1) var(--cb-space-4); }
+.sx-help dl > div { display: contents; }
+.sx-help dt { margin: 0; } .sx-help dd { margin: 0; color: var(--vscode-descriptionForeground); }
+.sx-help kbd { font-family: var(--vscode-editor-font-family); padding: 0 4px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; background: var(--vscode-textCodeBlock-background); }
+
+@media (max-width: 720px) {
+  .sx-body { grid-template-columns: minmax(0, 1fr); align-content: start; }
+  .sx-list-wrap { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }
+  .sx-side { border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
+  .sx-list { flex-direction: row; flex-wrap: wrap; }
+}

@@ -60,6 +60,8 @@ export abstract class StudioEditorProvider<S, Op, V extends ViewBase> implements
   /** dist/webview/<bundle>.js */
   abstract readonly bundle: string;
   abstract readonly title: string;
+  /** An AudioWorklet bundle (dist/webview/<name>.js) the page may load; set by editors that play sound. */
+  protected readonly worklet?: string;
 
   abstract parse(text: string, uri: vscode.Uri): S;
   abstract serialise(state: S): string;
@@ -252,7 +254,7 @@ export abstract class StudioEditorProvider<S, Op, V extends ViewBase> implements
   resolveCustomEditor(doc: StudioDocument<S>, panel: vscode.WebviewPanel): void {
     const webview = panel.webview;
     webview.options = { enableScripts: true, localResourceRoots: [webviewRoot(vscode, this.context.extensionUri)] };
-    webview.html = webviewHtml(vscode, webview, this.context.extensionUri, this.bundle, this.title);
+    webview.html = webviewHtml(vscode, webview, this.context.extensionUri, this.bundle, this.title, this.worklet);
     doc.panels.add(panel);
     panel.onDidDispose(() => doc.panels.delete(panel));
     webview.onDidReceiveMessage((m: unknown) => void this.onMessage(doc, panel, m as { type: string; id?: number; name?: string; args?: unknown; message?: string }));

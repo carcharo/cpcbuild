@@ -371,6 +371,20 @@ SfxInit(@sfx)
 SfxPlay(1, 0, 0)                    ' play effect 1 on channel A at full volume
 ```
 
+CPC Game Studio can also make the effects for you: **New Sound Effects Bank** creates `assets/sfx.cpcsfx`, which
+its sound-effects editor draws and plays. Each build converts the bank into `sfx.bas` (and `sfx_zx.bas` for a
+Spectrum target) with a constant per effect, numbered from 1 in the bank's order:
+
+```basic
+#include <music/music.bas>
+#include <music/quiet.bas>              ' an empty song: effects only advance while a song plays
+#include "../assets/sfx.bas"            ' sfx data, SFX_JUMP = 1, SFX_COIN = 2, ...
+
+MusicInit(@quiet, 0)                    ' or your own song
+SfxInit(@sfx)
+SfxPlay(SFX_JUMP, 2, 0)                 ' effect, channel C, full volume
+```
+
 The Arkos Tracker tools are MIT licensed (see `tools/arkos/README.md` for versions and sources).
 Test songs come from the Arkos Tracker repository with its MIT licence notice; the bundled
 example songs have no licence and are not used in cpcbuild.
@@ -900,7 +914,7 @@ and stops any effect playing.
 `--sfx`). Call it once, before the first `SfxPlay`; it can be called while a song plays.
 
 **SfxPlay** plays effect n on a channel. Effects only advance while a song plays (so the
-song's tempo is correct; an effects-only demo needs to play an empty song). `SfxStop` stops
+song's tempo is correct; an effects-only program plays the empty song in `<music/quiet.bas>`: `MusicInit(@quiet, 0)`). `SfxStop` stops
 the effect on a channel.
 
 Cost: the player takes about 16 scanlines per frame (~4,200 T-states) with light test songs;

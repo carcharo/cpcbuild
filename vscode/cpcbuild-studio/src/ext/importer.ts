@@ -20,7 +20,8 @@ import type { GenerateOutcome, ImporterView, PickWhich, PreviewResponse, SourceI
 import { insideRoot } from '../core/paths';
 import { cachedDecode, decoderFor, describeError, generate, isStale, regenerateAll, rootIo, type GenResult, type GenSettings } from './assetsGen';
 import { channelSink, getChannel, tee } from './channel';
-import { readSettings, resolveLibrary, type Settings } from './config';
+import { readSettings, resolveArkos, resolveLibrary, type Settings } from './config';
+import { sfxTargetsOf } from '../core/sfxBuild';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
 import { isTrusted, requireTrust, restrictedText } from './trust';
 import { findProjects, loadProjectFile, pickProject, PROJECT_FILE } from './projects';
@@ -57,7 +58,8 @@ export function requireProjectRoot(file: string): string | undefined {
 const toRel = (root: string, abs: string): string => path.relative(root, abs).split(path.sep).join('/');
 
 export function genSettings(root: string, s: Settings = readSettings(root)): GenSettings {
-  return { engine: s.assetsEngine, header: s.assetsHeader, pythonPath: s.pythonPath, library: resolveLibrary(root, s) };
+  const library = resolveLibrary(root, s);
+  return { engine: s.assetsEngine, header: s.assetsHeader, pythonPath: s.pythonPath, library, toolsDir: resolveArkos(root, s, library) };
 }
 
 const MAX_TEXT = 120000;
@@ -387,9 +389,11 @@ export async function regenerateAssetsCommand(args?: { root?: string }): Promise
   if (!requireTrust('Regenerate Assets')) return undefined;
   let root = args?.root;
   let globs: string[] = [];
+  let archs: string[] = [];
   if (root) {
     const lp = loadProjectFile(path.join(root, PROJECT_FILE));
     globs = lp.project?.assets ?? [];
+    archs = lp.project?.targets.map((t) => t.arch) ?? [];
   } else {
     const lp = pickProject(await findProjects());
     if (!lp?.project) {
@@ -398,14 +402,15 @@ export async function regenerateAssetsCommand(args?: { root?: string }): Promise
     }
     root = lp.root;
     globs = lp.project.assets;
+    archs = lp.project.targets.map((t) => t.arch);
   }
   const sink = tee(channelSink);
   getChannel().show(true);
   const s = readSettings(root);
   sink.line(`--- regenerate assets (${s.assetsEngine} engine) in ${root} ---`);
-  const results = await regenerateAll(root, globs, genSettings(root, s), { sink });
+  const results = await regenerateAll(root, globs, genSettings(root, s), { sink, sfxTargets: sfxTargetsOf(archs) });
   const bad = results.filter((r) => !r.ok);
-  if (!results.length) void vscode.window.showInformationMessage('CPC Game Studio: no .cpcimp recipes match the "assets" globs of cpcbuild.json.');
+  if (!results.length) void vscode.window.showInformationMessage('CPC Game Studio: no .cpcimp recipes, sprite or tile documents, or .cpcsfx banks match the "assets" globs of cpcbuild.json.');
   else if (bad.length) void vscode.window.showErrorMessage(`CPC Game Studio: ${bad.length} of ${results.length} asset recipes failed: ${bad[0].error}`);
   else void vscode.window.showInformationMessage(`CPC Game Studio: regenerated ${results.length} asset recipe${results.length === 1 ? '' : 's'}.`);
   return results;

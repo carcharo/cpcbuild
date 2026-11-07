@@ -8,7 +8,8 @@ import * as path from 'node:path';
 import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
 import { MIN_ORG, Project, Target, zxbcArgs } from '../core/project';
 import { assetFailure, regenerateAll } from './assetsGen';
-import { absFrom, compilerCommand, readSettings, resolveCompilerFor, resolveLibrary, resolveMkdsk, Settings } from './config';
+import { absFrom, compilerCommand, readSettings, resolveArkos, resolveCompilerFor, resolveLibrary, resolveMkdsk, Settings } from './config';
+import { sfxTargetsOf, soundSetupHint } from '../core/sfxBuild';
 import { makeCpr } from './mkcprGen';
 import { CancelToken, runTool, Sink, stoppedText } from './runTool';
 import { describeCompiler } from './toolpaths';
@@ -91,8 +92,8 @@ export async function buildTarget(
     const gen = await regenerateAll(
       root,
       project.assets,
-      { engine: s.assetsEngine, header: s.assetsHeader, pythonPath: s.pythonPath, library },
-      { onlyStale: true, sink, token },
+      { engine: s.assetsEngine, header: s.assetsHeader, pythonPath: s.pythonPath, library, toolsDir: resolveArkos(root, s, library) },
+      { onlyStale: true, sink, token, sfxTargets: sfxTargetsOf(project.targets.map((t) => t.arch)) },
     );
     const fresh = gen.filter((g) => g.ok && !g.skipped);
     if (fresh.length) sink.line(`Regenerated ${fresh.length} asset recipe${fresh.length === 1 ? '' : 's'}.`);
@@ -129,7 +130,8 @@ export async function buildTarget(
   }
   sink.line(`Compiler: ${cr.used.join(' ')}${cr.fellBack ? ' (fallback)' : comp.kind !== 'none' ? ` (${describeCompiler(comp).split(':')[0]})` : ''}`);
   if (cr.code !== 0 || !fs.existsSync(out)) {
-    return done(), fail(res, cr.signal ? stoppedText('zxbc', cr.signal) : `zxbc exited with ${cr.code} (the errors above are in the Problems panel). Fix them and build again.`, sink);
+    const sound = cr.signal ? undefined : soundSetupHint(`${cr.stdout}\n${cr.stderr}`);
+    return done(), fail(res, cr.signal ? stoppedText('zxbc', cr.signal) : `zxbc exited with ${cr.code} (the errors above are in the Problems panel). ${sound ? `${sound} ` : ''}Fix them and build again.`, sink);
   }
   if (isTap) {
     a.tap = out;

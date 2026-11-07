@@ -60,6 +60,12 @@ describe('argument construction', () => {
     const f = previewProgram({ kind: 'sfx', name: 'fx', subsong: 0, effect: 3 }, 'fx.bas');
     expect(f).toContain('SfxInit(@fx)');
     expect(f).toContain('SfxPlay(3, 0, 0)');
+    expect(f).not.toContain('MusicInit');
+    const q = previewProgram({ kind: 'sfx', name: 'fx', subsong: 0, effect: 3, quiet: { file: 'q.bas', name: 'q' } }, 'fx.bas');
+    expect(q).toContain('#include "fx.bas"\n#include "q.bas"\n\nCLS');
+    expect(q.indexOf('MusicInit(@q, 0)')).toBeGreaterThan(0);
+    expect(q.indexOf('MusicInit(@q, 0)')).toBeLessThan(q.indexOf('SfxInit(@fx)'));
+    expect(q).toContain('SfxStop(0)\nMusicStop()\n');
   });
 });
 

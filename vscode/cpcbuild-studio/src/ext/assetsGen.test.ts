@@ -11,7 +11,9 @@ import { argvToRecipe, newRecipe, serialiseRecipe, type Recipe } from '../core/c
 import { committed } from '../core/testcorpus';
 import { PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { newSprite, serialiseSprite } from '../core/spriteDoc';
-import { assetFailure, findRecipes, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
+import { serialiseSfx } from '../core/sfxDoc';
+import { newBank, presetEffect } from '../core/sfxPresets';
+import { assetFailure, findRecipes, findSfxBanks, generateSfxBank, isSfxStale, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
 
 const GLOBS = ['assets/**/*.cpcimp'];
 const settings = (over: Partial<GenSettings> = {}): GenSettings => ({ engine: 'builtin', header: 'img2cpc', pythonPath: PYTHON_SETTING, library: REPO, ...over });
@@ -280,4 +282,89 @@ describe('assetFailure (what a failed regenerate means for the build)', () => {
     res = (await regenerateAll(r, ['sprites/*.cpcspr'], settings))[0];
     expect(res).toMatchObject({ ok: false, doc: true, outputExists: true });
   });
+});
+
+// ---------------------------------------------------------------- .cpcsfx banks
+
+const ARKOS = [process.env.AT3_TOOLS, path.join(REPO, 'tools/arkos/work/bin'), path.resolve(REPO, '../../tools/arkos/work/bin')].find(
+  (d) => d && fs.existsSync(path.join(d, 'SongToAkg')) && fs.existsSync(path.join(d, 'SongToSoundEffects')),
+);
+const haveArkos = ARKOS ? it : it.skip;
+const SFX_GLOBS = ['assets/**/*.cpcsfx'];
+
+function sfxProject(name: string): string {
+  const dir = scratchDir(`sfxgen-${name}-`);
+  const b = newBank();
+  b.effects.push(presetEffect('coin', 'coin'));
+  fs.mkdirSync(path.join(dir, 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'assets/sfx.cpcsfx'), serialiseSfx(b));
+  return dir;
+}
+
+describe('sound-effects banks', () => {
+  it('are found by the asset globs', () => {
+    const dir = sfxProject('find');
+    expect(findSfxBanks(dir, SFX_GLOBS)).toEqual(['assets/sfx.cpcsfx']);
+    expect(findSfxBanks(dir, ['assets/**/*.cpcimp'])).toEqual([]);
+  });
+  it('without the Arkos tools: one warning for all banks, the committed .bas is kept, nothing else is written', async () => {
+    const dir = sfxProject('notools');
+    fs.writeFileSync(path.join(dir, 'assets/more.cpcsfx'), fs.readFileSync(path.join(dir, 'assets/sfx.cpcsfx')));
+    fs.writeFileSync(path.join(dir, 'assets/sfx.bas'), "' committed\n");
+    const old = new Date(Date.now() - 60000);
+    fs.utimesSync(path.join(dir, 'assets/sfx.bas'), old, old);
+    const res = await regenerateAll(dir, SFX_GLOBS, settings({ toolsDir: undefined }), { onlyStale: true });
+    expect(res).toHaveLength(1);
+    expect(res[0]).toMatchObject({ ok: false, warnOnly: true, doc: true });
+    expect(res[0].error).toMatch(/2 sound-effects banks \(assets\/more.cpcsfx, assets\/sfx.cpcsfx\) were not converted, and any committed .bas is kept\. .*Arkos/);
+    expect(assetFailure(res[0]).fatal).toBe(false);
+    expect(fs.readFileSync(path.join(dir, 'assets/sfx.bas'), 'utf8')).toBe("' committed\n");
+    expect(fs.readdirSync(path.join(dir, 'assets')).sort()).toEqual(['more.cpcsfx', 'sfx.bas', 'sfx.cpcsfx']);
+  });
+  it('a bank with a current output is not a reason to warn about the tools', async () => {
+    const dir = sfxProject('current');
+    const t = new Date(Date.now() + 5000);
+    fs.writeFileSync(path.join(dir, 'assets/sfx.bas'), 'x');
+    fs.utimesSync(path.join(dir, 'assets/sfx.bas'), t, t);
+    expect(isSfxStale(dir, 'assets/sfx.cpcsfx', ['cpc'])).toBe(false);
+    expect(isSfxStale(dir, 'assets/sfx.cpcsfx', ['cpc', 'spectrum'])).toBe(true); // _zx.bas missing
+    const res = await regenerateAll(dir, SFX_GLOBS, settings({ toolsDir: undefined }), { onlyStale: true });
+    expect(res).toEqual([{ recipe: 'assets/sfx.cpcsfx', ok: true, skipped: true, written: [] }]);
+  });
+  it('a bad bank fails with the reason, and an existing .bas lets the build go on', async () => {
+    const dir = sfxProject('bad');
+    const f = path.join(dir, 'assets/sfx.cpcsfx');
+    fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('"blip"', '"bad name"'));
+    fs.writeFileSync(path.join(dir, 'assets/sfx.bas'), "' old\n");
+    const r = await generateSfxBank(dir, 'assets/sfx.cpcsfx', ['cpc'], settings({ toolsDir: '/nonexistent' }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/name/);
+    expect(assetFailure(r).fatal).toBe(false);
+    fs.rmSync(path.join(dir, 'assets/sfx.bas'));
+    const r2 = await generateSfxBank(dir, 'assets/sfx.cpcsfx', ['cpc'], settings({ toolsDir: '/nonexistent' }));
+    expect(assetFailure(r2).fatal).toBe(true);
+  });
+  haveArkos('with the real tools: writes <stem>.vt2 and <stem>.bas (+ _zx for the Spectrum) with the constants, then is current', async () => {
+    const dir = sfxProject('real');
+    const s = settings({ toolsDir: ARKOS });
+    const res = await regenerateAll(dir, SFX_GLOBS, s, { onlyStale: true, sfxTargets: ['cpc', 'spectrum'] });
+    expect(res.map((r) => r.error ?? 'ok')).toEqual(['ok']);
+    expect(res[0].written).toEqual(['assets/sfx.vt2', 'assets/sfx.bas', 'assets/sfx_zx.vt2', 'assets/sfx_zx.bas']);
+    for (const f of ['sfx.bas', 'sfx_zx.bas']) {
+      const bas = fs.readFileSync(path.join(dir, 'assets', f), 'utf8');
+      expect(bas).toContain("SfxInit(@sfx)");
+      expect(bas).toContain('CONST SFX_BLIP AS UBYTE = 1\nCONST SFX_COIN AS UBYTE = 2\n');
+      expect(bas.indexOf('CONST SFX_BLIP')).toBeLessThan(bas.indexOf('\nasm\n'));
+    }
+    expect(fs.readFileSync(path.join(dir, 'assets/sfx_zx.vt2'), 'utf8')).toContain('ChipFreq=1773400');
+    expect(fs.readFileSync(path.join(dir, 'assets/sfx.vt2'), 'utf8')).toContain('ChipFreq=1000000');
+    // the two chips differ in the periods, not in the structure
+    expect(fs.readFileSync(path.join(dir, 'assets/sfx.bas'), 'utf8')).not.toBe(fs.readFileSync(path.join(dir, 'assets/sfx_zx.bas'), 'utf8'));
+    const again = await regenerateAll(dir, SFX_GLOBS, s, { onlyStale: true, sfxTargets: ['cpc', 'spectrum'] });
+    expect(again).toEqual([{ recipe: 'assets/sfx.cpcsfx', ok: true, skipped: true, written: [] }]);
+    // touching the bank makes it stale again
+    const t = new Date(Date.now() + 10000);
+    fs.utimesSync(path.join(dir, 'assets/sfx.cpcsfx'), t, t);
+    expect(isSfxStale(dir, 'assets/sfx.cpcsfx', ['cpc'])).toBe(true);
+  }, 120000);
 });

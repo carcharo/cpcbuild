@@ -2,6 +2,7 @@ import './studio.test';
 import './lint.test';
 import './palette.test';
 import './sprite.test';
+import './sfx.test';
 import './importer.test';
 import './maps.test';
 import './debug.test';
