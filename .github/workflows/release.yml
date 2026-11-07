@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   meta:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
       version: ${{ steps.v.outputs.version }}
@@ -57,7 +57,7 @@ jobs:
           echo "pinned compiler: $c"
 
   vsix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout cpcbuild
@@ -76,7 +76,7 @@ jobs:
 
   reference:
     needs: meta
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Checkout cpcbuild
@@ -102,7 +102,7 @@ jobs:
 
   sdk:
     needs: [meta, vsix]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ github.token }}
@@ -177,7 +177,7 @@ jobs:
   publish:
     if: needs.meta.outputs.is_tag == 'true'
     needs: [meta, vsix, sdk, smoke]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
