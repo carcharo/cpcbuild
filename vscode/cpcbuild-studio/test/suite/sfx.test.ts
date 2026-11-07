@@ -7,7 +7,7 @@ import { SfxDoc, parseSfx, serialiseSfx } from '../../src/core/sfxDoc';
 import { newBank, presetEffect } from '../../src/core/sfxPresets';
 import { withSfxConstants } from '../../src/core/sfxBuild';
 import type { StudioDocument } from '../../src/ext/customEditor';
-import { mkdirp, rmrf, test, waitFor } from './harness';
+import { mkdirp, rmrf, samePath, test, waitFor } from './harness';
 
 const REPO = path.resolve(__dirname, '../../../../..');
 /** The Arkos tools, wherever they are (a worktree has no tools/arkos/work of its own). */
@@ -141,7 +141,7 @@ test('sfx: New Sound Effects Bank creates assets/sfx.cpcsfx (then sfx2, sfx3) in
   for (const name of ['sfx.cpcsfx', 'sfx2.cpcsfx', 'sfx3.cpcsfx']) {
     const uri = (await vscode.commands.executeCommand('cpcbuild.newSfxBank', { root })) as vscode.Uri | undefined;
     assert.ok(uri, 'the command returns the new file');
-    assert.strictEqual(uri.fsPath, path.join(root, 'assets', name));
+    assert.ok(samePath(uri.fsPath, path.join(root, 'assets', name)), uri.fsPath);
     const doc = await waitFor('new document', () => a.sfx.documents.get(uri.toString()));
     await waitFor('ready', () => doc.readyCount > 0);
     assert.deepStrictEqual(doc.state.effects.map((e) => e.name), ['blip']);
