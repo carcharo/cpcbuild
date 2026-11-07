@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { quietSongVt2, sfxBankName, sfxConstants, sfxConstName, sfxOutputs, sfxStale, sfxTargetsOf, sfxUseSnippet, SFX_GLOB, withSfxConstants, withSfxGlob } from './sfxBuild';
+import { quietSongVt2, sfxBankName, sfxConstants, sfxConstName, sfxOutputs, sfxStale, sfxTargetsOf, sfxUseEdits, sfxUseSnippet, SFX_GLOB, withSfxConstants, withSfxGlob } from './sfxBuild';
 import { SfxDoc } from './sfxDoc';
 import { newBank, presetEffect } from './sfxPresets';
 import { toBoriel } from './aks2bas';
@@ -69,6 +69,53 @@ describe('sfxBuild: Insert Asset Use', () => {
         'SfxInit(@sfx)\n' +
         "SfxPlay(SFX_BLIP, 2, 0)    ' effect, channel 0-2 (A, B, C), inverted volume 0 (full) to 16 (mute)\n",
     );
+  });
+});
+
+describe('sfxBuild: Insert Asset Use into code', () => {
+  const apply = (code: string, edits: { line: number; col: number; text: string }[]): string => {
+    const lines = code.split('\n');
+    for (const e of [...edits].sort((a, b) => b.line - a.line || b.col - a.col)) {
+      const l = lines[e.line] ?? '';
+      const [head, ...rest] = (l.slice(0, e.col) + e.text + l.slice(e.col)).split('\n');
+      lines.splice(e.line, 1, head, ...rest);
+      if (e.col === 0 && e.text.endsWith('\n')) lines.splice(e.line + rest.length, 1, l);
+    }
+    return lines.join('\n');
+  };
+  const prog = "' demo\n#include <cpc.bas>\n#include \"../assets/ball.bas\"\n\nMode 1\nDO\n  IF KeyDown(KEY_SPACE) THEN \nLOOP\n";
+  const cur = { line: 6, col: 29 };
+  it('the first time: the includes, the quiet song and SfxInit below the last #include, the SfxPlay of the chosen effect at the cursor', () => {
+    const edits = sfxUseEdits(prog, two(), 'sfx', '../assets/sfx.bas', 1, cur);
+    expect(edits[0]).toEqual({
+      line: 3,
+      col: 0,
+      text:
+        "#include <music/music.bas>\n#include <music/quiet.bas>    ' an empty song, for a program with no music\n#include \"../assets/sfx.bas\"\n" +
+        "MusicInit(@quiet, 0)    ' effects only advance while a song plays (or start your own song instead)\nSfxInit(@sfx)\n" +
+        "' SfxPlay(effect, channel 0-2 (A, B, C), inverted volume 0 (full) to 16 (mute))\n",
+    });
+    expect(edits[1]).toEqual({ line: 6, col: 29, text: 'SfxPlay(SFX_COIN, 2, 0)' });
+  });
+  it('the second time: only the SfxPlay', () => {
+    const once = apply(prog, sfxUseEdits(prog, two(), 'sfx', '../assets/sfx.bas', 0, cur));
+    expect(once).toContain('#include "../assets/ball.bas"\n#include <music/music.bas>');
+    expect(once).toContain('IF KeyDown(KEY_SPACE) THEN SfxPlay(SFX_BLIP, 2, 0)\n');
+    const line = once.split('\n').findIndex((l) => l === 'LOOP');
+    expect(sfxUseEdits(once, two(), 'sfx', '../assets/sfx.bas', 1, { line, col: 0 })).toEqual([{ line, col: 0, text: 'SfxPlay(SFX_COIN, 2, 0)' }]);
+  });
+  it('a program that starts its own song gets no quiet song, and keeps its includes', () => {
+    const song = '#include <music/music.bas>\n#include "tune.bas"\nMusicInit(@tune, 0)\n';
+    const [head] = sfxUseEdits(song, two(), 'sfx', 'sfx.bas', 0, { line: 3, col: 0 });
+    expect(head).toEqual({ line: 2, col: 0, text: "#include \"sfx.bas\"\nSfxInit(@sfx)\n' SfxPlay(effect, channel 0-2 (A, B, C), inverted volume 0 (full) to 16 (mute))\n" });
+  });
+  it('code without includes gets them below its opening comments', () => {
+    const [head] = sfxUseEdits("' a\n' b\nCLS\n", two(), 'sfx', 'sfx.bas', 0, { line: 2, col: 3 });
+    expect(head.line).toBe(2);
+  });
+  it('a commented-out include does not count', () => {
+    const [head] = sfxUseEdits("' #include \"sfx.bas\"\nCLS\n", two(), 'sfx', 'sfx.bas', 0, { line: 1, col: 0 });
+    expect(head.text).toContain('#include "sfx.bas"');
   });
 });
 

@@ -72,9 +72,10 @@ export function withSfxConstants(bas: string, doc: SfxDoc, bank: string): string
   return bas.slice(0, at) + '\n' + block + bas.slice(at);
 }
 
-/** What Insert Asset Use writes for a bank: the includes, SfxInit and a SfxPlay of the first effect (library.md 9.9). */
-export function sfxUseSnippet(doc: SfxDoc, bank: string, rel: string): string {
-  const first = doc.effects[0] ? sfxConstName(bank, doc.effects[0].name) : '1';
+/** What Insert Asset Use copies when no code editor is visible: the includes, SfxInit and a SfxPlay of `effect` (library.md 9.9). */
+export function sfxUseSnippet(doc: SfxDoc, bank: string, rel: string, effect = 0): string {
+  const e = doc.effects[effect] ?? doc.effects[0];
+  const first = e ? sfxConstName(bank, e.name) : '1';
   return (
     `#include <music/music.bas>\n#include <music/quiet.bas>    ' an empty song, for a program with no music\n#include "${rel}"\n` +
     `MusicInit(@quiet, 0)    ' effects only advance while a song plays (or start your own song instead)\n` +
@@ -112,4 +113,46 @@ export function withSfxGlob(projectJson: string, rel: string): string | undefine
   if (matchesAny(assets, rel)) return undefined;
   o.assets = [...assets, SFX_GLOB];
   return JSON.stringify(o, null, 2) + '\n';
+}
+
+/** One insertion into the code: before `line` (0-based; `col` 0) or, for the call, at the cursor. */
+export interface SfxEdit {
+  line: number;
+  col: number;
+  text: string;
+}
+
+const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Insert Asset Use for a bank into code that may already use it: the includes and the init lines go once,
+ * below the last top-level #include (or below the opening comment block when there is none), and only
+ * what is missing; the SfxPlay of `effect` goes at the cursor. A program that already starts a song
+ * (any MusicInit) gets no quiet song. `rel` is the bank's include as the code file sees it.
+ */
+export function sfxUseEdits(code: string, doc: SfxDoc, bank: string, rel: string, effect: number, cursor: { line: number; col: number }): SfxEdit[] {
+  const lines = code.replace(/\r\n?/g, '\n').split('\n');
+  const has = (re: RegExp): boolean => lines.some((l) => re.test(l.replace(/'.*$/, '')));
+  const base = rel.replace(/^.*\//, '');
+  const head: string[] = [];
+  if (!has(/^\s*#include\s*<music\/music\.bas>/i)) head.push('#include <music/music.bas>');
+  const song = has(/\bMusicInit(Bank)?\s*\(/i) || has(/^\s*#include\s*<music\/quiet\.bas>/i);
+  if (!song) head.push("#include <music/quiet.bas>    ' an empty song, for a program with no music");
+  if (!has(new RegExp(`^\\s*#include\\s*"(?:[^"]*/)?${esc(base)}"`, 'i'))) head.push(`#include "${rel}"`);
+  if (!has(/\bMusicInit(Bank)?\s*\(/i)) head.push("MusicInit(@quiet, 0)    ' effects only advance while a song plays (or start your own song instead)");
+  if (!has(new RegExp(`\\bSfxInit\\s*\\(\\s*@${esc(bank)}\\s*\\)`, 'i'))) {
+    head.push(`SfxInit(@${bank})`);
+    head.push("' SfxPlay(effect, channel 0-2 (A, B, C), inverted volume 0 (full) to 16 (mute))");
+  }
+  const edits: SfxEdit[] = [];
+  if (head.length) {
+    let at = -1;
+    lines.forEach((l, i) => { if (/^#include\b/i.test(l)) at = i; });
+    if (at < 0) while (at + 1 < lines.length && /^\s*'/.test(lines[at + 1])) at++;
+    edits.push({ line: at + 1, col: 0, text: head.join('\n') + '\n' });
+  }
+  const e = doc.effects[effect] ?? doc.effects[0];
+  const n = e ? sfxConstName(bank, e.name) : '1';
+  edits.push({ line: cursor.line, col: cursor.col, text: `SfxPlay(${n}, 2, 0)` });
+  return edits;
 }

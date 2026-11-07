@@ -93,7 +93,7 @@ function ParamSlider(p: { id: string; label: string; value: number; min: number;
   );
 }
 
-function NameField({ value, taken, onCommit }: { value: string; taken: (n: string) => string | undefined; onCommit(n: string): void }) {
+function NameField({ value, bank, taken, onCommit }: { value: string; bank: string; taken: (n: string) => string | undefined; onCommit(n: string): void }) {
   const [text, setText] = useState(value);
   const [error, setError] = useState<string | undefined>();
   useEffect(() => { setText(value); setError(undefined); }, [value]);
@@ -103,7 +103,7 @@ function NameField({ value, taken, onCommit }: { value: string; taken: (n: strin
     if (!msg && text !== value) onCommit(text);
   };
   return (
-    <Field id="sx-name" label="Name" description="The build makes the constant BANK_NAME from it." error={error}>
+    <Field id="sx-name" label="Name" description={`The build makes the constant ${`${bank}_${value}`.toUpperCase()} from it, for SfxPlay.`} error={error}>
       <input
         id="sx-name"
         class="cb-input"
@@ -142,6 +142,7 @@ function SfxApp({ client, view }: Host) {
 
   const si = Math.min(sel, doc.effects.length - 1);
   const effect = doc.effects[si];
+  useEffect(() => { void client.request('select', { effect: si }).catch(() => undefined); }, [si]);
   const frames = effect.frames;
   const cur = Math.min(cursor, frames.length - 1);
   const presetKey = effect.preset ? JSON.stringify(effect.preset) : '';
@@ -316,6 +317,7 @@ function SfxApp({ client, view }: Host) {
         { kind: 'button', id: 'play', label: 'Play', text: 'Play', icon: 'play', shortcut: 'Space', onActivate: play },
         { kind: 'button', id: 'stop', label: 'Stop', icon: 'debug-stop', shortcut: 'Esc', disabled: playFrame === null, why: 'nothing is playing', onActivate: stop },
         { kind: 'button', id: 'emu', label: 'Play in emulator', text: 'Play in emulator', icon: 'vm-running', onActivate: () => void client.request('playInEmulator', { effect: si }).catch((e: Error) => setMsg({ severity: 'error', text: e.message })) },
+        { kind: 'button', id: 'use', label: 'Insert in code: a SfxPlay of this effect at the cursor of the open .bas (and the includes and SfxInit, once)', text: 'Insert in code', icon: 'symbol-snippet', onActivate: () => void client.request('insertUse', { effect: si }).catch((e: Error) => setMsg({ severity: 'error', text: e.message })) },
       ],
     },
     {
@@ -351,7 +353,7 @@ function SfxApp({ client, view }: Host) {
   const sidebar = (
     <PropertyPanel label="Effect properties">
       <Section title="Effect">
-        <NameField value={effect.name} taken={takenName} onCommit={(name) => void edit({ op: 'rename', effect: si, name })} />
+        <NameField value={effect.name} bank={view.bank} taken={takenName} onCommit={(name) => void edit({ op: 'rename', effect: si, name })} />
         <p class="sx-length" aria-live="polite">{frames.length} {frames.length === 1 ? 'frame' : 'frames'} = {lengthMs(effect)} ms</p>
         {!preset && (
           <NumberField id="sx-len" label="Length (frames)" value={frames.length} min={1} max={250} pageStep={10} bigStep={10} description="Longer copies the last frame." onCommit={(n) => void edit({ op: 'resize', effect: si, length: n })} />

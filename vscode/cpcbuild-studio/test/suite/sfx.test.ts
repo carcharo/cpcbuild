@@ -232,7 +232,7 @@ test('sfx: a build without the Arkos tools keeps the committed sfx.bas and warns
   }
 });
 
-test('sfx: Insert Asset Use writes the include, SfxInit and SfxPlay of the first effect', async () => {
+test('sfx: Insert Asset Use writes the include and SfxInit once, and a SfxPlay at the cursor each time', async () => {
   const root = sfxProject('sfxuse');
   const code = vscode.Uri.file(path.join(root, 'src/main.bas'));
   fs.writeFileSync(code.fsPath, "' code\n");
@@ -243,7 +243,16 @@ test('sfx: Insert Asset Use writes the include, SfxInit and SfxPlay of the first
   assert.ok(text.includes('SfxInit(@sfx)'));
   assert.ok(text.includes('SfxPlay(SFX_BLIP, 2, 0)'));
   assert.ok(text.includes('only advance while a song plays'));
-  assert.ok(vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === code.toString())?.document.getText().includes('SfxInit(@sfx)'));
+  const ed = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === code.toString());
+  assert.ok(ed?.document.getText().includes('SfxInit(@sfx)'));
+  const end = ed!.document.lineAt(ed!.document.lineCount - 1).range.end;
+  ed!.selection = new vscode.Selection(end, end);
+  const again = (await vscode.commands.executeCommand('cpcbuild.insertAssetUse', uri)) as string;
+  assert.strictEqual(again, 'SfxPlay(SFX_BLIP, 2, 0)');
+  const all = ed!.document.getText();
+  assert.strictEqual(all.split('#include "../assets/sfx.bas"').length, 2, all);
+  assert.strictEqual(all.split('SfxInit(@sfx)').length, 2, all);
+  assert.strictEqual(all.split('SfxPlay(SFX_BLIP, 2, 0)').length, 3, all);
   await vscode.commands.executeCommand('workbench.action.files.revert');
   await closeClean();
   rmrf(root);

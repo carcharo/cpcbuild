@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { SfxDoc, describeError, parseSfx, serialiseSfx, validateSfx } from '../core/sfxDoc';
 import { SfxOp, applyOp } from '../core/sfxOps';
 import { newBank } from '../core/sfxPresets';
-import { sfxBankName, sfxOutputs, sfxTargetsOf, sfxUseSnippet, SFX_GLOB, withSfxGlob } from '../core/sfxBuild';
+import { sfxBankName, sfxOutputs, sfxTargetsOf, sfxUseEdits, sfxUseSnippet, SFX_GLOB, withSfxGlob } from '../core/sfxBuild';
 import { Vt2Error, sfxToVt2 } from '../core/vt2';
 import type { SfxView } from '../shared/protocol';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
@@ -19,6 +19,9 @@ import { musicPlayCommand } from './music';
 import { findProjects, loadProjectFile, pickProject, PROJECT_FILE } from './projects';
 
 export const SFX_VIEW_TYPE = 'cpcbuild.sfxEditor';
+
+/** The effect last selected in each open bank's editor (by URI), for Insert Asset Use from the palette or title bar. */
+const selectedEffect = new Map<string, number>();
 
 export class SfxEditorProvider extends StudioEditorProvider<SfxDoc, SfxOp, SfxView> {
   readonly viewType = SFX_VIEW_TYPE;
@@ -46,12 +49,22 @@ export class SfxEditorProvider extends StudioEditorProvider<SfxDoc, SfxOp, SfxVi
   apply(state: SfxDoc, op: SfxOp) {
     return applyOp(state, op);
   }
-  view(s: SfxDoc): Omit<SfxView, 'version' | 'canUndo' | 'canRedo' | 'fileName'> {
-    return { doc: s, saveProblem: this.saveProblem(s) };
+  view(s: SfxDoc, doc: StudioDocument<SfxDoc>): Omit<SfxView, 'version' | 'canUndo' | 'canRedo' | 'fileName'> {
+    return { doc: s, saveProblem: this.saveProblem(s), bank: sfxBankName(doc.uri.fsPath) };
   }
 
   protected async handleRequest(doc: StudioDocument<SfxDoc>, name: string, args: unknown): Promise<unknown> {
     if (name === 'playInEmulator') return this.playInEmulator(doc, (args as { effect: number }).effect);
+    if (name === 'select') {
+      selectedEffect.set(doc.uri.toString(), (args as { effect: number }).effect);
+      return { ok: true };
+    }
+    if (name === 'insertUse') {
+      const effect = (args as { effect: number }).effect;
+      selectedEffect.set(doc.uri.toString(), effect);
+      await insertSfxUse(doc.uri, effect);
+      return { ok: true };
+    }
     return super.handleRequest(doc, name, args);
   }
 
@@ -121,28 +134,37 @@ export function sfxTabUri(tab: vscode.Tab | undefined): vscode.Uri | undefined {
 }
 
 /**
- * Insert Asset Use for a bank: the includes, SfxInit and a SfxPlay of the first effect, written into the code
- * editor (or copied when none is open). The include is the CPC one, or the Spectrum one in a Spectrum-only project.
+ * Insert Asset Use for a bank: the includes and SfxInit go once, below the code's #include lines (only the
+ * ones missing), and a SfxPlay of the selected effect goes at the cursor of the visible code editor (all of
+ * it is copied when none is visible). The include is the CPC one, or the Spectrum one in a Spectrum-only project.
  */
-export async function insertSfxUse(target: vscode.Uri): Promise<string | undefined> {
+export async function insertSfxUse(target: vscode.Uri, effect?: number): Promise<string | undefined> {
   const text = Buffer.from(await vscode.workspace.fs.readFile(target)).toString('utf8');
   const r = parseSfx(text);
   if (!r.doc) {
     void vscode.window.showErrorMessage(`CPC Game Studio: ${r.errors.slice(0, 2).map(describeError).join('; ')}`);
     return undefined;
   }
+  const fx = effect ?? selectedEffect.get(target.toString()) ?? 0;
   const code = vscode.window.visibleTextEditors.find((e) => /\.(bas|zxb|zxbas)$/i.test(e.document.fileName)) ?? vscode.window.visibleTextEditors.find((e) => e.document.uri.scheme === 'file' && !SFX_FILE.test(e.document.fileName) && !/\.(cpcspr|cpctil)$/i.test(e.document.fileName));
   const root = projectRootOf(target.fsPath);
   const archs = root ? loadProjectFile(path.join(root, PROJECT_FILE)).project?.targets.map((t) => t.arch) : undefined;
   const out = sfxOutputs(target.fsPath, archs ? sfxTargetsOf(archs).slice(0, 1) : ['cpc'])[0].bas;
   const rel = code ? path.relative(path.dirname(code.document.uri.fsPath), out).split(path.sep).join('/') : path.basename(out);
-  const insert = sfxUseSnippet(r.doc, sfxBankName(target.fsPath), rel);
+  const bank = sfxBankName(target.fsPath);
   if (code) {
-    await code.edit((b) => b.insert(code.selection.active, insert));
-    return insert;
+    const at = code.selection.active;
+    const edits = sfxUseEdits(code.document.getText(), r.doc, bank, rel, fx, { line: at.line, col: at.character });
+    await code.edit((b) => {
+      for (const e of edits) b.insert(new vscode.Position(e.line, e.col), e.text);
+    });
+    const added = edits.length > 1 ? edits[0].text.split('\n').length - 1 : 0;
+    void vscode.window.setStatusBarMessage(added ? `CPC Game Studio: added ${added} setup line${added === 1 ? '' : 's'} below the includes, and the SfxPlay at the cursor` : 'CPC Game Studio: added the SfxPlay at the cursor (the setup lines were there already)', 5000);
+    return edits.map((e) => e.text).join('');
   }
+  const insert = sfxUseSnippet(r.doc, bank, rel, fx);
   await vscode.env.clipboard.writeText(insert);
-  void vscode.window.showInformationMessage('CPC Game Studio: no code editor is open, so the include and call lines were copied to the clipboard.');
+  void vscode.window.showInformationMessage('CPC Game Studio: no code editor is visible, so the include and call lines were copied to the clipboard. Open your .bas beside the bank to insert them at the cursor.');
   return insert;
 }
 
