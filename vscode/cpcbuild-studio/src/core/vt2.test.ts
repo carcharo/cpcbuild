@@ -5,11 +5,13 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { CLOCKS, SfxDoc, SfxFrame, period } from './sfxDoc';
 import { generate } from './sfxPresets';
-import { Vt2Error, frameLine, sfxToVt2, vt2Problems } from './vt2';
+import { SongDoc, SongInstrument, newSong } from './songDoc';
+import { Vt2Error, frameLine, sampleDigit, sfxToVt2, songProblems, songToVt2, vt2Problems } from './vt2';
 
 const repo = path.resolve(__dirname, '../../../..');
 const toolsDir = process.env.AT3_TOOLS || path.join(repo, 'tools/arkos/work/bin');
 const haveTools = fs.existsSync(path.join(toolsDir, 'SongToSoundEffects'));
+const haveSongTool = fs.existsSync(path.join(toolsDir, 'SongToAkg'));
 
 const frame = (pitch: number, volume: number, extra: Partial<SfxFrame> = {}): SfxFrame => ({ pitch, tone: true, noise: false, noisePeriod: 0, volume, ...extra });
 const bank = (...effects: [string, SfxFrame[]][]): SfxDoc => ({ format: 'cpcsfx', version: 1, effects: effects.map(([name, frames]) => ({ name, frames })) });
@@ -208,5 +210,173 @@ describe.skipIf(!haveTools)('vt2: golden against the real SongToSoundEffects', (
       }));
       expect(got.get(i + 1), e.name).toEqual(want);
     });
+  }, 130000);
+});
+
+// ------------------------------------------------------------------------- songs
+
+const pluck = (id: string, vol = 15, extra: Partial<SongInstrument> = {}): SongInstrument => ({
+  id,
+  name: `Pluck ${id}`,
+  colour: 'peach',
+  description: '',
+  frames: [frame(0, vol), frame(0, 10), frame(0, 6)].map((f) => ({ pitch: 0, tone: true, noise: false, noisePeriod: 0, volume: f.volume })),
+  loop: 1,
+  ...extra,
+});
+
+const smallSong = (): SongDoc => ({
+  format: 'cpcsong',
+  version: 1,
+  speed: 6,
+  rowsPerBeat: 4,
+  patterns: [
+    {
+      rows: 4,
+      channels: [
+        [{ row: 0, note: 60, inst: '9' }, { row: 2, note: 'off' }],
+        [{ row: 0, note: 72, inst: '5', vol: 9 }, { row: 1, note: 74, inst: 'B', vol: 9 }, { row: 3, note: 76, inst: 'B' }],
+        [],
+      ],
+    },
+    { rows: 2, channels: [[{ row: 0, note: 48, inst: 'B' }], [], []] },
+  ],
+  order: [0, 1, 1],
+  loop: 1,
+  instruments: [pluck('B')],
+});
+
+describe('vt2: songToVt2, exact text of a 2-pattern song', () => {
+  const expected =
+    '[Module]\nVortexTrackerII=1\nVersion=3.7\nTitle=demo\nAuthor=cpcbuild\nNoteTable=1\nChipFreq=1000000\nSpeed=6\nNoise=HEX\nPlayOrder=0,L1,1\n\n' +
+    '[Ornament1]\n0,4,7,L0,4,7\n\n' +
+    // Hi-hat (built-in 9, no loop: silent end line), Chord (built-in 5, loops from frame 3), custom Pluck B (loops from frame 1)
+    '[Sample1]\n.N. +000_ +01_ A_\n.N. +000_ +01_ 6_\n.N. +000_ +02_ 3_\n.N. +000_ +02_ 1_\n... +000_ +00_ 0_ L\n\n' +
+    '[Sample2]\nT.. +000_ +00_ F_\nT.. +000_ +00_ D_\nT.. +000_ +00_ D_\nT.. +000_ +00_ C_ L\nT.. +000_ +00_ C_\nT.. +000_ +00_ C_\n\n' +
+    '[Sample3]\nT.. +000_ +00_ F_\nT.. +000_ +00_ A_ L\nT.. +000_ +00_ 6_\n\n' +
+    pad(4) +
+    '[Pattern0]\n' +
+    '....|..|C-4 1F0F ....|C-5 2F19 ....|... .... ....\n' +
+    '....|..|... .... ....|D-5 3F0. ....|... .... ....\n' +
+    '....|..|R-- .... ....|... .... ....|... .... ....\n' +
+    '....|..|... .... ....|E-5 3F0F ....|... .... ....\n\n' +
+    '[Pattern1]\n' +
+    '....|..|C-3 3F0F ....|... .... ....|... .... ....\n' +
+    '....|..|... .... ....|... .... ....|... .... ....\n';
+
+  it('matches the measured rules', () => {
+    expect(songToVt2(smallSong(), 'demo')).toBe(expected);
+  });
+
+  it('is pure: the document is untouched and the text repeatable', () => {
+    const d = smallSong();
+    const before = JSON.stringify(d);
+    expect(songToVt2(d, 'demo')).toBe(songToVt2(d, 'demo'));
+    expect(JSON.stringify(d)).toBe(before);
+  });
+
+  it('a song with no pitch shapes still has [Ornament1] as L0; the loop defaults to the first position', () => {
+    const d: SongDoc = { ...newSong(), instruments: [] };
+    d.patterns[0].channels[0] = [{ row: 0, note: 60, inst: '2' }];
+    const t = songToVt2(d, 'x');
+    expect(t).toContain('PlayOrder=L0\n');
+    expect(t).toContain('[Ornament1]\nL0\n');
+    expect(t).toContain('C-4 1F0F ....');
+  });
+
+  it('a pitch shape without a loop holds its last value (L before the last value)', () => {
+    const d = smallSong();
+    d.instruments = [pluck('B', 15, { loop: undefined, frames: [0, 5, 12].map((p) => ({ pitch: p, tone: true, noise: false, noisePeriod: 0, volume: 9 })) })];
+    expect(songToVt2(d, 'x')).toContain('[Ornament2]\n0,5,L12\n');
+  });
+});
+
+describe('vt2: songToVt2 limits', () => {
+  const noteOn = (inst: string, row: number) => ({ row, note: 60, inst });
+  /** Customs B.. (distinct first-frame volume or pitch) plus the ten built-ins. */
+  const IDS = 'BCDEFGHIJKLMNOPQRSTUV';
+  const many = (n: number, shaped = false): SongDoc => {
+    const customs = [...IDS].slice(0, Math.max(0, n - 10)).map((id, k) => pluck(id, (k % 15) + 1, shaped ? { frames: [{ pitch: k + 1, tone: true, noise: false, noisePeriod: 0, volume: 7 }], loop: undefined } : {}));
+    const ids = [...'123456789A'.slice(0, Math.min(10, n)), ...customs.map((c) => c.id)];
+    const d: SongDoc = { ...newSong(), instruments: customs };
+    d.patterns[0] = { rows: 32, channels: [ids.map((id, row) => noteOn(id, row)), [], []] };
+    return d;
+  };
+
+  it('sample digits: 1-9 then J..V for 10-22', () => {
+    expect(sampleDigit(1)).toBe('1');
+    expect(sampleDigit(9)).toBe('9');
+    expect(sampleDigit(10)).toBe('J');
+    expect(sampleDigit(22)).toBe('V');
+    const lines = songToVt2(many(22), 'x').split('\n').filter((l) => l.startsWith('....|..|')).slice(0, 22);
+    expect(lines.map((l) => l.slice(12, 13)).join('')).toBe('123456789JKLMNOPQRSTUV');
+    expect(lines[8]).toContain('C-4 9F');
+    expect(lines[9]).toContain('C-4 JF');
+    expect(lines[21]).toContain('C-4 VF');
+  });
+
+  it('the 23rd instrument is an error naming the ones left out', () => {
+    const d = many(23);
+    expect(songProblems(many(22))).toEqual([]);
+    expect(songProblems(d)).toEqual(['the song uses 23 different instruments, but the converter reaches 22: N (Pluck N) would be left out']);
+    expect(() => songToVt2(d)).toThrow(Vt2Error);
+  });
+
+  it('identical pitch shapes share one ornament; different ones do not', () => {
+    const shape = (id: string, pitches: number[]): SongInstrument => pluck(id, 15, { loop: undefined, frames: pitches.map((p) => ({ pitch: p, tone: true, noise: false, noisePeriod: 0, volume: 9 })) });
+    const d = smallSong();
+    d.instruments = [shape('B', [0, 4]), shape('C', [0, 4]), shape('D', [0, 3])];
+    d.patterns[1].channels[2] = [{ row: 0, note: 60, inst: 'C' }, { row: 1, note: 60, inst: 'D' }];
+    const t = songToVt2(d, 'x');
+    expect(t.match(/^\[Ornament\d+\]$/gm)).toEqual(['[Ornament1]', '[Ornament2]', '[Ornament3]']);
+    // Chord is ornament 1, B and C share ornament 2, D is ornament 3
+    expect(t).toContain('[Ornament2]\n0,L4\n');
+    expect(t).toContain('[Ornament3]\n0,L3\n');
+  });
+
+  it('15 pitch shapes (the built-in Bell, Chord, Kick, Snare and Zap count) are fine, the 16th is an error', () => {
+    expect(songProblems(many(20, true))).toEqual([]);
+    const sixteen = many(21, true);
+    expect(songProblems(sixteen)).toEqual(['the song uses 16 different pitch shapes (instruments that change pitch while they play, such as Chord, Bell or Kick), but the converter reaches 15']);
+  });
+
+  it('document errors come first, with their path, and never throw', () => {
+    const bad = { ...smallSong(), speed: 0 };
+    expect(songProblems(bad)[0]).toBe('speed: speed must be a whole number 1-255');
+    expect(() => songProblems(null)).not.toThrow();
+    expect(() => songProblems({ patterns: 5 })).not.toThrow();
+    expect(() => songToVt2(bad)).toThrow(/^speed:/);
+  });
+});
+
+describe.skipIf(!haveSongTool)('vt2: golden against the real SongToAkg', () => {
+  const run = (doc: SongDoc): string => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'songgolden-'));
+    try {
+      const vt2 = path.join(dir, 'song.vt2');
+      const asm = path.join(dir, 'song.asm');
+      fs.writeFileSync(vt2, songToVt2(doc, 'golden'));
+      execFileSync(path.join(toolsDir, 'SongToAkg'), ['--labelPrefix', 'golden_', vt2, asm], { timeout: 120000 });
+      return fs.readFileSync(asm, 'utf8');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const count = (asm: string, what: string): number => asm.split('\n').filter((l) => new RegExp(`^(golden_)?${what}\\d+$`).test(l.trim())).length;
+
+  it('the small song: exit 0, 3 instruments, 1 arpeggio, 2 patterns', () => {
+    const asm = run(smallSong());
+    expect(count(asm, 'Instrument')).toBe(3);
+    expect(count(asm, 'Arpeggio')).toBe(1);
+    expect(asm).toMatch(/db 1 +; Loop start index/);
+  }, 130000);
+
+  it('22 different instruments all arrive', () => {
+    const noteOn = (inst: string, row: number) => ({ row, note: 60, inst });
+    const customs = [...'BCDEFGHIJKLM'].map((id, k) => pluck(id, k + 1));
+    const ids = ['1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', ...customs.map((c) => c.id)];
+    const d: SongDoc = { ...newSong(), instruments: customs };
+    d.patterns[0] = { rows: 32, channels: [ids.map((id, row) => noteOn(id, row)), [], []] };
+    expect(count(run(d), 'Instrument')).toBe(22);
   }, 130000);
 });

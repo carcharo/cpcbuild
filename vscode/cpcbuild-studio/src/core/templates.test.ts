@@ -64,7 +64,7 @@ describe('template asset globs', () => {
     for (const { id } of TEMPLATES) {
       const r = generateTemplate(id, { name: 'demo' });
       const cfg = JSON.parse(r.files['cpcbuild.json']);
-      for (const g of cfg.assets) expect(g).toMatch(/\.(cpcimp|cpcspr|cpcpal|cpcpal12|cpcsfx)$/);
+      for (const g of cfg.assets) expect(g).toMatch(/\.(cpcimp|cpcspr|cpcpal|cpcpal12|cpcsfx|cpcsong)$/);
     }
   });
 });
