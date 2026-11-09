@@ -454,3 +454,36 @@ describe('Import Image with a sidecar: the sidecar stays the source of the setti
     expect(() => runRecipe(r, sio)).toThrow(/bad\.cpcbuild\.json: "mode" must be 0, 1 or 2/);
   });
 });
+
+describe('R5: Spectrum recipes stay readable and generate; the editor no longer offers them', () => {
+  const zx = ['games/lamplighter/assets/zx/zx_tiles.cpcimp', 'games/lamplighter/assets/zx/zx_sprites.cpcimp'];
+  const gio = ioAt(path.join(REPO, 'games/lamplighter')); // recipe paths are relative to the game's project root
+  it.each(zx)('%s validates, has a command and generates', (rel) => {
+    const r = parseRecipe(fs.readFileSync(path.join(REPO, rel), 'utf8'));
+    expect(r.target).toBe('spectrum');
+    expect(commandLine(r).command).toContain('--spectrum');
+    const out = runRecipe(r, gio);
+    expect(out.files[0].path).toBe(r.output);
+    expect(String(out.files[0].data).length).toBeGreaterThan(50);
+    expect(() => previewOf(r, gio)).toThrow(/no CPC preview of Spectrum/);
+  });
+  it('Switch to CPC is a plain set of the target (and a mode)', () => {
+    const r = parseRecipe(fs.readFileSync(path.join(REPO, zx[0]), 'utf8'));
+    const o = applyRecipeOp(r, { op: 'set', patch: { target: 'cpc', mode: 1 } });
+    expect('state' in o && o.state).toMatchObject({ target: 'cpc', mode: 1 });
+  });
+});
+
+describe('R5: Use mode N is the edit op set {mode}', () => {
+  it('patches the mode; a tile width the new mode refuses comes back as the converter message', () => {
+    const r = newRecipe('tests/conformance/assets/spr1.png', { mode: 0, kind: 'tiles', tileWidth: 2, name: 'b', output: 'o.bas', palette: { list: [0, 26, 6, 18] } });
+    const o = applyRecipeOp(r, { op: 'set', patch: { mode: 1 } });
+    expect('state' in o && o.state.mode).toBe(1);
+    expect('state' in o && o.state.tileWidth).toBe(2); // the patch itself is accepted
+    // tile width 2 is 1 byte in mode 0, but mode 1 needs 4, 8 or 16 pixels
+    expect(() => previewOf((o as { state: Recipe }).state, io)).toThrow(/tile width 2 must be 4, 8 or 16 pixels in mode 1/);
+    // and a width both modes allow just works
+    const ok = applyRecipeOp({ ...r, tileWidth: 8 }, { op: 'set', patch: { mode: 1 } });
+    expect('state' in ok && ok.state.mode).toBe(1);
+  });
+});

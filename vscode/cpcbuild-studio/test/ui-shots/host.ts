@@ -10,6 +10,8 @@ import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { newSprite, serialiseSprite, type Grid, type SpriteState } from '../../src/core/spriteDoc';
 import { serialiseSfx, type SfxDoc } from '../../src/core/sfxDoc';
+import { serialiseSong } from '../../src/core/songDoc';
+import { demoSong } from '../../src/core/songDemo';
 import { presetEffect } from '../../src/core/sfxPresets';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
@@ -153,6 +155,7 @@ export function makeFixtures(): void {
   drawn.frames = Array.from({ length: 24 }, (_, i) => ({ pitch: 60 + Math.round(6 * Math.sin(i / 2)), tone: i % 7 !== 6, noise: i % 5 === 4, noisePeriod: 8 + (i % 12), volume: Math.max(2, 15 - Math.floor(i / 2)) }));
   const bank: SfxDoc = { format: 'cpcsfx', version: 1, effects: [presetEffect('jump', 'jump'), presetEffect('coin', 'coin'), presetEffect('laser', 'laser'), presetEffect('explosion', 'explosion'), drawn] };
   put('sfx/demo.cpcsfx', serialiseSfx(bank));
+  put('songs/demo.cpcsong', serialiseSong(demoSong()));
   put('src/hover.bas', ['#include <cpcbuild/sprites.bas>', 'ScreenInit()', 'DIM x AS INTEGER', 'x = 10', 'PutSprite(x, 20, 2, 8, 0)', 'SetInk 1, 2', ''].join('\n'));
 }
 
@@ -190,13 +193,15 @@ export async function run(): Promise<void> {
   await capture({ name: 'tile', layout: 'editor', sizes: E });
   await openWith('sfx/demo.cpcsfx', 'cpcbuild.sfxEditor', ready((a) => a.sfx));
   await capture({ name: 'sfx', layout: 'editor', sizes: [...E, [560, 900]] });
+  await openWith('songs/demo.cpcsong', 'cpcbuild.songEditor', ready((a) => a.song));
+  await capture({ name: 'tracker', layout: 'editor', sizes: [...E, [560, 900]] });
   await openWith('sprites/hero.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
   await capture({ name: 'sprite-mode0-tall', layout: 'editor', sizes: TALL });
   await openWith('sprites/ship.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
   await capture({ name: 'sprite-plus-tall', layout: 'editor', sizes: TALL });
   await openWith('assets/balls.cpcimp', 'cpcbuild.importer', ready((a) => a.importer));
   await sleep(2500);
-  await capture({ name: 'importer', layout: 'editor', sizes: E });
+  await capture({ name: 'importer', layout: 'editor', sizes: [...E, [560, 900]] });
   await capture({ name: 'importer-tall', layout: 'editor', sizes: TALL });
   // the Command tab at 600 px (the tab strip only exists in the narrow layout)
   await capture({ name: 'importer-command', layout: 'editor', sizes: [[600, 700]], pre: async () => { await ask({ type: 'click', selector: '#imp-tab-command' }); await sleep(700); } });
