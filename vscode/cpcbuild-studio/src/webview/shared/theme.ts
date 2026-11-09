@@ -38,3 +38,18 @@ export function withAlpha(colour: string, alpha: number): string {
   }
   return c;
 }
+
+/** The identity palette names, in token order (--cb-id-1 ... --cb-id-12). */
+export const ID_NAMES = ['blue', 'orange', 'lilac', 'teal', 'gold', 'green', 'red', 'white', 'pink', 'violet', 'grey', 'peach'] as const;
+
+/** `var(--cb-id-N)` for a 1-based identity index (clamped into 1..12). */
+export function idVar(i: number): string {
+  const n = Math.min(ID_NAMES.length, Math.max(1, Math.round(Number.isFinite(i) ? i : 1)));
+  return `var(--cb-id-${n})`;
+}
+
+/** The 1-based identity index of a colour name, or undefined. */
+export function idIndex(name: string): number | undefined {
+  const i = (ID_NAMES as readonly string[]).indexOf(name.trim().toLowerCase());
+  return i < 0 ? undefined : i + 1;
+}

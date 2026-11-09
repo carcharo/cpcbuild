@@ -30,6 +30,7 @@ import { emuInstallTestApi, installEmulator, setEmuInstallContext } from './emuI
 import { offerToolsAtActivation, setStudioExtensionId, setupTestApi, updateSetupContext } from './setupPrompts';
 import { musicConvertCommand, musicPlayCommand, musicStopCommand } from './music';
 import { generateTmxAsset, openInTiledCommand, TmxViewerProvider, tmxGenerateCommand } from './tmxViewer';
+import { webviewHtml, webviewRoot } from './webviewHtml';
 
 /** What the extension exports (used by the extension-host tests; not a public API). */
 export interface StudioApi {
@@ -245,6 +246,30 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   if (context.extensionMode !== vscode.ExtensionMode.Test) void offerToolsAtActivation();
 
   const reg = (id: string, fn: (...a: any[]) => unknown): void => void context.subscriptions.push(vscode.commands.registerCommand(id, fn));
+  if (context.extensionMode !== vscode.ExtensionMode.Production) {
+    // dev only: the component gallery (not contributed in package.json, not packaged)
+    let gallery: vscode.WebviewPanel | undefined;
+    let galleryPart: string | undefined;
+    reg('cpcbuild.dev.gallery', (part?: string) => {
+      galleryPart = typeof part === 'string' ? part : undefined;
+      if (gallery) {
+        gallery.reveal();
+      } else {
+        const panel = vscode.window.createWebviewPanel('cpcbuild.dev.gallery', 'Studio components', vscode.ViewColumn.Active, {
+          enableScripts: true,
+          localResourceRoots: [webviewRoot(vscode, context.extensionUri)],
+        });
+        gallery = panel;
+        panel.onDidDispose(() => { gallery = undefined; });
+        // the page says 'ready' once its script runs; the part is (re)sent then, and also below for a page that is already up
+        panel.webview.onDidReceiveMessage((m: { type?: string }) => {
+          if (m?.type === 'ready') void panel.webview.postMessage({ type: 'part', part: galleryPart });
+        });
+        panel.webview.html = webviewHtml(vscode, panel.webview, context.extensionUri, 'gallery', 'Studio components');
+      }
+      void gallery.webview.postMessage({ type: 'part', part: galleryPart });
+    });
+  }
   reg('cpcbuild.newProject', (args) => newProjectCommand(args));
   reg('cpcbuild.build', () => runTask(false));
   reg('cpcbuild.buildAndRun', () => runTask(true));

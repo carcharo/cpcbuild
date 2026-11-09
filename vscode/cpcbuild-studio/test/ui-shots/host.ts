@@ -193,6 +193,26 @@ export async function run(): Promise<void> {
   await openWith('maps/level.tmx', 'cpcbuild.tmxViewer', ready((a) => a.tmx));
   await sleep(2500);
   await capture({ name: 'tmx', layout: 'editor', sizes: E });
+  await capture({
+    name: 'gallery-basics', layout: 'editor', sizes: [...E, [560, 900]],
+    pre: async () => { await exec('cpcbuild.dev.gallery', 'basics'); await sleep(1200); },
+  });
+  await capture({
+    name: 'gallery-cards', layout: 'editor', sizes: E,
+    pre: async () => { await exec('cpcbuild.dev.gallery', 'cards'); await sleep(1200); },
+  });
+  await capture({
+    name: 'gallery-shelf', layout: 'editor', sizes: [...E, [560, 900]],
+    pre: async () => { await exec('cpcbuild.dev.gallery', 'shelf'); await sleep(1200); },
+  });
+  await capture({
+    name: 'gallery-colours', layout: 'editor', sizes: E,
+    pre: async () => { await exec('cpcbuild.dev.gallery', 'colours'); await sleep(1200); },
+  });
+  await capture({
+    name: 'gallery-toolbar', layout: 'editor', sizes: E,
+    pre: async () => { await exec('cpcbuild.dev.gallery', 'toolbar'); await sleep(1200); },
+  });
 
   }
   // ---- build, run, break

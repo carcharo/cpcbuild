@@ -4,6 +4,48 @@
   --cb-space-4: 16px; --cb-space-5: 24px; --cb-space-6: 32px;
   --cb-control-h: 26px; --cb-icon-btn: 28px; --cb-swatch: 28px;
   --cb-panel-w: 248px; --cb-gutter: 16px; --cb-radius: 3px;
+  --cb-pill-h: 26px; --cb-pill-h-sm: 22px; --cb-pill-h-xs: 20px;
+  --cb-card-radius: 14px; --cb-card-pad: 12px;
+  --cb-pod-radius: 24px; --cb-pod-main: 44px; --cb-pod-btn: 34px;
+  --cb-shelf-w: 232px; --cb-side-w: 264px; --cb-side-w-wide: 300px;
+  --cb-playhead: var(--vscode-charts-green, #89d185);
+  --cb-pill-bg: var(--vscode-button-secondaryBackground);
+  --cb-pill-fg: var(--vscode-button-secondaryForeground);
+  --cb-pill-border: var(--vscode-input-border, var(--vscode-panel-border));
+  --cb-sel-bg: var(--vscode-list-activeSelectionBackground);
+  --cb-sel-fg: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+  --cb-sel-border: var(--vscode-focusBorder);
+  --cb-ok: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+  --cb-warn: var(--vscode-editorWarning-foreground);
+  --cb-bad: var(--vscode-errorForeground);
+  /* identity palette (dark): blue, orange, lilac, teal, gold, green, red, white, pink, violet, grey, peach */
+  --cb-id-1: #58a6ff;
+  --cb-id-2: #f0883e;
+  --cb-id-3: #d2a8ff;
+  --cb-id-4: #39d3bb;
+  --cb-id-5: #e3b341;
+  --cb-id-6: #56d364;
+  --cb-id-7: #ff6b6b;
+  --cb-id-8: #f2f2f2;
+  --cb-id-9: #ff9bce;
+  --cb-id-10: #a371f7;
+  --cb-id-11: #8b949e;
+  --cb-id-12: #ffc799;
+}
+/* identity palette (light) */
+body.vscode-light, body.vscode-high-contrast-light {
+  --cb-id-1: #1683ff;
+  --cb-id-2: #d66311;
+  --cb-id-3: #aa5bff;
+  --cb-id-4: #219482;
+  --cb-id-5: #aa7f19;
+  --cb-id-6: #289b35;
+  --cb-id-7: #ff3333;
+  --cb-id-8: #3b3b3b;
+  --cb-id-9: #ff1b90;
+  --cb-id-10: #9d67f6;
+  --cb-id-11: #7d8792;
+  --cb-id-12: #a65a2e;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
@@ -168,6 +210,139 @@ body.vscode-high-contrast .cb-swatch, body.vscode-high-contrast-light .cb-swatch
   background-size: 16px 16px; background-position: 0 0, 8px 8px; }
 .cb-canvas-pixels { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
 .cb-canvas-overlay { position: absolute; left: 0; top: 0; pointer-events: none; }
+
+/* ---- redesign components (R0): pills, chips, cards, pod, shelf, keycaps ---- */
+.cb-pill, .cb-chip, .cb-segpill button, .cb-pod-main, .cb-pod-btn, .cb-shelf-card, .cb-kbd { font: inherit; cursor: pointer; transition: background-color 100ms; }
+.cb-pill {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--cb-pill-h); padding: 0 12px; border-radius: 13px;
+  border: 1px solid var(--cb-pill-border); background: var(--cb-pill-bg); color: var(--cb-pill-fg); white-space: nowrap;
+}
+.cb-pill:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.cb-pill-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: var(--vscode-button-border, transparent); }
+.cb-pill-primary:hover { background: var(--vscode-button-hoverBackground); }
+.cb-pill-ghost { background: transparent; border-color: transparent; color: inherit; height: 28px; border-radius: 14px; padding: 0 10px; }
+.cb-pill-ghost:hover { background: var(--vscode-toolbar-hoverBackground); }
+.cb-pill-icon { width: 30px; padding: 0; }
+.cb-pill-sm { height: var(--cb-pill-h-sm); border-radius: 11px; padding: 0 10px; }
+.cb-pill-xs { height: var(--cb-pill-h-xs); border-radius: 10px; padding: 0 8px; font-size: max(11px, 0.85em); }
+.cb-pill-mono { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; }
+.cb-chip[aria-pressed="true"] { background: var(--cb-sel-bg); border-color: var(--cb-sel-border); color: var(--cb-sel-fg); }
+.cb-chip[aria-checked="true"] { background: var(--cb-sel-bg); border-color: var(--cb-sel-border); color: var(--cb-sel-fg); }
+.cb-pill[aria-disabled="true"], .cb-chip[aria-disabled="true"], .cb-pod-btn[aria-disabled="true"], .cb-pod-main[aria-disabled="true"], .cb-segpill button[aria-disabled="true"] { color: var(--vscode-disabledForeground); cursor: default; }
+.cb-pill[aria-disabled="true"]:hover { background: var(--cb-pill-bg); }
+.cb-pill-primary[aria-disabled="true"] { color: var(--vscode-button-foreground); opacity: 0.5; }
+.cb-pill-primary[aria-disabled="true"]:hover { background: var(--vscode-button-background); }
+.cb-pill-ghost[aria-disabled="true"]:hover { background: transparent; }
+
+.cb-segpill { display: inline-flex; gap: 2px; padding: 2px; border-radius: 15px; background: var(--cb-pill-bg); border: 1px solid var(--cb-pill-border); }
+.cb-segpill button { height: 22px; padding: 0 10px; border-radius: 11px; background: transparent; color: var(--cb-pill-fg); border: 0; white-space: nowrap; }
+.cb-segpill button[aria-checked="true"] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); font-weight: 600; }
+.cb-chip[aria-checked="true"] { font-weight: 600; }
+.cb-segpill-sm button { height: 20px; padding: 0 8px; font-size: 0.92em; }
+
+.cb-stat { display: inline-flex; align-items: center; gap: 4px; height: var(--cb-pill-h-xs); padding: 0 8px; border-radius: 10px; font-size: max(11px, 0.85em); background: transparent; border: 1px solid var(--cb-pill-border); font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cb-stat { color: var(--vscode-foreground); }
+.cb-stat-ok { border-color: var(--cb-ok); }
+.cb-stat-warn { border-color: var(--cb-warn); }
+.cb-stat-bad { border-color: var(--cb-bad); }
+.cb-stat-ok .codicon { color: var(--cb-ok); }
+.cb-stat-warn .codicon { color: var(--cb-warn); }
+.cb-stat-bad .codicon { color: var(--cb-bad); }
+
+.cb-label { font-size: max(11px, 0.85em); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--vscode-descriptionForeground); }
+
+.cb-card { display: flex; flex-direction: column; gap: 8px; padding: var(--cb-card-pad); border-radius: var(--cb-card-radius); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-panel-border); }
+.cb-card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cb-card-h h2 { margin: 0; font-size: inherit; }
+.cb-card-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 0; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; }
+.cb-card-actions { display: inline-flex; align-items: center; gap: 6px; }
+.cb-card-body { display: flex; flex-direction: column; gap: 8px; }
+.cb-card-body[hidden] { display: none; }
+.cb-card-stack { display: flex; flex-direction: column; gap: 12px; }
+
+.cb-pod { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 14px 4px 4px; border-radius: var(--cb-pod-radius); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-panel-border); }
+.cb-pod-main, .cb-pod-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; }
+.cb-pod-main { width: var(--cb-pod-main); height: var(--cb-pod-main); background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: 1px solid var(--vscode-button-border, transparent); }
+.cb-pod-main:hover { background: var(--vscode-button-hoverBackground); }
+.cb-pod-main .codicon { font-size: 18px; }
+.cb-pod-btn { width: var(--cb-pod-btn); height: var(--cb-pod-btn); background: var(--vscode-input-background); color: inherit; border: 1px solid var(--cb-pill-border); }
+.cb-pod-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
+.cb-pod-btn[aria-pressed="true"] { background: var(--cb-sel-bg); color: var(--cb-sel-fg); border-color: var(--cb-sel-border); box-shadow: inset 0 0 0 1px var(--cb-sel-border); }
+.cb-pod-main[aria-disabled="true"] { color: var(--vscode-button-foreground); opacity: 0.5; }
+.cb-pod-sep { width: 1px; height: 28px; background: var(--vscode-panel-border); }
+.cb-pod-readout { display: inline-flex; align-items: baseline; gap: 4px; font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; }
+.cb-pod-big { font-size: 1.15em; font-weight: 600; }
+.cb-pod-unit { color: var(--vscode-descriptionForeground); }
+
+.cb-shelf { display: flex; flex-direction: column; gap: 6px; width: var(--cb-shelf-w); }
+.cb-shelf-card { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; border-radius: 20px; background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-panel-border); color: inherit; text-align: left; }
+.cb-shelf-card:hover { background: var(--vscode-list-hoverBackground); }
+.cb-shelf-card[aria-selected="true"] { background: var(--cb-sel-bg); border-color: var(--cb-sel-border); color: var(--cb-sel-fg); box-shadow: inset 0 0 0 1px var(--cb-sel-border); }
+.cb-badge-ring { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--cb-id, var(--vscode-foreground)); background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); font-size: 0.92em; font-weight: 600; }
+.cb-shelf-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cb-shelf-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-shelf-meta { font-size: max(11px, 0.85em); color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cb-shelf-card[aria-selected="true"] .cb-shelf-meta { color: inherit; }
+.cb-shelf-shape { width: 28px; height: 12px; flex: none; fill: none; stroke: var(--cb-id, var(--vscode-foreground)); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.cb-shelf-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (max-width: 720px) {
+  .cb-shelf-narrow-chips { flex-direction: row; width: auto; max-width: 100%; overflow-x: auto; padding: 4px; margin: -4px; }
+  .cb-shelf-narrow-chips .cb-shelf-card { height: 28px; flex: none; padding: 0 10px 0 2px; border-radius: 14px; }
+  .cb-shelf-narrow-chips .cb-badge-ring { width: 22px; height: 22px; }
+  .cb-shelf-narrow-chips .cb-shelf-meta, .cb-shelf-narrow-chips .cb-shelf-shape { display: none; }
+}
+
+.cb-swatch-round { border-radius: 50%; }
+.cb-swatch-ring { display: inline-flex; padding: 3px; border: 2px solid transparent; border-radius: 50%; }
+/* left and right differ by line shape as well as hue: solid 3px vs double 4px (same outer size) */
+.cb-ring-sel { border-color: var(--cb-sel-border); }
+.cb-ring-left { border-style: solid; border-width: 3px; padding: 2px; border-color: var(--vscode-charts-blue); }
+.cb-ring-right { border-style: double; border-width: 4px; padding: 1px; border-color: var(--vscode-charts-orange); }
+.cb-ring-dashed { border-style: dashed; border-color: color-mix(in srgb, var(--vscode-foreground) 65%, transparent); }
+
+.cb-codecard .cb-copy-multi .cb-code { max-height: 220px; }
+.cb-codecard .cb-code { margin: 0; padding: 8px 10px; border-radius: 10px; }
+
+.cb-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 6px; background: var(--cb-pill-bg); color: var(--cb-pill-fg); border: 1px solid var(--cb-pill-border); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--vscode-foreground) 15%, transparent); font-size: max(11px, 0.85em); font-family: var(--vscode-editor-font-family); cursor: default; }
+.cb-kbd-group { display: inline-flex; align-items: center; gap: 4px; }
+.cb-kbd-big { flex-direction: column; width: 46px; height: 46px; min-width: 46px; padding: 0; border-radius: 20%; }
+.cb-kbd-off { border-style: dashed; box-shadow: none; }
+
+/* toolbar, pills look */
+.cb-toolbar-pills { gap: 6px; padding: var(--cb-space-1) var(--cb-space-2); }
+.cb-tb-group-pills { gap: 6px; padding: 0; }
+.cb-tb-group-pills + .cb-tb-group-pills { border-left: 0; }
+.cb-toolbar-pills .cb-pill-ghost[data-on="true"] { background: var(--vscode-toolbar-activeBackground); box-shadow: inset 0 -2px 0 var(--vscode-button-background); }
+
+/* shared states: disabled has no hover; high contrast gets borders and a heavier selected state */
+body.vscode-high-contrast .cb-pill, body.vscode-high-contrast .cb-chip, body.vscode-high-contrast .cb-card, body.vscode-high-contrast .cb-segpill, body.vscode-high-contrast .cb-segpill button, body.vscode-high-contrast .cb-pod, body.vscode-high-contrast .cb-pod-btn, body.vscode-high-contrast .cb-pod-main, body.vscode-high-contrast .cb-shelf-card, body.vscode-high-contrast .cb-stat, body.vscode-high-contrast .cb-kbd,
+body.vscode-high-contrast-light .cb-pill, body.vscode-high-contrast-light .cb-chip, body.vscode-high-contrast-light .cb-card, body.vscode-high-contrast-light .cb-segpill, body.vscode-high-contrast-light .cb-segpill button, body.vscode-high-contrast-light .cb-pod, body.vscode-high-contrast-light .cb-pod-btn, body.vscode-high-contrast-light .cb-pod-main, body.vscode-high-contrast-light .cb-shelf-card, body.vscode-high-contrast-light .cb-stat, body.vscode-high-contrast-light .cb-kbd { border-color: var(--vscode-contrastBorder); }
+
+body.vscode-high-contrast .cb-chip[aria-pressed="true"],
+body.vscode-high-contrast .cb-chip[aria-checked="true"],
+body.vscode-high-contrast .cb-segpill button[aria-checked="true"],
+body.vscode-high-contrast .cb-shelf-card[aria-selected="true"],
+body.vscode-high-contrast .cb-pod-btn[aria-pressed="true"],
+body.vscode-high-contrast .cb-pill-ghost[data-on="true"],
+body.vscode-high-contrast-light .cb-chip[aria-pressed="true"],
+body.vscode-high-contrast-light .cb-chip[aria-checked="true"],
+body.vscode-high-contrast-light .cb-segpill button[aria-checked="true"],
+body.vscode-high-contrast-light .cb-shelf-card[aria-selected="true"],
+body.vscode-high-contrast-light .cb-pod-btn[aria-pressed="true"],
+body.vscode-high-contrast-light .cb-pill-ghost[data-on="true"] { outline: 2px solid var(--vscode-contrastActiveBorder); outline-offset: -2px; }
+/* focused and selected: keep the inner selection outline and add an outer ring after a gap */
+body.vscode-high-contrast .cb-chip[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast .cb-chip[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast .cb-segpill button[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast .cb-shelf-card[aria-selected="true"]:focus-visible,
+body.vscode-high-contrast .cb-pod-btn[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast .cb-pill-ghost[data-on="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-chip[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-chip[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-segpill button[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-shelf-card[aria-selected="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-pod-btn[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-pill-ghost[data-on="true"]:focus-visible { outline: 2px solid var(--vscode-contrastActiveBorder); outline-offset: -2px; box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 0 4px var(--vscode-contrastActiveBorder); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; }

@@ -29,7 +29,9 @@ interface Common {
 export interface ToolbarButton extends Common { kind: 'button'; onActivate(): void; pressed?: boolean }
 export interface ToolbarRadio extends Common { kind: 'radio'; checked: boolean; onActivate(): void }
 export interface ToolbarMenu extends Common { kind: 'menu'; items: MenuItem[] }
-export type ToolbarItem = ToolbarButton | ToolbarRadio | ToolbarMenu;
+/** A toggle chip (aria-pressed, check glyph when on); joins the roving tabindex. */
+export interface ToolbarChip extends Common { kind: 'chip'; pressed: boolean; onActivate(): void }
+export type ToolbarItem = ToolbarButton | ToolbarRadio | ToolbarMenu | ToolbarChip;
 export interface ToolbarGroup {
   label: string;
   items: ToolbarItem[];
@@ -39,12 +41,17 @@ export interface ToolbarGroup {
 
 const tip = tipText;
 
-export function Toolbar({ label, groups, onEscape }: { label: string; groups: ToolbarGroup[]; onEscape?: () => void }) {
+export function Toolbar({ label, groups, onEscape, look = 'classic' }: { label: string; groups: ToolbarGroup[]; onEscape?: () => void; /** 'pills': the redesign look (ghost pills, chips, no group dividers). Default 'classic'. */ look?: 'classic' | 'pills' }) {
+  const pills = look === 'pills';
   const items = groups.flatMap((g) => g.items);
   const checked = items.find((i) => i.kind === 'radio' && i.checked);
   const [active, setActive] = useState<string>(checked?.id ?? items[0]?.id ?? '');
   const root = useRef<HTMLDivElement>(null);
   const tt = useTooltip();
+  // the roving stop falls back to the first enabled item when the active one has gone
+  const stop = items.some((i) => i.id === active) ? active : (items.find((i) => !i.disabled) ?? items[0])?.id;
+  // in the pills look a visible text is the accessible name (label in name); the tooltip still carries label and shortcut
+  const name = (it: ToolbarItem): string | undefined => (pills && it.text ? undefined : tip(it));
   const focusId = (id: string): void => {
     setActive(id);
     root.current?.querySelector<HTMLElement>(`[data-tb="${CSS.escape(id)}"]`)?.focus();
@@ -59,32 +66,40 @@ export function Toolbar({ label, groups, onEscape }: { label: string; groups: To
     else if (e.key === 'Escape' && onEscape) { e.preventDefault(); onEscape(); }
   };
   return (
-    <div class="cb-toolbar" role="toolbar" aria-label={label} aria-orientation="horizontal" ref={root} onKeyDown={onKeyDown as never}>
+    <div class={pills ? 'cb-toolbar cb-toolbar-pills' : 'cb-toolbar'} role="toolbar" aria-label={label} aria-orientation="horizontal" ref={root} onKeyDown={onKeyDown as never}>
       {groups.map((g) => (
-        <div key={g.label} class="cb-tb-group" role={g.radio ? 'radiogroup' : 'group'} aria-label={g.label}>
+        <div key={g.label} class={pills ? 'cb-tb-group cb-tb-group-pills' : 'cb-tb-group'} role={g.radio ? 'radiogroup' : 'group'} aria-label={g.label}>
           {g.items.map((it) => {
-            const common = { 'data-tb': it.id, tabIndex: it.id === active ? 0 : -1, ...tt.props(it.id, tip(it)), onFocus: () => setActive(it.id) };
+            const common = { 'data-tb': it.id, tabIndex: it.id === stop ? 0 : -1, ...tt.props(it.id, tip(it)), onFocus: () => setActive(it.id) };
             const body = (
               <>
                 {it.icon && <Icon name={it.icon} />}
                 {it.text && <span class="cb-tb-text">{it.text}</span>}
               </>
             );
-            if (it.kind === 'menu') return <MenuButton key={it.id} item={it} common={common} body={body} />;
+            if (it.kind === 'menu') return <MenuButton key={it.id} item={it} common={common} body={body} pills={pills} />;
+            if (it.kind === 'chip')
+              return (
+                <button key={it.id} type="button" aria-pressed={it.pressed} aria-label={name(it)} aria-disabled={it.disabled ? 'true' : undefined} class="cb-pill cb-chip" {...common} onClick={() => !it.disabled && it.onActivate()}>
+                  {it.pressed ? <Icon name="check" /> : it.icon ? <Icon name={it.icon} /> : null}
+                  {it.text && <span class="cb-tb-text">{it.text}</span>}
+                </button>
+              );
             if (it.kind === 'radio')
               return (
-                <button key={it.id} type="button" role="radio" aria-checked={it.checked} aria-label={tip(it)} class={`cb-tb-btn${it.checked ? ' cb-on' : ''}`} {...common} onClick={it.onActivate}>
-                  {body}
+                <button key={it.id} type="button" role="radio" aria-checked={it.checked} aria-label={name(it)} class={pills ? 'cb-pill cb-chip' : `cb-tb-btn${it.checked ? ' cb-on' : ''}`} {...common} onClick={it.onActivate}>
+                  {pills && it.checked ? <><Icon name="check" />{it.text && <span class="cb-tb-text">{it.text}</span>}</> : body}
                 </button>
               );
             return (
               <button
                 key={it.id}
                 type="button"
-                aria-label={tip(it)}
+                aria-label={name(it)}
                 aria-disabled={it.disabled ? 'true' : undefined}
                 aria-pressed={it.pressed === undefined ? undefined : it.pressed}
-                class={`cb-tb-btn${it.pressed ? ' cb-on' : ''}${it.disabled ? ' cb-disabled' : ''}`}
+                class={pills ? 'cb-pill cb-pill-ghost' : `cb-tb-btn${it.pressed ? ' cb-on' : ''}${it.disabled ? ' cb-disabled' : ''}`}
+                data-on={pills && it.pressed ? 'true' : undefined}
                 {...common}
                 onClick={() => !it.disabled && it.onActivate()}
               >
@@ -99,7 +114,7 @@ export function Toolbar({ label, groups, onEscape }: { label: string; groups: To
   );
 }
 
-function MenuButton({ item, common, body }: { item: ToolbarMenu; common: Record<string, unknown>; body: preact.ComponentChildren }) {
+function MenuButton({ item, common, body, pills }: { item: ToolbarMenu; common: Record<string, unknown>; body: preact.ComponentChildren; pills?: boolean }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -138,8 +153,9 @@ function MenuButton({ item, common, body }: { item: ToolbarMenu; common: Record<
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={tip(item)}
-        class={`cb-tb-btn${item.disabled ? ' cb-disabled' : ''}`}
+        aria-label={pills && item.text ? undefined : tip(item)}
+        class={pills ? 'cb-pill' : `cb-tb-btn${item.disabled ? ' cb-disabled' : ''}`}
+        aria-disabled={pills && item.disabled ? 'true' : undefined}
         {...common}
         onClick={() => !item.disabled && setOpen(!open)}
         onKeyDown={(e) => {

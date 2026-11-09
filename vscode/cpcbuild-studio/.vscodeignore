@@ -3,7 +3,7 @@
 !README.md
 !LICENSE
 !dist/extension.js
-!dist/webview/**
+!dist/webview/!(gallery.*)
 !media/**
 !schemas/**
 !bundled/**
