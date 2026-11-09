@@ -10,6 +10,8 @@
  */
 import type { SfxDoc } from '../core/sfxDoc';
 import type { SfxOp } from '../core/sfxOps';
+import type { SongDoc } from '../core/songDoc';
+import type { SongOp } from '../core/songOps';
 import type { PaletteError, PaletteKind, PaletteOp, Snippet } from '../core/paletteDoc';
 
 export type { PaletteError, PaletteKind, PaletteOp, Snippet };
@@ -119,3 +121,32 @@ export interface SfxRequests extends BaseRequests {
 
 export type SfxToHost = WebToHost<SfxRequests>;
 export type SfxToWeb = HostToWeb<SfxView>;
+
+// ------------------------------------------------------------- music tracker
+
+export type { SongDoc, SongOp };
+
+export interface SongView extends ViewBase {
+  doc: SongDoc;
+  /** The tool's message that stops saving, if any. */
+  saveProblem?: string;
+  /** What the build would stop on (the document's own errors, then the converter's limits). */
+  problems: string[];
+  /** The song's label (the sanitised file stem), read-only: MusicInit(@<song>, 1). */
+  song: string;
+  /** File name of the include the build generates, for example "tune.bas". */
+  include: string;
+  /** Whether the keycap board is shown, remembered per width class; undefined = the default for that width. */
+  keys: { wide?: boolean; narrow?: boolean };
+}
+
+export interface SongRequests extends BaseRequests {
+  edit: { args: { baseVersion: number; op: SongOp }; result: { version: number } };
+  /** Play the song with the real player in the emulator (the CPC build of the song as it is in the editor, saved or not). */
+  playInEmulator: { args: Record<string, never>; result: { ok: true } };
+  /** Remember whether the keycap board is shown, for a width class. */
+  setKeys: { args: { width: 'wide' | 'narrow'; shown: boolean }; result: { ok: true } };
+}
+
+export type SongToHost = WebToHost<SongRequests>;
+export type SongToWeb = HostToWeb<SongView>;

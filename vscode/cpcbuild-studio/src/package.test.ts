@@ -14,7 +14,7 @@ describe('package.json contributions', () => {
   });
   it('has the spec 7.1 commands (and none under .emu.)', () => {
     const ids: string[] = c.commands.map((x: { command: string }) => x.command);
-    for (const want of ['newProject', 'newSprite', 'newTileset', 'newPalette', 'newPlusSprite', 'importImage', 'copyImporterCommand', 'regenerateAssets', 'generateAssetFile', 'insertAssetUse', 'build', 'buildAndRun', 'run', 'selectTarget', 'selectEmulator', 'selectModel', 'runFile', 'showBuildReport', 'tmx.generate', 'openInTiled', 'music.convert', 'music.play', 'music.stop', 'music.openTracker', 'symbols.refresh', 'symbols.filter', 'symbols.toggleRuntime', 'memory.show', 'debug.pause', 'debug.resume', 'debug.step', 'debug.stepOver', 'debug.stepOut', 'debug.toggleBreakpoint', 'debug.showRegisters', 'lint.toggle', 'docs.open', 'checkEnvironment', 'openSettings']) {
+    for (const want of ['newProject', 'newSprite', 'newTileset', 'newPalette', 'newSong', 'newPlusSprite', 'importImage', 'copyImporterCommand', 'regenerateAssets', 'generateAssetFile', 'insertAssetUse', 'build', 'buildAndRun', 'run', 'selectTarget', 'selectEmulator', 'selectModel', 'runFile', 'showBuildReport', 'tmx.generate', 'openInTiled', 'music.convert', 'music.play', 'music.stop', 'music.openTracker', 'symbols.refresh', 'symbols.filter', 'symbols.toggleRuntime', 'memory.show', 'debug.pause', 'debug.resume', 'debug.step', 'debug.stepOver', 'debug.stepOut', 'debug.toggleBreakpoint', 'debug.showRegisters', 'lint.toggle', 'docs.open', 'checkEnvironment', 'openSettings']) {
       expect(ids).toContain('cpcbuild.' + want);
     }
     expect(ids.filter((i) => i.includes('.emu.'))).toEqual([]);
