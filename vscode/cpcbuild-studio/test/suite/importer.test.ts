@@ -238,3 +238,29 @@ test('importer: a 16-bit PNG is refused with the way out; useEngine switches to 
   await closeClean();
   rm('assets/wide.cpcimp', 'art16.png');
 });
+
+test('importer: a Spectrum recipe opens (no webview error), still previews as "no CPC preview" and generates', async () => {
+  const rel = 'games/lamplighter/assets/zx/zx_tiles.cpcimp';
+  copyIn(rel);
+  copyIn('games/lamplighter/assets/zx/zx_tiles.png');
+  const r = JSON.parse(committed(rel));
+  // the recipe's paths are relative to the project root, which here is the test workspace
+  r.source = 'games/lamplighter/assets/zx/zx_tiles.png';
+  r.output = 'games/lamplighter/assets/zx/zx_tiles.bas';
+  const uri = writeRecipe(rel, r);
+  const { a, doc } = await openImporter(uri);
+  await waitFor('the first render', () => doc.renderedCount > 0);
+  assert.strictEqual(doc.state.target, 'spectrum');
+  const p = a.importer as unknown as { request(d: unknown, name: string, args: unknown): Promise<any> };
+  const pv = await p.request(doc, 'preview', { version: doc.version });
+  assert.ok(!pv.ok && /no CPC preview of Spectrum/.test(pv.error), pv.error);
+  const gen = await p.request(doc, 'generate', {});
+  assert.ok(gen.ok, gen.error);
+  assert.ok(fs.existsSync(path.join(ws, r.output)));
+  // "Switch to CPC" is the edit op the notice sends
+  await p.request(doc, 'edit', { baseVersion: doc.version, op: { op: 'set', patch: { target: 'cpc', mode: 1 } } });
+  assert.strictEqual(doc.state.target, 'cpc');
+  assert.deepStrictEqual(doc.webviewErrors, []);
+  await closeClean();
+  rm('games');
+});
