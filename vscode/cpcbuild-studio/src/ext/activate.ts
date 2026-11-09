@@ -13,6 +13,7 @@ import { newProjectCommand } from './newProject';
 import { ImporterEditorProvider, copyImporterCommandCommand, importImageCommand, regenerateAssetsCommand } from './importer';
 import { PaletteEditorProvider, newPaletteCommand } from './paletteEditor';
 import { SfxEditorProvider, newSfxCommand } from './sfxEditor';
+import { SongEditorProvider, newSongCommand } from './songEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
 import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand, regenerateForPalette } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
@@ -43,6 +44,8 @@ export interface StudioApi {
   palette: PaletteEditorProvider;
   /** The sound-effects editor's provider (.cpcsfx documents). */
   sfx: SfxEditorProvider;
+  /** The music tracker's provider (.cpcsong documents). */
+  song: SongEditorProvider;
   /** The image importer's provider (.cpcimp documents). */
   importer: ImporterEditorProvider;
   /** The sprite (.cpcspr) and tile (.cpctil) editors' providers. */
@@ -331,6 +334,9 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   const sfx = new SfxEditorProvider(context);
   context.subscriptions.push(sfx.register());
   reg('cpcbuild.newSfxBank', (args) => newSfxCommand(args));
+  const song = new SongEditorProvider(context);
+  context.subscriptions.push(song.register());
+  reg('cpcbuild.newSong', (args) => newSongCommand(args));
   const importer = new ImporterEditorProvider(context);
   context.subscriptions.push(importer.register());
   reg('cpcbuild.importImage', (arg) => importImageCommand(arg));
@@ -374,6 +380,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     trust: trustTestApi,
     palette,
     sfx,
+    song,
     importer,
     sprite,
     tile,

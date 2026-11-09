@@ -71,6 +71,11 @@
         "category": "CPC Game Studio"
       },
       {
+        "command": "cpcbuild.newSong",
+        "title": "New Song",
+        "category": "CPC Game Studio"
+      },
+      {
         "command": "cpcbuild.newPlusSprite",
         "title": "New Plus Sprite",
         "category": "CPC Game Studio"
@@ -317,6 +322,16 @@
         "priority": "default"
       },
       {
+        "viewType": "cpcbuild.songEditor",
+        "displayName": "CPC Music Tracker",
+        "selector": [
+          {
+            "filenamePattern": "*.cpcsong"
+          }
+        ],
+        "priority": "default"
+      },
+      {
         "viewType": "cpcbuild.spriteEditor",
         "displayName": "CPC Sprite Editor",
         "selector": [
@@ -399,6 +414,11 @@
         {
           "command": "cpcbuild.openAsText",
           "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.sfxEditor",
+          "group": "navigation@90"
+        },
+        {
+          "command": "cpcbuild.openAsText",
+          "when": "cpcbuild.inProject && activeCustomEditorId == cpcbuild.songEditor",
           "group": "navigation@90"
         },
         {
