@@ -1,0 +1,103 @@
+/* tracker.css -- layout of the music tracker editor. Colours come from --vscode-* and the --cb-* tokens only. */
+.tk { display: flex; flex-direction: column; height: 100vh; }
+.tk-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); padding: var(--cb-space-1) var(--cb-space-3); border-bottom: 1px solid var(--vscode-panel-border); }
+.tk-top-l { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-3); }
+.tk-top .cb-toolbar { border-bottom: 0; margin-left: auto; padding: 0; }
+.tk-name { cursor: default; }
+.tk-name:hover { background: var(--cb-pill-bg); }
+.tk-oct { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
+.tk-octval { cursor: default; min-width: 26px; padding: 0 6px; }
+.tk-octval:hover { background: var(--cb-pill-bg); }
+
+.tk-body { display: grid; grid-template-columns: var(--cb-shelf-w) minmax(0, 1fr); gap: var(--cb-space-4); grid-template-rows: minmax(0, 1fr); align-items: stretch; flex: 1; min-height: 0; padding: var(--cb-space-2) var(--cb-gutter); }
+.tk-shelf { overflow-y: auto; display: flex; flex-direction: column; gap: var(--cb-space-2); min-width: 0; padding: 2px; margin: -2px; }
+.tk-foot { margin: 0; }
+.tk-main { min-width: 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--cb-space-2); padding: 2px; margin: -2px; }
+
+.tk-patbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); flex: none; }
+.tk-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tk-tab[aria-selected="true"] { font-weight: 600; box-shadow: inset 0 -2px 0 var(--cb-sel-border); }
+.tk-num { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
+.tk-num-in { text-align: right; }
+.tk-patbar .tk-num { margin-left: var(--cb-space-2); }
+
+/* the grid: header row, then one row per pattern row; the same column template everywhere */
+.tk-scroll { flex: 1 1 auto; min-height: 280px; overflow: auto; border: 1px solid var(--vscode-panel-border); border-radius: var(--cb-card-radius); background: var(--vscode-sideBar-background, var(--vscode-editor-background)); scroll-padding-top: 36px; }
+.tk-grid { min-width: 360px; outline-offset: -2px; }
+.tk-row { display: grid; grid-template-columns: 52px repeat(3, minmax(0, 1fr)); align-items: stretch; min-height: 28px; border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 45%, transparent); }
+.tk-row[data-beat="true"] { border-top-color: var(--vscode-panel-border); }
+.tk-row[aria-current="true"] { background: color-mix(in srgb, var(--cb-playhead) 12%, transparent); }
+.tk-head { position: sticky; top: 0; z-index: 2; background: var(--vscode-editorWidget-background); border-top: 0; border-bottom: 1px solid var(--vscode-panel-border); min-height: 32px; }
+.tk-rowhead { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding: 0 8px; font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); }
+.tk-row[aria-current="true"] .tk-rowhead { box-shadow: inset 3px 0 0 var(--cb-playhead); color: var(--vscode-foreground); }
+.tk-row[data-beat="true"] .tk-rowhead { color: var(--vscode-foreground); font-weight: 600; }
+.tk-colhead { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 0 8px; font-weight: 600; }
+.tk-muted-head .tk-chan { text-decoration: line-through; }
+.tk-mute[aria-pressed="true"] { background: var(--cb-sel-bg); border-color: var(--cb-sel-border); color: var(--cb-sel-fg); }
+.tk-cell { display: flex; align-items: center; min-width: 0; padding: 2px 6px; border-left: 1px solid color-mix(in srgb, var(--vscode-panel-border) 45%, transparent); cursor: default; }
+.tk-muted { opacity: 0.45; }
+.tk-empty { color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); font-family: var(--vscode-editor-font-family); letter-spacing: 0.1em; }
+.tk-cur { outline: 1px dashed var(--cb-sel-border); outline-offset: -2px; }
+.tk-grid:focus .tk-cur, .tk-grid:focus-visible .tk-cur { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
+.tk-grid:focus { outline: none; }
+.tk-sq { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; height: 22px; padding: 0 8px; border-radius: 11px; border: 1.5px solid var(--cb-id, var(--cb-pill-border)); background: var(--vscode-editorWidget-background); color: var(--vscode-foreground); white-space: nowrap; overflow: hidden; font-size: 0.95em; }
+.tk-sq-off { border-color: var(--cb-pill-border); color: var(--vscode-descriptionForeground); font-style: italic; }
+.tk-note { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; font-weight: 600; }
+.tk-inst { display: inline-flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tk-dot { color: var(--cb-id, var(--vscode-foreground)); font-size: 0.8em; }
+.tk-vol { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); }
+
+.tk-podrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2) var(--cb-space-4); flex: none; }
+.tk-tempo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-1); }
+.tk-bpm { width: 64px; }
+.tk-playing { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); }
+
+.tk-seqrow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); flex: none; }
+.tk-keys { flex: none; padding: 6px 10px; gap: 4px; }
+.tk-seq { display: flex; flex-wrap: wrap; gap: 6px; }
+.tk-chipwrap { display: inline-flex; align-items: center; gap: 2px; }
+.tk-chip-playing .tk-chip { box-shadow: inset 3px 0 0 var(--cb-playhead); }
+.tk-chip-x { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--vscode-descriptionForeground); font: inherit; cursor: pointer; }
+.tk-chip-x:hover { background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-foreground); }
+
+.tk-keys-actions { flex-wrap: wrap; justify-content: flex-end; }
+.tk-instpill { cursor: default; border-color: var(--cb-id, var(--cb-pill-border)); }
+.tk-instpill:hover { background: var(--cb-pill-bg); }
+.tk-board { display: flex; flex-direction: column; gap: 4px; padding: 0; overflow-x: auto; }
+.tk-keyrow { display: flex; gap: 4px; }
+.tk-keyrow-0 { padding-left: 0; }
+.tk-keyrow-1 { padding-left: 22px; }
+.tk-keyrow-2 { padding-left: 33px; }
+.tk-keyrow-3 { padding-left: 55px; }
+.tk-board .cb-kbd-big { width: 40px; height: 40px; min-width: 40px; }
+.tk-key { justify-content: space-between; padding: 4px 6px; flex: none; cursor: pointer; }
+.tk-key[aria-disabled="true"] { cursor: default; }
+.tk-key-l { align-self: flex-start; font-size: max(11px, 0.85em); color: var(--vscode-descriptionForeground); }
+.tk-key-n { align-self: flex-end; font-weight: 600; font-size: 0.95em; }
+.tk-sharp { background: var(--vscode-input-background); }
+.tk-offkey .tk-key-n { font-style: italic; }
+.tk-key:hover:not([aria-disabled="true"]) { background: var(--vscode-button-secondaryHoverBackground); }
+
+.tk-help { margin: var(--cb-space-2) var(--cb-gutter) 0; padding: var(--cb-space-3); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: var(--cb-radius); }
+.tk-help-h { display: flex; justify-content: space-between; align-items: center; }
+.tk-help dl { margin: var(--cb-space-2) 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--cb-space-1) var(--cb-space-4); }
+.tk-help dl > div { display: contents; }
+.tk-help dt { margin: 0; } .tk-help dd { margin: 0; color: var(--vscode-descriptionForeground); }
+.tk-help kbd { font-family: var(--vscode-editor-font-family); padding: 0 4px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; background: var(--vscode-textCodeBlock-background); }
+
+body.vscode-high-contrast .tk-sq, body.vscode-high-contrast-light .tk-sq { border-width: 2px; }
+body.vscode-high-contrast .tk-tab[aria-selected="true"], body.vscode-high-contrast-light .tk-tab[aria-selected="true"] { outline: 2px solid var(--vscode-contrastActiveBorder); outline-offset: -2px; }
+body.vscode-high-contrast .tk-cur, body.vscode-high-contrast-light .tk-cur { outline-color: var(--vscode-contrastActiveBorder); }
+body.vscode-high-contrast .tk-chip-x, body.vscode-high-contrast-light .tk-chip-x { border: 1px solid var(--vscode-contrastBorder); }
+
+@media (max-width: 720px) {
+  .tk { height: auto; min-height: 100vh; }
+  .tk-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .tk-main { overflow-y: visible; }
+  .tk-shelf { overflow-y: visible; }
+  .tk-scroll { flex: none; max-height: 60vh; }
+  .tk-top .cb-toolbar { margin-left: 0; }
+  
+  .tk-foot { display: none; }
+  .tk-podrow .cb-pod { display: flex; }
+}

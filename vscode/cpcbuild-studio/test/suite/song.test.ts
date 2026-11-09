@@ -3,8 +3,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
-import { newSong, serialiseSong } from '../../src/core/songDoc';
-import { mkdirp, rmrf, test } from './harness';
+import { SongDoc, newSong, parseSong, serialiseSong } from '../../src/core/songDoc';
+import { demoSong } from '../../src/core/songDemo';
+import type { StudioDocument } from '../../src/ext/customEditor';
+import { mkdirp, rmrf, samePath, test, waitFor } from './harness';
 
 const REPO = path.resolve(__dirname, '../../../../..');
 const TOOLS = [process.env.AT3_TOOLS, path.join(REPO, 'tools/arkos/work/bin'), path.resolve(REPO, '../../tools/arkos/work/bin')].find(
@@ -78,4 +80,128 @@ test('song: a build without the Arkos tools keeps the committed tune.bas and war
     await cfg.update('arkos.toolsPath', undefined, vscode.ConfigurationTarget.Workspace);
     rmrf(root);
   }
+});
+
+// ----------------------------------------------------------------------- the tracker editor
+
+const VIEW_TYPE = 'cpcbuild.songEditor';
+
+function putSong(rel: string, text: string): vscode.Uri {
+  const f = path.join(ws, 'songs', rel);
+  mkdirp(path.dirname(f));
+  fs.writeFileSync(f, text);
+  return vscode.Uri.file(f);
+}
+
+async function openSong(uri: vscode.Uri): Promise<{ a: StudioApi; doc: StudioDocument<SongDoc> }> {
+  const a = await api();
+  await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE);
+  const doc = await waitFor('song document', () => a.song.documents.get(uri.toString()));
+  await waitFor('webview ready', () => doc.readyCount > 0);
+  const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+  assert.ok(input instanceof vscode.TabInputCustom && input.viewType === VIEW_TYPE, 'the active tab is the music tracker');
+  return { a, doc };
+}
+
+const closeClean = (): Thenable<unknown> => vscode.commands.executeCommand('workbench.action.revertAndCloseActiveEditor');
+
+test('song editor: a .cpcsong opens in the tracker, the webview renders it, no webview error', async () => {
+  const uri = putSong('open.cpcsong', serialiseSong(demoSong()));
+  const { doc } = await openSong(uri);
+  assert.strictEqual(doc.state.patterns.length, 1);
+  await waitFor('the first render', () => doc.renderedCount > 0);
+  assert.deepStrictEqual(doc.webviewErrors, []);
+  await closeClean();
+});
+
+test('song editor: a note through the edit path, undo, redo, save and the byte-identical round trip', async () => {
+  const text = serialiseSong(demoSong());
+  const uri = putSong('edit.cpcsong', text);
+  const { a, doc } = await openSong(uri);
+  const p = a.song as unknown as { request(d: unknown, name: string, args: unknown): Promise<unknown> };
+  const v0 = doc.version;
+  // the same request the webview sends when a note key is typed
+  const r = (await p.request(doc, 'edit', { baseVersion: doc.version, op: { op: 'setCell', pattern: 0, channel: 0, row: 1, event: { note: 64, inst: '1' } } })) as { version: number };
+  assert.ok(r.version > v0);
+  assert.deepStrictEqual(doc.state.patterns[0].channels[0].find((e) => e.row === 1), { row: 1, note: 64, inst: '1' });
+  assert.strictEqual(doc.undoDepth, 1);
+  assert.ok(a.song.undoLast(doc));
+  assert.strictEqual(doc.state.patterns[0].channels[0].find((e) => e.row === 1), undefined);
+  assert.ok(a.song.redoLast(doc));
+  assert.ok(doc.state.patterns[0].channels[0].some((e) => e.row === 1));
+  await vscode.commands.executeCommand('workbench.action.files.save');
+  await waitFor('file written', () => fs.readFileSync(uri.fsPath, 'utf8') !== text);
+  const saved = fs.readFileSync(uri.fsPath, 'utf8');
+  const parsed = parseSong(saved);
+  assert.ok(parsed.doc, 'the saved file parses');
+  assert.strictEqual(serialiseSong(parsed.doc), saved);
+  assert.ok(parsed.doc.patterns[0].channels[0].some((e) => e.row === 1 && e.note === 64));
+  assert.ok(a.song.undoLast(doc));
+  await a.song.saveCustomDocument(doc);
+  assert.strictEqual(fs.readFileSync(uri.fsPath, 'utf8'), text, 'undo and save brings the original text back');
+  assert.deepStrictEqual(doc.webviewErrors, []);
+  await closeClean();
+});
+
+test('song editor: a bad op and a stale edit are refused with their message; the keys choice is remembered per width', async () => {
+  const uri = putSong('bad.cpcsong', serialiseSong(demoSong()));
+  const { a, doc } = await openSong(uri);
+  const p = a.song as unknown as { request(d: unknown, name: string, args: unknown): Promise<unknown> };
+  assert.throws(() => a.song.commit(doc, { op: 'setCell', pattern: 0, channel: 0, row: 99, event: { note: 60, inst: '1' } }), /rows are 0-31/);
+  await assert.rejects(p.request(doc, 'edit', { baseVersion: doc.version + 5, op: { op: 'addPattern' } }), /changed in another view/);
+  await p.request(doc, 'setKeys', { width: 'narrow', shown: true });
+  await p.request(doc, 'setKeys', { width: 'wide', shown: false });
+  const view = (a.song as unknown as { currentView(d: unknown): { keys: { wide?: boolean; narrow?: boolean } } }).currentView(doc);
+  assert.deepStrictEqual(view.keys, { wide: false, narrow: true });
+  await assert.rejects(p.request(doc, 'setKeys', { width: 'huge', shown: true }), /bad keys request/);
+  await closeClean();
+});
+
+test('song editor: a file that is not a song shows the error and is not overwritten; an empty file opens as a new song', async () => {
+  const text = JSON.stringify({ format: 'cpcsong', version: 1, speed: 6, patterns: [], order: [], instruments: [] });
+  const uri = putSong('broken.cpcsong', text);
+  const { a, doc } = await openSong(uri);
+  assert.ok(doc.fatal, 'the document is fatal');
+  await assert.rejects(a.song.saveCustomDocument(doc));
+  assert.strictEqual(fs.readFileSync(uri.fsPath, 'utf8'), text);
+  await closeClean();
+  const empty = putSong('empty.cpcsong', '');
+  const e = await openSong(empty);
+  assert.strictEqual(e.doc.fatal, undefined);
+  assert.strictEqual(e.doc.state.patterns.length, 1);
+  await closeClean();
+});
+
+test('song editor: New Song creates assets/song.cpcsong (then song2, song3) with the demo in the project and opens it', async () => {
+  const a = await api();
+  const root = path.join(ws, 'songproj');
+  rmrf(root);
+  mkdirp(root);
+  fs.writeFileSync(path.join(root, 'cpcbuild.json'), JSON.stringify({ version: 1, name: 'songproj', targets: [{ id: 'cpc6128', arch: 'cpc', main: 'src/main.bas' }], assets: [] }, null, 2));
+  for (const name of ['song.cpcsong', 'song2.cpcsong', 'song3.cpcsong']) {
+    const uri = (await vscode.commands.executeCommand('cpcbuild.newSong', { root })) as vscode.Uri | undefined;
+    assert.ok(uri, 'the command returns the new file');
+    assert.ok(samePath(uri.fsPath, path.join(root, 'assets', name)), uri.fsPath);
+    const doc = await waitFor('new document', () => a.song.documents.get(uri.toString()));
+    await waitFor('ready', () => doc.readyCount > 0);
+    assert.deepStrictEqual(doc.state, demoSong());
+    assert.deepStrictEqual(doc.webviewErrors, []);
+    assert.strictEqual(fs.readFileSync(uri.fsPath, 'utf8'), serialiseSong(demoSong()));
+    const input = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+    assert.ok(input instanceof vscode.TabInputCustom && input.viewType === VIEW_TYPE);
+    await closeClean();
+  }
+  const project = JSON.parse(fs.readFileSync(path.join(root, 'cpcbuild.json'), 'utf8'));
+  assert.deepStrictEqual(project.assets, ['assets/**/*.cpcsong'], 'the project builds songs now');
+  rmrf(root);
+});
+
+test('song editor: contributed as the default for *.cpcsong, with its command', async () => {
+  const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../../../package.json'), 'utf8'));
+  const ce = pkg.contributes.customEditors.find((c: { viewType: string }) => c.viewType === VIEW_TYPE);
+  assert.strictEqual(ce.priority, 'default');
+  assert.strictEqual(ce.displayName, 'CPC Music Tracker');
+  assert.deepStrictEqual(ce.selector.map((s: { filenamePattern: string }) => s.filenamePattern), ['*.cpcsong']);
+  const cmd = pkg.contributes.commands.find((c: { command: string }) => c.command === 'cpcbuild.newSong');
+  assert.deepStrictEqual([cmd.category, cmd.title], ['CPC Game Studio', 'New Song']);
 });
