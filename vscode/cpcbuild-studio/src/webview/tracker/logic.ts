@@ -97,12 +97,13 @@ export function spokenNote(note: number): string {
 }
 
 /** Accessible name of a grid cell: "Row 5, channel B: C 5, Piano, volume 12", "... empty", "... note off". Rows count from 1. */
-export function cellName(r: number, channel: number, ev: SongEvent | undefined, doc: Pick<SongDoc, 'instruments'>): string {
+export function cellName(r: number, channel: number, ev: SongEvent | undefined, doc: Pick<SongDoc, 'instruments'>, selected = false): string {
   const head = `Row ${r + 1}, channel ${CHANNEL_LETTERS[channel] ?? channel}: `;
-  if (!ev) return `${head}empty`;
-  if (ev.note === 'off') return `${head}note off`;
+  const tail = selected ? ', selected' : '';
+  if (!ev) return `${head}empty${tail}`;
+  if (ev.note === 'off') return `${head}note off${tail}`;
   const inst = instrumentOf(doc, ev.inst)?.name ?? `instrument ${ev.inst ?? '?'}`;
-  return `${head}${spokenNote(ev.note)}, ${inst}${ev.vol !== undefined ? `, volume ${ev.vol}` : ''}`;
+  return `${head}${spokenNote(ev.note)}, ${inst}${ev.vol !== undefined ? `, volume ${ev.vol}` : ''}${tail}`;
 }
 
 /** The cell content for a note key: the note with the current instrument, keeping an existing volume. */
@@ -158,11 +159,15 @@ export function moveStepOp(orderLength: number, at: number, delta: -1 | 1): Song
   return at >= 0 && at < orderLength && to >= 0 && to < orderLength ? { op: 'orderMove', from: at, to } : undefined;
 }
 
-/** A half-second one-note playback on `channel` (speed 1, 25 rows), not looping: the audition of a note entry. */
-export function auditionFrames(doc: SongDoc, note: number, inst: string, channel: number): SongFrames {
+/**
+ * A one-note playback on `channel` (`ticks` 50 Hz ticks, 25 = half a second, up to about 20 s), not looping: the audition of a
+ * note entry. The instrument editor passes more rows to let a note ring, or to hold one until a key is released.
+ */
+export function auditionFrames(doc: SongDoc, note: number, inst: string, channel: number, ticks = 25): SongFrames {
   const channels: SongEvent[][] = [[], [], []];
   channels[Math.min(2, Math.max(0, channel))] = [{ row: 0, note, inst }];
-  const mini: SongDoc = { ...doc, speed: 1, patterns: [{ rows: 25, channels }], order: [0], loop: 0 };
+  const speed = Math.max(1, Math.ceil(ticks / 128));
+  const mini: SongDoc = { ...doc, speed, patterns: [{ rows: Math.min(128, Math.max(1, Math.ceil(ticks / speed))), channels }], order: [0], loop: 0 };
   return { ...songToFrames(mini), loopTick: -1 };
 }
 

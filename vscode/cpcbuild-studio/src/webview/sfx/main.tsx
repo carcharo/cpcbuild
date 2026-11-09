@@ -22,7 +22,7 @@ import { useTooltip } from '../shared/components/Tooltip';
 import { StatusLine } from '../shared/components/StatusLine';
 import { Toolbar, ToolbarGroup } from '../shared/components/Toolbar';
 import { createSfxPlayer, type SfxPlayer } from '../shared/audio/sfxPlayer';
-import { Curves } from './Curves';
+import { Lanes } from '../shared/lanes/Lanes';
 import { fitPitchRange, shelfShape, type DrawMode } from './curve';
 import './sfx.css';
 
@@ -569,10 +569,10 @@ function SfxApp({ client, view }: Host) {
             <Pill size="sm" icon="zoom-in" label="Zoom time axis in" shortcut="=" disabled={cellIdx >= ZOOMS.length - 1} why="largest zoom" onClick={() => zoom(1)} />
             <SegPill<string> label="Pitch range" size="sm" value={full ? 'all' : 'fit'} options={[{ value: 'fit', label: 'Fit', title: 'Fit the pitch range to the effect (F)' }, { value: 'all', label: 'All notes', title: 'Show all notes, C-1 to B-7 (F)' }]} onChange={(v) => { if ((v === 'all') !== full) togglePitchRange(); }} />
           </div>
-          <Curves
+          <Lanes
             key={si}
             frames={frames}
-            effectName={effect.name}
+            name={effect.name}
             cellW={cellW}
             range={range}
             mode={mode}

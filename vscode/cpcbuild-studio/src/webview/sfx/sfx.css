@@ -16,15 +16,6 @@
 .sx-hint { min-width: 0; }
 .sx-lanebar-gap { flex: 1; }
 
-/* the lanes: one rounded panel, the label gutter on the left and the scrolling plot beside it */
-.sx-panel { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; align-items: flex-start; min-width: 0; padding: var(--cb-space-2); border-radius: var(--cb-card-radius); background: var(--vscode-sideBar-background); border: 1px solid var(--vscode-panel-border); }
-.sx-axes { display: flex; flex-direction: column; gap: 6px; flex: none; }
-.sx-axes canvas { display: block; }
-.sx-scroll { display: flex; flex-direction: column; gap: 6px; overflow-x: auto; min-width: 0; flex: 1; padding-bottom: 2px; }
-.sx-scroll canvas { display: block; flex: none; }
-.sx-canvas { cursor: crosshair; touch-action: none; border-radius: var(--cb-radius); }
-.sx-canvas:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
-
 .sx-podrow { flex: none; position: sticky; bottom: 0; z-index: 2; padding: var(--cb-space-1) 0; background: var(--vscode-editor-background); display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-3); }
 .sx-playing { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); }
 
@@ -45,7 +36,6 @@
 @media (max-width: 720px) {
   .sx { height: auto; min-height: 100vh; }
   .sx-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
-  .sx-panel { flex: none; overflow-y: visible; }
   .sx-top .cb-toolbar { margin-left: 0; }
   .sx-podrow .cb-pod { display: flex; flex: 1; }
 }

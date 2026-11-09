@@ -1,0 +1,45 @@
+/* instrument.css -- layout of the tracker's instrument editor. Colours come from --vscode-* and the --cb-* tokens only. */
+.in { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.in-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2) var(--cb-space-3); padding: var(--cb-space-2) var(--cb-gutter); border-bottom: 1px solid var(--vscode-panel-border); }
+.in-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-1); margin: 0; padding: 0; list-style: none; color: var(--vscode-descriptionForeground); }
+.in-crumbs li + li::before { content: "\203A"; margin-right: var(--cb-space-1); }
+.in-crumbs li[aria-current="page"] { color: var(--vscode-foreground); }
+.in-meta { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; }
+.in-gap { flex: 1; }
+
+.in-body { display: grid; grid-template-columns: var(--cb-shelf-w) minmax(0, 1fr) var(--cb-side-w); gap: var(--cb-space-4); grid-template-rows: minmax(0, 1fr); align-items: stretch; flex: 1; min-height: 0; padding: var(--cb-space-3) var(--cb-gutter); }
+.in-list { overflow-y: auto; display: flex; flex-direction: column; gap: var(--cb-space-2); min-width: 0; padding: 2px; margin: -2px; }
+.in-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--cb-space-3); }
+.in-side { min-width: 0; min-height: 0; overflow-y: auto; }
+.in-none, .in-foot { margin: 0; }
+.in-acts { display: flex; flex-wrap: wrap; gap: var(--cb-space-1); }
+
+.in-chips { display: flex; flex-wrap: wrap; gap: var(--cb-space-1); }
+.in-chip, .in-colour { border-color: var(--cb-id, var(--cb-pill-border)); }
+.in-chip[aria-pressed="true"], .in-colour[aria-checked="true"] { border-color: var(--cb-sel-border); }
+.in-dot { display: inline-block; width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--cb-id, var(--vscode-foreground)); }
+.in-colours { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--cb-space-1); }
+.in-colour { justify-content: flex-start; min-width: 0; }
+.in-colour > span:nth-child(2) { flex: 1; text-align: left; }
+
+.in-lanebar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); }
+.in-hint { min-width: 0; }
+.in-ro { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); padding: var(--cb-space-1) var(--cb-space-3); border: 1px dashed var(--vscode-panel-border); border-radius: var(--cb-radius); }
+
+.in-dur { margin: 0; font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; }
+.in-loopsum { margin: 0; }
+.in-test { display: flex; align-items: flex-start; gap: var(--cb-space-3); }
+.in-test p { margin: 0; }
+.in-keycap { flex: none; width: 48px; height: 48px; display: inline-flex; flex-direction: column; justify-content: space-between; padding: 4px 6px; cursor: default; }
+.in-key-l { align-self: flex-start; font-size: max(11px, 0.85em); color: var(--vscode-descriptionForeground); }
+.in-key-n { align-self: flex-end; font-weight: 600; font-size: 0.95em; }
+.in-last { margin: 0; font-family: var(--vscode-editor-font-family); }
+
+@media (max-width: 720px) {
+  .in { flex: none; }
+  .in-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .in-list { overflow-y: visible; }
+  .in-side { overflow-y: visible; }
+  .in-colours { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .in-foot { display: none; }
+}

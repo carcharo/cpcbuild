@@ -205,3 +205,39 @@ test('song editor: contributed as the default for *.cpcsong, with its command', 
   const cmd = pkg.contributes.commands.find((c: { command: string }) => c.command === 'cpcbuild.newSong');
   assert.deepStrictEqual([cmd.category, cmd.title], ['CPC Game Studio', 'New Song']);
 });
+
+test('song instruments: a custom one made from a built-in, edited by one frame, used, saved and built; deleting it while used is refused', async () => {
+  const root = songProject('songinst');
+  const uri = vscode.Uri.file(path.join(root, 'assets/tune.cpcsong'));
+  const { a, doc } = await openSong(uri);
+  const p = a.song as unknown as { request(d: unknown, name: string, args: unknown): Promise<unknown> };
+  // the same requests the instrument editor sends
+  const edit = (op: unknown): Promise<unknown> => p.request(doc, 'edit', { baseVersion: doc.version, op });
+  await edit({ op: 'addInstrument', fromId: '1' });
+  assert.deepStrictEqual(doc.state.instruments.map((i) => [i.id, i.name]), [['B', 'Piano copy']]);
+  const frames = doc.state.instruments[0].frames.map((f) => ({ ...f }));
+  frames[0] = { ...frames[0], pitch: 12, volume: 7 };
+  await edit({ op: 'updateInstrument', id: 'B', patch: { frames } });
+  assert.deepStrictEqual([doc.state.instruments[0].frames[0].pitch, doc.state.instruments[0].frames[0].volume], [12, 7]);
+  assert.strictEqual(doc.undoDepth, 2, 'copying and drawing are one undo step each');
+  await edit({ op: 'setCell', pattern: 0, channel: 2, row: 4, event: { note: 67, inst: 'B' } });
+  await assert.rejects(edit({ op: 'deleteInstrument', id: 'B' }), /instrument B \(Piano copy\) is used at pattern A, channel C, row 4/);
+  assert.strictEqual(doc.state.instruments.length, 1, 'the used instrument is still there');
+  await assert.rejects(edit({ op: 'updateInstrument', id: '1', patch: { name: 'Mine' } }), /built-in/);
+  const before = fs.readFileSync(uri.fsPath, 'utf8');
+  await vscode.commands.executeCommand('workbench.action.files.save');
+  await waitFor('file written', () => fs.readFileSync(uri.fsPath, 'utf8') !== before);
+  const saved = parseSong(fs.readFileSync(uri.fsPath, 'utf8'));
+  assert.ok(saved.doc, 'the saved file parses');
+  assert.strictEqual(saved.doc.instruments[0].frames[0].pitch, 12);
+  assert.deepStrictEqual(doc.webviewErrors, []);
+  await closeClean();
+  if (TOOLS) {
+    const res = (await vscode.commands.executeCommand('cpcbuild.regenerateAssets', { root })) as { recipe: string; ok: boolean; error?: string }[];
+    assert.deepStrictEqual(res.filter((r) => r.recipe === 'assets/tune.cpcsong').map((r) => r.error ?? 'ok'), ['ok']);
+    const vt2 = fs.readFileSync(path.join(root, 'assets/tune.vt2'), 'utf8');
+    assert.match(vt2, /\[Ornament\d+\]\r?\n12,0,0/, 'the edited pitch is in the ornament');
+    assert.ok(fs.readFileSync(path.join(root, 'assets/tune.bas'), 'utf8').includes('pass @tune to MusicInit'));
+  } else console.log('       (build half skipped: no Arkos tools)');
+  rmrf(root);
+});

@@ -37,6 +37,10 @@
 .tk-cell { display: flex; align-items: center; min-width: 0; padding: 2px 6px; border-left: 1px solid color-mix(in srgb, var(--vscode-panel-border) 45%, transparent); cursor: default; }
 .tk-muted { opacity: 0.45; }
 .tk-empty { color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); font-family: var(--vscode-editor-font-family); letter-spacing: 0.1em; }
+.tk-sqbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-1) var(--cb-space-3); flex: none; }
+.tk-sqbar .cb-toolbar { border-bottom: 0; padding: 0; }
+.tk-selinfo { font-variant-numeric: tabular-nums; }
+.tk-sel { background: color-mix(in srgb, var(--cb-sel-bg) 55%, transparent); box-shadow: inset 0 0 0 1px var(--cb-sel-border); }
 .tk-cur { outline: 1px dashed var(--cb-sel-border); outline-offset: -2px; }
 .tk-grid:focus .tk-cur, .tk-grid:focus-visible .tk-cur { outline: 2px solid var(--vscode-focusBorder); outline-offset: -2px; }
 .tk-grid:focus { outline: none; }
@@ -85,6 +89,7 @@
 .tk-help dt { margin: 0; } .tk-help dd { margin: 0; color: var(--vscode-descriptionForeground); }
 .tk-help kbd { font-family: var(--vscode-editor-font-family); padding: 0 4px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; background: var(--vscode-textCodeBlock-background); }
 
+body.vscode-high-contrast .tk-sel, body.vscode-high-contrast-light .tk-sel { box-shadow: inset 0 0 0 2px var(--vscode-contrastActiveBorder); }
 body.vscode-high-contrast .tk-sq, body.vscode-high-contrast-light .tk-sq { border-width: 2px; }
 body.vscode-high-contrast .tk-tab[aria-selected="true"], body.vscode-high-contrast-light .tk-tab[aria-selected="true"] { outline: 2px solid var(--vscode-contrastActiveBorder); outline-offset: -2px; }
 body.vscode-high-contrast .tk-cur, body.vscode-high-contrast-light .tk-cur { outline-color: var(--vscode-contrastActiveBorder); }
@@ -99,5 +104,6 @@ body.vscode-high-contrast .tk-chip-x, body.vscode-high-contrast-light .tk-chip-x
   .tk-top .cb-toolbar { margin-left: 0; }
   
   .tk-foot { display: none; }
-  .tk-podrow .cb-pod { display: flex; }
+  .tk-patbar .tk-sqbar { margin-left: auto; }
+  .tk-podrow .cb-pod { display: flex; flex: 1 1 100%; }
 }
