@@ -109,6 +109,55 @@ test('the pause event drives the status bar and the registers; closing clears th
   assert.strictEqual(a.debug.live(), false);
 });
 
+test('the CPU panel marks what the last step changed, and only after a step', async () => {
+  const a = await api();
+  await withMap(a);
+  const addr = a.debug.symbols()!.symbols.find((s) => s.label === '._PutSprite')!.addr;
+  const changed = (): string[] => {
+    const m = a.debug.cpu()!;
+    return [...m.main, ...m.cpu, ...m.alt].filter((r) => r.changed).map((r) => r.name).concat(m.flags.filter((f) => f.changed).map((f) => `flag ${f.name}`));
+  };
+  assert.strictEqual(a.debug.cpu(), undefined, 'no session: no panel');
+  await vscode.commands.executeCommand('cpcbuild.emuEvent', { session: 'fake-2', event: 'paused', state: fakeState(addr) });
+  const first = a.debug.cpu()!;
+  assert.strictEqual(first.stepped, false);
+  assert.deepStrictEqual(changed(), [], 'a plain pause marks nothing');
+  assert.strictEqual(first.main.find((r) => r.name === 'PC')!.note, 'PutSprite');
+  assert.strictEqual(first.flags.filter((f) => f.set).map((f) => f.name).join(), 'Z,P/V');
+  // a step: PC, HL, R, the C flag and one alternate register differ
+  await vscode.commands.executeCommand('cpcbuild.emuEvent', { session: 'fake-2', event: 'paused', state: fakeState(addr + 1, { reason: 'step', hl: 0x4f2b, r: 1, af: 0x0245, bc2: 7 }) });
+  assert.strictEqual(a.debug.cpu()!.stepped, true);
+  assert.deepStrictEqual(changed().sort(), ['AF', 'HL', 'PC', 'R', "BC'", 'flag C'].sort());
+  assert.strictEqual(a.debug.cpu()!.altChanged, 1);
+  // the same pause seen again (a poll) keeps the marks; a pause by the user at new values clears them
+  await vscode.commands.executeCommand('cpcbuild.emuEvent', { session: 'fake-2', event: 'paused', state: fakeState(addr + 1, { reason: 'step', hl: 0x4f2b, r: 1, af: 0x0245, bc2: 7, frame: 99 }) });
+  assert.strictEqual(a.debug.cpu()!.stepped, true);
+  await vscode.commands.executeCommand('cpcbuild.emuEvent', { session: 'fake-2', event: 'resumed', state: fakeState(0, { paused: false, running: true }) });
+  assert.strictEqual(a.debug.cpu(), undefined, 'running: the panel is frozen in the view, the model is not rebuilt');
+  await vscode.commands.executeCommand('cpcbuild.emuEvent', { session: 'fake-2', event: 'paused', state: fakeState(addr + 9, { reason: 'user', hl: 1 }) });
+  assert.strictEqual(a.debug.cpu()!.stepped, false);
+  assert.deepStrictEqual(changed(), []);
+  await vscode.commands.executeCommand('cpcbuild.emuEvent', { session: 'fake-2', event: 'closed' });
+});
+
+test('memory view: the last five distinct go-to targets are kept per project', async () => {
+  const a = await api();
+  await withMap(a);
+  const putsprite = a.debug.symbols()!.symbols.find((s) => s.label === '._PutSprite')!.addr;
+  const before = a.debug.memoryRecent();
+  await a.debug.memoryShow({ symbol: 'PutSprite' });
+  for (const t of ['&4F2A', '&5000', '&6000', '&7000', '&8000']) await a.debug.memoryShow(t);
+  assert.deepStrictEqual(a.debug.memoryRecent().map((r) => r.text), ['&8000', '&7000', '&6000', '&5000', '&4F2A'], `PutSprite fell off the end (was: ${JSON.stringify(before)})`);
+  await a.debug.memoryShow('&5000'); // distinct: moves to the front, nothing is added
+  assert.deepStrictEqual(a.debug.memoryRecent().map((r) => r.addr), [0x5000, 0x8000, 0x7000, 0x6000, 0x4f2a]);
+  await a.debug.memoryShow('PutSprite');
+  assert.deepStrictEqual(a.debug.memoryRecent()[0], { addr: putsprite, text: 'PutSprite' });
+  await a.debug.memoryShow('NoSuchRoutine'); // a failed go-to is not remembered
+  assert.strictEqual(a.debug.memoryRecent()[0].text, 'PutSprite');
+  assert.strictEqual(a.debug.memoryRecent().length, 5);
+  await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+});
+
 test('memory view without the emulator: opens, explains, does not throw', async () => {
   const a = await api();
   await withMap(a);

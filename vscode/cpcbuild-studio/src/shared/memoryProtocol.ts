@@ -4,6 +4,17 @@
  * (src/core/memdiff.ts formats them) and sends what the user asked for.
  */
 
+import type { CpuModel, RecentRec, StackRow } from '../core/debugModel';
+
+/** The CPU panel's data (R6). While the program runs the host resends the last paused values with `running: true`. */
+export interface MemCpu {
+  model: CpuModel;
+  /** The top words of the stack at `sp` (empty when the read failed). */
+  stack: StackRow[];
+  sp: number;
+  running: boolean;
+}
+
 export interface MemSnapshot {
   /** Address of the first byte (always a multiple of 16). */
   base: number;
@@ -19,6 +30,10 @@ export interface MemSnapshot {
   following?: string;
   pc?: number;
   sp?: number;
+  /** The last distinct go-to targets, newest first (kept per project by the host). */
+  recent: RecentRec[];
+  /** Registers, flags and stack; absent until the program has been paused once. */
+  cpu?: MemCpu;
 }
 
 export type MemStatus = {

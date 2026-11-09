@@ -6,7 +6,7 @@
  */
 import * as vscode from 'vscode';
 import type { EmuEvent, EmuState } from '../emuApi';
-import { BreakpointRec, breakpointText, reasonText, registerRows, RegisterRow, reresolve, statusText, toggleBreakpoint } from '../core/debugModel';
+import { BreakpointRec, breakpointText, CpuModel, cpuModel, reasonText, registerRows, RegisterRow, reresolve, sameRegs, statusText, toggleBreakpoint } from '../core/debugModel';
 import { hex4 } from '../core/map';
 import { findByName, resolveTarget, SymbolInfo, SymbolTable } from '../core/symbols';
 import { EmuClient, isError, StepCommand } from './emuClient';
@@ -40,6 +40,11 @@ export class DebugController implements vscode.Disposable {
   readonly symbols = new SymbolSource();
   state?: EmuState;
   live = false;
+  /** The state before the last step command (step, step over, step out), while the CPU stays paused after it; undefined after a plain pause, a breakpoint or a resume. */
+  stepBase?: EmuState;
+  /** Counts the pauses and the steps: the memory view reads the stack once per value. */
+  pauseSeq = 0;
+  private stepping = false;
   private readonly refreshEmitter = new vscode.EventEmitter<RefreshReason>();
   readonly onRefresh = this.refreshEmitter.event;
   private readonly stateEmitter = new vscode.EventEmitter<void>();
@@ -115,6 +120,15 @@ export class DebugController implements vscode.Disposable {
   }
 
   private setState(st: EmuState | undefined): void {
+    const prev = this.state;
+    if (!st || !st.paused) this.stepBase = undefined;
+    else {
+      const moved = !prev || !prev.paused || !sameRegs(prev, st);
+      if (moved) {
+        this.pauseSeq++;
+        this.stepBase = (this.stepping || st.reason === 'step') && prev?.paused ? prev : undefined;
+      }
+    }
     this.state = st;
     this.live = !!st;
     const table = this.symbols.table;
@@ -163,7 +177,8 @@ export class DebugController implements vscode.Disposable {
 
   // ------------------------------------------------------------------ breakpoints
 
-  private rootKey(): string {
+  /** The key a project's settings are kept under in workspace state. */
+  rootKey(): string {
     return this.symbols.root ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   }
 
@@ -260,16 +275,25 @@ export class DebugController implements vscode.Disposable {
   // ------------------------------------------------------------------ run control
 
   async control(cmd: StepCommand): Promise<{ state: EmuState } | { error: string }> {
-    const r = await this.client.control(cmd);
+    this.stepping = cmd === 'step' || cmd === 'stepOver' || cmd === 'stepOut';
+    const r = await this.client.control(cmd); // resolves, never throws
     if (isError(r)) {
+      this.stepping = false;
       if (/no such session|no emulator session|not installed/.test(r.error) || !(await this.client.available()).ok) {
         void vscode.window.showInformationMessage('CPC Game Studio: no emulator session is open. Use "CPC Game Studio: Build and Run" first.');
       } else void vscode.window.showWarningMessage(`CPC Game Studio: ${cmd} failed: ${r.error}`);
       return r;
     }
     this.setState(r.state);
+    this.stepping = false;
     this.refreshEmitter.fire(r.state.paused ? 'pause' : 'resume');
     return r;
+  }
+
+  /** The CPU panel's rows for the paused state (changed marks only right after a step command). */
+  cpu(): CpuModel | undefined {
+    const st = this.state;
+    return st?.paused ? cpuModel(st, this.stepBase, this.symbols.table, !!this.stepBase) : undefined;
   }
 
   registers(): RegisterRow[] {
