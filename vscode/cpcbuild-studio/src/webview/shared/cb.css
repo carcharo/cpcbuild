@@ -383,3 +383,4 @@ body.vscode-high-contrast-light .cb-pill-ghost[data-on="true"]:focus-visible { o
 .cb-prev-row[aria-checked="true"] .cb-prev-spec { color: inherit; opacity: 0.8; }
 .cb-prev-pop { width: max-content; max-width: min(520px, 90vw); padding: var(--cb-space-2); }
 @media (max-width: 480px) { .cb-prev-row { flex-direction: column; align-items: flex-start; } }
+.cb-prev-head .cb-segpill { max-width: 100%; }

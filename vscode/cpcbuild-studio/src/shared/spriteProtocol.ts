@@ -32,6 +32,8 @@ export interface SpriteView extends ViewBase {
   /** The shared palette file, as written in the document. */
   paletteFile?: string;
   paletteProblem?: string;
+  /** Border colour (firmware 0-26) of the shared .cpcpal file (its `# border: N` line); none for an inline palette. */
+  border?: number;
   output: string;
   emitPalette: boolean;
   dedupe: boolean;

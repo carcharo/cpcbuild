@@ -7,6 +7,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { decodePng, encodePng } from '../core/image';
+import { kindForFile, parsePalette } from '../core/paletteDoc';
 import { MAXPENS, type Mode } from '../core/pixels';
 import {
   analyse, applySpriteOp, newSprite, nameFromStem, parseSprite, resolvePalette, rowsOf, serialiseSprite,
@@ -217,6 +218,7 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
       colours: pal.colours,
       paletteFile: 'file' in s.palette ? s.palette.file : undefined,
       paletteProblem: pal.problem,
+      border: this.borderOf(s, a),
       output: s.output,
       emitPalette: s.emitPalette,
       dedupe: s.dedupe,
@@ -231,6 +233,12 @@ export class SpriteEditorProvider extends StudioEditorProvider<SpriteState, Spri
       snippets: assetSnippets(s, rel, text),
       command: equivalentCommand(s, source, pal.loading ? undefined : pal),
     };
+  }
+
+  /** The shared palette file's border colour (firmware), when the file is a .cpcpal that names one. */
+  private borderOf(s: SpriteState, a: Aux): number | undefined {
+    if (s.kind !== 'cpc' || !('file' in s.palette) || a.palText === undefined || kindForFile(s.palette.file) !== 'fw') return undefined;
+    return parsePalette(a.palText, 'fw').border ?? undefined;
   }
 
   private includePath(s: SpriteState): string {

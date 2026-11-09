@@ -1,39 +1,32 @@
 html, body { height: 100%; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
 body {
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: column; gap: 12px; padding: 12px 16px; box-sizing: border-box;
   background: var(--vscode-editor-background);
   color: var(--vscode-foreground);
   font-family: var(--vscode-font-family); font-size: var(--vscode-font-size);
 }
-#bar {
-  display: flex; align-items: center; gap: 4px; flex: 0 0 auto; flex-wrap: wrap;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--vscode-panel-border, transparent);
-  background: var(--vscode-editorGroupHeader-tabsBackground, transparent);
+#top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; flex: 0 0 auto; }
+#status { min-width: 0; }
+#statusText { overflow: hidden; text-overflow: ellipsis; }
+#dot { color: var(--vscode-descriptionForeground); }
+#status[data-tone="ok"] { border-color: var(--cb-ok); }
+#status[data-tone="ok"] #dot { color: var(--cb-ok); }
+#status[data-tone="warn"] { border-color: var(--cb-warn); }
+#status[data-tone="warn"] #dot { color: var(--cb-warn); }
+#stage { flex: 1 1 auto; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+/* the neutral frame; the CPC border area stays inside the canvas */
+#frame {
+  display: block; padding: 8px; line-height: 0;
+  border: 1px solid var(--vscode-panel-border); border-radius: var(--cb-card-radius);
+  background: var(--vscode-editorWidget-background);
 }
-#bar button {
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  min-width: 26px; height: 26px; padding: 0 6px;
-  border: 1px solid transparent; border-radius: 4px;
-  background: transparent; color: var(--vscode-icon-foreground, var(--vscode-foreground));
-  font: inherit; cursor: pointer;
-}
-#bar button:hover { background: var(--vscode-toolbar-hoverBackground); }
-#bar button:focus-visible, #screen:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-#bar button[hidden] { display: none; }
-#sound {
-  background: var(--vscode-button-secondaryBackground) !important;
-  color: var(--vscode-button-secondaryForeground) !important;
-}
-#sound:hover { background: var(--vscode-button-secondaryHoverBackground) !important; }
-#model { font-weight: 600; margin-left: 8px; white-space: nowrap; }
-#status { color: var(--vscode-descriptionForeground); margin-left: 8px; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; }
-.grow { flex: 1; }
-#hint { display: none; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 0.9em; }
-body.kb #hint { display: inline; }
-#stage { flex: 1 1 auto; min-height: 0; background: #000; display: flex; align-items: flex-start; justify-content: center; overflow: hidden; }
-#screen { image-rendering: pixelated; image-rendering: crisp-edges; background: #000; display: block; outline-offset: 2px; }
-#screen:focus-visible { outline-offset: -2px; }
-#sound { white-space: nowrap; }
-@media (max-width: 720px) { body.kb #hint { display: none; } }
+#frame:focus-within { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+#screen { image-rendering: pixelated; image-rendering: crisp-edges; display: block; border-radius: 4px; outline: none; background: #000; }
+#foot { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px 16px; flex: 0 0 auto; }
+#bar { padding-right: 8px; }
+#bar button:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+#hint { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 0.9em; visibility: hidden; }
+body.kb #hint { visibility: visible; }
+@media (max-width: 720px) { #hint { display: none; } }
 @media (max-width: 560px) { #sound .lbl { display: none; } }
