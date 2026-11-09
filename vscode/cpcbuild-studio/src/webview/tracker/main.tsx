@@ -17,6 +17,10 @@ import { useTooltip } from '../shared/components/Tooltip';
 import { createSfxPlayer, type SfxPlayer } from '../shared/audio/sfxPlayer';
 import { idIndex, idVar } from '../shared/theme';
 import { GRID_ID, Grid } from './Grid';
+import { InstrumentEditor } from './InstrumentEditor';
+import { SquaresBar } from './SquaresBar';
+import { nextCustomId } from './instLogic';
+import { clearOp, clipText, copyRect, inRect, isSingle, pasteFit, pasteOp, rectCells, rectLabel, selectionRect, transposeOp, clampRect, type Clip } from './squareOps';
 import { KeyBoard, useLayoutMap } from './KeyBoard';
 import { Help, MiniNumber, PatternTabs, QuietStatus, Sequencer, TempoField } from './Parts';
 import {
@@ -26,6 +30,9 @@ import {
 import './tracker.css';
 
 type Host = EditorHost<SongRequests, SongView>;
+
+/** The anchor of a block selection; the other corner is the cursor. It belongs to one pattern. */
+type Anchor = { row: number; channel: number; pattern: number };
 
 interface Persisted {
   octave?: number;
@@ -92,6 +99,12 @@ function TrackerApp({ client, view }: Host) {
   const [audioOn, setAudioOn] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [pos, setPos] = useState<PlayPos | null>(null);
+  const [anchorRaw, setAnchor] = useState<Anchor | null>(null);
+  const [clip, setClip] = useState<Clip | null>(null);
+  /** The instrument shown in the instrument editor, or null for the song. */
+  const [instView, setInstView] = useState<string | null>(null);
+  /** The built-in a New instrument copies. */
+  const [starter, setStarter] = useState('1');
   const version = useRef(view.version);
   version.current = view.version;
   const chain = useRef<Promise<unknown>>(Promise.resolve());
@@ -110,6 +123,10 @@ function TrackerApp({ client, view }: Host) {
   const instruments = [...BUILTINS, ...doc.instruments];
   const inst = instrumentOf(doc, instId) ?? BUILTINS[0];
   const keysShown = keysPref[narrow ? 'narrow' : 'wide'] ?? !narrow;
+  const anchor = anchorRaw && anchorRaw.pattern === pi ? { row: Math.min(anchorRaw.row, pattern.rows - 1), channel: anchorRaw.channel } : null;
+  const rect = clampRect(selectionRect(anchor, cur), pattern.rows);
+  const multi = anchor !== null && !isSingle(rect);
+  const isCustom = doc.instruments.some((i) => i.id === inst.id);
 
   useEffect(() => client.setState({ octave, step: stepBy, follow } satisfies Persisted), [octave, stepBy, follow]);
   useEffect(() => {
@@ -122,14 +139,16 @@ function TrackerApp({ client, view }: Host) {
   const announce = (text: string): void => setLive((l) => (l === text ? `${text} ` : text));
 
   /** Sends an edit; edits are chained so each one quotes the version the previous one produced. */
-  const edit = (op: SongOp): Promise<boolean> => {
+  const edit = (op: SongOp, quiet = false): Promise<boolean> => {
     const run = async (): Promise<boolean> => {
       try {
         const r = await client.request('edit', { baseVersion: version.current, op });
         version.current = r.version;
         return true;
       } catch (e) {
-        setMsg({ severity: 'error', text: (e as Error).message });
+        // "unchanged" from a square tool is not a failure: say so for screen readers and move on
+        if (quiet && (e as Error).message === 'unchanged') announce('Nothing changed');
+        else setMsg({ severity: 'error', text: (e as Error).message });
         return false;
       }
     };
@@ -201,6 +220,17 @@ function TrackerApp({ client, view }: Host) {
     setPos({ step: plan.solo ? -1 : r.step, pattern: r.pattern, row: r.row });
     setPlaying(true);
     audio.current?.player.playSong(frames).catch(fail('Cannot play'));
+  };
+  /** The instrument editor's test note: plays `note` with instrument `id` on channel A; `hold` lets it ring for about 20 s. */
+  const auditionInstrument = (id: string, note: number, hold: boolean): void => {
+    if (!ensureAudio()) return;
+    play.current = { kind: 'audition', frames: auditionFrames(doc, note, id, 0, hold ? 1000 : 75), solo: -1, tick: 0 };
+    audio.current?.player.playSong(play.current.frames).catch(fail('Cannot play'));
+  };
+  const stopAudition = (): void => {
+    if (play.current?.kind !== 'audition') return;
+    play.current = null;
+    audio.current?.player.stop();
   };
   const stop = (): void => {
     if (!play.current) return;
@@ -282,10 +312,66 @@ function TrackerApp({ client, view }: Host) {
   };
   const eventAt = (c: Cursor): SongEvent | undefined => pattern.channels[c.channel].find((e) => e.row === c.row);
 
+  // ----------------------------------------------------- square tools
+  const doCopy = (): void => {
+    const c = copyRect(pattern, rect);
+    setClip(c);
+    try {
+      void navigator.clipboard?.writeText(clipText(c)).catch(() => undefined);
+    } catch {
+      // the system clipboard is optional: the webview keeps its own copy
+    }
+    announce(`Copied ${rectLabel(rect)}`);
+  };
+  const doClear = (): void => {
+    void edit(clearOp(pi, rect), true).then((ok) => { if (ok) announce(`Cleared ${rectLabel(rect)}`); });
+  };
+  const doPaste = (): void => {
+    if (!clip) { announce('Nothing copied yet'); return; }
+    const fit = pasteFit(clip, cur, pattern.rows);
+    const op = pasteOp(clip, pi, cur, pattern.rows);
+    if (!op) { announce('Nothing fits here'); return; }
+    void edit(op, true).then((ok) => {
+      if (!ok) return;
+      announce(`Pasted ${fit.rows} row${fit.rows === 1 ? '' : 's'}${fit.clipped ? ', cut off at the end of the pattern' : ''}`);
+      // the pasted block stays selected, ready to transpose
+      if (fit.rows * fit.channels > 1) {
+        setAnchor({ row: cur.row, channel: cur.channel, pattern: pi });
+        setCursor({ row: cur.row + fit.rows - 1, channel: cur.channel + fit.channels - 1 });
+      }
+    });
+  };
+  const doTranspose = (n: number): void => {
+    void edit(transposeOp(pi, rect, n), true).then((ok) => {
+      if (ok) announce(`Transposed ${Math.abs(n) === 12 ? 'an octave' : `${Math.abs(n)} semitone${Math.abs(n) === 1 ? '' : 's'}`} ${n > 0 ? 'up' : 'down'}, ${rectLabel(rect)}`);
+    });
+  };
+  const pickCell = (c: Cursor, extend: boolean): void => {
+    if (extend) setAnchor((a) => (a && a.pattern === pi ? a : { row: cur.row, channel: cur.channel, pattern: pi }));
+    else setAnchor(null);
+    setCursor(c);
+  };
+
+  // ----------------------------------------------------------- instruments
+  const copyInstrument = (openAfter: boolean): void => {
+    const id = nextCustomId(doc.instruments);
+    void edit({ op: 'addInstrument', fromId: inst.id }).then((ok) => {
+      if (!ok || !id) return;
+      setInstId(id);
+      announce(`Made a copy: instrument ${id}`);
+      if (openAfter) { stop(); setInstView(id); }
+    });
+  };
+  const editInstrument = (): void => {
+    if (isCustom) { stop(); setInstView(inst.id); } else copyInstrument(true);
+  };
+  const backToSong = (): void => { stopAudition(); setInstView(null); focusGrid(); };
+
   /** A note key (or a click on the board): writes the note, auditions it, moves down by Step. */
   const enter = (code: string): void => {
     const n = noteForCode(code, octave);
     if (n === undefined) return;
+    setAnchor(null);
     const ev = enterNote(eventAt(cur), n, inst.id);
     void edit({ op: 'setCell', pattern: pi, channel: cur.channel, row: cur.row, event: ev });
     if (typeof n === 'number' && play.current?.kind !== 'song' && ensureAudio()) {
@@ -298,7 +384,23 @@ function TrackerApp({ client, view }: Host) {
 
   // ------------------------------------------------------------ keyboard
   const onGridKey = (e: KeyboardEvent): void => {
-    if (e.isComposing || e.keyCode === 229 || inField(e.target) || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+    if (e.isComposing || e.keyCode === 229 || inField(e.target) || e.defaultPrevented) return;
+    if (e.ctrlKey || e.metaKey) {
+      // square tools; everything else (Ctrl+Z, Ctrl+S ...) is VS Code's
+      if (e.altKey) return;
+      if (e.code === 'KeyC' || e.code === 'KeyX') {
+        e.preventDefault();
+        doCopy();
+        if (e.code === 'KeyX') doClear();
+      } else if (e.code === 'KeyV') {
+        e.preventDefault();
+        doPaste();
+      } else if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+        e.preventDefault();
+        doTranspose((e.code === 'ArrowUp' ? 1 : -1) * (e.shiftKey ? 12 : 1));
+      }
+      return;
+    }
     if (e.altKey) {
       if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
         e.preventDefault();
@@ -316,10 +418,13 @@ function TrackerApp({ client, view }: Host) {
     const mv = moveCursor(e.key, cur, pattern.rows, rpb);
     if (mv) {
       e.preventDefault();
+      if (e.shiftKey) setAnchor((a) => (a && a.pattern === pi ? a : { row: cur.row, channel: cur.channel, pattern: pi }));
+      else setAnchor(null);
       setCursor(mv);
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
       e.preventDefault();
-      if (eventAt(cur)) {
+      if (multi) doClear();
+      else if (eventAt(cur)) {
         void edit({ op: 'setCell', pattern: pi, channel: cur.channel, row: cur.row, event: null });
         announce(`Cleared, row ${cur.row + 1}, channel ${CHANNEL_LETTERS[cur.channel]}`);
       }
@@ -346,6 +451,7 @@ function TrackerApp({ client, view }: Host) {
       } else if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.defaultPrevented) {
         if (help) setHelp(false);
         else if (play.current?.kind === 'song') { stop(); announce('Stopped'); }
+        else if (anchor) { setAnchor(null); announce('Selection cleared'); }
       }
     };
     window.addEventListener('keydown', on);
@@ -392,8 +498,15 @@ function TrackerApp({ client, view }: Host) {
         { id: 'ch', value: `channel ${CHANNEL_LETTERS[cur.channel]}` },
       ];
   status.push({ id: 'tempo', value: `${tempoLabel(doc.speed, rpb)} BPM (${ticksLabel(doc.speed)})` }, { id: 'inc', value: view.include });
+  if (multi) status.splice(status.findIndex((f) => f.id === 'ch') + 1, 0, { id: 'sel', value: `selected ${rectLabel(rect)}` });
+  const editing = instView !== null ? (instrumentOf(doc, instView) ? instView : starter) : null;
+  const squaresInfo = multi ? `Selected: ${rectLabel(rect)} (${rectCells(rect)} squares)` : 'Shift+arrows or Shift+click select squares';
+  const squares = (
+    <SquaresBar narrow={narrow} hasClip={clip !== null} info={squaresInfo} onCopy={doCopy} onPaste={doPaste} onClear={doClear} onTranspose={doTranspose} onEscape={focusGrid} />
+  );
 
   const atEnd = doc.order.length >= 256;
+  const tempo = <TempoField speed={doc.speed} rowsPerBeat={rpb} onSpeed={(s) => void edit({ op: 'setSpeed', speed: s })} />;
   return (
     <div class="tk">
       <h1 class="cb-visually-hidden">Music tracker {view.fileName}</h1>
@@ -411,9 +524,39 @@ function TrackerApp({ client, view }: Host) {
       </div>
       {notices}
       {help && <Help onClose={() => { setHelp(false); focusGrid(); }} />}
+      {editing !== null ? (
+        <InstrumentEditor
+          doc={doc}
+          id={editing}
+          starter={starter}
+          octave={octave}
+          narrow={narrow}
+          layout={layout}
+          edit={edit}
+          onSelect={(id) => { setInstView(id); setInstId(id); }}
+          onStarter={setStarter}
+          onBack={backToSong}
+          audition={auditionInstrument}
+          stopAudition={stopAudition}
+          announce={announce}
+        />
+      ) : (
       <div class="tk-body">
         <div class="tk-shelf">
-          <Shelf label="Instruments" items={items} selected={inst.id} narrowChips={narrow} onSelect={(id) => { setInstId(id); announce(`Instrument ${instrumentOf(doc, id)?.name ?? id}`); }} onActivate={focusGrid} />
+          <Shelf
+            label="Instruments"
+            items={items}
+            selected={inst.id}
+            narrowChips={narrow}
+            onSelect={(id) => { setInstId(id); announce(`Instrument ${instrumentOf(doc, id)?.name ?? id}`); }}
+            onActivate={focusGrid}
+            actions={
+              <>
+                <Pill size="sm" icon="copy" text="Make a copy" label={`Make a copy of ${inst.name} to change it`} onClick={() => copyInstrument(false)} />
+                <Pill size="sm" icon="edit" text="Edit..." label={isCustom ? `Edit ${inst.name}` : `Edit ${inst.name}: makes a copy first, then edits it`} onClick={editInstrument} />
+              </>
+            }
+          />
           <p class="cb-muted tk-foot">Each is a ready-made AY sound. Drums use the noise generator, so give them a channel of their own.</p>
         </div>
         <div class="tk-main">
@@ -424,8 +567,10 @@ function TrackerApp({ client, view }: Host) {
             <Pill size="sm" icon="copy" text="Copy" label="Copy pattern" disabled={doc.patterns.length >= 16} why="a song has at most 16 patterns" onClick={copyPattern} />
             <Pill size="sm" icon="trash" text="Delete" label="Delete pattern" disabled={doc.patterns.length <= 1} why="a song needs one pattern" onClick={deletePattern} />
             <MiniNumber id="tk-rows" label="Rows" value={pattern.rows} min={1} max={128} width={56} onCommit={(n) => void edit({ op: 'setRows', pattern: pi, rows: n })} />
+            {narrow && squares}
           </div>
-          <Grid doc={doc} pattern={pi} cursor={cur} playRow={playRow} narrow={narrow} mute={mute} onCursor={setCursor} onToggleMute={toggleMute} onKeyDown={onGridKey} gridRef={gridRef} />
+          {!narrow && squares}
+          <Grid doc={doc} pattern={pi} cursor={cur} sel={multi ? rect : null} playRow={playRow} narrow={narrow} mute={mute} onPick={pickCell} onToggleMute={toggleMute} onKeyDown={onGridKey} gridRef={gridRef} />
           <div class="tk-podrow">
             <TransportPod
               label="Playback"
@@ -439,8 +584,9 @@ function TrackerApp({ client, view }: Host) {
                 <span class="cb-pod-unit">beat</span>
                 <span class="cb-pod-big">{playPos ? beatPos(playPos.row, rpb) : beatPos(cur.row, rpb)}</span>
               </span>
+              {narrow && tempo}
             </TransportPod>
-            <TempoField speed={doc.speed} rowsPerBeat={rpb} onSpeed={(s) => void edit({ op: 'setSpeed', speed: s })} />
+            {!narrow && tempo}
             <MiniNumber id="tk-rpb" label="Rows per beat" value={rpb} min={1} max={16} width={48} onCommit={(n) => void edit({ op: 'setRowsPerBeat', rowsPerBeat: n })} />
             <ToggleChip label="Follow playback" pressed={follow} onChange={setFollow} />
             <span class="tk-playing">{audioOn ? (playing ? 'Playing; Space or Esc stops' : 'Space plays, Esc stops') : 'Click or press a key for sound'}</span>
@@ -478,7 +624,8 @@ function TrackerApp({ client, view }: Host) {
           </section>
         </div>
       </div>
-      <QuietStatus fields={status} hint="Arrows move; Z S X D C V G B H N J M and Q W E R T Y U I enter notes; 1 is note off; Space plays; ? lists every key" />
+      )}
+      <QuietStatus fields={editing !== null ? [{ id: 'inst', value: `Instrument ${editing}: ${instrumentOf(doc, editing)?.name ?? ''}` }, { id: 'inc', value: view.include }] : status} hint="Arrows move; Z S X D C V G B H N J M and Q W E R T Y U I enter notes; 1 is note off; Space plays; ? lists every key" />
       <span class="cb-visually-hidden" role="status" aria-live="polite">{live}</span>
     </div>
   );

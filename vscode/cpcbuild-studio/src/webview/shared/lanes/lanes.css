@@ -1,0 +1,15 @@
+/* lanes.css -- the lane panel shared by the sound-effects editor and the instrument editor. Colours come from --vscode-* only. */
+/* the lanes: one rounded panel, the label gutter on the left and the scrolling plot beside it */
+.ln-panel { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; align-items: flex-start; min-width: 0; padding: var(--cb-space-2); border-radius: var(--cb-card-radius); background: var(--vscode-sideBar-background); border: 1px solid var(--vscode-panel-border); }
+.ln-axes { display: flex; flex-direction: column; gap: 6px; flex: none; }
+.ln-axes canvas { display: block; }
+.ln-scroll { display: flex; flex-direction: column; gap: 6px; overflow-x: auto; min-width: 0; flex: 1; padding-bottom: 2px; }
+.ln-scroll canvas { display: block; flex: none; }
+.ln-canvas { cursor: crosshair; touch-action: none; border-radius: var(--cb-radius); }
+.ln-canvas:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.ln-loop { cursor: ew-resize; }
+.ln-canvas.ln-disabled { cursor: default; opacity: 0.6; }
+
+@media (max-width: 720px) {
+  .ln-panel { flex: none; overflow-y: visible; }
+}

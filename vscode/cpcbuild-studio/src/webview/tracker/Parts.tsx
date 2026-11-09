@@ -216,14 +216,20 @@ const HELP: [string, string][] = [
   ['[ ]', 'Octave down / up'],
   ['Arrows', 'Move in the grid (left and right change channel; Tab leaves the grid)'],
   ['PgUp, PgDn, Home, End', 'A bar up / down, first row, last row'],
-  ['Delete, Backspace', 'Clear the square'],
+  ['Delete, Backspace', 'Clear the square (or the selected squares)'],
+  ['Shift+arrows, Shift+click', 'Select a block of squares: one channel, or several next to each other'],
+  ['Ctrl+C, Ctrl+X, Ctrl+V', 'Copy, cut and paste squares (Cmd on a Mac); a paste is cut off at the end of the pattern'],
+  ['Ctrl+Up, Ctrl+Down', 'Transpose the selection (or the square) a semitone; add Shift for an octave'],
   ['Alt+Up, Alt+Down', 'Louder / quieter note in the square (adds a volume)'],
   ['Alt+M', 'Mute or unmute the cursor\'s channel (plain M is the note B)'],
   ['Space, Shift+Space', 'Play from the selected step / from the first step; Space again stops'],
-  ['Esc', 'Stop (or close this help)'],
+  ['Esc', 'Stop (or close this help, or drop the selection)'],
   ['Ctrl+Alt+K', 'Show or hide the keycap board; typing notes works either way'],
   ['Sequencer chip: Alt+Left, Alt+Right', 'Move the step earlier / later'],
   ['Sequencer chip: L, Delete', 'Loop here / remove the step'],
+  ['Instrument editor: note keys', 'Hear the instrument at that note (T and N toggle tone and noise while a lane has the focus)'],
+  ['Instrument editor: Space, Shift+Space', 'Play C-4 / keep C-4 sounding while the keys are held'],
+  ['Instrument editor lanes: L, Shift+L', 'Set the loop start at the cursor tick / remove the loop'],
 ];
 
 export function Help({ onClose }: { onClose(): void }) {
