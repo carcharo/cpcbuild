@@ -3,6 +3,7 @@ import { render } from 'preact';
 import type { ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Card } from '../shared/components/Card';
+import { CpcPreview } from '../shared/components/CpcPreview';
 import { CodeCard } from '../shared/components/CodeCard';
 import { Keycap } from '../shared/components/Keycap';
 import { Pill } from '../shared/components/Pill';
@@ -14,6 +15,8 @@ import { ToggleChip } from '../shared/components/ToggleChip';
 import { Toolbar } from '../shared/components/Toolbar';
 import { TransportPod } from '../shared/components/TransportPod';
 import { ID_NAMES, idVar } from '../shared/theme';
+import { sampleImage } from './sample';
+import type { Mode } from '../../core/pixels';
 import './gallery.css';
 
 const noop = (): void => undefined;
@@ -41,7 +44,10 @@ const PARTS: Record<string, string[]> = {
   shelf: ['shelf', 'swatches'],
   colours: ['ids'],
   toolbar: ['toolbar'],
+  preview: ['preview', 'preview-popover'],
 };
+const SAMPLE = sampleImage();
+const BORDER = [0, 0, 128] as const; // firmware 1, blue
 
 // The host posts {type:'part', part}; it may arrive before the first render, so it is kept here and the component subscribes.
 let currentPart: string | undefined;
@@ -73,6 +79,8 @@ function Gallery() {
   const [playing, setPlaying] = useState(false);
   const [mode, setMode] = useState('draw');
   const [tbChip, setTbChip] = useState(true);
+  const [pmode, setPmode] = useState<Mode>(0);
+  const [pmode2, setPmode2] = useState<Mode>(1);
   return (
     <main class="gal">
       <h1>Studio components</h1>
@@ -220,6 +228,16 @@ function Gallery() {
               ] },
             ]}
           />
+        </Card>
+        </Sec>
+        <Sec id="preview" part={part}>
+        <Card title="CPC preview, with extras and inline compare">
+          <CpcPreview image={SAMPLE} assetMode={0} assetLabel="sprite's mode" mode={pmode} onMode={setPmode} onUseMode={(m) => console.log('use mode', m)} border={BORDER} extras compare="inline" label="Sprite CPC preview" />
+        </Card>
+        </Sec>
+        <Sec id="preview-popover" part={part}>
+        <Card title="CPC preview, compare in a popover">
+          <CpcPreview image={SAMPLE} assetMode={0} mode={pmode2} onMode={setPmode2} compare="popover" label="Importer CPC preview" />
         </Card>
         </Sec>
       </div>

@@ -213,6 +213,14 @@ export async function run(): Promise<void> {
     name: 'gallery-toolbar', layout: 'editor', sizes: E,
     pre: async () => { await exec('cpcbuild.dev.gallery', 'toolbar'); await sleep(1200); },
   });
+  await capture({
+    name: 'gallery-preview', layout: 'editor', sizes: [...E, [560, 900]],
+    pre: async () => { await exec('cpcbuild.dev.gallery', 'preview'); await sleep(1200); },
+  });
+  await capture({
+    name: 'gallery-preview-mode1', layout: 'editor', sizes: E,
+    pre: async () => { await exec('cpcbuild.dev.gallery', 'preview'); await sleep(1200); await ask({ type: 'click', selector: '[data-testid="cpc-mode-1"]' }); await sleep(500); },
+  });
 
   }
   // ---- build, run, break

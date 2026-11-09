@@ -11,7 +11,7 @@ export interface SegOption<T> {
   disabled?: boolean;
 }
 
-export function SegPill<T extends string | number>({ label, value, options, onChange, size }: { label: string; value: T; options: SegOption<T>[]; onChange(v: T): void; size?: 'md' | 'sm' }) {
+export function SegPill<T extends string | number>({ label, value, options, onChange, size, testId }: { label: string; value: T; options: SegOption<T>[]; onChange(v: T): void; size?: 'md' | 'sm'; testId?: string }) {
   const root = useRef<HTMLDivElement>(null);
   const tt = useTooltip();
   const [focused, setFocused] = useState<number | undefined>();
@@ -33,6 +33,7 @@ export function SegPill<T extends string | number>({ label, value, options, onCh
           key={String(o.value)}
           type="button"
           role="radio"
+          data-testid={testId ? `${testId}-${String(o.value)}` : undefined}
           aria-checked={o.value === value}
           aria-disabled={o.disabled ? 'true' : undefined}
           tabIndex={i === tabbable ? 0 : -1}
