@@ -1,32 +1,39 @@
-/* tmx.css -- layout of the .tmx viewer (S7). */
+/* tmx.css -- layout of the .tmx viewer (S7, restyled in R4). Colours come from tokens only. */
 .tmx { display: flex; flex-direction: column; height: 100vh; min-height: 0; }
-.tmx-form { padding: var(--cb-space-1) var(--cb-space-3); gap: var(--cb-space-3); border-bottom: 1px solid var(--vscode-panel-border); }
-.tmx-form label { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
+.tmx-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2) var(--cb-space-3); padding: var(--cb-space-2) var(--cb-space-3); border-bottom: 1px solid var(--vscode-panel-border); }
+.tmx-bar .cb-toolbar { padding: 0; border-bottom: 0; }
+.tmx-showas { display: inline-flex; align-items: center; gap: var(--cb-space-2); }
+.tmx-problems { cursor: pointer; font: inherit; font-family: var(--vscode-editor-font-family); color: var(--vscode-foreground); }
+.tmx-problems:hover { background: var(--vscode-toolbar-hoverBackground); }
 .tmx-num { width: 5em; }
-.tmx-room { gap: var(--cb-space-1); }
 .tmx-notices { display: flex; flex-direction: column; }
-.tmx-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--cb-panel-w); }
-.tmx-map { position: relative; min-width: 0; min-height: 240px; overflow: hidden; background: var(--vscode-editor-background); }
+.tmx-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) var(--cb-side-w-wide); gap: var(--cb-space-3); padding: var(--cb-space-3); }
+.tmx-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--cb-space-2); }
+.tmx-map { position: relative; flex: 1; min-width: 0; min-height: 240px; overflow: hidden; border-radius: var(--cb-card-radius); background: var(--vscode-sideBar-background); border: 1px solid var(--vscode-panel-border); }
 .tmx-map canvas { display: block; image-rendering: pixelated; touch-action: none; cursor: crosshair; }
 .tmx-map:focus-visible { outline-offset: -2px; }
-.tmx-side { border-left: 1px solid var(--vscode-panel-border); padding: var(--cb-space-2) var(--cb-space-3); overflow: auto; display: flex; flex-direction: column; gap: var(--cb-space-4); min-width: 0; }
-.tmx-h { font-size: 1em; font-weight: 600; margin-bottom: var(--cb-space-2); }
-.tmx-det > summary { cursor: pointer; list-style-position: inside; }
-.tmx-det > summary .tmx-h { display: inline; }
-.tmx-strip { display: block; max-width: 100%; image-rendering: pixelated; cursor: pointer; margin-bottom: var(--cb-space-2); border: 1px solid var(--vscode-panel-border); }
-.tmx-pick { display: flex; align-items: center; gap: var(--cb-space-2); }
-.tmx-dl { display: grid; grid-template-columns: auto 1fr; gap: var(--cb-space-1) var(--cb-space-3); margin: 0 0 var(--cb-space-2); }
+.tmx-readouts { display: flex; flex-wrap: wrap; gap: var(--cb-space-2); }
+.tmx-side { overflow: auto; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.tmx-strip { display: block; max-width: 100%; image-rendering: pixelated; cursor: pointer; border: 1px solid var(--vscode-panel-border); border-radius: 10px; }
+.tmx-pick { display: flex; align-items: center; gap: var(--cb-space-2); flex-wrap: wrap; }
+.tmx-dl { display: grid; grid-template-columns: auto 1fr; gap: var(--cb-space-1) var(--cb-space-3); margin: 0; align-items: center; }
 .tmx-dl dt { color: var(--vscode-descriptionForeground); }
-.tmx-dl dd { margin: 0; font-family: var(--vscode-editor-font-family); }
-.tmx-err { color: var(--vscode-errorForeground); margin-bottom: var(--cb-space-2); }
-.tmx-objs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 160px; overflow: auto; }
-.tmx-actions { padding: var(--cb-space-2) var(--cb-space-3); gap: var(--cb-space-2); border-top: 1px solid var(--vscode-panel-border); }
+.tmx-dl dd { margin: 0; }
+.tmx-cell { display: flex; flex-direction: column; gap: 8px; }
+.tmx-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.tmx-err { color: var(--vscode-errorForeground); margin: 0; }
+.tmx-set { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); }
+.tmx-set label { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
+.tmx-objs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow: auto; }
+.tmx-obj { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background); }
+.tmx-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); }
 .tmx-actions label { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
-.cb-btn[disabled] { opacity: 0.5; cursor: default; }
+.tmx-actions .cb-input { width: 12em; }
+body.vscode-high-contrast .tmx-map, body.vscode-high-contrast .tmx-obj, body.vscode-high-contrast .tmx-strip,
+body.vscode-high-contrast-light .tmx-map, body.vscode-high-contrast-light .tmx-obj, body.vscode-high-contrast-light .tmx-strip { border-color: var(--vscode-contrastBorder); }
 
 @media (max-width: 720px) {
   .tmx { height: auto; min-height: 100vh; }
-  .tmx-body { grid-template-columns: minmax(0, 1fr); }
-  .tmx-map { height: 55vh; min-height: 55vh; }
-  .tmx-side { border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
+  .tmx-body { grid-template-columns: minmax(0, 1fr); padding: var(--cb-space-2); }
+  .tmx-map { flex: none; height: 55vh; min-height: 55vh; }
 }

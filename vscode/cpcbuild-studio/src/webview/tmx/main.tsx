@@ -6,14 +6,21 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { TmxLayer } from '../../core/tmx';
-import { Atlas, cellErrors, cellInfo, doTile8Call, effectiveFirstgid, hex2, layerWarnings, renderLayer } from '../../core/tmxView';
+import { shapeLabel } from '../../core/cpcPreview';
+import { Atlas, atlasesUsed, cellAspect, cellErrors, cellInfo, doTile8Call, effectiveFirstgid, hex2, layerWarnings, nextProblem, type ReducedSummary, renderLayer, roomLabel, summaryNote, summaryPens, worstSummary } from '../../core/tmxView';
 import type { TileSource, TmxRequests, TmxViewerView, ViewNotice, WireAtlas } from '../../shared/tmxProtocol';
 import { startEditor, type EditorHost } from '../shared/bootstrap';
 import { createClient } from '../shared/client';
+import { Card } from '../shared/components/Card';
 import { Icon } from '../shared/components/Icon';
 import { Notice } from '../shared/components/Notice';
+import { Pill } from '../shared/components/Pill';
+import { type SegOption, SegPill } from '../shared/components/SegPill';
+import { StatPill } from '../shared/components/StatPill';
 import { StatusLine } from '../shared/components/StatusLine';
 import { Toolbar, type ToolbarGroup } from '../shared/components/Toolbar';
+import { useTooltip } from '../shared/components/Tooltip';
+import { tipText } from '../shared/tooltip';
 import { themeVar, useThemeVersion, withAlpha } from '../shared/theme';
 import './tmx.css';
 
@@ -73,18 +80,15 @@ function TmxApp({ client, view }: Host) {
   const [roomH, setRoomH] = useState(saved.roomH ?? 25);
   const [atlases, setAtlases] = useState<Atlas[]>([]);
   const [atlasNotices, setAtlasNotices] = useState<ViewNotice[]>([]);
+  const [reduced, setReduced] = useState<ReducedSummary[]>([]);
   const [sel, setSel] = useState<{ x: number; y: number } | null>(null);
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
   const [pickedTile, setPickedTile] = useState<number | null>(null);
   const [msg, setMsg] = useState<ViewNotice | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [narrow, setNarrow] = useState(window.innerWidth <= 720);
-  useEffect(() => {
-    const on = (): void => setNarrow(window.innerWidth <= 720);
-    window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
-  }, []);
+  // narrow windows start with every card but Cell collapsed (read once: a resize does not fold cards under the user's hands)
+  const [startNarrow] = useState(window.innerWidth <= 720);
   const [convName, setConvName] = useState('');
 
   const layer: TmxLayer | undefined = view.layers[Math.min(layerIdx, view.layers.length - 1)];
@@ -112,6 +116,7 @@ function TmxApp({ client, view }: Host) {
         if (!live) return;
         setAtlases(r.atlases.map(decodeAtlas));
         setAtlasNotices(r.notices);
+        setReduced(r.reduced ?? []);
       })
       .catch((e: Error) => live && setMsg({ severity: 'error', text: e.message }));
     return () => {
@@ -124,6 +129,14 @@ function TmxApp({ client, view }: Host) {
   const warnings = useMemo(() => (layer ? layerWarnings(map, layer) : []), [map, layer]);
   const info = sel && layer ? cellInfo(map, layer, sel.x, sel.y, vopts) : undefined;
   const hoverInfo = hover && layer ? cellInfo(map, layer, hover.x, hover.y, vopts) : undefined;
+  const aw = cellAspect(source, mode);
+
+  // CPC readouts: over the tileset images the layer draws from
+  const summary = useMemo(() => {
+    if (source !== 'cpc' || !layer?.gids) return undefined;
+    const used = new Set(atlasesUsed(layer.gids, atlases).map((a) => a.firstgid));
+    return worstSummary(reduced.filter((r) => used.has(r.firstgid)));
+  }, [source, layer, atlases, reduced]);
 
   const copy = async (text: string, what: string): Promise<void> => {
     await client.request('copy', { text });
@@ -152,13 +165,43 @@ function TmxApp({ client, view }: Host) {
   };
 
   const nextError = (): void => {
-    if (!errors.length || !layer) return;
-    const cur = sel ? sel.y * layer.width + sel.x : -1;
-    const n = errors.find((e) => e.y * layer.width + e.x > cur) ?? errors[0];
-    setSel({ x: n.x, y: n.y });
+    const n = layer ? nextProblem(errors, layer.width, sel) : undefined;
+    if (n) setSel({ x: n.x, y: n.y });
   };
+  // F8 works wherever the focus is (not only on the map); the latest closure is read through a ref
+  const nextRef = useRef(nextError);
+  nextRef.current = nextError;
+  useEffect(() => {
+    const on = (e: KeyboardEvent): void => {
+      if (e.key !== 'F8' || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+      e.preventDefault();
+      nextRef.current();
+    };
+    window.addEventListener('keydown', on);
+    return () => window.removeEventListener('keydown', on);
+  }, []);
 
-  const groups: ToolbarGroup[] = [
+  const layerGroups: ToolbarGroup[] = [
+    {
+      label: 'Layer',
+      items: [
+        {
+          id: 'layer', kind: 'menu', label: 'Layer', icon: 'layers', text: layer ? layer.name || `layer ${layerIdx + 1}` : 'Layer',
+          items: view.layers.map((l, i) => ({ id: `layer-${i}`, label: `${l.name || `layer ${i + 1}`}${l.gids ? '' : ' (cannot be read)'}`, checked: i === layerIdx, onActivate: () => { setLayerIdx(i); setSel(null); } })),
+        },
+      ],
+    },
+  ];
+  const toolGroups: ToolbarGroup[] = [
+    {
+      label: 'Overlays',
+      items: [
+        { id: 'grid', kind: 'chip', label: 'Grid', text: 'Grid', shortcut: 'G', pressed: grid, onActivate: () => setGrid(!grid) },
+        { id: 'num', kind: 'chip', label: 'Tile numbers', text: 'Numbers', shortcut: 'N', pressed: numbers, onActivate: () => setNumbers(!numbers) },
+        { id: 'obj', kind: 'chip', label: 'Object markers', text: 'Objects', pressed: objectsOn, onActivate: () => setObjectsOn(!objectsOn) },
+        { id: 'room', kind: 'chip', label: 'Room size overlay', text: 'Room', pressed: roomOn, onActivate: () => setRoomOn(!roomOn) },
+      ],
+    },
     {
       label: 'Zoom',
       items: [
@@ -167,31 +210,20 @@ function TmxApp({ client, view }: Host) {
         { id: 'fit', kind: 'button', label: 'Fit the map in the window', icon: 'screen-full', text: 'Fit', shortcut: '0', pressed: fit, onActivate: () => setFit(true) },
       ],
     },
-    {
-      label: 'Overlays',
-      items: [
-        { id: 'grid', kind: 'button', label: 'Grid', icon: 'symbol-array', shortcut: 'G', pressed: grid, onActivate: () => setGrid(!grid) },
-        { id: 'num', kind: 'button', label: 'Tile numbers', icon: 'list-ordered', shortcut: 'N', pressed: numbers, onActivate: () => setNumbers(!numbers) },
-        { id: 'obj', kind: 'button', label: 'Object markers', icon: 'location', pressed: objectsOn, onActivate: () => setObjectsOn(!objectsOn) },
-        { id: 'room', kind: 'button', label: 'Room size overlay', icon: 'layout', text: 'Room', pressed: roomOn, onActivate: () => setRoomOn(!roomOn) },
-      ],
-    },
-    {
-      label: 'Tile colours',
-      items: [
-        {
-          id: 'src', kind: 'menu', label: 'Tile colours', icon: 'paintcan', text: source === 'image' ? 'Tiled image' : source === 'cpc' ? `CPC mode ${mode}` : '.cpctil',
-          items: [
-            { id: 'src-image', label: 'Tiled image', checked: source === 'image', onActivate: () => setSource('image') },
-            { id: 'src-cpc0', label: 'CPC preview, mode 0', checked: source === 'cpc' && mode === 0, onActivate: () => { setMode(0); setSource('cpc'); } },
-            { id: 'src-cpc1', label: 'CPC preview, mode 1', checked: source === 'cpc' && mode === 1, onActivate: () => { setMode(1); setSource('cpc'); } },
-            { id: 'src-cpc2', label: 'CPC preview, mode 2', checked: source === 'cpc' && mode === 2, onActivate: () => { setMode(2); setSource('cpc'); } },
-            { id: 'src-til', label: view.cpctil ? `Tile set ${view.cpctil.file}` : 'Tile set (.cpctil): none found', checked: source === 'cpctil', disabled: !view.cpctil, onActivate: () => setSource('cpctil') },
-          ],
-        },
-      ],
-    },
   ];
+  const showAs = source === 'image' ? 'image' : source === 'cpctil' ? 'til' : `m${mode}`;
+  const showAsOptions: SegOption<string>[] = [
+    { value: 'image', label: 'Tiled image', title: 'The Tiled tileset image as it is' },
+    { value: 'm0', label: 'CPC mode 0', title: 'The tileset images as the CPC shows them in mode 0 (16 pens, pixels 2 : 1)' },
+    { value: 'm1', label: 'Mode 1', title: 'The tileset images as the CPC shows them in mode 1 (4 pens, pixels 1 : 1)' },
+    { value: 'm2', label: 'Mode 2', title: 'The tileset images as the CPC shows them in mode 2 (2 pens, pixels 1 : 2)' },
+    { value: 'til', label: '.cpctil', disabled: !view.cpctil, title: view.cpctil ? `Tile set ${view.cpctil.file}` : 'Not available: no .cpctil was found next to the map or its tileset image' },
+  ];
+  const pickShowAs = (v: string): void => {
+    if (v === 'image') setSource('image');
+    else if (v === 'til') setSource('cpctil');
+    else { setMode(parseInt(v.slice(1), 10) as Mode); setSource('cpc'); }
+  };
 
   const notices: preact.ComponentChildren[] = [];
   for (const n of [...view.notices, ...atlasNotices]) {
@@ -208,91 +240,112 @@ function TmxApp({ client, view }: Host) {
     if (!layer?.gids) return;
     setPickedTile(pickedTile === n ? null : n);
   };
+  const roomInput = (set: (n: number) => void) => (e: Event): void => {
+    const n = optInt((e.target as HTMLInputElement).value);
+    if (n && n < 1000) set(n);
+  };
+  const objects = view.objectGroups.flatMap((g) => g.objects.map((o) => ({ g, o })));
 
   return (
     <div class="tmx">
       <h1 class="cb-visually-hidden">Tiled map {view.fileName}</h1>
-      <Toolbar label="Map viewer" groups={groups} />
-      <div class="tmx-form cb-row">
-        <label>
-          Layer{' '}
-          <select class="cb-select" value={String(layerIdx)} onChange={(e) => { setLayerIdx(parseInt((e.target as HTMLSelectElement).value, 10)); setSel(null); }}>
-            {view.layers.map((l, i) => <option key={i} value={String(i)}>{l.name || `layer ${i + 1}`}{l.gids ? '' : ' (cannot be read)'}</option>)}
-          </select>
-        </label>
-        <label title="--firstgid: the gid of tile number 0. Empty = the first tileset's.">
-          firstgid <input class="cb-input tmx-num" inputMode="numeric" placeholder={String(effectiveFirstgid(map))} value={firstgidText} onInput={(e) => setFirstgidText((e.target as HTMLInputElement).value)} aria-label="firstgid override" />
-        </label>
-        <label title="--empty: the tile number written for empty cells (0-255). Empty = 0.">
-          empty <input class="cb-input tmx-num" inputMode="numeric" placeholder="0" value={emptyText} onInput={(e) => setEmptyText((e.target as HTMLInputElement).value)} aria-label="empty cell tile number" />
-        </label>
-        {roomOn && (
-          <span class="cb-row tmx-room" role="group" aria-label="Room size in cells">
-            <label>Room <input class="cb-input tmx-num" inputMode="numeric" value={String(roomW)} aria-label="Room width in cells" onInput={(e) => { const n = optInt((e.target as HTMLInputElement).value); if (n && n < 1000) setRoomW(n); }} /></label>
-            <span aria-hidden="true">x</span>
-            <input class="cb-input tmx-num" inputMode="numeric" value={String(roomH)} aria-label="Room height in cells" onInput={(e) => { const n = optInt((e.target as HTMLInputElement).value); if (n && n < 1000) setRoomH(n); }} />
-            {ROOM_PRESETS.map(([w, h]) => <button key={`${w}x${h}`} type="button" class="cb-btn cb-btn-secondary" onClick={() => { setRoomW(w); setRoomH(h); }}>{w}x{h}</button>)}
-          </span>
-        )}
+      <div class="tmx-bar">
+        <Toolbar label="Layer" groups={layerGroups} look="pills" />
+        <span class="tmx-showas">
+          <span class="cb-label" aria-hidden="true">Show as</span>
+          <SegPill label="Show as" value={showAs} options={showAsOptions} onChange={pickShowAs} testId="tmx-showas" />
+        </span>
+        <Toolbar label="Map viewer" groups={toolGroups} look="pills" />
+        <ZoomValue zoom={zoom} />
+        <ProblemsPill count={errors.length} onNext={nextError} />
       </div>
       {notices.length > 0 && <div class="tmx-notices">{notices}</div>}
       <div class="tmx-body">
-        {layer?.gids ? (
-          <MapCanvas
-            view={view} layer={layer} map={map} vopts={vopts} atlases={atlases} zoom={zoom} fit={fit} grid={grid} numbers={numbers} objectsOn={objectsOn}
-            room={roomOn ? { w: roomW, h: roomH } : null} sel={sel} pickedTile={pickedTile} first={first} errorAt={errorAt}
-            onZoom={(z) => { setFit(false); setZoom(z); }} onFitZoom={(z) => fit && setZoom(z)} onSelect={setSel} onHover={setHover}
-            onToggle={(k) => (k === 'grid' ? setGrid(!grid) : k === 'numbers' ? setNumbers(!numbers) : setFit(true))} onNextError={nextError}
-          />
-        ) : (
-          <div class="tmx-map"><p class="cb-muted">This layer cannot be drawn.</p></div>
-        )}
-        <aside class="tmx-side" aria-label="Tileset and cell">
-          <details class="tmx-det" open={!narrow}>
-            <summary><h2 id="tmx-ts-h" class="tmx-h">Tileset</h2></summary>
+        <div class="tmx-main">
+          {layer?.gids ? (
+            <MapCanvas
+              view={view} layer={layer} map={map} vopts={vopts} atlases={atlases} zoom={zoom} fit={fit} grid={grid} numbers={numbers} objectsOn={objectsOn} aw={aw}
+              room={roomOn ? { w: roomW, h: roomH } : null} sel={sel} pickedTile={pickedTile} first={first} errorAt={errorAt}
+              onZoom={(z) => { setFit(false); setZoom(z); }} onFitZoom={(z) => fit && setZoom(z)} onSelect={setSel} onHover={setHover}
+              onToggle={(k) => (k === 'grid' ? setGrid(!grid) : k === 'numbers' ? setNumbers(!numbers) : setFit(true))}
+            />
+          ) : (
+            <div class="tmx-map"><p class="cb-muted">This layer cannot be drawn.</p></div>
+          )}
+          {source === 'cpc' && summary && (
+            <div class="tmx-readouts" role="group" aria-label={`CPC mode ${mode} readouts`}>
+              <StatPill>pixels {shapeLabel(mode)}</StatPill>
+              <StatPill>{summaryPens(summary)}</StatPill>
+              {summary.fits ? <StatPill state="ok">fits mode {mode}</StatPill> : <StatPill state="warn">{summaryNote(summary)}</StatPill>}
+            </div>
+          )}
+          <div class="tmx-actions">
+            <label>Array name <input class="cb-input" value={convName} placeholder={names} onInput={(e) => setConvName((e.target as HTMLInputElement).value)} aria-label="Array name for the generated include" /></label>
+            <Pill label="Generate .bas" variant="primary" disabled={busy || !layer?.gids} why={busy ? 'working' : 'this layer cannot be read'} onClick={() => void generate()} />
+            <Pill label="Insert TileMap call" onClick={() => void insertTileMap()} />
+            <Pill label="Open in Tiled" disabled={!view.tiled} why="Tiled was not found: install it or set cpcbuild.tiled.path" onClick={() => void openTiled()} />
+            <Pill label="Open as text" onClick={() => void client.request('openAsText', {})} />
+          </div>
+        </div>
+        <aside class="tmx-side" aria-label="Tileset, cell, objects and map settings">
+          <Card title="Tileset" collapsible open={!startNarrow}>
             {atlases.length === 0 && <p class="cb-muted">No tileset image: cells are shown as numbers.</p>}
-            {atlases.map((a) => <AtlasStrip key={a.firstgid} atlas={a} first={first} picked={pickedTile} onPick={pickTileNumber} />)}
+            {atlases.map((a) => <AtlasStrip key={a.firstgid} atlas={a} first={first} picked={pickedTile} onPick={pickTileNumber} name={view.tilesets.find((t) => t.firstgid === a.firstgid)?.name} />)}
             <label class="tmx-pick">
               Highlight tile number{' '}
               <input class="cb-input tmx-num" inputMode="numeric" value={pickedTile === null ? '' : String(pickedTile)} aria-label="Highlight every cell using tile number" onInput={(e) => setPickedTile(optInt((e.target as HTMLInputElement).value) ?? null)} />
             </label>
-          </details>
-          <details class="tmx-det tmx-cell" open>
-            <summary><h2 id="tmx-cell-h" class="tmx-h">{info ? `Cell (${info.x}, ${info.y})` : 'Cell'}</h2></summary>
+          </Card>
+          <Card title={info ? `Cell (${info.x}, ${info.y})` : 'Cell'} collapsible open>
             {!info && <p class="cb-muted">Click a cell, or move with the arrow keys.</p>}
             {info && (
-              <div aria-live="polite">
+              <div aria-live="polite" class="tmx-cell">
                 <dl class="tmx-dl">
-                  <dt>gid</dt><dd>{info.gid}{info.flags.length ? ` (flags: ${info.flags.join(', ')})` : ''}</dd>
-                  {info.empty && <><dt>empty</dt><dd>yes, written as {info.tile}</dd></>}
-                  {info.tile !== undefined && !info.empty && <><dt>tile number</dt><dd>{info.tile} <span class="cb-muted">{hex2(info.tile)}</span></dd></>}
-                  {info.tileset !== undefined && view.tilesets[info.tileset] && <><dt>tileset</dt><dd>{view.tilesets[info.tileset].name}</dd></>}
+                  {info.empty && <><dt>empty</dt><dd><StatPill>yes, written as {info.tile}</StatPill></dd></>}
+                  {info.tile !== undefined && !info.empty && <><dt>tile</dt><dd><StatPill>{info.tile} {hex2(info.tile)}</StatPill></dd></>}
+                  <dt>gid</dt><dd><StatPill>{info.gid}</StatPill></dd>
+                  <dt>flip</dt><dd><StatPill>{info.flags.length ? info.flags.join(', ') : 'none'}</StatPill></dd>
+                  {info.tileset !== undefined && view.tilesets[info.tileset] && <><dt>tileset</dt><dd><StatPill>{view.tilesets[info.tileset].name}</StatPill></dd></>}
                 </dl>
                 {info.error && <p class="tmx-err" role="alert"><Icon name="error" /> {info.error}</p>}
-                <div class="cb-row">
-                  <button type="button" class="cb-btn cb-btn-secondary" disabled={info.tile === undefined} onClick={() => info.tile !== undefined && void copy(String(info.tile), 'tile number')}>Copy tile number</button>
-                  <button type="button" class="cb-btn cb-btn-secondary" disabled={info.tile === undefined} onClick={() => info.tile !== undefined && void copy(doTile8Call(info.x, info.y, info.tile), 'call')}>Copy DoTile8 call</button>
+                <div class="tmx-pills">
+                  <Pill label="Copy tile number" icon="copy" size="sm" disabled={info.tile === undefined} why="this cell has a problem" onClick={() => info.tile !== undefined && void copy(String(info.tile), 'tile number')} />
+                  <Pill label="Copy DoTile8 call" icon="copy" size="sm" disabled={info.tile === undefined} why="this cell has a problem" onClick={() => info.tile !== undefined && void copy(doTile8Call(info.x, info.y, info.tile), 'call')} />
                 </div>
               </div>
             )}
-          </details>
-          {view.objectGroups.some((g) => g.objects.length) && (
-            <section aria-labelledby="tmx-obj-h">
-              <h2 id="tmx-obj-h" class="tmx-h">Objects</h2>
+          </Card>
+          {objects.length > 0 && (
+            <Card title="Objects" collapsible open={!startNarrow}>
               <ul class="tmx-objs">
-                {view.objectGroups.flatMap((g) => g.objects.map((o) => <li key={`${g.name}${o.id}`}><span class="cb-mono">{o.name || `#${o.id}`}</span> <span class="cb-muted">{o.type || o.shape} at {Math.round(o.x)},{Math.round(o.y)}</span></li>))}
+                {objects.map(({ g, o }) => (
+                  <li key={`${g.name}${o.id}`} class="tmx-obj">
+                    <span class="cb-mono tmx-obj-name">{o.name || `#${o.id}`}</span>
+                    <span class="cb-muted">{o.type || o.shape} at {Math.round(o.x)},{Math.round(o.y)}</span>
+                  </li>
+                ))}
               </ul>
-            </section>
+            </Card>
           )}
+          <Card title="Map settings" collapsible open={!startNarrow}>
+            <div class="tmx-set">
+              <label title="--firstgid: the gid of tile number 0. Empty = the first tileset's.">
+                firstgid <input class="cb-input tmx-num" inputMode="numeric" placeholder={String(effectiveFirstgid(map))} value={firstgidText} onInput={(e) => setFirstgidText((e.target as HTMLInputElement).value)} aria-label="firstgid override" />
+              </label>
+              <label title="--empty: the tile number written for empty cells (0-255). Empty = 0.">
+                Empty tile <input class="cb-input tmx-num" inputMode="numeric" placeholder="0" value={emptyText} onInput={(e) => setEmptyText((e.target as HTMLInputElement).value)} aria-label="empty cell tile number" />
+              </label>
+            </div>
+            <div class="tmx-set" role="group" aria-label="Room size in cells">
+              <label>Room <input class="cb-input tmx-num" inputMode="numeric" value={String(roomW)} aria-label="Room width in cells" onInput={roomInput(setRoomW)} /></label>
+              <span aria-hidden="true">×</span>
+              <input class="cb-input tmx-num" inputMode="numeric" value={String(roomH)} aria-label="Room height in cells" onInput={roomInput(setRoomH)} />
+            </div>
+            <div class="tmx-pills" role="group" aria-label="Room size presets">
+              {ROOM_PRESETS.map(([w, h]) => <Pill key={`${w}x${h}`} label={`${w} × ${h}`} size="sm" mono onClick={() => { setRoomW(w); setRoomH(h); }} />)}
+            </div>
+          </Card>
         </aside>
-      </div>
-      <div class="tmx-actions cb-row">
-        <label>Array name <input class="cb-input" value={convName} placeholder={names} onInput={(e) => setConvName((e.target as HTMLInputElement).value)} aria-label="Array name for the generated include" /></label>
-        <button type="button" class="cb-btn" disabled={busy || !layer?.gids} onClick={() => void generate()}>Generate .bas</button>
-        <button type="button" class="cb-btn cb-btn-secondary" onClick={() => void insertTileMap()}>Insert TileMap call</button>
-        <button type="button" class="cb-btn cb-btn-secondary" disabled={!view.tiled} title={view.tiled ? `Open in ${view.tiled}` : 'Tiled was not found: install it or set cpcbuild.tiled.path'} onClick={() => void openTiled()}>Open in Tiled</button>
-        <button type="button" class="cb-btn cb-btn-secondary" onClick={() => void client.request('openAsText', {})}>Open as text</button>
-        {errors.length > 0 && <button type="button" class="cb-btn cb-btn-secondary" onClick={nextError}>Next error ({errors.length})</button>}
       </div>
       <StatusLine
         fields={[
@@ -300,17 +353,37 @@ function TmxApp({ client, view }: Host) {
           !!layer && { id: 'layer', label: 'layer', value: layer.name },
           { id: 'zoom', label: 'zoom', value: `${Math.round(zoom * 100) / 100}x` },
           !!hover && !!hoverInfo && { id: 'hover', value: `(${hover.x}, ${hover.y}) gid ${hoverInfo.gid}${hoverInfo.tile !== undefined && !hoverInfo.empty ? ` -> tile ${hoverInfo.tile}` : ''}${roomOn ? ` room ${Math.floor(hover.x / roomW)},${Math.floor(hover.y / roomH)}` : ''}` },
-          errors.length > 0 && { id: 'errs', value: `${errors.length} error cell${errors.length === 1 ? '' : 's'}` },
+          errors.length > 0 && { id: 'errs', value: `${errors.length} problem${errors.length === 1 ? '' : 's'}` },
         ]}
-        hint="Arrows move, Enter selects, Esc clears, F8 next error, Ctrl+wheel zooms"
+        hint="Arrows move, Enter selects, Esc clears, F8 next problem, Ctrl+wheel zooms"
       />
     </div>
   );
 }
 
+function ZoomValue({ zoom }: { zoom: number }) {
+  return <StatPill title="Zoom">{`${Math.round(zoom * 100) / 100}x`}</StatPill>;
+}
+
+/** "N problems · F8": a warn-styled button that runs Next problem; hidden when there are none. */
+function ProblemsPill({ count, onNext }: { count: number; onNext(): void }) {
+  const tt = useTooltip();
+  if (count === 0) return null;
+  const tp = tt.props('problems', tipText({ label: 'Next problem', shortcut: 'F8' }));
+  return (
+    <>
+      <button type="button" class="cb-stat cb-stat-warn tmx-problems" {...tp} onClick={() => { tp.onClick(); onNext(); }}>
+        <Icon name="warning" />
+        <span>{count} {count === 1 ? 'problem' : 'problems'} · F8</span>
+      </button>
+      {tt.node}
+    </>
+  );
+}
+
 // ------------------------------------------------------------------ the tileset strip
 
-function AtlasStrip({ atlas, first, picked, onPick }: { atlas: Atlas; first: number; picked: number | null; onPick(n: number): void }) {
+function AtlasStrip({ atlas, first, picked, onPick, name }: { atlas: Atlas; first: number; picked: number | null; onPick(n: number): void; name?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const theme = useThemeVersion();
   const scale = Math.max(1, Math.min(4, Math.floor(200 / atlas.width)));
@@ -340,7 +413,7 @@ function AtlasStrip({ atlas, first, picked, onPick }: { atlas: Atlas; first: num
       ref={ref}
       class="tmx-strip"
       role="img"
-      aria-label={`Tileset, ${atlas.count} tiles. Click a tile to highlight every cell that uses it.`}
+      aria-label={`Tileset${name ? ` ${name}` : ''}, ${atlas.count} tiles. Click a tile to highlight every cell that uses it.`}
       onClick={(e) => {
         const r = (e.currentTarget as HTMLCanvasElement).getBoundingClientRect();
         const x = Math.floor(((e.clientX - r.left) / r.width) * atlas.columns);
@@ -365,6 +438,8 @@ interface MapProps {
   grid: boolean;
   numbers: boolean;
   objectsOn: boolean;
+  /** Cell width as a multiple of the height scale: the pixel shape in a CPC mode, else 1. */
+  aw: number;
   room: { w: number; h: number } | null;
   sel: { x: number; y: number } | null;
   pickedTile: number | null;
@@ -375,7 +450,6 @@ interface MapProps {
   onSelect(c: { x: number; y: number } | null): void;
   onHover(c: { x: number; y: number } | null): void;
   onToggle(k: 'grid' | 'numbers' | 'fit'): void;
-  onNextError(): void;
 }
 
 function MapCanvas(p: MapProps) {
@@ -389,6 +463,7 @@ function MapCanvas(p: MapProps) {
   const tw = view.map.tilewidth || 8;
   const th = view.map.tileheight || 8;
   const mapW = layer.width * tw;
+  const aw = p.aw;
   const mapH = layer.height * th;
   const haveImages = p.atlases.length > 0;
 
@@ -411,15 +486,15 @@ function MapCanvas(p: MapProps) {
   // fit: integer zoom when 1 or more, else a fraction
   const fitZoom = useMemo(() => {
     // narrow window: fit by width and let a tall map scroll, rather than shrinking it to the band height
-    const z = window.innerWidth <= 720 ? size.w / mapW : Math.min(size.w / mapW, size.h / mapH);
+    const z = window.innerWidth <= 720 ? size.w / (mapW * aw) : Math.min(size.w / (mapW * aw), size.h / mapH);
     return z >= 1 ? Math.min(32, Math.floor(z)) : Math.max(0.05, Math.floor(z * 100) / 100);
-  }, [size, mapW, mapH]);
+  }, [size, mapW, mapH, aw]);
   const zoom = p.fit ? fitZoom : p.zoom;
   useEffect(() => {
     if (p.fit) p.onFitZoom(fitZoom);
   }, [fitZoom, p.fit]);
-  const cell = { w: tw * zoom, h: th * zoom };
-  const content = { w: mapW * zoom, h: mapH * zoom };
+  const cell = { w: tw * zoom * aw, h: th * zoom };
+  const content = { w: mapW * zoom * aw, h: mapH * zoom };
 
   // keep the map inside the viewport (centred when smaller)
   const clampPan = (x: number, y: number): { x: number; y: number } => ({
@@ -514,16 +589,43 @@ function MapCanvas(p: MapProps) {
       for (let y = y0; y <= y1 + 1; y++) { const py = Math.round(oy + y * cell.h) + 0.5; ctx.moveTo(Math.max(0, ox), py); ctx.lineTo(Math.min(size.w, ox + content.w), py); }
       ctx.stroke();
     }
-    // room overlay
+    // room overlay: a dashed rounded frame per visible room, with a label pill
     if (p.room) {
+      const rw = p.room.w;
+      const rh = p.room.h;
+      const cols = Math.ceil(layer.width / rw);
+      const bg = themeVar('--vscode-editorWidget-background', '#252526');
       ctx.strokeStyle = roomC;
       ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath();
-      for (let x = 0; x <= layer.width; x += p.room.w) { const px = Math.round(ox + x * cell.w); ctx.moveTo(px, Math.max(0, oy)); ctx.lineTo(px, Math.min(size.h, oy + content.h)); }
-      for (let y = 0; y <= layer.height; y += p.room.h) { const py = Math.round(oy + y * cell.h); ctx.moveTo(Math.max(0, ox), py); ctx.lineTo(Math.min(size.w, ox + content.w), py); }
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.font = `600 11px ${themeVar('--vscode-font-family', 'sans-serif')}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      for (let ry = Math.floor(y0 / rh); ry <= Math.floor(y1 / rh); ry++) {
+        for (let rx = Math.floor(x0 / rw); rx <= Math.floor(x1 / rw); rx++) {
+          const left = ox + rx * rw * cell.w;
+          const top = oy + ry * rh * cell.h;
+          const w = Math.min(rw, layer.width - rx * rw) * cell.w;
+          const h = Math.min(rh, layer.height - ry * rh) * cell.h;
+          ctx.setLineDash([6, 4]);
+          ctx.beginPath();
+          ctx.roundRect(left + 1, top + 1, Math.max(2, w - 2), Math.max(2, h - 2), Math.min(10, w / 4, h / 4));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          const text = roomLabel(rx, ry, cols, Math.min(rw, layer.width - rx * rw), Math.min(rh, layer.height - ry * rh));
+          const tw2 = ctx.measureText(text).width + 16;
+          if (w < tw2 + 12 || h < 40) continue;
+          const lx = Math.max(left, 0) + 8;
+          const ly = Math.max(top, 0) + 8;
+          if (lx + tw2 > left + w || ly + 20 > top + h) continue;
+          ctx.fillStyle = bg;
+          ctx.beginPath();
+          ctx.roundRect(lx, ly, tw2, 20, 10);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = fg;
+          ctx.fillText(text, lx + 8, ly + 10.5);
+        }
+      }
     }
     // error cells
     ctx.strokeStyle = errC;
@@ -544,7 +646,7 @@ function MapCanvas(p: MapProps) {
       ctx.font = `11px ${themeVar('--vscode-font-family', 'sans-serif')}`;
       for (const g of view.objectGroups) {
         for (const o of g.objects) {
-          const sx = ox + o.x * zoom;
+          const sx = ox + o.x * zoom * aw;
           const sy = oy + o.y * zoom;
           if (o.shape === 'point' || (!o.width && !o.height)) {
             ctx.beginPath();
@@ -552,26 +654,28 @@ function MapCanvas(p: MapProps) {
             ctx.fill();
           } else if (o.shape === 'ellipse') {
             ctx.beginPath();
-            ctx.ellipse(sx + (o.width * zoom) / 2, sy + (o.height * zoom) / 2, (o.width * zoom) / 2, (o.height * zoom) / 2, 0, 0, Math.PI * 2);
+            ctx.ellipse(sx + (o.width * zoom * aw) / 2, sy + (o.height * zoom) / 2, (o.width * zoom * aw) / 2, (o.height * zoom) / 2, 0, 0, Math.PI * 2);
             ctx.stroke();
-          } else ctx.strokeRect(sx, sy, o.width * zoom, o.height * zoom);
+          } else ctx.strokeRect(sx, sy, o.width * zoom * aw, o.height * zoom);
           const label = [o.name, o.type].filter(Boolean).join(' : ');
           if (label) ctx.fillText(label, sx + 5, sy - 4);
         }
       }
     }
-    // selection: a two-pass outline (light under dark) so it shows on any tile
+    // selection: a 2px ring in the focus colour over a dark underlay, so it shows on any tile
     if (p.sel) {
       const left = ox + p.sel.x * cell.w;
       const top = oy + p.sel.y * cell.h;
-      ctx.lineWidth = 3;
+      const w = Math.max(1, cell.w - 3);
+      const h = Math.max(1, cell.h - 3);
+      ctx.lineWidth = 4;
       ctx.strokeStyle = '#000';
-      ctx.strokeRect(left + 1.5, top + 1.5, Math.max(1, cell.w - 3), Math.max(1, cell.h - 3));
-      ctx.lineWidth = 1.5;
+      ctx.strokeRect(left + 1.5, top + 1.5, w, h);
+      ctx.lineWidth = 2;
       ctx.strokeStyle = focus;
-      ctx.strokeRect(left + 1.5, top + 1.5, Math.max(1, cell.w - 3), Math.max(1, cell.h - 3));
+      ctx.strokeRect(left + 1.5, top + 1.5, w, h);
     }
-  }, [base, size, origin.x, origin.y, zoom, p.grid, p.numbers, p.room?.w, p.room?.h, p.sel?.x, p.sel?.y, p.pickedTile, p.objectsOn, p.errorAt, p.vopts, layer, theme, view.objectGroups]);
+  }, [base, size, origin.x, origin.y, zoom, p.grid, p.numbers, p.room?.w, p.room?.h, p.sel?.x, p.sel?.y, p.pickedTile, p.objectsOn, p.errorAt, p.vopts, layer, theme, view.objectGroups, aw]);
 
   // ---- input
   const onKeyDown = (e: KeyboardEvent): void => {
@@ -587,7 +691,6 @@ function MapCanvas(p: MapProps) {
     else if (e.key === 'ArrowDown') mv(0, step);
     else if (e.key === 'Enter') { e.preventDefault(); p.onSelect(p.sel ?? { x: 0, y: 0 }); }
     else if (e.key === 'Escape') p.onSelect(null);
-    else if (e.key === 'F8') { e.preventDefault(); p.onNextError(); }
     else if (e.key === '+' || e.key === '=') p.onZoom(ZOOMS.find((z) => z > zoom) ?? zoom);
     else if (e.key === '-') p.onZoom([...ZOOMS].reverse().find((z) => z < zoom) ?? zoom);
     else if (e.key === '0') p.onToggle('fit');
