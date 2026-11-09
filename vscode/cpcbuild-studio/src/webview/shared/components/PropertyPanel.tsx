@@ -60,6 +60,8 @@ export interface NumberFieldProps {
   description?: string;
   /** Extra validation: return a message to refuse the value. */
   validate?(n: number): string | undefined;
+  /** Shown but not editable. */
+  disabled?: boolean;
   onCommit(n: number): void;
 }
 
@@ -93,6 +95,7 @@ export function NumberField(p: NumberFieldProps) {
         type="text"
         inputMode="numeric"
         value={text}
+        disabled={p.disabled}
         aria-invalid={error ? 'true' : undefined}
         aria-describedby={[p.description ? `${p.id}-desc` : '', error ? `${p.id}-err` : ''].filter(Boolean).join(' ') || undefined}
         onInput={(e) => setText((e.target as HTMLInputElement).value)}

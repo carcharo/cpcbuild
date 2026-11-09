@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { newSprite, serialiseSprite, type Grid, type SpriteState } from '../../src/core/spriteDoc';
 import { serialiseSfx, type SfxDoc } from '../../src/core/sfxDoc';
-import { serialiseSong } from '../../src/core/songDoc';
+import { serialiseSong, type SongDoc } from '../../src/core/songDoc';
 import { demoSong } from '../../src/core/songDemo';
 import { presetEffect } from '../../src/core/sfxPresets';
 
@@ -156,6 +156,15 @@ export function makeFixtures(): void {
   const bank: SfxDoc = { format: 'cpcsfx', version: 1, effects: [presetEffect('jump', 'jump'), presetEffect('coin', 'coin'), presetEffect('laser', 'laser'), presetEffect('explosion', 'explosion'), drawn] };
   put('sfx/demo.cpcsfx', serialiseSfx(bank));
   put('songs/demo.cpcsong', serialiseSong(demoSong()));
+  // a song with a custom instrument: "Pluck" (B), a bright pluck that drops from an octave up and loops its tail
+  const pluck: SongDoc = demoSong();
+  pluck.instruments = [{
+    id: 'B', name: 'Pluck', colour: 'peach', description: 'Short bright pluck',
+    frames: Array.from({ length: 16 }, (_, i) => ({ pitch: [12, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0][i], tone: true, noise: i < 2, noisePeriod: i < 2 ? 12 : 0, volume: [15, 14, 12, 11, 10, 9, 9, 8, 8, 8, 7, 7, 7, 6, 4, 2][i] })),
+    loop: 8,
+  }];
+  pluck.patterns[0].channels[1] = pluck.patterns[0].channels[1].map((e) => ({ ...e, inst: 'B' }));
+  put('songs/pluck.cpcsong', serialiseSong(pluck));
   put('src/hover.bas', ['#include <cpcbuild/sprites.bas>', 'ScreenInit()', 'DIM x AS INTEGER', 'x = 10', 'PutSprite(x, 20, 2, 8, 0)', 'SetInk 1, 2', ''].join('\n'));
 }
 
@@ -195,6 +204,16 @@ export async function run(): Promise<void> {
   await capture({ name: 'sfx', layout: 'editor', sizes: [...E, [560, 900]] });
   await openWith('songs/demo.cpcsong', 'cpcbuild.songEditor', ready((a) => a.song));
   await capture({ name: 'tracker', layout: 'editor', sizes: [...E, [560, 900]] });
+  // the instrument editor: pick the custom instrument on the shelf, then Edit...
+  await openWith('songs/pluck.cpcsong', 'cpcbuild.songEditor', ready((a) => a.song));
+  await capture({
+    name: 'tracker-instrument', layout: 'editor', sizes: [...E, [560, 900]],
+    pre: async () => {
+      await ask({ type: 'click', selector: '.cb-shelf-card[aria-label^="B "]' });
+      await ask({ type: 'click', selector: '.cb-shelf-actions button:last-of-type' });
+      await sleep(700);
+    },
+  });
   await openWith('sprites/hero.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
   await capture({ name: 'sprite-mode0-tall', layout: 'editor', sizes: TALL });
   await openWith('sprites/ship.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));

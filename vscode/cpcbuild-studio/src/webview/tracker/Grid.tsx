@@ -6,6 +6,7 @@ import { songNoteName } from '../../core/songDoc';
 import { Icon } from '../shared/components/Icon';
 import { idIndex, idVar } from '../shared/theme';
 import { CHANNEL_LETTERS, beatLabel, cellName, type Cursor } from './logic';
+import { inRect, isSingle, type Rect } from './squareOps';
 
 export const GRID_ID = 'tk-grid';
 export const cellId = (row: number, channel: number): string => `tk-cell-${row}-${channel}`;
@@ -19,7 +20,10 @@ export interface GridProps {
   narrow: boolean;
   /** Bit 0 = A. */
   mute: number;
-  onCursor(c: Cursor): void;
+  /** The selected squares (more than the cursor's own), or null. */
+  sel: Rect | null;
+  /** A click on a square; `extend` (Shift) grows the selection from the cursor to it. */
+  onPick(c: Cursor, extend: boolean): void;
   onToggleMute(channel: number): void;
   onKeyDown(e: KeyboardEvent): void;
   gridRef: { current: HTMLDivElement | null };
@@ -61,6 +65,7 @@ export function Grid(p: GridProps) {
         aria-label={`Pattern ${String.fromCharCode(65 + p.pattern)}, ${pat.rows} rows`}
         aria-rowcount={pat.rows + 1}
         aria-colcount={4}
+        aria-multiselectable="true"
         aria-activedescendant={cellId(p.cursor.row, p.cursor.channel)}
         onKeyDown={p.onKeyDown as never}
       >
@@ -88,15 +93,16 @@ export function Grid(p: GridProps) {
             {[0, 1, 2].map((c) => {
               const ev = maps[c].get(r);
               const cur = r === p.cursor.row && c === p.cursor.channel;
+              const inSel = p.sel !== null && !isSingle(p.sel) && inRect(p.sel, r, c);
               return (
                 <div
                   key={c}
                   id={cellId(r, c)}
-                  class={`tk-cell${cur ? ' tk-cur' : ''}${(p.mute & (1 << c)) !== 0 ? ' tk-muted' : ''}`}
+                  class={`tk-cell${cur ? ' tk-cur' : ''}${inSel ? ' tk-sel' : ''}${(p.mute & (1 << c)) !== 0 ? ' tk-muted' : ''}`}
                   role="gridcell"
-                  aria-selected={cur}
-                  aria-label={cellName(r, c, ev, p.doc)}
-                  onClick={() => { p.onCursor({ row: r, channel: c }); p.gridRef.current?.focus(); }}
+                  aria-selected={cur || inSel}
+                  aria-label={cellName(r, c, ev, p.doc, inSel)}
+                  onClick={(e) => { p.onPick({ row: r, channel: c }, e.shiftKey); p.gridRef.current?.focus(); }}
                 >
                   {ev ? <Square ev={ev} doc={p.doc} narrow={p.narrow} /> : <span class="tk-empty" aria-hidden="true">· · ·</span>}
                 </div>
