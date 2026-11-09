@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { SfxFrame } from '../../core/sfxDoc';
-import { changedRange, fitPitchRange, levelToY, lineValues, nudge, paintFlags, paintLine, pitchToY, snapPitch, xToFrame, yToLevel, yToPitch } from './curve';
+import { changedRange, drawsLine, fitPitchRange, shelfShape, levelToY, lineValues, nudge, paintFlags, paintLine, pitchToY, snapPitch, xToFrame, yToLevel, yToPitch } from './curve';
 
 const f = (pitch = 60, volume = 15): SfxFrame => ({ pitch, tone: true, noise: false, noisePeriod: 0, volume });
 const frames = (n: number): SfxFrame[] => Array.from({ length: n }, () => f());
@@ -103,5 +103,33 @@ describe('keyboard nudges', () => {
     const p = nudge(f(), 'period', 1, true, false);
     expect(p).toMatchObject({ noisePeriod: 4, noise: true });
     expect(nudge({ ...f(), noisePeriod: 30 }, 'period', 1, true, false).noisePeriod).toBe(31);
+  });
+});
+
+describe('shelfShape', () => {
+  it('normalises the pitch to 0..1 with the highest note at 1', () => {
+    expect(shelfShape([f(60), f(72), f(66)])).toEqual([0, 1, 0.5]);
+  });
+  it('is a mid line when flat, and empty for no frames', () => {
+    expect(shelfShape(frames(5))).toEqual([0.5, 0.5, 0.5, 0.5, 0.5]);
+    expect(shelfShape([])).toEqual([]);
+  });
+  it('samples at most 28 points, keeping the first and last frame', () => {
+    const many = Array.from({ length: 100 }, (_, i) => f(40 + i * 0.5));
+    const s = shelfShape(many);
+    expect(s).toHaveLength(28);
+    expect(s[0]).toBe(0);
+    expect(s[27]).toBe(1);
+    expect(shelfShape(many, 10)).toHaveLength(10);
+    expect(shelfShape([f(50)])).toEqual([0.5]);
+  });
+});
+
+describe('drawsLine', () => {
+  it('Line mode draws lines, Shift flips the mode while held', () => {
+    expect(drawsLine('draw', false)).toBe(false);
+    expect(drawsLine('draw', true)).toBe(true);
+    expect(drawsLine('line', false)).toBe(true);
+    expect(drawsLine('line', true)).toBe(false);
   });
 });

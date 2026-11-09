@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Ay, CLOCKS, frameRegs, lfsrOutputs, lfsrPeriod, mixBit, notePeriod, volumeLevel } from './ay';
+import { Ay, CPC_CLOCK, frameRegs, lfsrOutputs, lfsrPeriod, mixBit, notePeriod, volumeLevel } from './ay';
 
 const SR = 48000;
 
@@ -17,7 +17,7 @@ function crossings(s: Float32Array): number {
 
 describe('tone', () => {
   it('period 142 at 1 MHz gives 440.1 Hz (zero crossings over 1 s at 48 kHz)', () => {
-    const ay = new Ay(CLOCKS.cpc, SR);
+    const ay = new Ay(CPC_CLOCK, SR);
     ay.set(142, 0, true, false, 15);
     const s = renderSeconds(ay, 1);
     // 1e6 / (16 * 142) = 440.14 Hz = 880.3 crossings per second; allow the start/end edges.
@@ -25,16 +25,8 @@ describe('tone', () => {
     expect(crossings(s) / 2).toBeCloseTo(440.14, 0);
   });
 
-  it('spectrum clock: period 252 at 1.7734 MHz gives 439.8 Hz', () => {
-    const ay = new Ay(CLOCKS.spectrum, SR);
-    ay.set(252, 0, true, false, 15);
-    const s = renderSeconds(ay, 1);
-    // 1773400 / (16 * 252) = 439.82 Hz
-    expect(Math.abs(crossings(s) / 2 - 439.82)).toBeLessThan(1.2);
-  });
-
   it('is a square wave of about +-0.5 at full volume (the high-pass and the first edge overshoot a little)', () => {
-    const ay = new Ay(CLOCKS.cpc, SR);
+    const ay = new Ay(CPC_CLOCK, SR);
     ay.set(142, 0, true, false, 15);
     const s = renderSeconds(ay, 0.5);
     const max = Math.max(...s), min = Math.min(...s);
@@ -45,7 +37,7 @@ describe('tone', () => {
   });
 
   it('period 0 acts as 1 and 4095 is the lowest note', () => {
-    const lo = new Ay(CLOCKS.cpc, SR), z = new Ay(CLOCKS.cpc, SR), one = new Ay(CLOCKS.cpc, SR);
+    const lo = new Ay(CPC_CLOCK, SR), z = new Ay(CPC_CLOCK, SR), one = new Ay(CPC_CLOCK, SR);
     lo.set(9999, 0, true, false, 15);
     z.set(0, 0, true, false, 15);
     one.set(1, 0, true, false, 15);
@@ -55,30 +47,29 @@ describe('tone', () => {
 });
 
 describe('notePeriod', () => {
-  it('matches the spec table (CPC 1 MHz / Spectrum 1.7734 MHz)', () => {
-    const t: [number, number, number][] = [
-      [24, 1911, 3389], // C-1
-      [45, 568, 1008], // A-2
-      [60, 239, 424], // C-4
-      [69, 142, 252], // A-4
-      [72, 119, 212], // C-5
-      [91, 40, 71], // G-6
-      [107, 16, 28], // B-7
+  it('matches the spec table (CPC 1 MHz)', () => {
+    const t: [number, number][] = [
+      [24, 1911], // C-1
+      [45, 568], // A-2
+      [60, 239], // C-4
+      [69, 142], // A-4
+      [72, 119], // C-5
+      [91, 40], // G-6
+      [107, 16], // B-7
     ];
-    for (const [m, cpc, zx] of t) {
-      expect(notePeriod(m, CLOCKS.cpc)).toBe(cpc);
-      expect(notePeriod(m, CLOCKS.spectrum)).toBe(zx);
+    for (const [m, cpc] of t) {
+      expect(notePeriod(m, CPC_CLOCK)).toBe(cpc);
     }
   });
 
   it('clamps to 1-4095', () => {
-    expect(notePeriod(200, CLOCKS.cpc)).toBe(1);
-    expect(notePeriod(-50, CLOCKS.cpc)).toBe(4095);
+    expect(notePeriod(200, CPC_CLOCK)).toBe(1);
+    expect(notePeriod(-50, CPC_CLOCK)).toBe(4095);
   });
 
   it('frameRegs packs period, noise period, mixer and volume', () => {
-    expect(frameRegs({ pitch: 69, tone: true, noise: true, noisePeriod: 7, volume: 12 }, CLOCKS.cpc)).toEqual([142, 7, 3, 12]);
-    expect(frameRegs({ pitch: 60, tone: false, noise: true, noisePeriod: 40, volume: 20 }, CLOCKS.cpc)).toEqual([239, 31, 2, 15]);
+    expect(frameRegs({ pitch: 69, tone: true, noise: true, noisePeriod: 7, volume: 12 }, CPC_CLOCK)).toEqual([142, 7, 3, 12]);
+    expect(frameRegs({ pitch: 60, tone: false, noise: true, noisePeriod: 40, volume: 20 }, CPC_CLOCK)).toEqual([239, 31, 2, 15]);
   });
 });
 
@@ -95,7 +86,7 @@ describe('volume', () => {
 
   it('output peak follows the level', () => {
     const peak = (v: number): number => {
-      const ay = new Ay(CLOCKS.cpc, SR);
+      const ay = new Ay(CPC_CLOCK, SR);
       ay.set(142, 0, true, false, v);
       return Math.max(...renderSeconds(ay, 0.2));
     };
@@ -104,7 +95,7 @@ describe('volume', () => {
 
   it('volume 0 is exactly silent, whatever the mixer', () => {
     for (const [t, n] of [[true, false], [false, true], [true, true], [false, false]]) {
-      const ay = new Ay(CLOCKS.cpc, SR);
+      const ay = new Ay(CPC_CLOCK, SR);
       ay.set(142, 5, t, n, 0);
       expect(renderSeconds(ay, 0.2).every((x) => x === 0)).toBe(true);
     }
@@ -132,7 +123,7 @@ describe('noise LFSR', () => {
   it('the model steps the noise every 16 * noisePeriod chip cycles', () => {
     // Noise only, noise period 31 at 1 MHz: 1e6 / (16 * 31) = 2016 LFSR steps per second.
     // Count output level changes over 1 s and compare with the model sequence run for 2016 steps.
-    const ay = new Ay(CLOCKS.cpc, 192000); // above the tick rate, so every tick is seen
+    const ay = new Ay(CPC_CLOCK, 192000); // above the tick rate, so every tick is seen
     ay.set(1, 31, false, true, 15);
     const s = renderSeconds(ay, 1, 192000);
     const seq = lfsrOutputs(2017);
@@ -166,7 +157,7 @@ describe('mixer', () => {
   });
 
   it('both off is a constant level: no sound after the DC filter settles', () => {
-    const ay = new Ay(CLOCKS.cpc, SR);
+    const ay = new Ay(CPC_CLOCK, SR);
     ay.set(142, 5, false, false, 15);
     const s = renderSeconds(ay, 1);
     expect(Math.max(...s.subarray(SR / 2).map(Math.abs))).toBeLessThan(0.01);

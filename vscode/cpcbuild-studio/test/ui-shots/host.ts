@@ -9,6 +9,8 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
 import { newSprite, serialiseSprite, type Grid, type SpriteState } from '../../src/core/spriteDoc';
+import { serialiseSfx, type SfxDoc } from '../../src/core/sfxDoc';
+import { presetEffect } from '../../src/core/sfxPresets';
 
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 const sync = process.env.CPCBUILD_SHOTS_SYNC as string;
@@ -145,6 +147,12 @@ export function makeFixtures(): void {
   put('sprites/bgtiles.cpctil', serialiseSprite(t));
   put('palettes/hero.cpcpal', '# mode 0 pens 0-15 (firmware colours)\n0, 1, 2, 11, 20, 26, 3, 6, 15, 24, 9, 18, 4, 8, 13, 10\n');
   put('palettes/plus.cpcpal12', '# plus 12-bit colours\n000, FFF, F00, 0F0, 00F, FF0, 0FF, F0F, 888, F80, 08F, 80F, 8F0, F08, 0F8, 123\n');
+  // a bank of five: four presets and one drawn by hand (no preset, 24 frames)
+  const drawn = presetEffect('alarm', 'siren');
+  delete drawn.preset;
+  drawn.frames = Array.from({ length: 24 }, (_, i) => ({ pitch: 60 + Math.round(6 * Math.sin(i / 2)), tone: i % 7 !== 6, noise: i % 5 === 4, noisePeriod: 8 + (i % 12), volume: Math.max(2, 15 - Math.floor(i / 2)) }));
+  const bank: SfxDoc = { format: 'cpcsfx', version: 1, effects: [presetEffect('jump', 'jump'), presetEffect('coin', 'coin'), presetEffect('laser', 'laser'), presetEffect('explosion', 'explosion'), drawn] };
+  put('sfx/demo.cpcsfx', serialiseSfx(bank));
   put('src/hover.bas', ['#include <cpcbuild/sprites.bas>', 'ScreenInit()', 'DIM x AS INTEGER', 'x = 10', 'PutSprite(x, 20, 2, 8, 0)', 'SetInk 1, 2', ''].join('\n'));
 }
 
@@ -180,6 +188,8 @@ export async function run(): Promise<void> {
   });
   await openWith('sprites/bgtiles.cpctil', 'cpcbuild.tileEditor', ready((a) => a.tile));
   await capture({ name: 'tile', layout: 'editor', sizes: E });
+  await openWith('sfx/demo.cpcsfx', 'cpcbuild.sfxEditor', ready((a) => a.sfx));
+  await capture({ name: 'sfx', layout: 'editor', sizes: [...E, [560, 900]] });
   await openWith('sprites/hero.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
   await capture({ name: 'sprite-mode0-tall', layout: 'editor', sizes: TALL });
   await openWith('sprites/ship.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));

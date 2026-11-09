@@ -13,10 +13,8 @@
  * notes from aliasing too harshly. No allocation happens per sample.
  */
 
-export type Target = 'cpc' | 'spectrum';
-
-/** Chip clocks in Hz: CPC 1 MHz, Spectrum 128K 1.7734 MHz. */
-export const CLOCKS: Record<Target, number> = { cpc: 1_000_000, spectrum: 1_773_400 };
+/** The CPC's AY clock in Hz (1 MHz). The preview models the CPC only. */
+export const CPC_CLOCK = 1_000_000;
 
 /** The effect frame fields the preview needs (the same shape as the .cpcsfx frames). */
 export interface SfxFrameLike {

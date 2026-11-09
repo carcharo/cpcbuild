@@ -1,31 +1,40 @@
 /* sfx.css -- layout of the sound-effects editor. */
-.sx { display: flex; flex-direction: column; min-height: 100vh; }
-.sx-body { display: grid; grid-template-columns: 200px minmax(0, 1fr) var(--cb-panel-w); flex: 1; min-height: 0; }
-.sx-list-wrap { padding: var(--cb-space-2); border-right: 1px solid var(--vscode-panel-border); }
-.sx-side { border-left: 1px solid var(--vscode-panel-border); overflow-y: auto; }
-.sx-main { padding: var(--cb-space-3); min-width: 0; display: flex; flex-direction: column; gap: var(--cb-space-2); }
-.sx-h { font-weight: 600; margin: 0 0 var(--cb-space-2); font-size: 1em; }
-.sx-list { display: flex; flex-direction: column; gap: 1px; }
-.sx-eff { display: flex; align-items: baseline; gap: var(--cb-space-2); padding: var(--cb-space-1) var(--cb-space-2); border: 1px solid transparent; border-radius: var(--cb-radius); cursor: pointer; }
-.sx-eff:hover { background: var(--vscode-list-hoverBackground); }
-.sx-eff-on { background: var(--vscode-list-inactiveSelectionBackground); }
-.sx-eff:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.sx-eff-on:focus-visible { background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
-.sx-eff-n { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; min-width: 1.2em; color: var(--vscode-descriptionForeground); }
-.sx-eff-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sx-eff-len { font-size: 0.85em; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
-.sx-audio { min-height: 1.4em; color: var(--vscode-descriptionForeground); }
+.sx { display: flex; flex-direction: column; height: 100vh; }
+.sx-top { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); padding: var(--cb-space-1) var(--cb-space-3); border-bottom: 1px solid var(--vscode-panel-border); }
+.sx-top-l { display: flex; align-items: center; gap: var(--cb-space-2); }
+.sx-top .cb-toolbar { border-bottom: 0; margin-left: auto; padding: 0; }
+.sx-bank { cursor: default; }
+.sx-bank:hover { background: var(--cb-pill-bg); }
 
-.sx-lanes { display: flex; align-items: flex-start; min-width: 0; }
-.sx-axes, .sx-plot-col { display: flex; flex-direction: column; gap: 8px; flex: none; }
+.sx-body { display: grid; grid-template-columns: var(--cb-shelf-w) minmax(0, 1fr) var(--cb-side-w); gap: var(--cb-space-4); grid-template-rows: minmax(0, 1fr); align-items: stretch; flex: 1; min-height: 0; padding: var(--cb-space-3) var(--cb-gutter); }
+.sx-shelf { overflow-y: auto; display: flex; flex-direction: column; gap: var(--cb-space-2); min-width: 0; }
+.sx-foot { margin: 0; }
+.sx-main { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: var(--cb-space-3); }
+.sx-side { min-width: 0; min-height: 0; overflow-y: auto; }
+
+.sx-lanebar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-2); }
+.sx-hint { min-width: 0; }
+.sx-lanebar-gap { flex: 1; }
+
+/* the lanes: one rounded panel, the label gutter on the left and the scrolling plot beside it */
+.sx-panel { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; align-items: flex-start; min-width: 0; padding: var(--cb-space-2); border-radius: var(--cb-card-radius); background: var(--vscode-sideBar-background); border: 1px solid var(--vscode-panel-border); }
+.sx-axes { display: flex; flex-direction: column; gap: 6px; flex: none; }
 .sx-axes canvas { display: block; }
-.sx-scroll { display: flex; flex-direction: column; gap: 8px; overflow-x: auto; min-width: 0; flex: 1; padding-bottom: 2px; }
+.sx-scroll { display: flex; flex-direction: column; gap: 6px; overflow-x: auto; min-width: 0; flex: 1; padding-bottom: 2px; }
 .sx-scroll canvas { display: block; flex: none; }
 .sx-canvas { cursor: crosshair; touch-action: none; border-radius: var(--cb-radius); }
 .sx-canvas:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; }
 
+.sx-podrow { flex: none; position: sticky; bottom: 0; z-index: 2; padding: var(--cb-space-1) 0; background: var(--vscode-editor-background); display: flex; flex-wrap: wrap; align-items: center; gap: var(--cb-space-3); }
+.sx-playing { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); }
+
 .sx-range { width: 100%; accent-color: var(--vscode-button-background); }
-.sx-length { margin: 0; font-variant-numeric: tabular-nums; }
+.sx-slider-h { display: flex; align-items: center; justify-content: space-between; gap: var(--cb-space-2); }
+.sx-slider-h label { font-size: 0.92em; }
+.sx-const { display: flex; align-items: center; flex-wrap: wrap; gap: var(--cb-space-2); }
+.sx-kinds { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+.sx-kind { min-width: 0; padding: 0 2px; justify-content: center; font-size: max(11px, 0.85em); }
+.sx-kind > * { overflow: hidden; text-overflow: ellipsis; }
 .sx-help { margin: var(--cb-space-2) var(--cb-gutter) 0; padding: var(--cb-space-3); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-editorWidget-border); border-radius: var(--cb-radius); }
 .sx-help-h { display: flex; justify-content: space-between; align-items: center; }
 .sx-help dl { margin: var(--cb-space-2) 0; display: grid; grid-template-columns: max-content 1fr; gap: var(--cb-space-1) var(--cb-space-4); }
@@ -34,8 +43,9 @@
 .sx-help kbd { font-family: var(--vscode-editor-font-family); padding: 0 4px; border: 1px solid var(--vscode-panel-border); border-radius: 3px; background: var(--vscode-textCodeBlock-background); }
 
 @media (max-width: 720px) {
-  .sx-body { grid-template-columns: minmax(0, 1fr); align-content: start; }
-  .sx-list-wrap { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }
-  .sx-side { border-left: 0; border-top: 1px solid var(--vscode-panel-border); }
-  .sx-list { flex-direction: row; flex-wrap: wrap; }
+  .sx { height: auto; min-height: 100vh; }
+  .sx-body { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+  .sx-panel { flex: none; overflow-y: visible; }
+  .sx-top .cb-toolbar { margin-left: 0; }
+  .sx-podrow .cb-pod { display: flex; flex: 1; }
 }

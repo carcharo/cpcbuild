@@ -146,3 +146,32 @@ export function nudge(f: SfxFrame, lane: 'pitch' | 'volume' | 'period', dir: 1 |
   if (lane === 'volume') return { ...f, volume: clamp(f.volume + dir * step, 0, 15) };
   return { ...f, noisePeriod: clamp(f.noisePeriod + dir * step, 0, 31), noise: true };
 }
+
+/** The drawing modes of the lane bar. */
+export type DrawMode = 'draw' | 'line';
+
+/** Whether a pointer-down draws a straight line from the last point: Line mode, flipped while Shift is held. */
+export function drawsLine(mode: DrawMode, shift: boolean): boolean {
+  return (mode === 'line') !== shift;
+}
+
+/**
+ * The pitch curve of an effect as 0..1 values (1 = highest pitch) for a shelf card's mini graph, at
+ * most `max` points: frames are sampled evenly, first and last included. A flat curve is a mid line.
+ */
+export function shelfShape(frames: readonly SfxFrame[], max = 28): number[] {
+  if (!frames.length) return [];
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const f of frames) {
+    lo = Math.min(lo, f.pitch);
+    hi = Math.max(hi, f.pitch);
+  }
+  const n = Math.min(frames.length, Math.max(1, max));
+  const out: number[] = [];
+  for (let k = 0; k < n; k++) {
+    const i = n === 1 ? 0 : Math.round((k * (frames.length - 1)) / (n - 1));
+    out.push(hi - lo < 1e-9 ? 0.5 : (frames[i].pitch - lo) / (hi - lo));
+  }
+  return out;
+}
