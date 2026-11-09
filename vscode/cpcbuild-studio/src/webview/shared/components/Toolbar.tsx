@@ -88,7 +88,7 @@ export function Toolbar({ label, groups, onEscape, look = 'classic' }: { label: 
             if (it.kind === 'radio')
               return (
                 <button key={it.id} type="button" role="radio" aria-checked={it.checked} aria-label={name(it)} class={pills ? 'cb-pill cb-chip' : `cb-tb-btn${it.checked ? ' cb-on' : ''}`} {...common} onClick={it.onActivate}>
-                  {pills && it.checked ? <><Icon name="check" />{it.text && <span class="cb-tb-text">{it.text}</span>}</> : body}
+                  {pills && it.checked && (it.text || !it.icon) ? <><Icon name="check" />{it.text && <span class="cb-tb-text">{it.text}</span>}</> : body}
                 </button>
               );
             return (

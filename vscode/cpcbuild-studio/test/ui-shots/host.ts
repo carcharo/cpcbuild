@@ -174,15 +174,15 @@ export async function run(): Promise<void> {
   await openWith('palettes/plus.cpcpal12', 'cpcbuild.paletteEditor', ready((a) => a.palette));
   await capture({ name: 'palette-cpcpal12', layout: 'editor', sizes: E });
   await openWith('sprites/hero.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
-  await capture({ name: 'sprite-mode0', layout: 'editor', sizes: E });
+  await capture({ name: 'sprite-mode0', layout: 'editor', sizes: [...E, [560, 900]] });
   await openWith('sprites/ship.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
   await capture({ name: 'sprite-plus', layout: 'editor', sizes: E });
   // Plus magnification preview: magnification x4 horizontally, x2 vertically (the preview is the top block of the side panel)
   await capture({
     name: 'sprite-plus-mag', layout: 'editor', sizes: [[1000, 700]],
     pre: async () => {
-      await ask({ type: 'click', selector: '[data-seg="Magnification X"][data-val="4"]' });
-      await ask({ type: 'click', selector: '[data-seg="Magnification Y"][data-val="2"]' });
+      await ask({ type: 'click', selector: '[data-testid="sp-magx-4"]' });
+      await ask({ type: 'click', selector: '[data-testid="sp-magy-2"]' });
       await sleep(600);
     },
   });

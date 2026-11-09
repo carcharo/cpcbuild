@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { newSprite, rowsOf, type SpriteState } from '../../core/spriteDoc';
+import { TRANSPARENT as PT } from '../../core/cpcPreview';
+import { applySpriteOp, convertPens, newSprite, rowsOf, type SpriteState } from '../../core/spriteDoc';
 import type { SpriteView } from '../../shared/spriteProtocol';
-import { colourOf, decodeItems, neighbourView, penSlots, renderRgba, shapeCells, stamps, tile16, tile16Target, topValue } from './model';
+import { colourOf, decodeItems, grid16, neighbourView, penSlots, previewSource, renderRgba, shapeCells, stamps, tile16, tile16Target, topValue } from './model';
 
 function viewOf(s: SpriteState): SpriteView {
   return {
@@ -77,5 +78,60 @@ describe('sprite webview model', () => {
     expect([nb.width, nb.height]).toEqual([12, 24]);
     expect(nb.rgba.length).toBe(12 * 24 * 4);
     expect(nb.neighbours).toEqual([null, null, null, 0, 2, 4, null, null]);
+  });
+});
+
+describe('CPC preview source', () => {
+  /** Two frames, mode 0, pens: Blue, Pink, Bright Red, Sky Blue, Bright Yellow, Bright White, Black. */
+  const doc = (): SpriteState => {
+    const s = newSprite('spr', { mode: 0, w: 4, h: 2, masked: true, palette: { pens: [1, 16, 6, 11, 24, 26, 0] } });
+    s.items = [[[1, 1, 2, -1], [6, 6, 3, 0]], [[1, 2, 6, 6], [4, 5, 1, 1]]];
+    return s;
+  };
+  it('reduce() is convertPens over all frames, shown through the picked frame', () => {
+    const s = doc();
+    const src = previewSource(s.items, (its) => its[0], s.palette && 'pens' in s.palette ? s.palette.pens : [], false);
+    expect(src.image.w).toBe(4);
+    expect(src.image.pixels[3]).toBe(PT);
+    const r = src.reduce(1);
+    const c = convertPens(s, 1);
+    expect(r.used).toBe(c.summary.used);
+    expect(r.merges).toEqual(c.summary.merges);
+    expect(r.fits).toBe(c.summary.fits);
+    // each shown pixel has the colour the converted frame gets: the colour of the converted pen
+    const pens = 'pens' in c.palette ? c.palette.pens : [];
+    const inPens = 'pens' in s.palette ? s.palette.pens : [];
+    c.items[0].forEach((row, y) => row.forEach((q, x) => {
+      const px = r.pixels[y * 4 + x];
+      if (q < 0) expect(px).toBe(PT);
+      else expect(inPens[px]).toBe(pens[q]);
+    }));
+  });
+  it('the preview shows the same pixels as the document after Convert', () => {
+    const s = doc();
+    const pens = (s.palette as { pens: number[] }).pens;
+    const after = applySpriteOp(s, { op: 'setMode', mode: 1, force: true });
+    if ('error' in after) throw new Error(after.error);
+    const afterPens = (after.state.palette as { pens: number[] }).pens;
+    for (const frame of [0, 1]) {
+      const r = previewSource(s.items, (its) => its[frame], pens, false).reduce(1);
+      after.state.items[frame].forEach((row, y) => row.forEach((q, x) => {
+        const px = r.pixels[y * 4 + x];
+        if (q < 0) expect(px).toBe(PT);
+        else expect(pens[px]).toBe(afterPens[q]);
+      }));
+    }
+  });
+  it('a shared palette keeps pen numbers', () => {
+    const s = newSprite('spr', { mode: 0, w: 2, h: 1, palette: { file: 'p.cpcpal' } });
+    s.items = [[[0, 5]]];
+    const file = [0, 26, 6, 18, 1, 24];
+    const r = previewSource(s.items, (its) => its[0], file, true).reduce(1);
+    expect(Array.from(r.pixels)).toEqual([0, 1]); // pen 5 (Bright Yellow) is nearest the file's pen 1 (Bright White) by the lowest-pen rule
+  });
+  it('grid16 puts tiles 4t..4t+3 in a 2 x 2 block and leaves missing tiles transparent', () => {
+    const t = (v: number) => [[v, v], [v, v]];
+    const g = grid16([t(1), t(2), t(3)], 0, 2, 2);
+    expect(g).toEqual([[1, 1, 2, 2], [1, 1, 2, 2], [3, 3, -1, -1], [3, 3, -1, -1]]);
   });
 });

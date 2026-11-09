@@ -7,24 +7,33 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ComponentChildren } from 'preact';
 import { moveRect, background, type Grid, type Rect, type SpriteOp } from '../../core/spriteDoc';
 import { lineCells, type Pt } from '../../core/shapes';
-import { PPB, tileWidthsOf } from '../../core/pixels';
+import { FW_TABLE } from '../../core/palette';
+import { PPB, tileWidthsOf, type Mode } from '../../core/pixels';
 import type { SpriteRequests, SpriteView } from '../../shared/spriteProtocol';
 import { startEditor, type EditorHost } from '../shared/bootstrap';
 import { createClient } from '../shared/client';
-import { Copyable } from '../shared/components/Copyable';
+import { Card } from '../shared/components/Card';
+import { CodeCard } from '../shared/components/CodeCard';
+import { CpcPreview } from '../shared/components/CpcPreview';
 import { Icon } from '../shared/components/Icon';
 import { EmptyState, Notice, type NoticeAction } from '../shared/components/Notice';
 import { PenStrip } from '../shared/components/PenStrip';
 import { PixelCanvas, type PixelImage, type PointerInfo } from '../shared/components/PixelCanvas';
-import { CheckField, Field, NumberField, PropertyPanel, Section, Segmented } from '../shared/components/PropertyPanel';
+import { Pill } from '../shared/components/Pill';
+import { CheckField, Field, NumberField } from '../shared/components/PropertyPanel';
+import { SegPill } from '../shared/components/SegPill';
+import { StatPill } from '../shared/components/StatPill';
 import { StatusLine } from '../shared/components/StatusLine';
-import { Toolbar, type ToolbarGroup, type ToolbarItem } from '../shared/components/Toolbar';
+import { ToggleChip } from '../shared/components/ToggleChip';
+import { Toolbar, type MenuItem, type ToolbarGroup, type ToolbarItem } from '../shared/components/Toolbar';
+import { TransportPod } from '../shared/components/TransportPod';
+import { rovingNext } from '../shared/roving';
 import { aspectWidth, byteGridEvery, fitZoom, nearestZoom, stepZoom, ZOOM_STEPS } from '../shared/geometry';
 import { ColourPopover } from './ColourPopover';
 import { FrameStrip } from './FrameStrip';
 import {
-  TRANSPARENT, aspectKey, clipRect, copyRect, decodeItems, describeValue, insideRect, neighbourView, overlayRgba, penSlots,
-  rectBetween, renderRgba, shapeCells, stamps, tile16, tile16Target, topValue, type ShapeTool,
+  TRANSPARENT, aspectKey, clipRect, copyRect, decodeItems, describeValue, grid16, insideRect, neighbourView, overlayRgba, penSlots,
+  previewSource, rectBetween, renderRgba, shapeCells, stamps, tile16, tile16Target, topValue, type ShapeTool,
 } from './model';
 import { Thumb } from './Thumb';
 import './sprite.css';
@@ -132,7 +141,7 @@ function Help({ onClose }: { onClose(): void }) {
     ['Alt+X, Alt+Y', 'Mirror drawing about the vertical / horizontal axis'],
     [', .', 'Previous / next frame (tile)'],
     ['N, Shift+N', 'Add / duplicate frame (tile)'],
-    ['G, Shift+G, Alt+G, A, O', 'Pixel grid, byte grid, tile grid, CPC aspect, onion skin'],
+    ['G, Shift+G, Alt+G, A, O', 'Pixel grid, byte grid, tile grid, CPC pixel shape, onion skin'],
     ['= -, Z', 'Zoom in, out, fit'],
     ['T, P, ?', 'Tile / 2x2 tiles view, play the preview, this help'],
     ['Esc', 'Cancel the drag or the anchor, clear the selection'],
@@ -193,6 +202,8 @@ function SpriteApp({ client, settings, view }: Host) {
   const [slot, setSlot] = useState(0);
   const [seenGen, setSeenGen] = useState(0);
   const [previewFrame, setPreviewFrame] = useState(0);
+  const [pmode, setPmode] = useState<Mode>(v.mode);
+  useEffect(() => setPmode(v.mode), [v.mode]);
   const [area, setArea] = useState({ w: 600, h: 400 });
   const version = useRef(v.version);
   version.current = v.version;
@@ -516,14 +527,14 @@ function SpriteApp({ client, settings, view }: Host) {
 
   const chooseMode = async (m: 0 | 1 | 2): Promise<void> => {
     if (m === v.mode) { setPendingMode(null); return; }
-    const err = await send({ op: 'setMode', mode: m }, true);
+    const err = await send({ op: 'setMode', mode: m, filePens: v.paletteFile !== undefined ? v.pens : undefined }, true);
     if (err === undefined) { setPendingMode(null); return; }
     if (err.startsWith(`mode ${m} has`)) setPendingMode({ mode: m, text: err });
     else say('error', err, 'mode-error');
   };
   const convertMode = async (): Promise<void> => {
     if (!pendingMode) return;
-    const err = await send({ op: 'setMode', mode: pendingMode.mode, force: true });
+    const err = await send({ op: 'setMode', mode: pendingMode.mode, force: true, filePens: v.paletteFile !== undefined ? v.pens : undefined });
     if (!err) setPendingMode(null);
   };
   const chooseTileWidth = async (w: number, crop = false): Promise<void> => {
@@ -696,101 +707,77 @@ function SpriteApp({ client, settings, view }: Host) {
     await ask('copy', { text });
     say('info', `Copied ${what}.`, 'copied');
   };
+  /** Convert mode...: opens the Sprite card if it is folded and puts focus on the Mode control. */
+  const focusMode = (): void => {
+    setPropsOpen(true);
+    window.setTimeout(() => document.querySelector<HTMLElement>('.sp-mode [role="radio"][tabindex="0"]')?.focus(), 60);
+  };
+  const arrowOf = (l: string): string => (l === 'Left' ? '←' : l === 'Right' ? '→' : l === 'Up' ? '↑' : '↓');
+  const transformItems: MenuItem[] = [
+    { id: 'fliph', label: 'Flip horizontally', shortcut: 'Shift+H', onActivate: () => flip(true) },
+    { id: 'flipv', label: 'Flip vertically', shortcut: 'Shift+V', onActivate: () => flip(false) },
+    { id: 'rotate', label: sel || v.w === v.h ? 'Rotate 90 clockwise' : `Rotate 90 clockwise (needs a square ${noun})`, shortcut: 'Q', disabled: !sel && v.w !== v.h, onActivate: () => rotate(false) },
+    { id: 'rotccw', label: 'Rotate 90 counter-clockwise', shortcut: 'Shift+Q', disabled: !sel && v.w !== v.h, onActivate: () => rotate(true) },
+    ...([['Left', -1, 0], ['Right', 1, 0], ['Up', 0, -1], ['Down', 0, 1]] as [string, number, number][]).map(([l, dx, dy]) => ({ id: `s${l}`, label: `Shift ${l.toLowerCase()} by 1 pixel (wraps)`, shortcut: `Shift+${arrowOf(l)}`, onActivate: () => shiftBy(dx, dy) })),
+    ...(ppb > 1 ? ([['Left', -1], ['Right', 1]] as [string, number][]).map(([l, dx]) => ({ id: `b${l}`, label: `Shift ${l.toLowerCase()} by 1 byte (${ppb} pixels)`, shortcut: `Ctrl+Shift+${arrowOf(l)}`, onActivate: () => shiftBy(dx * ppb, 0) })) : []),
+    { id: 'clear', label: `Clear ${noun}`, onActivate: clearFrame },
+    { id: 'invert', label: 'Invert pens', onActivate: invert },
+    ...(!plus ? [{ id: 'convert', label: 'Convert mode...', icon: 'arrow-swap', onActivate: focusMode }] : []),
+  ];
   const groups: ToolbarGroup[] = [
     { label: 'Drawing tools', radio: true, items: TOOLS.map((t) => mk(t.id)) },
     {
       label: 'Drawing options',
       items: [
-        { kind: 'button', id: 'filled', label: 'Filled shapes', text: 'Filled', pressed: filled, shortcut: 'R / E again', onActivate: () => setFilled((f) => !f) },
-        { kind: 'button', id: 'mirx', label: 'Mirror about the vertical axis', text: 'X', icon: 'mirror', pressed: mirX, shortcut: 'Alt+X', onActivate: () => setMirX((m) => !m) },
-        { kind: 'button', id: 'miry', label: 'Mirror about the horizontal axis', text: 'Y', icon: 'mirror', pressed: mirY, shortcut: 'Alt+Y', onActivate: () => setMirY((m) => !m) },
+        { kind: 'chip', id: 'filled', label: 'Filled shapes', text: 'Filled', pressed: filled, shortcut: 'R / E again', onActivate: () => setFilled((f) => !f) },
+        { kind: 'chip', id: 'mirx', label: 'Mirror about the vertical axis', text: 'Mirror X', pressed: mirX, shortcut: 'Alt+X', onActivate: () => setMirX((m) => !m) },
+        { kind: 'chip', id: 'miry', label: 'Mirror about the horizontal axis', text: 'Mirror Y', pressed: mirY, shortcut: 'Alt+Y', onActivate: () => setMirY((m) => !m) },
       ],
     },
-    {
-      label: 'Transform',
-      items: [
-        { kind: 'button', id: 'fliph', label: 'Flip horizontally', icon: 'arrow-both', text: 'H', shortcut: 'Shift+H', onActivate: () => flip(true) },
-        { kind: 'button', id: 'flipv', label: 'Flip vertically', icon: 'arrow-swap', text: 'V', shortcut: 'Shift+V', onActivate: () => flip(false) },
-        { kind: 'button', id: 'rotate', label: 'Rotate 90 clockwise', icon: 'refresh', shortcut: 'Q', disabled: !sel && v.w !== v.h, why: `needs a square ${noun}`, onActivate: () => rotate(false) },
-        {
-          kind: 'menu', id: 'shift', label: 'Shift with wrap', text: 'Shift', icon: 'arrow-both',
-          items: [
-            ...([['Left', -1, 0], ['Right', 1, 0], ['Up', 0, -1], ['Down', 0, 1]] as [string, number, number][]).map(([l, dx, dy]) => ({ id: `s${l}`, label: `${l} by 1 pixel`, shortcut: `Shift+${l === 'Left' ? '←' : l === 'Right' ? '→' : l === 'Up' ? '↑' : '↓'}`, onActivate: () => shiftBy(dx, dy) })),
-            ...(ppb > 1 ? ([['Left', -1, 0], ['Right', 1, 0]] as [string, number, number][]).map(([l, dx]) => ({ id: `b${l}`, label: `${l} by 1 byte (${ppb} pixels)`, onActivate: () => shiftBy(dx * ppb, 0) })) : []),
-          ],
-        },
-        {
-          kind: 'menu', id: 'transform', label: 'More transforms', icon: 'symbol-misc',
-          items: [
-            { id: 'rotccw', label: 'Rotate 90 counter-clockwise', shortcut: 'Shift+Q', onActivate: () => rotate(true) },
-            { id: 'clear', label: `Clear ${noun}`, onActivate: clearFrame },
-            { id: 'invert', label: 'Invert pens', onActivate: invert },
-          ],
-        },
-      ],
-    },
-    {
-      label: 'View',
-      items: [
-        { kind: 'button', id: 'zout', label: 'Zoom out', icon: 'zoom-out', shortcut: '-', onActivate: () => setZoom(stepZoom(zoom, -1, aw)) },
-        { kind: 'menu', id: 'zoom', label: 'Zoom', text: `${zoom}x`, items: zoomItems },
-        { kind: 'button', id: 'zin', label: 'Zoom in', icon: 'zoom-in', shortcut: '=', onActivate: () => setZoom(stepZoom(zoom, 1, aw)) },
-        { kind: 'button', id: 'grid', label: gridPixel && zoom < 4 ? 'Pixel grid (hidden at this zoom)' : 'Pixel grid', text: 'Grid', pressed: gridPixel, shortcut: 'G', onActivate: () => setGridPixel((g) => !g) },
-        ...(!plus ? [{ kind: 'button' as const, id: 'gridbyte', label: 'Byte grid', text: 'Byte', pressed: gridByte, shortcut: 'Shift+G', onActivate: () => setGridByte((g) => !g) }] : []),
-        { kind: 'button', id: 'gridtile', label: 'Tile grid', text: 'Tile', pressed: gridTile, shortcut: 'Alt+G', onActivate: () => setGridTile((g) => !g) },
-        { kind: 'button', id: 'aspect', label: 'CPC pixel aspect', text: 'CPC', icon: 'screen-normal', pressed: crt, shortcut: 'A', onActivate: () => setCrt((c) => !c) },
-        ...(!tiles ? [{ kind: 'button' as const, id: 'onion', label: 'Onion skin', icon: 'layers', pressed: onion, shortcut: 'O', onActivate: () => setOnion((o) => !o) }] : []),
-      ],
-    },
-  ];
-  if (tiles)
-    groups.push({
-      label: 'Tile view',
-      radio: true,
-      items: [
-        { kind: 'radio', id: 'v8', label: `${v.w}x${v.h} view with neighbours`, text: `${v.w}x${v.h}`, checked: !view16, shortcut: 'T', onActivate: () => setView16(false) },
-        { kind: 'radio', id: 'v16', label: '2x2 view (tiles 4t to 4t+3)', text: '2x2', checked: view16, shortcut: 'T', onActivate: () => setView16(true) },
-      ],
-    });
-  groups.push(
-    {
-      label: 'History',
-      items: [
-        { kind: 'button', id: 'undo', label: 'Undo', icon: 'discard', disabled: !v.canUndo, why: 'nothing to undo', onActivate: () => void client.request('history', { action: 'undo' }) },
-        { kind: 'button', id: 'redo', label: 'Redo', icon: 'redo', disabled: !v.canRedo, why: 'nothing to redo', onActivate: () => void client.request('history', { action: 'redo' }) },
-      ],
-    },
+    { label: 'Transform', items: [{ kind: 'menu', id: 'transform', label: 'Transform', text: 'Transform', icon: 'symbol-misc', items: transformItems }] },
     {
       label: 'Asset',
       items: [
-        // narrow: Generate and Copy as move into the More menu so the toolbar stays at two rows
-        ...(narrow ? [] : [
-          { kind: 'button' as const, id: 'generate', label: `Generate ${v.output}`, text: 'Generate', icon: 'run', disabled: !!v.exportProblem, why: v.exportProblem, onActivate: () => void generate() },
-          {
-            kind: 'menu' as const, id: 'copyas', label: 'Copy as BASIC', text: 'Copy as', icon: 'copy',
-            items: [
-              ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: s.label, onActivate: () => void copyText(s.text, s.label) })),
-              { id: 'c-cmd', label: 'Equivalent img2cpc.py command', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
-            ],
-          },
-        ]),
+        { kind: 'button', id: 'generate', label: `Generate ${v.output}`, text: 'Generate', icon: 'run', disabled: !!v.exportProblem, why: v.exportProblem, onActivate: () => void generate() },
         {
-          kind: 'menu', id: 'more', label: 'More', icon: 'ellipsis',
+          kind: 'menu', id: 'copyas', label: 'Copy as BASIC', text: 'Copy as', icon: 'copy',
           items: [
-            ...(narrow ? [
-              { id: 'generate', label: `Generate ${v.output}`, icon: 'run', disabled: !!v.exportProblem, onActivate: () => void generate() },
-              ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: `Copy as ${s.label}`, icon: 'copy', onActivate: () => void copyText(s.text, s.label) })),
-              { id: 'c-cmd', label: 'Copy the img2cpc.py command', icon: 'copy', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
-            ] : []),
+            ...v.snippets.map((s) => ({ id: `c-${s.id}`, label: s.label, onActivate: () => void copyText(s.text, s.label) })),
+            { id: 'c-cmd', label: 'Equivalent img2cpc.py command', onActivate: () => void copyText(v.command, 'the img2cpc.py command') },
+          ],
+        },
+        { kind: 'button', id: 'help', label: 'Keyboard shortcuts', icon: 'question', shortcut: '?', onActivate: () => setHelp(true) },
+        {
+          kind: 'menu', id: 'more', label: 'More', text: 'More', icon: 'ellipsis',
+          items: [
             { id: 'takepng', label: `Import PNG into this ${tiles ? 'tile' : 'frame'}...`, icon: 'file-media', onActivate: () => void ask('importPng', { baseVersion: version.current, item: cur }).then((r) => r && (r.taken ? say(r.message?.includes('became') ? 'warning' : 'info', r.message ?? 'PNG imported.', 'png') : undefined)) },
             { id: 'savepng', label: 'Export the sheet as PNG...', icon: 'save-as', onActivate: () => void ask('exportPng', {}).then((r) => r?.saved && say('info', `Saved ${r.file}`, 'png')) },
-            { id: 'help', label: 'Keyboard shortcuts', shortcut: '?', onActivate: () => setHelp(true) },
             { id: 'text', label: 'Open as text', icon: 'go-to-file', onActivate: () => void client.request('openAsText', {}) },
           ],
         },
       ],
     },
-  );
+  ];
+  const viewGroups: ToolbarGroup[] = [
+    {
+      label: 'Show',
+      items: [
+        { kind: 'chip', id: 'grid', label: gridPixel && zoom < 4 ? 'Pixel grid (hidden at this zoom)' : 'Pixel grid', text: 'Grid', pressed: gridPixel, shortcut: 'G', onActivate: () => setGridPixel((g) => !g) },
+        ...(!plus ? [{ kind: 'chip' as const, id: 'gridbyte', label: 'Byte grid', text: 'Byte', pressed: gridByte, shortcut: 'Shift+G', onActivate: () => setGridByte((g) => !g) }] : []),
+        { kind: 'chip', id: 'gridtile', label: 'Tile grid', text: 'Tile', pressed: gridTile, shortcut: 'Alt+G', onActivate: () => setGridTile((g) => !g) },
+        { kind: 'chip', id: 'aspect', label: 'CPC pixel shape (on the canvas)', text: 'CPC pixel shape', pressed: crt, shortcut: 'A', onActivate: () => setCrt((c) => !c) },
+        ...(!tiles ? [{ kind: 'chip' as const, id: 'onion', label: 'Onion skin', text: 'Onion', pressed: onion, shortcut: 'O', onActivate: () => setOnion((o) => !o) }] : []),
+      ],
+    },
+    {
+      label: 'Zoom',
+      items: [
+        { kind: 'button', id: 'zout', label: 'Zoom out', icon: 'zoom-out', shortcut: '-', onActivate: () => setZoom(stepZoom(zoom, -1, aw)) },
+        { kind: 'menu', id: 'zoom', label: 'Zoom', text: `${zoom}x`, items: zoomItems },
+        { kind: 'button', id: 'zin', label: 'Zoom in', icon: 'zoom-in', shortcut: '=', onActivate: () => setZoom(stepZoom(zoom, 1, aw)) },
+      ],
+    },
+  ];
 
   // ----------------------------------------------------------- notices
   const notices: ComponentChildren[] = [];
@@ -858,48 +845,72 @@ function SpriteApp({ client, settings, view }: Host) {
     ? `Tile ${cur} of ${n}, ${v.w} by ${v.h} pixels, mode ${v.mode}${view16 ? `, 2 by 2 view of tiles ${4 * t16} to ${4 * t16 + 3}` : ''}`
     : `${plus ? 'Plus sprite' : 'Sprite'} ${v.name}, frame ${cur + 1} of ${n}, ${v.w} by ${v.h} pixels${plus ? '' : `, mode ${v.mode}`}`;
 
+  // the CPC preview: the shown frame (or the 2x2 view) in the preview mode, made by the same convertPens as Convert
+  const shared = v.paletteFile !== undefined;
+  const src = useMemo(() => {
+    if (plus || !n || !v.pens) return undefined;
+    const pick = (its: Grid[]): Grid => (space === 't16' ? grid16(its, t16, v.w, v.h) : its[Math.min(tiles ? cur : shown, its.length - 1)]);
+    return previewSource(items, pick, v.pens, shared);
+  }, [plus, n, items, v.pens, shared, space, t16, v.w, v.h, tiles, cur, shown]);
+  const borderRgb = v.border !== undefined ? FW_TABLE[v.border] : undefined;
+  const folded = (open: boolean) => ({ collapsible: narrow, open: narrow ? open : true, onToggle: setPropsOpen });
+  const stat: Record<string, { state: 'ok' | 'warn' | 'neutral'; text: string }> = {
+    unknown: { state: 'neutral', text: 'unknown' },
+    missing: { state: 'warn', text: 'not generated yet' },
+    current: { state: 'ok', text: 'up to date' },
+    stale: { state: 'warn', text: 'out of date' },
+  };
+  const outStat = stat[v.outputState] ?? stat.unknown;
+  const fmtId = snippetOf(fmt) ? fmt : 'use';
+  const chosen = snippetOf(fmtId);
+  const fmtKey = (e: KeyboardEvent, i: number): void => {
+    const k = rovingNext(v.snippets.length, i, e.key);
+    if (k === undefined) return;
+    e.preventDefault();
+    setFmt(v.snippets[k].id);
+    (e.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLElement>('[role="radio"]')[k]?.focus();
+  };
+
   const props = (
-    <PropertyPanel label={tiles ? 'Tile set properties' : 'Sprite properties'}>
-      {!tiles && (
-        <Section title="Preview" open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
-          <div class="sp-preview">
-            {n > 0 && <Thumb rgba={thumbs[Math.min(shown, n - 1)]} w={v.w} h={v.h} scale={plus ? 2 * magY : Math.max(1, Math.floor(96 / Math.max(v.w * (crt ? aspectWidth(aKey, 'crt') : 1), v.h)))} aw={plus ? (crt ? magX / (2 * magY) : magX / magY) : crt ? aspectWidth(aKey, 'crt') : 1} label={`Preview of ${noun} ${shown + 1}`} />}
-          </div>
-          <div class="cb-row">
-            <button type="button" class="cb-icon-btn" aria-label={playing ? 'Pause preview (P)' : 'Play preview (P)'} title={playing ? 'Pause (P)' : 'Play (P)'} aria-pressed={playing} onClick={() => setPlaying((p) => !p)}><Icon name={playing ? 'debug-pause' : 'play'} /></button>
-            <CheckField id="sp-all" label="Play all frames" checked={allFrames} onChange={setAllFrames} />
-          </div>
-          <NumberField id="sp-fps" label="Rate (frames per second)" value={fps} min={1} max={60} onCommit={setFps} />
-          {plus && (
-            <>
-              <Field id="sp-magx" label="Magnification X"><Segmented label="Magnification X" value={magX} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagX(Number(m))} /></Field>
-              <Field id="sp-magy" label="Magnification Y"><Segmented label="Magnification Y" value={magY} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagY(Number(m))} /></Field>
-              <p class="cb-muted">In CPC aspect a sprite pixel is magx / (2 x magy) as wide as it is tall.</p>
-              <div role="group" aria-label="Sprite slot (preview order only)">
-                <div class="cb-muted">Sprite slot (lower numbers draw in front; preview ordering only)</div>
-                <div class="sp-slots">{Array.from({ length: 16 }, (_, i) => <button key={i} type="button" class={`sp-slot${slot === i ? ' sp-slot-on' : ''}`} aria-pressed={slot === i} aria-label={`Sprite slot ${i}`} title="Lower numbers draw in front (preview ordering only)" onClick={() => setSlot(i)}>{i}</button>)}</div>
-              </div>
-            </>
-          )}
-        </Section>
+    <aside class="sp-cards" aria-label={tiles ? 'Tile set properties' : 'Sprite properties'}>
+      {!plus && src && (
+        <Card title="Preview" id="sp-card-preview" {...folded(propsOpen)}>
+          <CpcPreview image={src.image} reduce={src.reduce} mode={pmode} onMode={setPmode} assetMode={v.mode} assetLabel={tiles ? "tile set's mode" : "sprite's mode"} border={borderRgb} extras compare="popover" maxWidth={232} maxHeight={200} label={tiles ? 'Tile set CPC preview' : 'Sprite CPC preview'} />
+        </Card>
       )}
-      <Section title={tiles ? 'Tile set' : plus ? 'Plus sprite' : 'Sprite'} open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
+      {plus && !tiles && (
+        <Card title="Preview" id="sp-card-preview" {...folded(propsOpen)}>
+          <div class="sp-preview">
+            {n > 0 && <Thumb rgba={thumbs[Math.min(shown, n - 1)]} w={v.w} h={v.h} scale={2 * magY} aw={crt ? magX / (2 * magY) : magX / magY} label={`Preview of ${noun} ${shown + 1}`} />}
+          </div>
+          <Field id="sp-magx" label="Magnification X"><SegPill label="Magnification X" size="sm" testId="sp-magx" value={magX} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagX(Number(m))} /></Field>
+          <Field id="sp-magy" label="Magnification Y"><SegPill label="Magnification Y" size="sm" testId="sp-magy" value={magY} options={[1, 2, 4].map((m) => ({ value: m, label: `x${m}` }))} onChange={(m) => setMagY(Number(m))} /></Field>
+          <p class="cb-muted">In CPC pixel shape a sprite pixel is magx / (2 x magy) as wide as it is tall.</p>
+          <div role="group" aria-label="Sprite slot (preview order only)">
+            <div class="cb-muted">Sprite slot (lower numbers draw in front; preview ordering only)</div>
+            <div class="sp-slots">{Array.from({ length: 16 }, (_, i) => <button key={i} type="button" class={`sp-slot${slot === i ? ' sp-slot-on' : ''}`} aria-pressed={slot === i} aria-label={`Sprite slot ${i}`} title="Lower numbers draw in front (preview ordering only)" onClick={() => setSlot(i)}>{i}</button>)}</div>
+          </div>
+        </Card>
+      )}
+      <Card title={tiles ? 'Tile set' : plus ? 'Plus sprite' : 'Sprite'} id="sp-card-sprite" {...folded(propsOpen)}>
         <TextField id="sp-name" label="Name" value={v.name} description="Prefix of the generated arrays and constants." validate={(t) => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t) ? undefined : 'Use letters, digits and _, not starting with a digit')} onCommit={(t) => void send({ op: 'setName', name: t })} />
         {!plus && (
-          <Field id="sp-mode" label="Mode">
-            <Segmented label="Screen mode" value={v.mode} options={([0, 1, 2] as const).map((m) => ({ value: m, label: `${m}`, title: `Mode ${m}: ${[16, 4, 2][m]} pens, ${[2, 4, 8][m]} pixels per byte` }))} onChange={(m) => void chooseMode(m)} />
+          <Field id="sp-mode" label="Mode" description="Changing the mode converts the pens by nearest colour; it asks first when colours would merge.">
+            <div class="sp-mode">
+              <SegPill label="Screen mode" testId="sp-mode" value={v.mode} options={([0, 1, 2] as const).map((m) => ({ value: m, label: `${m}`, title: `Mode ${m}: ${[16, 4, 2][m]} pens, ${[2, 4, 8][m]} pixels per byte` }))} onChange={(m) => void chooseMode(m)} />
+            </div>
           </Field>
         )}
         {tiles && (
           <Field id="sp-tw" label="Tile width">
-            <Segmented label="Tile width" value={v.w} options={tileWidthsOf(v.mode).map((w) => ({ value: w, label: `${w} px (${w / ppb} B)`, title: `${w} x 8 pixels, ${w / ppb} byte${w === ppb ? '' : 's'} wide, ${8 * w / ppb} bytes per tile` }))} onChange={(w) => void chooseTileWidth(w)} />
+            <SegPill label="Tile width" size="sm" testId="sp-tw" value={v.w} options={tileWidthsOf(v.mode).map((w) => ({ value: w, label: `${w} px`, title: `${w} x 8 pixels, ${w / ppb} byte${w === ppb ? '' : 's'} wide, ${8 * w / ppb} bytes per tile` }))} onChange={(w) => void chooseTileWidth(w)} />
           </Field>
         )}
         {!plus && !tiles && (
           <>
             <NumberField id="sp-w" label="Frame width (pixels)" value={v.w} min={ppb} max={1024} step={ppb} bigStep={2} pageStep={ppb * 4} description={`A multiple of ${ppb} (mode ${v.mode}).`} onCommit={(w) => void resize(w, v.h)} />
             <NumberField id="sp-h" label="Frame height (pixels)" value={v.h} min={1} max={1024} onCommit={(h) => void resize(v.w, h)} />
-            <CheckField id="sp-masked" label="Masked" checked={v.masked} description="Masked sprites keep the background where a pixel is transparent (mask, pixel byte pairs)." onChange={(c) => void send({ op: 'setMasked', value: c })} />
+            <CheckField id="sp-masked" label="Masked" checked={v.masked} description="Masked sprites keep the background where a pixel is left on the transparent slot (mask, pixel byte pairs)." onChange={(c) => void send({ op: 'setMasked', value: c })} />
           </>
         )}
         {plus && <p class="cb-muted">16 x 16 pixels, 15 colours and transparent. The array holds one byte per pixel (0 = transparent).</p>}
@@ -918,34 +929,31 @@ function SpriteApp({ client, settings, view }: Host) {
             <p class="cb-muted">{n} of 256 tiles. {view16 ? '' : 'Neighbouring tiles are dimmed; click one to edit it.'}</p>
           </>
         )}
-      </Section>
-      <Section title="Palette" open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
+      </Card>
+      <Card title="Palette" id="sp-card-palette" {...folded(propsOpen)}>
         <Field id="sp-pal" label="Palette">
-          <select id="sp-pal" class="cb-select" value={v.paletteFile !== undefined ? 'file' : 'inline'}
-            onChange={(e) => {
-              const val = (e.target as HTMLSelectElement).value;
-              if (val === 'file') void ask('setPaletteFile', { baseVersion: version.current }).then((r) => r?.message && say('info', r.message, 'palshare'));
-              else void ask('inlinePalette', { baseVersion: version.current });
-            }}>
-            <option value="inline">This document</option>
-            <option value="file">Shared file...</option>
-          </select>
+          <SegPill label="Palette source" size="sm" testId="sp-pal" value={shared ? 'file' : 'inline'}
+            options={[{ value: 'inline', label: 'This document' }, { value: 'file', label: 'Shared file...' }]}
+            onChange={(val) => {
+              if (val === 'file') { if (!shared) void ask('setPaletteFile', { baseVersion: version.current }).then((r) => r?.message && say('info', r.message, 'palshare')); }
+              else if (shared) void ask('inlinePalette', { baseVersion: version.current });
+            }} />
         </Field>
-        {v.paletteFile !== undefined && (
+        {shared && (
           <div class="cb-row">
             <button type="button" class="cb-link" onClick={() => void ask('openPalette', {})} title="Open the palette file in the palette editor">{v.paletteFile}</button>
-            <button type="button" class="cb-icon-btn" aria-label="Choose another palette file" title="Choose another palette file" onClick={() => void ask('setPaletteFile', { baseVersion: version.current })}><Icon name="folder-opened" /></button>
+            <Pill size="sm" variant="ghost" icon="folder-opened" label="Choose another palette file" onClick={() => void ask('setPaletteFile', { baseVersion: version.current })} />
           </div>
         )}
         <p class="cb-muted">
-          {v.paletteFile !== undefined
+          {shared
             ? 'Changes to the palette file show here as soon as it is saved. Editing a pen colour happens in the palette editor.'
             : 'Double-click a pen to change its colour. Pens of one colour stay distinct here; a PNG round trip through the importer would merge them.'}
         </p>
-      </Section>
-      <Section title="Output" open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
+      </Card>
+      <Card title="Output" id="sp-card-output" {...folded(propsOpen)}>
         <TextField id="sp-out" label="Output file" value={v.output} description="Relative to this document." validate={(t) => (t ? undefined : 'Enter a file name')} onCommit={(t) => void send({ op: 'setOutput', path: t })} />
-        {!plus && <CheckField id="sp-emit" label="Emit palette" checked={v.emitPalette} description={v.paletteFile !== undefined ? 'Off when another document of the project already emits the shared palette (NAME_pal, NAME_PENS).' : 'NAME_pal and NAME_PENS.'} onChange={(c) => void send({ op: 'setEmitPalette', value: c })} />}
+        {!plus && <CheckField id="sp-emit" label="Emit palette" checked={v.emitPalette} description={shared ? 'Off when another document of the project already emits the shared palette (NAME_pal, NAME_PENS).' : 'NAME_pal and NAME_PENS.'} onChange={(c) => void send({ op: 'setEmitPalette', value: c })} />}
         {plus && <CheckField id="sp-packed" label="Packed (two pixels per byte)" checked={v.packed} onChange={(c) => void send({ op: 'setPacked', value: c })} />}
         {plus && (
           <Field id="sp-fmt" label="Format">
@@ -956,38 +964,47 @@ function SpriteApp({ client, settings, view }: Host) {
         )}
         <p class="cb-muted">{v.generateOnSave ? 'Written when the document is saved (cpcbuild.assets.generateOnSave).' : 'Not written on save: turn on cpcbuild.assets.generateOnSave, or use Generate.'}</p>
         <div class="cb-row">
-          <button type="button" class="cb-btn" onClick={() => void generate()} aria-disabled={v.exportProblem ? 'true' : undefined} title={v.exportProblem ?? `Write ${v.output}`}>Generate</button>
-          <span class="cb-muted">{v.outputState === 'current' ? 'Output is up to date' : v.outputState === 'stale' ? 'Output is out of date' : v.outputState === 'missing' ? 'Not generated yet' : ''}</span>
+          <Pill variant="primary" icon="run" text="Generate" label={`Generate ${v.output}`} disabled={!!v.exportProblem} why={v.exportProblem} onClick={() => void generate()} />
+          <StatPill state={outStat.state}>{outStat.text}</StatPill>
         </div>
-      </Section>
-      <Section title="Copy as" open={narrow ? propsOpen : true} onToggle={setPropsOpen}>
+      </Card>
+      <section class="sp-copyas" aria-labelledby="sp-copyas-h">
+        <h2 class="cb-label" id="sp-copyas-h">Copy as</h2>
         <div class="sp-formats" role="radiogroup" aria-label="Copy format">
-          {v.snippets.map((s) => (
-            <label key={s.id}><input type="radio" name="sp-fmt" checked={s.id === (snippetOf(fmt) ? fmt : 'use')} onChange={() => setFmt(s.id)} /> {s.label}</label>
+          {v.snippets.map((s, i) => (
+            <button key={s.id} type="button" role="radio" class="cb-pill cb-chip" aria-checked={s.id === fmtId} tabIndex={s.id === fmtId ? 0 : -1} onClick={() => setFmt(s.id)} onKeyDown={(e) => fmtKey(e, i)}>{s.label}</button>
           ))}
         </div>
-        {(() => {
-          const s = snippetOf(fmt) ?? snippetOf('use');
-          return s ? <Copyable value={s.text.length > 6000 ? s.text.slice(0, 6000) + '\n...' : s.text} label={s.label} multiline copy={(t) => ask('copy', { text: s.text.length > 6000 ? s.text : t })} /> : null;
-        })()}
-        <div class="cb-muted">Equivalent command</div>
-        <Copyable value={v.command} label="the img2cpc.py command" copy={(t) => ask('copy', { text: t })} />
-      </Section>
-    </PropertyPanel>
+        {chosen && <CodeCard title={chosen.label} value={chosen.text.length > 6000 ? chosen.text.slice(0, 6000) + '\n...' : chosen.text} multiline copy={(text) => ask('copy', { text: chosen.text.length > 6000 ? chosen.text : text })} />}
+        <CodeCard title="Equivalent command" value={v.command} copy={(text) => ask('copy', { text })} />
+      </section>
+    </aside>
   );
 
   const popCurrent = popover === null ? '' : plus ? (v.colours?.[popover - 1] ?? '000') : String(v.pens?.[popover] ?? 0);
+
+  const penFull = plus ? (v.colours?.length ?? 0) >= 15 : (v.pens?.length ?? 0) >= [16, 4, 2][v.mode];
+  const stepFps = (d: number): void => setFps((f) => Math.max(1, Math.min(60, f + d)));
+  const stopPlay = (): void => { setPlaying(false); setPreviewFrame(cur); };
 
   return (
     <div class="sp">
       <h1 class="cb-visually-hidden">{tiles ? 'Tile set' : 'Sprite'} {v.fileName}</h1>
       <div class="cb-visually-hidden" aria-live="polite">{live}</div>
-      <Toolbar label={tiles ? 'Tile editor' : 'Sprite editor'} groups={groups} onEscape={() => areaRef.current?.querySelector<HTMLElement>('.cb-canvas')?.focus()} />
+      <Toolbar label={tiles ? 'Tile editor' : 'Sprite editor'} groups={groups} look="pills" onEscape={() => areaRef.current?.querySelector<HTMLElement>('.cb-canvas')?.focus()} />
       {help && <Help onClose={() => setHelp(false)} />}
       {notices}
       <div class="sp-body">
         <div class="sp-left">{n > 0 || !tiles ? strip : null}</div>
         <div class="sp-center" ref={areaRef}>
+          <div class="sp-above">
+            <Toolbar label="View" groups={viewGroups} look="pills" onEscape={() => areaRef.current?.querySelector<HTMLElement>('.cb-canvas')?.focus()} />
+            {tiles && (
+              <SegPill<'t8' | 't16'> label="Tile view" size="sm" testId="sp-tview" value={view16 ? 't16' : 't8'}
+                options={[{ value: 't8', label: `${v.w}×${v.h}`, title: `${v.w}x${v.h} view with neighbours (T)` }, { value: 't16', label: '2×2', title: '2x2 view, tiles 4t to 4t+3 (T)' }]}
+                onChange={(x) => setView16(x === 't16')} />
+            )}
+          </div>
           {n === 0 ? (
             <EmptyState icon={tiles ? 'table' : 'file-media'} title={tiles ? 'No tiles yet' : 'No frames yet'} text={tiles ? 'Add a tile to start drawing.' : 'Add a frame to start drawing.'} action={{ label: tiles ? 'Add tile' : 'Add frame', onClick: addItem }} />
           ) : (
@@ -1021,31 +1038,53 @@ function SpriteApp({ client, settings, view }: Host) {
         <div class="sp-side">{props}</div>
       </div>
       <div class="sp-foot">
-      <div class="sp-pens">
-        <PenStrip
-          label="Pens"
-          slots={slots}
-          left={lPen}
-          right={rPen}
-          groups={[{ label: '', from: -1 }]}
-          compact
-          caption={caption}
-          onSelect={penPick}
-          onActivate={(i) => {
-            if (i < 0) return;
-            if (v.paletteFile !== undefined) { say('info', `This palette is the shared file ${v.paletteFile}: opening it in the palette editor.`, 'palopen'); void ask('openPalette', {}); return; }
-            if (!plus && i >= (v.pens?.length ?? 0)) { setPenAt(i, '0'); return; }
-            setPopover(i);
-          }}
-        />
-        <div class="cb-row" role="group" aria-label="Palette actions">
-          <button type="button" class="cb-icon-btn" aria-label="Add pen" title={plus && (v.colours?.length ?? 0) >= 15 ? 'The Plus sprite palette has 15 colours' : 'Add a pen'} aria-disabled={v.paletteFile !== undefined || (plus ? (v.colours?.length ?? 0) >= 15 : (v.pens?.length ?? 0) >= [16, 4, 2][v.mode]) ? 'true' : undefined} onClick={() => v.paletteFile === undefined && addPen()}><Icon name="add" /></button>
-          <button type="button" class="cb-icon-btn" aria-label="Remove the last pen" title="Remove the last pen" aria-disabled={v.paletteFile !== undefined ? 'true' : undefined} onClick={() => v.paletteFile === undefined && removePen()}><Icon name="trash" /></button>
+        <div class="sp-controls">
+        {!tiles && n > 1 && (
+          <div class="sp-transport">
+            <TransportPod
+              label="Animation preview"
+              buttons={[
+                { id: 'play', label: playing ? 'Pause preview' : 'Play preview', icon: playing ? 'debug-pause' : 'play', main: true, shortcut: 'P', onActivate: () => setPlaying((x) => !x) },
+                { id: 'stop', label: 'Stop and return to the current frame', icon: 'debug-stop', onActivate: stopPlay },
+              ]}
+            >
+              <span class="sp-fps" role="group" aria-label="Frames per second">
+                <Pill size="xs" variant="ghost" icon="remove" label="Slower" disabled={fps <= 1} why="1 frame per second is the slowest" onClick={() => stepFps(-1)} />
+                <span class="cb-pod-readout" role="status" aria-label={`${fps} frames per second`}><span class="cb-pod-big">{fps}</span><span class="cb-pod-unit">fps</span></span>
+                <Pill size="xs" variant="ghost" icon="add" label="Faster" disabled={fps >= 60} why="60 frames per second is the fastest" onClick={() => stepFps(1)} />
+              </span>
+              <ToggleChip label="All frames" pressed={allFrames} onChange={setAllFrames} />
+            </TransportPod>
+          </div>
+        )}
+        <div class="sp-pens">
+          <PenStrip
+            label="Pens"
+            slots={slots}
+            left={lPen}
+            right={rPen}
+            groups={[{ label: '', from: -1 }]}
+            compact
+            round
+            ringSides
+            caption={caption}
+            onSelect={penPick}
+            onActivate={(i) => {
+              if (i < 0) return;
+              if (v.paletteFile !== undefined) { say('info', `This palette is the shared file ${v.paletteFile}: opening it in the palette editor.`, 'palopen'); void ask('openPalette', {}); return; }
+              if (!plus && i >= (v.pens?.length ?? 0)) { setPenAt(i, '0'); return; }
+              setPopover(i);
+            }}
+          />
+          <div class="cb-row" role="group" aria-label="Palette actions">
+            <Pill size="sm" icon="add" label="Add pen" disabled={shared || penFull} why={shared ? 'the palette is a shared file' : plus ? 'The Plus sprite palette has 15 colours' : `mode ${v.mode} has ${[16, 4, 2][v.mode]} pens`} onClick={addPen} />
+            <Pill size="sm" icon="trash" label="Remove the last pen" disabled={shared} why="the palette is a shared file" onClick={removePen} />
+          </div>
+          {popover !== null && <ColourPopover kind={plus ? 'plus' : 'cpc'} title={`Colour of ${caption(popover).spoken}`} current={popCurrent} onPick={(val) => setPenAt(popover, val)} onClose={() => setPopover(null)} />}
+          <div class="cb-muted sp-pen-detail" aria-live="off">L: {describeValue(v, lPen)}. R: {describeValue(v, rPen)}.</div>
         </div>
-        {popover !== null && <ColourPopover kind={plus ? 'plus' : 'cpc'} title={`Colour of ${caption(popover).spoken}`} current={popCurrent} onPick={(val) => setPenAt(popover, val)} onClose={() => setPopover(null)} />}
-        <div class="cb-muted sp-pen-detail" aria-live="off">L: {describeValue(v, lPen)}. R: {describeValue(v, rPen)}.</div>
-      </div>
-      <StatusLine fields={status} hint="Wheel scrolls, Ctrl+wheel zooms, Alt+click picks, ? lists the keys" />
+        </div>
+        <StatusLine fields={status} hint="Wheel scrolls, Ctrl+wheel zooms, Alt+click picks, ? lists the keys" />
       </div>
     </div>
   );
