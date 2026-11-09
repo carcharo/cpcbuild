@@ -48,89 +48,137 @@ const lfsrNext = (s: number): number => (s >> 1) | (((s ^ (s >> 3)) & 1) << 16);
 const LEVELS = new Float64Array(16);
 for (let v = 0; v < 16; v++) LEVELS[v] = volumeLevel(v);
 
-export class Ay {
+/**
+ * The full chip: three tone channels (A, B, C), each with its own period, volume, tone and noise
+ * enables, and one shared noise generator. Output = the sum of the channels' `(bit - 0.5) * level`
+ * times `gain`, then the one-pole high-pass. Muted channels (setMute) contribute nothing.
+ */
+export class AyChip {
   private readonly ticksPerSample: number; // chip ticks (clock / 8) per output sample
   private readonly hpCoef: number;
-  // registers (channel A)
-  private tonePeriod = 1;
+  private readonly gain: number;
+  // registers
+  private readonly period = new Int32Array([1, 1, 1]);
+  private readonly toneOn = new Uint8Array([1, 1, 1]);
+  private readonly noiseOn = new Uint8Array([0, 0, 0]);
+  private readonly level = new Float64Array(3);
   private noiseRate = 2; // ticks per LFSR step = 2 * noisePeriod
-  private toneOn = true;
-  private noiseOn = false;
-  private level = 0;
+  private muteMask = 0;
   // state
-  private toneCount = 0;
+  private readonly toneCount = new Int32Array(3);
+  private readonly toneBit = new Uint8Array([1, 1, 1]);
+  private readonly last = new Float64Array(3); // last raw level per channel, held when a sample spans no tick
   private noiseCount = 0;
-  private toneBit = true;
   private lfsr = LFSR_SEED;
   private acc = 0; // fractional chip ticks carried between samples
-  private last = 0; // last raw level, held when a sample spans no tick
   private hpX = 0;
   private hpY = 0;
 
-  constructor(readonly clock: number, readonly sampleRate: number) {
+  constructor(readonly clock: number, readonly sampleRate: number, opts: { gain?: number } = {}) {
     this.ticksPerSample = clock / 8 / sampleRate;
     this.hpCoef = Math.exp((-2 * Math.PI * 20) / sampleRate);
+    this.gain = opts.gain ?? 1;
   }
 
-  /** Set channel A's registers: tone period 0-4095, noise period 0-31, mixer enables, volume 0-15. */
-  set(period: number, noisePeriod: number, tone: boolean, noise: boolean, volume: number): void {
-    this.tonePeriod = Math.min(4095, Math.max(1, period | 0));
-    this.noiseRate = 2 * Math.min(31, Math.max(1, noisePeriod | 0));
-    this.toneOn = tone;
-    this.noiseOn = noise;
-    this.level = LEVELS[Math.min(15, Math.max(0, volume | 0))];
+  /** Set channel ch (0 = A, 1 = B, 2 = C): tone period 0-4095, mixer enables, volume 0-15. */
+  setChannel(ch: number, period: number, tone: boolean, noise: boolean, volume: number): void {
+    this.period[ch] = Math.min(4095, Math.max(1, period | 0));
+    this.toneOn[ch] = tone ? 1 : 0;
+    this.noiseOn[ch] = noise ? 1 : 0;
+    this.level[ch] = LEVELS[Math.min(15, Math.max(0, volume | 0))];
   }
 
-  /** Back to power-on state (counters, LFSR, filter); registers are kept. */
+  /** The shared noise period, 0-31 (0 acts as 1). */
+  setNoise(period: number): void {
+    this.noiseRate = 2 * Math.min(31, Math.max(1, period | 0));
+  }
+
+  /** Bit 0 = A, bit 1 = B, bit 2 = C: a muted channel contributes 0. */
+  setMute(mask: number): void {
+    this.muteMask = mask & 7;
+  }
+
+  /** Back to power-on state (counters, LFSR, filter); registers and mute are kept. */
   reset(): void {
-    this.toneCount = 0;
+    this.toneCount.fill(0);
+    this.toneBit.fill(1);
+    this.last.fill(0);
     this.noiseCount = 0;
-    this.toneBit = true;
     this.lfsr = LFSR_SEED;
     this.acc = 0;
-    this.last = 0;
     this.hpX = 0;
     this.hpY = 0;
   }
 
-  /** Fill out[start .. start + n) with mono samples in [-0.5, 0.5]. */
+  /** Fill out[start .. start + n) with mono samples (full scale is +-0.5 per unit of gain). */
   render(out: Float32Array, start: number, n: number): void {
-    const level = this.level, a = this.hpCoef;
-    let { toneCount, noiseCount, toneBit, lfsr, acc, last, hpX, hpY } = this;
-    const period = this.tonePeriod, noiseRate = this.noiseRate, toneOn = this.toneOn, noiseOn = this.noiseOn;
-    const tps = this.ticksPerSample;
+    const a = this.hpCoef, gain = this.gain, tps = this.ticksPerSample, noiseRate = this.noiseRate;
+    const { period, toneOn, noiseOn, level, toneCount, toneBit, last } = this;
+    const mute = this.muteMask;
+    let { noiseCount, lfsr, acc, hpX, hpY } = this;
     for (let i = 0; i < n; i++) {
       acc += tps;
       const ticks = acc | 0;
       acc -= ticks;
       if (ticks > 0) {
-        let sum = 0;
+        let s0 = 0, s1 = 0, s2 = 0;
         for (let t = 0; t < ticks; t++) {
-          if (++toneCount >= period) {
-            toneCount = 0;
-            toneBit = !toneBit;
-          }
+          if (++toneCount[0] >= period[0]) { toneCount[0] = 0; toneBit[0] ^= 1; }
+          if (++toneCount[1] >= period[1]) { toneCount[1] = 0; toneBit[1] ^= 1; }
+          if (++toneCount[2] >= period[2]) { toneCount[2] = 0; toneBit[2] ^= 1; }
           if (++noiseCount >= noiseRate) {
             noiseCount = 0;
             lfsr = lfsrNext(lfsr);
           }
-          sum += (toneBit || !toneOn) && ((lfsr & 1) === 1 || !noiseOn) ? 1 : 0;
+          const nb = lfsr & 1;
+          if ((toneBit[0] === 1 || toneOn[0] === 0) && (nb === 1 || noiseOn[0] === 0)) s0++;
+          if ((toneBit[1] === 1 || toneOn[1] === 0) && (nb === 1 || noiseOn[1] === 0)) s1++;
+          if ((toneBit[2] === 1 || toneOn[2] === 0) && (nb === 1 || noiseOn[2] === 0)) s2++;
         }
-        last = sum / ticks;
+        last[0] = s0 / ticks;
+        last[1] = s1 / ticks;
+        last[2] = s2 / ticks;
       }
-      const x = (last - 0.5) * level; // centred on half the level, so a volume step stays within +-0.5
+      // each channel centred on half its level, so a volume step stays within +-0.5
+      const x = (((mute & 1) === 0 ? (last[0] - 0.5) * level[0] : 0) +
+        ((mute & 2) === 0 ? (last[1] - 0.5) * level[1] : 0) +
+        ((mute & 4) === 0 ? (last[2] - 0.5) * level[2] : 0)) * gain;
       hpY = a * (hpY + x - hpX);
       hpX = x;
       out[start + i] = hpY;
     }
-    this.toneCount = toneCount;
     this.noiseCount = noiseCount;
-    this.toneBit = toneBit;
     this.lfsr = lfsr;
     this.acc = acc;
-    this.last = last;
     this.hpX = hpX;
     this.hpY = hpY;
+  }
+}
+
+/** One voice (channel A of the full chip), used by the effects preview. */
+export class Ay {
+  private readonly chip: AyChip;
+
+  constructor(readonly clock: number, readonly sampleRate: number) {
+    this.chip = new AyChip(clock, sampleRate);
+    this.chip.setChannel(1, 1, true, false, 0);
+    this.chip.setChannel(2, 1, true, false, 0);
+  }
+
+  /** Set channel A's registers: tone period 0-4095, noise period 0-31, mixer enables, volume 0-15. */
+  set(period: number, noisePeriod: number, tone: boolean, noise: boolean, volume: number): void {
+    this.chip.setChannel(0, period, tone, noise, volume);
+    this.chip.setNoise(noisePeriod);
+  }
+
+  /** Back to power-on state (counters, LFSR, filter); registers are kept. */
+  reset(): void {
+    this.chip.reset();
+  }
+
+  /** Fill out[start .. start + n) with mono samples in [-0.5, 0.5]. */
+  render(out: Float32Array, start: number, n: number): void {
+    this.chip.render(out, start, n);
   }
 }
 
