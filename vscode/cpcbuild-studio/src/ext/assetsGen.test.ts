@@ -13,7 +13,8 @@ import { PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { newSprite, serialiseSprite } from '../core/spriteDoc';
 import { serialiseSfx } from '../core/sfxDoc';
 import { newBank, presetEffect } from '../core/sfxPresets';
-import { assetFailure, findRecipes, findSfxBanks, generateSfxBank, isSfxStale, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
+import { newSong, serialiseSong } from '../core/songDoc';
+import { assetFailure, findRecipes, findSfxBanks, findSongs, generateSong, isSongStale, generateSfxBank, isSfxStale, findSpriteDocs, generate, generateFile, isSpriteStale, isStale, readSpriteDoc, regenerateAll, type GenSettings } from './assetsGen';
 
 const GLOBS = ['assets/**/*.cpcimp'];
 const settings = (over: Partial<GenSettings> = {}): GenSettings => ({ engine: 'builtin', header: 'img2cpc', pythonPath: PYTHON_SETTING, library: REPO, ...over });
@@ -366,5 +367,76 @@ describe('sound-effects banks', () => {
     const t = new Date(Date.now() + 10000);
     fs.utimesSync(path.join(dir, 'assets/sfx.cpcsfx'), t, t);
     expect(isSfxStale(dir, 'assets/sfx.cpcsfx', ['cpc'])).toBe(true);
+  }, 120000);
+});
+
+// ---------------------------------------------------------------- .cpcsong songs
+
+const SONG_GLOBS = ['assets/**/*.cpcsong'];
+
+function songProject(name: string): string {
+  const dir = scratchDir(`songgen-${name}-`);
+  const d = newSong();
+  d.patterns[0].channels[0] = [{ row: 0, note: 60, inst: '1' }, { row: 8, note: 'off' }];
+  d.patterns[0].channels[1] = [{ row: 0, note: 48, inst: '6' }];
+  fs.mkdirSync(path.join(dir, 'assets'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'assets/tune.cpcsong'), serialiseSong(d));
+  return dir;
+}
+
+describe('songs (.cpcsong)', () => {
+  it('are found by the asset globs', () => {
+    const dir = songProject('find');
+    expect(findSongs(dir, SONG_GLOBS)).toEqual(['assets/tune.cpcsong']);
+    expect(findSongs(dir, ['assets/**/*.cpcsfx'])).toEqual([]);
+  });
+  it('without the Arkos tools: one warning, the committed .bas is kept, nothing else is written', async () => {
+    const dir = songProject('notools');
+    fs.writeFileSync(path.join(dir, 'assets/tune.bas'), "' committed\n");
+    const old = new Date(Date.now() - 60000);
+    fs.utimesSync(path.join(dir, 'assets/tune.bas'), old, old);
+    const res = await regenerateAll(dir, SONG_GLOBS, settings({ toolsDir: undefined }), { onlyStale: true });
+    expect(res).toHaveLength(1);
+    expect(res[0]).toMatchObject({ ok: false, warnOnly: true, doc: true });
+    expect(res[0].error).toMatch(/the song was not converted, and any committed .bas is kept\. .*Arkos/);
+    expect(assetFailure(res[0]).fatal).toBe(false);
+    expect(fs.readdirSync(path.join(dir, 'assets')).sort()).toEqual(['tune.bas', 'tune.cpcsong']);
+  });
+  it('a song with a current output is skipped', async () => {
+    const dir = songProject('current');
+    const t = new Date(Date.now() + 5000);
+    fs.writeFileSync(path.join(dir, 'assets/tune.bas'), 'x');
+    fs.utimesSync(path.join(dir, 'assets/tune.bas'), t, t);
+    expect(isSongStale(dir, 'assets/tune.cpcsong')).toBe(false);
+    expect(await regenerateAll(dir, SONG_GLOBS, settings({ toolsDir: undefined }), { onlyStale: true })).toEqual([{ recipe: 'assets/tune.cpcsong', ok: true, skipped: true, written: [] }]);
+  });
+  it('a bad song fails with the reason and its path; an existing .bas lets the build go on', async () => {
+    const dir = songProject('bad');
+    const f = path.join(dir, 'assets/tune.cpcsong');
+    fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('"speed": 6', '"speed": 0'));
+    fs.writeFileSync(path.join(dir, 'assets/tune.bas'), "' old\n");
+    const r = await generateSong(dir, 'assets/tune.cpcsong', settings({ toolsDir: '/nonexistent' }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe('assets/tune.cpcsong: speed: speed must be a whole number 1-255');
+    expect(assetFailure(r).fatal).toBe(false);
+    fs.rmSync(path.join(dir, 'assets/tune.bas'));
+    expect(assetFailure(await generateSong(dir, 'assets/tune.cpcsong', settings({ toolsDir: '/nonexistent' }))).fatal).toBe(true);
+    fs.writeFileSync(f, '{');
+    expect((await generateSong(dir, 'assets/tune.cpcsong', settings({ toolsDir: '/nonexistent' }))).error).toMatch(/not valid JSON/);
+  });
+  haveArkos('with the real tools: writes <stem>.vt2 and <stem>.bas (one include for every target), then is current', async () => {
+    const dir = songProject('real');
+    const s = settings({ toolsDir: ARKOS });
+    const res = await regenerateAll(dir, SONG_GLOBS, s, { onlyStale: true, sfxTargets: ['cpc', 'spectrum'] });
+    expect(res.map((r) => r.error ?? 'ok')).toEqual(['ok']);
+    expect(res[0].written).toEqual(['assets/tune.vt2', 'assets/tune.bas']);
+    const bas = fs.readFileSync(path.join(dir, 'assets/tune.bas'), 'utf8');
+    expect(bas).toContain('pass @tune to MusicInit');
+    expect(fs.existsSync(path.join(dir, 'assets/tune_zx.bas'))).toBe(false);
+    expect(fs.readFileSync(path.join(dir, 'assets/tune.vt2'), 'utf8')).toContain('Title=tune');
+    expect(await regenerateAll(dir, SONG_GLOBS, s, { onlyStale: true })).toEqual([{ recipe: 'assets/tune.cpcsong', ok: true, skipped: true, written: [] }]);
+    const t = new Date(Date.now() + 10000);
+    fs.utimesSync(path.join(dir, 'assets/tune.cpcsong'), t, t);
+    expect(isSongStale(dir, 'assets/tune.cpcsong')).toBe(true);
   }, 120000);
 });

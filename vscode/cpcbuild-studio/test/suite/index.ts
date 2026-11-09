@@ -3,6 +3,7 @@ import './lint.test';
 import './palette.test';
 import './sprite.test';
 import './sfx.test';
+import './song.test';
 import './importer.test';
 import './maps.test';
 import './debug.test';

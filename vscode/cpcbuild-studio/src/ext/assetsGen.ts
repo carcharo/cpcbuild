@@ -25,7 +25,9 @@ import { parseSprite, resolvePalette, type DocType, type SpriteState } from '../
 import { exportAsset } from '../core/spriteExport';
 import { parseSfx, describeError as describeSfxError, type SfxTarget } from '../core/sfxDoc';
 import { sfxBankName, sfxOutputs, sfxStale, withSfxConstants } from '../core/sfxBuild';
-import { sfxToVt2, Vt2Error } from '../core/vt2';
+import { parseSong, describeSongError } from '../core/songDoc';
+import { songBankName, songOutputs } from '../core/songBuild';
+import { sfxToVt2, songToVt2, songProblems, Vt2Error } from '../core/vt2';
 import { arkosMissingText, convertMusic } from './arkos';
 import { pythonCmd, runTool, type CancelToken, type Sink } from './runTool';
 
@@ -108,6 +110,11 @@ export function findSpriteDocs(root: string, globs: readonly string[]): string[]
 /** Every sound-effects bank (`.cpcsfx`) matched by the project's asset globs, relative to the root, sorted. */
 export function findSfxBanks(root: string, globs: readonly string[]): string[] {
   return findByExt(root, globs, /\.cpcsfx$/);
+}
+
+/** Every music document (`.cpcsong`) matched by the project's asset globs, relative to the root, sorted. */
+export function findSongs(root: string, globs: readonly string[]): string[] {
+  return findByExt(root, globs, /\.cpcsong$/);
 }
 
 const mtime = (p: string): number => {
@@ -401,6 +408,43 @@ export async function generateSfxBank(
   return res;
 }
 
+// ---------------------------------------------------------------- music documents
+
+/** A song's generated include is missing or older than it. */
+export function isSongStale(root: string, songRel: string): boolean {
+  return sfxStale(mtime(path.resolve(root, songRel)), [mtime(path.resolve(root, songOutputs(songRel).bas))]);
+}
+
+/**
+ * Writes the .vt2 beside a .cpcsong and converts it as a song (one subsong) into the include, the same
+ * conversion a plain .vt2 song gets from Convert Music. The include is the same for every target.
+ */
+export async function generateSong(
+  root: string,
+  songRel: string,
+  s: GenSettings,
+  extra: { sink?: Sink; token?: CancelToken } = {},
+): Promise<GenResult> {
+  const res: GenResult = { recipe: songRel, ok: false, written: [], doc: true };
+  const o = songOutputs(songRel);
+  res.outputExists = mtime(path.resolve(root, o.bas)) >= 0;
+  try {
+    const r = parseSong(fs.readFileSync(path.resolve(root, songRel), 'utf8'));
+    if (!r.doc) throw new Vt2Error(r.errors.slice(0, 3).map(describeSongError).join('; '));
+    const problems = songProblems(r.doc);
+    if (problems.length) throw new Vt2Error(problems[0]);
+    const name = songBankName(songRel);
+    fs.writeFileSync(path.resolve(root, o.vt2), songToVt2(r.doc, name), 'utf8');
+    const c = await convertMusic(root, o.vt2, { name, subsongs: '1', output: o.bas }, { engine: s.engine, pythonPath: s.pythonPath, library: s.library, toolsDir: s.toolsDir }, extra);
+    if (!c.ok) throw new Error(c.error ?? 'conversion failed');
+    res.written.push(o.vt2, o.bas);
+    res.ok = true;
+  } catch (e) {
+    res.error = e instanceof Vt2Error ? `${songRel}: ${e.message}` : describeError(e);
+  }
+  return res;
+}
+
 export interface RegenOptions {
   /** The machines the project builds for (default: the CPC only); one include per machine is written for each bank. */
   sfxTargets?: readonly SfxTarget[];
@@ -478,6 +522,31 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
     const res = await generateSfxBank(root, bankRel, targets, s, { sink: o.sink, token: o.token });
     if (res.ok) o.sink?.line(`${bankRel} -> ${res.written.join(', ')}`);
     else o.sink?.line(`${bankRel}: ${res.error}`, true);
+    results.push(res);
+  }
+  // music documents: the same conversion as the banks (a plain song, one subsong)
+  const missingSongs: string[] = [];
+  for (const songRel of findSongs(root, globs)) {
+    if (o.token?.isCancellationRequested) break;
+    if (o.onlyStale && !isSongStale(root, songRel)) {
+      results.push({ recipe: songRel, ok: true, skipped: true, written: [] });
+      continue;
+    }
+    if (!s.toolsDir) {
+      missingSongs.push(songRel);
+      continue;
+    }
+    const res = await generateSong(root, songRel, s, { sink: o.sink, token: o.token });
+    if (res.ok) o.sink?.line(`${songRel} -> ${res.written.join(', ')}`);
+    else o.sink?.line(`${songRel}: ${res.error}`, true);
+    results.push(res);
+  }
+  if (missingSongs.length) {
+    const res: GenResult = {
+      recipe: missingSongs[0], ok: false, written: [], doc: true, warnOnly: true,
+      error: `${missingSongs.length === 1 ? 'the song was' : `${missingSongs.length} songs (${missingSongs.join(', ')}) were`} not converted, and any committed .bas is kept. ${arkosMissingText()}`,
+    };
+    o.sink?.line(`${res.recipe}: ${res.error}`, true);
     results.push(res);
   }
   if (missing.length) {
