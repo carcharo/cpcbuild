@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from './Icon';
+import { RoundSwatch } from './RoundSwatch';
 import { Swatch } from './Swatch';
 
 export interface PenSlot {
@@ -21,6 +22,8 @@ export interface PenSlot {
   warn?: string;
   /** An error for this slot (bad token): red outline plus icon. */
   error?: string;
+  /** Not draggable and never a reorder target (the palette editor's border slot). */
+  fixed?: boolean;
 }
 
 export interface PenStripProps {
@@ -34,6 +37,8 @@ export interface PenStripProps {
   showNames?: boolean;
   /** One compact line of 32 px swatches with the pen label under each; number and name live in the tooltip. */
   compact?: boolean;
+  /** Redesign look (opt-in): 48 px round swatches with the pen label, colour number and name always under them. */
+  round?: boolean;
   /** Pens that exist but are not in use (above the mode's pen count): drawn dimmed, with this reason in the tooltip. */
   dim?(index: number): string | undefined;
   /** Caption under the swatch and in the accessible name; default "P3" / "Pen 3". */
@@ -63,9 +68,9 @@ export function PenStrip(p: PenStripProps) {
   };
   const onKeyDown = (s: PenSlot, e: KeyboardEvent): void => {
     const at = order.indexOf(s.index);
-    if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && p.onReorder && !s.unset) {
+    if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && p.onReorder && !s.unset && !s.fixed) {
       const to = s.index + (e.key === 'ArrowLeft' ? -1 : 1);
-      if (order.includes(to) && !p.slots.find((x) => x.index === to)?.unset) {
+      if (order.includes(to) && !p.slots.find((x) => x.index === to)?.unset && !p.slots.find((x) => x.index === to)?.fixed) {
         e.preventDefault();
         refocus.current = to;
         p.onReorder(s.index, to);
@@ -100,31 +105,35 @@ export function PenStrip(p: PenStripProps) {
         title={s.error ?? s.warn ?? dimWhy ?? (s.unset ? `${cap(s.index).short}: unset` : `${cap(s.index).short}: ${s.number}${s.name ? ` ${s.name}` : ''}`)}
         data-pen={s.index}
         tabIndex={s.index === focus ? 0 : -1}
-        draggable={!!p.onReorder && !s.unset}
-        class={`cb-pen${isL ? ' cb-pen-sel' : ''}${s.error ? ' cb-pen-error' : ''}${dimWhy ? ' cb-pen-dim' : ''}`}
+        draggable={!!p.onReorder && !s.unset && !s.fixed}
+        class={`cb-pen${p.round ? ' cb-pen-round' : ''}${isL ? ' cb-pen-sel' : ''}${s.error ? ' cb-pen-error' : ''}${dimWhy ? ' cb-pen-dim' : ''}`}
         onFocus={() => setFocus(s.index)}
         onClick={(e) => p.onSelect(s.index, e.altKey ? 'right' : 'left')}
         onContextMenu={(e) => { e.preventDefault(); p.onSelect(s.index, 'right'); }}
         onDblClick={() => p.onActivate?.(s.index)}
         onKeyDown={(e) => onKeyDown(s, e)}
         onDragStart={(e) => { dragFrom.current = s.index; e.dataTransfer?.setData('text/plain', String(s.index)); }}
-        onDragOver={(e) => { if (dragFrom.current !== undefined && !s.unset) e.preventDefault(); }}
+        onDragOver={(e) => { if (dragFrom.current !== undefined && !s.unset && !s.fixed) e.preventDefault(); }}
         onDrop={(e) => {
           e.preventDefault();
           const from = dragFrom.current;
           dragFrom.current = undefined;
-          if (from !== undefined && from !== s.index) p.onReorder?.(from, s.index);
+          if (from !== undefined && from !== s.index && !s.fixed && !s.unset) p.onReorder?.(from, s.index);
         }}
       >
         <span class="cb-pen-swatch">
-          <Swatch colour={s.colour} unset={s.unset} size={p.compact ? 32 : 28} />
+          {p.round ? (
+            <RoundSwatch colour={s.colour} unset={s.unset} size={48} ring={isL ? 'sel' : s.unset && s.fixed ? 'dashed' : undefined} />
+          ) : (
+            <Swatch colour={s.colour} unset={s.unset} size={p.compact ? 32 : 28} />
+          )}
           {badge && <span class="cb-pen-badge">{badge}</span>}
           {s.warn && !s.error && <span class="cb-pen-flag"><Icon name="warning" /></span>}
           {s.error && <span class="cb-pen-flag cb-pen-flag-error"><Icon name="error" /></span>}
         </span>
-        <span class="cb-pen-num">{cap(s.index).short}</span>
+        <span class="cb-pen-num">{p.round && !p.caption ? cap(s.index).spoken : cap(s.index).short}</span>
         {!p.compact && <span class="cb-pen-col">{s.unset ? 'unset' : s.number}</span>}
-        {!p.compact && p.showNames && <span class="cb-pen-name">{s.unset ? '' : s.name}</span>}
+        {!p.compact && (p.showNames || p.round) && <span class="cb-pen-name">{s.unset ? '' : s.name}</span>}
       </button>
     );
   };

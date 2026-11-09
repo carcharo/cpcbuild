@@ -300,6 +300,13 @@ body.vscode-high-contrast .cb-swatch, body.vscode-high-contrast-light .cb-swatch
 .cb-ring-right { border-style: double; border-width: 4px; padding: 1px; border-color: var(--vscode-charts-orange); }
 .cb-ring-dashed { border-style: dashed; border-color: color-mix(in srgb, var(--vscode-foreground) 65%, transparent); }
 
+/* PenStrip round variant (opt-in): 48 px round swatches with the selection ring on the swatch */
+.cb-pens:not(.cb-pens-compact) .cb-pen.cb-pen-round { width: 84px; border-radius: 12px; gap: 2px; }
+.cb-pen-round.cb-pen-sel { outline: 0; background: transparent; }
+.cb-pen-round.cb-pen-sel:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 1px; background: transparent; color: var(--vscode-foreground); }
+.cb-pen-round .cb-pen-badge { top: 0; left: 0; }
+.cb-pen-round .cb-pen-flag { right: 0; bottom: 0; }
+.cb-pen-round .cb-pen-name { max-width: 80px; }
 .cb-codecard .cb-copy-multi .cb-code { max-height: 220px; }
 .cb-codecard .cb-code { margin: 0; padding: 8px 10px; border-radius: 10px; }
 

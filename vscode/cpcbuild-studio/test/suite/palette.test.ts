@@ -124,6 +124,22 @@ test('palette: a stale edit from a webview is rejected', async () => {
   await closeClean();
 });
 
+test('palette: the border set through the webview edit path serialises and clears', async () => {
+  const uri = put('border.cpcpal', '0, 26\n');
+  const { a, doc } = await openPalette(uri);
+  const p = a.palette as unknown as { request(d: unknown, name: string, args: unknown): Promise<{ version: number }> };
+  await p.request(doc, 'edit', { baseVersion: doc.version, op: { op: 'setBorder', value: 6 } });
+  assert.strictEqual(doc.state.border, 6);
+  await vscode.commands.executeCommand('workbench.action.files.save');
+  await waitFor('file written', () => fs.readFileSync(uri.fsPath, 'utf8').includes('border'));
+  assert.ok(/# border: 6/.test(fs.readFileSync(uri.fsPath, 'utf8')));
+  await p.request(doc, 'edit', { baseVersion: doc.version, op: { op: 'setBorder', value: null } });
+  assert.strictEqual(doc.state.border, null);
+  await vscode.commands.executeCommand('workbench.action.files.save');
+  await waitFor('border cleared', () => !fs.readFileSync(uri.fsPath, 'utf8').includes('border'));
+  await closeClean();
+});
+
 test('palette: backup writes the document text', async () => {
   const uri = put('backup.cpcpal', '0, 1\n');
   const { a, doc } = await openPalette(uri);
