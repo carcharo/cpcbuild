@@ -141,6 +141,22 @@ test('sprite: choosing a shared palette turns Emit palette off when another docu
   await closeClean();
 });
 
+test('sprite: Convert mode 0 to 1 merges the pens by nearest colour (not into pen 0) and renumbers nothing it need not', async () => {
+  const s = sprite('conv', { mode: 0, w: 8, h: 4, masked: false });
+  s.items[0][0] = [0, 1, 2, 3, 4, 5, 0, 0]; // six pens in use; the default mode 0 pens are 0,26,6,18,2,24...
+  const uri = put('conv.cpcspr', serialiseSprite(s));
+  const { p, doc } = await openSpr(uri);
+  assert.throws(() => p.commit(doc, { op: 'setMode', mode: 1 }), /mode 1 has 4 pens: 6 colours → 4: bright blue and bright yellow merged/);
+  p.commit(doc, { op: 'setMode', mode: 1, force: true });
+  assert.strictEqual(doc.state.mode, 1);
+  // Bright Blue (pen 4) is nearest Black (pen 0); Bright Yellow (pen 5) is equally far from White, Red and Green, and the lowest pen (1, White) wins
+  assert.deepStrictEqual(doc.state.items[0][0], [0, 1, 2, 3, 0, 1, 0, 0]);
+  assert.deepStrictEqual(doc.state.palette, { pens: [0, 26, 6, 18] });
+  assert.ok(p.undoLast(doc));
+  assert.strictEqual(doc.state.mode, 0);
+  await closeClean();
+});
+
 test('tile: a .cpctil opens in the tile editor, edits, duplicate detection, 257th tile refused', async () => {
   const t = newSprite('til', { name: 'bg', mode: 1, frames: 3 });
   const uri = put('bg.cpctil', serialiseSprite(t));

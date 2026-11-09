@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ellipseCells, floodRegion, lineCells, mirrorPoints, rectCells, snapLine } from './shapes';
 import {
-  analyse, applySpriteOp, background, blankGrid, newSprite, parseSprite, resolvePalette, rowsOf, serialiseSprite,
+  analyse, applySpriteOp, background, blankGrid, convertPens, newSprite, parseSprite, resolvePalette, rowsOf, serialiseSprite,
   type Grid, type SpriteOp, type SpriteState,
 } from './spriteDoc';
 
@@ -377,13 +377,15 @@ describe('properties, mode and size', () => {
     expect(up.mode).toBe(1);
     expect(rows(up.items[0])).toEqual(['0123', '3210']);
   });
-  it('mode change: warn about pixels, force turns them into pen 0, palette is cut, width snaps up', () => {
+  it('mode change: warns with the merge note, force maps by nearest colour, palette is cut, width snaps up', () => {
     const s = doc([g('0F', 'A1', '05')], { w: 2, h: 3, mode: 0, masked: false });
-    expect(err(s, { op: 'setMode', mode: 1 })).toMatch(/mode 1 has 4 pens: 3 pixels use pens above 3, which become pen 0; pens 4-15 of the palette are dropped/);
+    expect(err(s, { op: 'setMode', mode: 1 })).toBe('mode 1 has 4 pens: 5 colours → 4: white merged');
     const f = run(s, { op: 'setMode', mode: 1, force: true });
     expect(f.mode).toBe(1);
     expect(f.w).toBe(4);
-    expect(rows(f.items[0])).toEqual(['0000', '0100', '0000']); // F and A became pen 0, 5 too; padded with pen 0 (unmasked)
+    // kept by use: pen 0 (2 pixels), then 1, 5 and A (1 each, lower pen first); 5 and A take the free pens 2 and 3; F (White) goes to its nearest kept colour, Pastel Blue (now pen 3)
+    expect(rows(f.items[0])).toEqual(['0300', '3100', '0200']);
+    expect('pens' in f.palette && f.palette.pens).toEqual([0, 26, 24, 14]);
     expect('pens' in f.palette && f.palette.pens.length).toBe(4);
   });
   it('going to a mode with more pens keeps everything', () => {
@@ -514,5 +516,123 @@ describe('shapes', () => {
     expect(floodRegion([[1, 1], [0, 1]], 0, 0)).toHaveLength(3);
     expect(mirrorPoints(1, 2, 8, 8, true, true)).toEqual([[1, 2], [6, 2], [1, 5], [6, 5]]);
     expect(mirrorPoints(1, 2, 8, 8, false, false)).toEqual([[1, 2]]);
+  });
+});
+
+describe('convertPens (Convert by nearest colour)', () => {
+  /** The 16 x 16 sample of cpcPreview.test.ts as pens 0-6 of a mode 0 sprite: Blue, Pink, Bright Red, Sky Blue, Bright Yellow, Bright White, Black. */
+  function sample(extra: Parameters<typeof newSprite>[1] = {}): SpriteState {
+    const s = newSprite('spr', { mode: 0, w: 16, h: 16, masked: true, palette: { pens: [1, 16, 6, 11, 24, 26, 0] }, ...extra });
+    const gr = blankGrid(16, 16, -1);
+    for (let y = 0; y < 16; y++) {
+      for (let x = 0; x < 16; x++) {
+        const cx = x - 7.5, cy = y - 7.5, d = Math.sqrt(cx * cx + cy * cy);
+        let i = -1;
+        if (d < 7) i = 0;
+        if (d >= 6.2 && d < 7) i = 6;
+        if (d < 5.5) i = 2;
+        if (y >= 4 && y <= 8 && x >= 4 && x <= 11) i = 1;
+        if (y === 6 && (x === 6 || x === 9)) i = 5;
+        if (y >= 11 && x >= 5 && x <= 10 && d < 7) i = 3;
+        if (y === 2 && x >= 6 && x <= 9) i = 4;
+        gr[y][x] = i;
+      }
+    }
+    s.items = [gr];
+    return s;
+  }
+
+  it('a document that fits is unchanged and its palette is cut to the limit', () => {
+    const s = doc([g('0123', '3210')], { w: 4, h: 2, mode: 0, palette: { pens: [0, 26, 6, 18, 2, 24] } });
+    const c = convertPens(s, 1);
+    expect(c.items).toEqual(s.items);
+    expect(c.items[0]).not.toBe(s.items[0]);
+    expect(c.palette).toEqual({ pens: [0, 26, 6, 18] });
+    expect(c.changed).toBe(false);
+    expect(c.summary).toMatchObject({ used: 4, limit: 4, fits: true, merges: [], pensLabel: '4 of 4 pens', mergeNote: 'fits: 4 colours' });
+  });
+
+  it('7 colours to mode 1: keeps the 4 most used, renumbers the kept pen above the limit, merges the rest', () => {
+    const s = sample();
+    const c = convertPens(s, 1);
+    // use: Pink(1) 38, Bright Red(2) 36, Black(6) 30, Sky Blue(3) 24, Blue(0) 22, Yellow(4) 4, White(5) 2.
+    // Pens 1, 2, 3 keep their numbers; Black moves from pen 6 to the free pen 0.
+    expect(c.map.slice(0, 7)).toEqual([0, 1, 2, 3, 1, 1, 0]);
+    expect(c.palette).toEqual({ pens: [0, 16, 6, 11] });
+    expect(c.summary.merges).toEqual([
+      { from: 0, to: 0, fromName: 'Blue', toName: 'Black', pixels: 22 },
+      { from: 4, to: 1, fromName: 'Bright Yellow', toName: 'Pink', pixels: 4 },
+      { from: 5, to: 1, fromName: 'Bright White', toName: 'Pink', pixels: 2 },
+    ]);
+    expect(c.summary).toMatchObject({ used: 7, limit: 4, fits: false, pensLabel: '4 of 4 pens (7 colours)', mergeNote: '7 colours → 4: blue, bright yellow and bright white merged' });
+    for (const row of c.items[0]) for (const v of row) expect(v).toBeLessThan(4);
+  });
+
+  it('7 colours to mode 2', () => {
+    const c = convertPens(sample(), 2);
+    // kept: Pink (pen 1) and Bright Red (pen 2); pen 1 is below 2 so it stays, pen 2 moves to the free pen 0.
+    // Blue is as far from Bright Red as from Pink; the tie goes to the lower new pen (0)
+    expect(c.palette).toEqual({ pens: [6, 16] });
+    expect(c.map.slice(0, 7)).toEqual([0, 1, 0, 1, 1, 1, 0]);
+    expect(c.summary.merges.map((m) => [m.from, m.to, m.pixels])).toEqual([[6, 0, 30], [3, 1, 24], [0, 0, 22], [4, 1, 4], [5, 1, 2]]);
+    expect(c.summary.mergeNote).toBe('7 colours → 2: 5 colours merged');
+  });
+
+  it('masked pixels stay transparent, and the original is not touched', () => {
+    const s = sample();
+    const before = JSON.stringify(s);
+    const c = convertPens(s, 1);
+    expect(JSON.stringify(s)).toBe(before);
+    s.items[0].forEach((row, y) => row.forEach((v, x) => { if (v < 0) expect(c.items[0][y][x]).toBe(-1); }));
+  });
+
+  it('counts pens over all frames', () => {
+    // pen use over both frames: 6 x4, 0 x3, 3 x3, 1 x2, 2 x2, 4 x1, 5 x1 -> kept 6, 0, 3, 1 (1 beats 2 on the tie); 6 takes the free pen 2
+    const s = doc([g('0112', '3345'), g('6666', '2300')], { w: 4, h: 2, mode: 0, palette: { pens: [0, 26, 6, 18, 2, 24, 20] } });
+    const c = convertPens(s, 1);
+    expect(c.summary.used).toBe(7);
+    expect([c.map[0], c.map[1], c.map[3], c.map[6]]).toEqual([0, 1, 3, 2]);
+    expect(c.summary.merges.map((m) => m.from).sort()).toEqual([2, 4, 5]);
+    expect(c.items).toHaveLength(2);
+    expect(rows(c.items[1])[0]).toBe('2222');
+  });
+
+  it('a shared palette keeps its pens and maps each higher pen to the nearest of the first ones', () => {
+    // file pens: Black, Bright White, Bright Red, Bright Green, then Blue (near Black) and Yellow
+    const s = doc([g('0145', '2354')], { w: 4, h: 2, mode: 0, palette: { file: 'p.cpcpal' } });
+    const c = convertPens(s, 1, [0, 26, 6, 18, 1, 24]);
+    expect(c.palette).toEqual({ file: 'p.cpcpal' });
+    // Blue is nearest Black; Bright Yellow is as far from White, Red and Green as can be, and the lowest pen (White) wins the tie
+    expect(rows(c.items[0])).toEqual(['0101', '2310']);
+    expect(c.summary.merges).toEqual([
+      { from: 4, to: 0, fromName: 'Blue', toName: 'Black', pixels: 2 },
+      { from: 5, to: 1, fromName: 'Bright Yellow', toName: 'Bright White', pixels: 2 },
+    ]);
+    // without the file's colours a missing pen becomes pen 0, as before
+    expect(rows(convertPens(s, 1).items[0])).toEqual(['0100', '2300']);
+  });
+
+  it('the preview is what Convert does: convertPens equals the state after setMode with force', () => {
+    for (const mode of [1, 2] as const) {
+      const s = sample();
+      const c = convertPens(s, mode);
+      const after = run(s, { op: 'setMode', mode, force: true });
+      expect(after.items).toEqual(c.items);
+      expect(after.palette).toEqual(c.palette);
+      expect(err(s, { op: 'setMode', mode })).toBe(`mode ${mode} has ${mode === 1 ? 4 : 2} pens: ${c.summary.mergeNote}`);
+    }
+    const f = doc([g('0145', '2354')], { w: 4, h: 2, mode: 0, palette: { file: 'p.cpcpal' } });
+    const pens = [0, 26, 6, 18, 1, 24];
+    expect(run(f, { op: 'setMode', mode: 1, force: true, filePens: pens }).items).toEqual(convertPens(f, 1, pens).items);
+  });
+
+  it('a used pen above the limit with room below is renumbered without a merge, and asks first', () => {
+    const s = doc([g('05', '50')], { w: 2, h: 2, mode: 0, palette: { pens: [0, 26, 6, 18, 2, 24] } });
+    // pens 0 and 5 are used: 5 moves to pen 1 (the lowest free); the palette's pen 1 colour is replaced by the moved colour
+    const c = convertPens(s, 1);
+    expect(rows(c.items[0])).toEqual(['01', '10']);
+    expect(c.palette).toEqual({ pens: [0, 24, 6, 18] });
+    expect(c.summary).toMatchObject({ fits: true, merges: [] });
+    expect(err(s, { op: 'setMode', mode: 1 })).toBe('mode 1 has 4 pens: pens above 3 are renumbered; pens 4-5 of the palette are dropped');
   });
 });

@@ -10,7 +10,8 @@
  * document (then it is rewritten in the canonical layout, keeping unknown top-level keys). Undoing back to
  * the loaded document gives the loaded text again.
  */
-import { parsePalList, parseRgb12List } from './palette';
+import { FW_NAMES, FW_TABLE, dist2, parsePalList, parseRgb12List } from './palette';
+import { mergeNote, pensLabel, type Merge, type Reduced } from './cpcPreview';
 import { MAXPENS, PPB, packBlock, tileWidthError, type Mode } from './pixels';
 import { floodRegion } from './shapes';
 
@@ -327,7 +328,8 @@ export type SpriteOp =
   | { op: 'delItem'; item: number }
   | { op: 'moveItem'; from: number; to: number }
   | { op: 'setName'; name: string }
-  | { op: 'setMode'; mode: Mode; force?: boolean }
+  /** `filePens`: the resolved pens of a shared palette file (the webview has them in its view); without them a pen the mode lacks becomes pen 0. */
+  | { op: 'setMode'; mode: Mode; force?: boolean; filePens?: number[] }
   | { op: 'setMasked'; value: boolean }
   | { op: 'setSize'; w: number; h: number; crop?: boolean }
   /** Tiles: the tile width in pixels (1, 2 or 4 bytes); a narrower tile drops the columns on the right. */
@@ -420,6 +422,116 @@ export function usedBeyond(s: SpriteState, limit: number): number {
   let n = 0;
   for (const g of s.items) for (const r of g) for (const v of r) if (v >= limit) n++;
   return n;
+}
+
+// ------------------------------------------------------ convert by colour
+
+export interface ConvertSummary {
+  /** Pens (colours) in use over all items, and the mode's limit. */
+  used: number;
+  limit: number;
+  fits: boolean;
+  /** Pen numbers before -> after, with the firmware colour names; most pixels first. */
+  merges: { from: number; to: number; fromName: string; toName: string; pixels: number }[];
+  pensLabel: string;
+  mergeNote: string;
+}
+export interface Converted {
+  /** The items with pens renumbered for the new mode (transparent stays -1). Resize happens in the op. */
+  items: Grid[];
+  palette: PaletteSpec;
+  summary: ConvertSummary;
+  /** Pen before -> pen after (identity where nothing moves). */
+  map: number[];
+  /** True when any drawn pixel changes pen. */
+  changed: boolean;
+}
+
+/** A Reduced-shaped view of a summary, for the shared text helpers (`kept` only has the right length). */
+export function summaryReduced(sm: Omit<ConvertSummary, 'pensLabel' | 'mergeNote'>, mode: Mode = 0): Reduced {
+  const kept = Array.from({ length: Math.max(0, sm.used - sm.merges.length) }, (_, i) => i);
+  return { mode, limit: sm.limit, used: sm.used, fits: sm.fits, kept, pixels: new Uint8Array(0), merges: sm.merges as Merge[] };
+}
+
+/**
+ * What a change to `mode` does to a CPC document, by nearest colour. Pure; the setMode op and the preview both
+ * call it. Inline palette: the `limit` most-used pens survive (ties: lower pen), pens below the limit keep their
+ * number, the others take the lowest free numbers, every dropped pen goes to the nearest kept colour. A shared
+ * palette file fixes the colours: pens below the limit stay, higher pens go to the nearest of pens 0..limit-1.
+ * `filePens` = the file's resolved pens (without them a missing pen becomes pen 0).
+ */
+export function convertPens(s: Pick<SpriteState, 'items' | 'palette'>, mode: Mode, filePens?: number[]): Converted {
+  const limit = MAXPENS[mode];
+  const inline = 'pens' in s.palette;
+  const base: number[] | undefined = 'pens' in s.palette ? s.palette.pens : filePens;
+  const colourOf = (p: number): readonly [number, number, number] => FW_TABLE[base && p < base.length ? base[p] : 0];
+  const nameOf = (p: number): string => FW_NAMES[base && p < base.length ? base[p] : 0];
+  let top = limit - 1;
+  const count = new Map<number, number>();
+  for (const g of s.items) for (const r of g) for (const v of r) if (v >= 0) { count.set(v, (count.get(v) ?? 0) + 1); if (v > top) top = v; }
+  const map = Array.from({ length: top + 1 }, (_, i) => i);
+  const usedPens = [...count.keys()].sort((a, b) => a - b);
+  const high = usedPens.some((p) => p >= limit);
+  const merges: ConvertSummary['merges'] = [];
+  let palette: PaletteSpec = s.palette;
+  if (inline) {
+    const pens = (s.palette as { pens: number[] }).pens;
+    if (!high) {
+      palette = { pens: pens.slice(0, limit) };
+    } else {
+      const order = usedPens.slice().sort((a, b) => (count.get(b) ?? 0) - (count.get(a) ?? 0) || a - b);
+      const kept = order.slice(0, limit);
+      const slotOf = new Map<number, number>();
+      for (const k of kept) if (k < limit) slotOf.set(k, k);
+      const taken = new Set(slotOf.values());
+      let free = 0;
+      for (const k of kept.filter((q) => q >= limit).sort((a, b) => a - b)) {
+        while (taken.has(free)) free++;
+        slotOf.set(k, free);
+        taken.add(free);
+      }
+      const keptSorted = [...slotOf.keys()].sort((a, b) => (slotOf.get(a) as number) - (slotOf.get(b) as number));
+      for (const p of usedPens) {
+        let to = slotOf.get(p);
+        if (to === undefined) {
+          let bd = Infinity;
+          let bk = keptSorted[0];
+          for (const k of keptSorted) {
+            const d = dist2(colourOf(p), colourOf(k));
+            if (d < bd) { bd = d; bk = k; }
+          }
+          to = slotOf.get(bk);
+          merges.push({ from: p, to: to as number, fromName: nameOf(p), toName: nameOf(bk), pixels: count.get(p) ?? 0 });
+        }
+        map[p] = to as number;
+      }
+      const np = Array.from({ length: limit }, (_, i) => (i < pens.length ? pens[i] : 0));
+      for (const [k, sl] of slotOf) np[sl] = k < pens.length ? pens[k] : 0;
+      palette = { pens: np };
+    }
+  } else {
+    for (const p of usedPens) {
+      if (p < limit) continue;
+      let best = 0;
+      let bd = Infinity;
+      const avail = base ? Math.min(limit, base.length) : 0;
+      for (let k = 0; k < avail; k++) {
+        const d = dist2(colourOf(p), colourOf(k));
+        if (d < bd) { bd = d; best = k; }
+      }
+      map[p] = best;
+      merges.push({ from: p, to: best, fromName: nameOf(p), toName: nameOf(best), pixels: count.get(p) ?? 0 });
+    }
+  }
+  merges.sort((a, b) => b.pixels - a.pixels);
+  const used = usedPens.length;
+  const fits = inline ? used <= limit : !high;
+  const sm = { used, limit, fits, merges };
+  const red = summaryReduced(sm, mode);
+  const summary: ConvertSummary = { ...sm, pensLabel: pensLabel(red), mergeNote: mergeNote(red) };
+  const changed = usedPens.some((p) => map[p] !== p);
+  const items = changed ? s.items.map((g) => g.map((r) => r.map((v) => (v < 0 ? v : map[v])))) : s.items.map(cloneGrid);
+  return { items, palette, summary, map, changed };
 }
 
 export function applySpriteOp(s: SpriteState, op: SpriteOp): SpriteApplyResult {
@@ -590,18 +702,19 @@ export function applySpriteOp(s: SpriteState, op: SpriteOp): SpriteApplyResult {
         if (e) return bad(`${e}; change the tile width first`);
       }
       const count = MAXPENS[op.mode];
-      const lostPixels = usedBeyond(s, count);
+      const conv = convertPens(s, op.mode, op.filePens);
       const lostPens = 'pens' in s.palette ? Math.max(0, s.palette.pens.length - count) : 0;
-      if ((lostPixels || lostPens) && !op.force) {
+      if ((conv.changed || lostPens) && !op.force) {
         const parts = [];
-        if (lostPixels) parts.push(`${lostPixels} pixel${lostPixels === 1 ? '' : 's'} use pens above ${count - 1}, which become pen 0`);
-        if (lostPens) parts.push(`pens ${count}-${(s.palette as { pens: number[] }).pens.length - 1} of the palette are dropped`);
+        if (conv.summary.merges.length) parts.push(mergeNote(summaryReduced(conv.summary)));
+        else if (conv.changed) parts.push(`pens above ${count - 1} are renumbered`);
+        if (lostPens && !conv.summary.merges.length) parts.push(`pens ${count}-${(s.palette as { pens: number[] }).pens.length - 1} of the palette are dropped`);
         return bad(`mode ${op.mode} has ${count} pens: ${parts.join('; ')}`);
       }
       const ppb = PPB[op.mode];
       const w = s.type === 'til' ? s.w : Math.ceil(s.w / ppb) * ppb; // snap up: nothing is cropped
-      const items = s.items.map((g) => resizeGrid(g.map((r) => r.map((v) => (v >= count ? 0 : v))), w, s.h, bg));
-      const palette: PaletteSpec = 'pens' in s.palette ? { pens: s.palette.pens.slice(0, count) } : s.palette;
+      const items = conv.items.map((g) => resizeGrid(g, w, s.h, bg));
+      const palette = conv.palette;
       return ok({ ...s, mode: op.mode, w, items, palette }, 'Change mode');
     }
     case 'setMasked': {

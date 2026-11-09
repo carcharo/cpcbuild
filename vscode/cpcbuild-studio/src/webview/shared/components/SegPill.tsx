@@ -8,6 +8,8 @@ export interface SegOption<T> {
   value: T;
   label: string;
   title?: string;
+  /** Accessible name when the visible label is an abbreviation. */
+  ariaLabel?: string;
   disabled?: boolean;
 }
 
@@ -35,6 +37,7 @@ export function SegPill<T extends string | number>({ label, value, options, onCh
           role="radio"
           data-testid={testId ? `${testId}-${String(o.value)}` : undefined}
           aria-checked={o.value === value}
+          aria-label={o.ariaLabel}
           aria-disabled={o.disabled ? 'true' : undefined}
           tabIndex={i === tabbable ? 0 : -1}
           {...(o.title ? tt.props(String(o.value), tipText({ label: o.title })) : {})}

@@ -5,6 +5,7 @@
  */
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { Icon } from '../shared/components/Icon';
+import { Pill } from '../shared/components/Pill';
 import { Thumb } from './Thumb';
 
 export interface FrameStripProps {
@@ -124,16 +125,16 @@ export function FrameStrip(p: FrameStripProps) {
               if (from !== undefined && from !== i) { p.onMove(from, i); p.onSelect(i); }
             }}
           >
-            <Thumb rgba={t} w={p.w} h={p.h} box={p.layout === 'grid' ? 40 : 56} />
+            <Thumb rgba={t} w={p.w} h={p.h} box={p.layout === 'grid' ? 36 : p.horizontal ? 64 : 100} />
             {(p.layout === 'strip' || p.numbers) && <span class="sp-strip-n">{i}</span>}
             {p.duplicates?.has(i) && <span class="sp-strip-dup" title={`Tile ${i} duplicates an earlier tile`}><Icon name="info" /></span>}
           </div>
         ))}
       </div>
       <div class="sp-strip-actions" role="group" aria-label={`${cap} actions`}>
-        <button type="button" class="cb-icon-btn" title={p.canAdd ? `Add ${p.noun} (N)` : `Add ${p.noun} (${p.addWhy ?? 'not possible'})`} aria-label={`Add ${p.noun}`} aria-disabled={p.canAdd ? undefined : 'true'} onClick={() => p.canAdd && p.onAdd()}><Icon name="add" /></button>
-        <button type="button" class="cb-icon-btn" title={p.canAdd ? `Duplicate ${p.noun} (Shift+N)` : `Duplicate ${p.noun} (${p.addWhy ?? 'not possible'})`} aria-label={`Duplicate ${p.noun}`} aria-disabled={p.canAdd && n ? undefined : 'true'} onClick={() => p.canAdd && n && p.onDuplicate(p.selected)}><Icon name="copy" /></button>
-        <button type="button" class="cb-icon-btn" title={p.canDelete ? `Delete ${p.noun} (Delete)` : `Delete ${p.noun} (a sprite keeps at least one frame)`} aria-label={`Delete ${p.noun}`} aria-disabled={p.canDelete ? undefined : 'true'} onClick={() => p.canDelete && p.onDelete(p.selected)}><Icon name="trash" /></button>
+        <Pill size="sm" icon="add" label={`Add ${p.noun}`} shortcut="N" disabled={!p.canAdd} why={p.addWhy} onClick={() => p.onAdd()} />
+        <Pill size="sm" icon="copy" label={`Duplicate ${p.noun}`} shortcut="Shift+N" disabled={!p.canAdd || !n} why={p.canAdd ? undefined : p.addWhy} onClick={() => p.onDuplicate(p.selected)} />
+        <Pill size="sm" icon="trash" label={`Delete ${p.noun}`} shortcut="Delete" disabled={!p.canDelete} why={p.noun === 'frame' ? 'a sprite keeps at least one frame' : 'nothing to delete'} onClick={() => p.onDelete(p.selected)} />
       </div>
     </div>
   );
