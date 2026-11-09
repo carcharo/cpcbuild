@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Ay, CPC_CLOCK, frameRegs, lfsrOutputs, lfsrPeriod, mixBit, notePeriod, volumeLevel } from './ay';
+import { Ay, AyChip, CPC_CLOCK, frameRegs, lfsrOutputs, lfsrPeriod, mixBit, notePeriod, volumeLevel } from './ay';
 
 const SR = 48000;
 
@@ -161,5 +161,97 @@ describe('mixer', () => {
     ay.set(142, 5, false, false, 15);
     const s = renderSeconds(ay, 1);
     expect(Math.max(...s.subarray(SR / 2).map(Math.abs))).toBeLessThan(0.01);
+  });
+});
+
+describe('Ay is unchanged by the AyChip refactor', () => {
+  // FNV-1a over the float32 bits of 1 s of output, with register changes every 20 ms. The constants
+  // were taken from the implementation before Ay became a wrapper over AyChip channel A.
+  const REFERENCE: Record<number, number> = { 48000: 229337137, 44100: 1488754291 };
+  const regs: [number, number, boolean, boolean, number][] = [
+    [142, 0, true, false, 15], [239, 7, true, true, 12], [1, 31, false, true, 9],
+    [4095, 3, true, false, 3], [60, 0, false, false, 15], [119, 16, true, true, 1],
+  ];
+  for (const sr of [48000, 44100]) {
+    it(`bit-identical output at ${sr} Hz`, () => {
+      const ay = new Ay(CPC_CLOCK, sr);
+      const out = new Float32Array(sr);
+      let pos = 0, k = 0;
+      while (pos < out.length) {
+        const r = regs[k++ % regs.length];
+        ay.set(r[0], r[1], r[2], r[3], r[4]);
+        const n = Math.min(Math.round(sr / 50), out.length - pos);
+        ay.render(out, pos, n);
+        pos += n;
+      }
+      const u = new Uint32Array(out.buffer);
+      let h = 2166136261;
+      for (let i = 0; i < u.length; i++) {
+        h ^= u[i];
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      expect(h).toBe(REFERENCE[sr]);
+    });
+  }
+});
+
+describe('AyChip', () => {
+  const tone = (chip: AyChip, ch: number, period: number, vol = 15): void => chip.setChannel(ch, period, true, false, vol);
+
+  it('two tone channels sum: A at 142 plus B at 71 has the energy of both', () => {
+    const only = (setup: (c: AyChip) => void): Float32Array => {
+      const c = new AyChip(CPC_CLOCK, SR);
+      setup(c);
+      return renderSeconds(c as unknown as Ay, 0.5);
+    };
+    const a = only((c) => tone(c, 0, 142));
+    const b = only((c) => tone(c, 1, 71));
+    const ab = only((c) => { tone(c, 0, 142); tone(c, 1, 71); });
+    for (let i = 0; i < ab.length; i += 97) expect(ab[i]).toBeCloseTo(a[i] + b[i], 5);
+    expect(Math.max(...ab)).toBeGreaterThan(Math.max(...a) * 1.5);
+  });
+
+  it('mute removes one channel and leaves the other as it was', () => {
+    const mk = (mask: number): Float32Array => {
+      const c = new AyChip(CPC_CLOCK, SR);
+      tone(c, 0, 142);
+      tone(c, 1, 71);
+      c.setMute(mask);
+      return renderSeconds(c as unknown as Ay, 0.3);
+    };
+    const solo = new AyChip(CPC_CLOCK, SR);
+    tone(solo, 0, 142);
+    expect(mk(2)).toEqual(renderSeconds(solo as unknown as Ay, 0.3));
+    expect(mk(7).every((x) => x === 0)).toBe(true);
+  });
+
+  it('noise is shared: channels with noise on and the same noise period give identical noise', () => {
+    const mk = (chs: number[]): Float32Array => {
+      const c = new AyChip(CPC_CLOCK, 192000);
+      c.setNoise(9);
+      for (const ch of chs) c.setChannel(ch, 1, false, true, 15);
+      return renderSeconds(c as unknown as Ay, 0.2, 192000);
+    };
+    const one = mk([0]), two = mk([0, 2]);
+    for (let i = 0; i < one.length; i += 53) expect(two[i]).toBeCloseTo(one[i] * 2, 5);
+  });
+
+  it('gain scales the output', () => {
+    const mk = (gain: number): Float32Array => {
+      const c = new AyChip(CPC_CLOCK, SR, { gain });
+      tone(c, 0, 142);
+      return renderSeconds(c as unknown as Ay, 0.2);
+    };
+    const full = mk(1), half = mk(0.5);
+    for (let i = 0; i < full.length; i += 31) expect(half[i]).toBeCloseTo(full[i] / 2, 6);
+  });
+
+  it('channel volume 0 is silent on that channel only', () => {
+    const c = new AyChip(CPC_CLOCK, SR);
+    tone(c, 0, 142, 0);
+    tone(c, 1, 142, 15);
+    const solo = new AyChip(CPC_CLOCK, SR);
+    tone(solo, 1, 142, 15);
+    expect(renderSeconds(c as unknown as Ay, 0.2)).toEqual(renderSeconds(solo as unknown as Ay, 0.2));
   });
 });
