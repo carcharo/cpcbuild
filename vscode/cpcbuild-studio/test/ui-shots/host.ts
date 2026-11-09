@@ -196,7 +196,7 @@ export async function run(): Promise<void> {
   await capture({ name: 'sprite-plus-tall', layout: 'editor', sizes: TALL });
   await openWith('assets/balls.cpcimp', 'cpcbuild.importer', ready((a) => a.importer));
   await sleep(2500);
-  await capture({ name: 'importer', layout: 'editor', sizes: E });
+  await capture({ name: 'importer', layout: 'editor', sizes: [...E, [560, 900]] });
   await capture({ name: 'importer-tall', layout: 'editor', sizes: TALL });
   // the Command tab at 600 px (the tab strip only exists in the narrow layout)
   await capture({ name: 'importer-command', layout: 'editor', sizes: [[600, 700]], pre: async () => { await ask({ type: 'click', selector: '#imp-tab-command' }); await sleep(700); } });

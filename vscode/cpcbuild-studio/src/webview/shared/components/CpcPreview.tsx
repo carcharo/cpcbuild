@@ -21,6 +21,8 @@ export interface PreviewOptions { shape: boolean; crt: boolean; onScreen: boolea
 
 export interface CpcPreviewProps {
   image: IndexedImage;
+  /** R5, optional: the image the compare list and the "Use mode N" test reduce (same size as `image`); default `image`. For an owner whose `image` is already reduced to the asset's own mode. */
+  compareImage?: IndexedImage;
   /** The asset's own mode: a marker shows when mode === assetMode. */
   assetMode?: Mode;
   /** Marker text, default "asset's mode". */
@@ -198,7 +200,27 @@ export function CpcPreview(p: CpcPreviewProps) {
   const label = p.label ?? 'CPC preview';
   const extras = !!p.extras;
   const compare = p.compare ?? 'none';
-  const maxW = p.maxWidth ?? 360, maxH = p.maxHeight ?? 240;
+  const wellRef = useRef<HTMLDivElement>(null);
+  const [wellW, setWellW] = useState<number | undefined>();
+  // the room the image really has: the well's width less its padding and the border frame's padding (maxWidth still caps)
+  useEffect(() => {
+    const el = wellRef.current;
+    if (!el) return;
+    const pad = (e: Element | null): number => {
+      if (!e) return 0;
+      const c = getComputedStyle(e);
+      return (parseFloat(c.paddingLeft) || 0) + (parseFloat(c.paddingRight) || 0);
+    };
+    const measure = (): void => {
+      const w = Math.floor(el.clientWidth - pad(el) - pad(el.querySelector('.cb-prev-border')));
+      if (w > 0) setWellW((o) => (o === w ? o : w));
+    };
+    measure();
+    const ro = new ResizeObserver(() => requestAnimationFrame(measure));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const maxW = Math.min(p.maxWidth ?? 360, wellW ?? Infinity), maxH = p.maxHeight ?? 240;
   const theme = useThemeVersion();
   const [own, setOwn] = useState<PreviewOptions>({ shape: true, crt: false, onScreen: false });
   const [borderOn, setBorderOn] = useState(true);
@@ -215,6 +237,8 @@ export function CpcPreview(p: CpcPreviewProps) {
 
   const reduced = useMemo(() => ({ 0: reducePens(p.image, 0), 1: reducePens(p.image, 1), 2: reducePens(p.image, 2) }) as Record<Mode, Reduced>, [p.image]);
   const r = reduced[p.mode];
+  const cmpImage = p.compareImage ?? p.image;
+  const cmpReduced = useMemo(() => (p.compareImage ? ({ 0: reducePens(p.compareImage, 0), 1: reducePens(p.compareImage, 1), 2: reducePens(p.compareImage, 2) } as Record<Mode, Reduced>) : reduced), [p.compareImage, reduced]);
   const size = onScreenSize(p.image, p.mode);
   // pixel shape off: square pixels (mode 1 geometry)
   const geo = shape ? p.mode : 1;
@@ -236,7 +260,7 @@ export function CpcPreview(p: CpcPreviewProps) {
 
   const alt = `${label} in mode ${p.mode}: pixels ${shapeLabel(p.mode)}, ${pensLabel(r)}, ${mergeNote(r)}`;
   const isAsset = p.assetMode !== undefined && p.mode === p.assetMode;
-  const canUse = !!p.onUseMode && p.assetMode !== undefined && p.mode !== p.assetMode && r.fits;
+  const canUse = !!p.onUseMode && p.assetMode !== undefined && p.mode !== p.assetMode && cmpReduced[p.mode].fits;
   const canvasStyle = { width: `${d.w}px`, height: `${d.h}px` };
   return (
     <div class="cb-prev" role="group" aria-label={label}>
@@ -248,9 +272,9 @@ export function CpcPreview(p: CpcPreviewProps) {
         {extras && <ToggleChip label="CRT lines" pressed={opts.crt} onChange={(v) => setOpts({ crt: v })} />}
         {extras && <ToggleChip label="On screen" pressed={opts.onScreen} onChange={(v) => setOpts({ onScreen: v })} />}
         {extras && p.border && <ToggleChip label="Border" pressed={borderOn} onChange={setBorderOn} />}
-        {compare === 'popover' && <ComparePopover image={p.image} reduced={reduced} mode={p.mode} onMode={p.onMode} border={border} />}
+        {compare === 'popover' && <ComparePopover image={cmpImage} reduced={cmpReduced} mode={p.mode} onMode={p.onMode} border={border} />}
       </div>
-      <div class="cb-prev-well">
+      <div class="cb-prev-well" ref={wellRef}>
         {onScreen ? (
           <canvas ref={screen} class="cb-prev-canvas cb-prev-frame" role="img" aria-label={`${alt}; shown at its size on the screen`} style={{ width: `${frameW}px`, height: `${frameH}px` }} />
         ) : (
@@ -272,7 +296,7 @@ export function CpcPreview(p: CpcPreviewProps) {
         {canUse && <Pill size="sm" variant="primary" label={`Use mode ${p.mode}`} onClick={() => p.onUseMode?.(p.mode)} />}
       </div>
       <p class="cb-muted cb-prev-note">Preview only: the asset keeps its own mode until you convert it.</p>
-      {compare === 'inline' && <CompareList image={p.image} reduced={reduced} mode={p.mode} onMode={p.onMode} border={border} label="Compare modes" />}
+      {compare === 'inline' && <CompareList image={cmpImage} reduced={cmpReduced} mode={p.mode} onMode={p.onMode} border={border} label="Compare modes" />}
     </div>
   );
 }
