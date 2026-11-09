@@ -12,4 +12,5 @@ await build({ ...common, entryPoints: [path.join(root, 'src/ext/extension.ts')],
 await build({ ...common, entryPoints: [path.join(root, 'src/webview/main.ts')], platform: 'browser', format: 'iife', target: 'es2022', outfile: path.join(dist, 'webview.js') });
 await build({ ...common, entryPoints: [path.join(root, 'src/webview/worklet.ts')], platform: 'browser', format: 'iife', target: 'es2022', outfile: path.join(dist, 'worklet.js') });
 fs.copyFileSync(path.join(root, 'src/webview/webview.css'), path.join(dist, 'webview.css'));
+fs.copyFileSync(path.join(root, 'src/webview/pod.css'), path.join(dist, 'pod.css'));
 console.log('built dist/');
