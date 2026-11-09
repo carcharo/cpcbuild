@@ -5,7 +5,8 @@
 import { FW_NAMES, fwRgb, rgb12To8, type RGB } from '../../core/palette';
 import { MAXPENS, type Mode } from '../../core/pixels';
 import type { Grid, Rect } from '../../core/spriteDoc';
-import { rowsToGrid } from '../../core/spriteDoc';
+import { convertPens, rowsToGrid, summaryReduced } from '../../core/spriteDoc';
+import { TRANSPARENT as PREVIEW_TRANSPARENT, fromFirmware, type IndexedImage, type Reduced } from '../../core/cpcPreview';
 import { ellipseCells, lineCells, mirrorPoints, rectCells, snapLine, type Pt } from '../../core/shapes';
 import type { SpriteView } from '../../shared/spriteProtocol';
 import type { PenSlot } from '../shared/components/PenStrip';
@@ -210,3 +211,54 @@ export function describeValue(v: SpriteView, value: number): string {
 
 /** Modes: pixel aspect key for geometry.aspectWidth. */
 export const aspectKey = (v: Pick<SpriteView, 'kind' | 'mode'>): Mode | 'plus' => (v.kind === 'plus' ? 'plus' : v.mode);
+
+// --------------------------------------------------------------- CPC preview
+
+/** Tiles 4t..4t+3 as one 2w x 2h grid (a missing tile is transparent). */
+export function grid16(items: Grid[], t: number, w: number, h: number): Grid {
+  const out: Grid = Array.from({ length: 2 * h }, () => new Array<number>(2 * w).fill(TRANSPARENT));
+  for (let k = 0; k < 4; k++) {
+    const g = items[4 * t + k];
+    if (!g) continue;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out[(k >> 1) * h + y][(k & 1) * w + x] = g[y][x];
+  }
+  return out;
+}
+
+export interface PreviewSource {
+  /** The picked picture with the document's own pens. */
+  image: IndexedImage;
+  /** What Convert would make of it in `mode`: the same pens and merges as `convertPens` over ALL items. */
+  reduce(mode: Mode): Reduced;
+}
+
+const toPixels = (g: Grid): Uint8Array => Uint8Array.from(g.flat(), (v) => (v < 0 ? PREVIEW_TRANSPARENT : v));
+
+/**
+ * The CPC preview of a sprite or tile set. `pick` chooses the picture to show out of the items (the frame, the
+ * animating frame, the 2x2 view) and is applied both to the document's items and to the converted ones, so the
+ * pens and merges are those of `convertPens` over the whole document. `pens`: the resolved pens; `shared`: they come
+ * from a palette file (so they do not renumber).
+ */
+export function previewSource(items: Grid[], pick: (items: Grid[]) => Grid, pens: number[], shared: boolean): PreviewSource {
+  const g = pick(items);
+  const w = g[0]?.length ?? 0;
+  const h = g.length;
+  const image = fromFirmware(w, h, toPixels(g), pens);
+  const reduce = (mode: Mode): Reduced => {
+    const conv = convertPens({ items, palette: shared ? { file: '' } : { pens } }, mode, shared ? pens : undefined);
+    const to = pick(conv.items);
+    const newPens = 'pens' in conv.palette ? conv.palette.pens : pens;
+    // indices into image.palette (the document's pens): the first pen showing the colour of the new pen
+    const index = (q: number): number => { if (shared) return q; const j = pens.indexOf(newPens[q]); return j < 0 ? q : j; };
+    const cache = new Map<number, number>();
+    const pixels = Uint8Array.from(to.flat(), (q) => {
+      if (q < 0) return PREVIEW_TRANSPARENT;
+      let j = cache.get(q);
+      if (j === undefined) { j = index(q); cache.set(q, j); }
+      return j;
+    });
+    return { ...summaryReduced(conv.summary, mode), pixels };
+  };
+  return { image, reduce };
+}

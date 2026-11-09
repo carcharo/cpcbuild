@@ -177,15 +177,15 @@ export async function run(): Promise<void> {
   await openWith('palettes/plus.cpcpal12', 'cpcbuild.paletteEditor', ready((a) => a.palette));
   await capture({ name: 'palette-cpcpal12', layout: 'editor', sizes: E });
   await openWith('sprites/hero.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
-  await capture({ name: 'sprite-mode0', layout: 'editor', sizes: E });
+  await capture({ name: 'sprite-mode0', layout: 'editor', sizes: [...E, [560, 900]] });
   await openWith('sprites/ship.cpcspr', 'cpcbuild.spriteEditor', ready((a) => a.sprite));
   await capture({ name: 'sprite-plus', layout: 'editor', sizes: E });
   // Plus magnification preview: magnification x4 horizontally, x2 vertically (the preview is the top block of the side panel)
   await capture({
     name: 'sprite-plus-mag', layout: 'editor', sizes: [[1000, 700]],
     pre: async () => {
-      await ask({ type: 'click', selector: '[data-seg="Magnification X"][data-val="4"]' });
-      await ask({ type: 'click', selector: '[data-seg="Magnification Y"][data-val="2"]' });
+      await ask({ type: 'click', selector: '[data-testid="sp-magx-4"]' });
+      await ask({ type: 'click', selector: '[data-testid="sp-magy-2"]' });
       await sleep(600);
     },
   });
@@ -201,7 +201,7 @@ export async function run(): Promise<void> {
   await capture({ name: 'sprite-plus-tall', layout: 'editor', sizes: TALL });
   await openWith('assets/balls.cpcimp', 'cpcbuild.importer', ready((a) => a.importer));
   await sleep(2500);
-  await capture({ name: 'importer', layout: 'editor', sizes: E });
+  await capture({ name: 'importer', layout: 'editor', sizes: [...E, [560, 900]] });
   await capture({ name: 'importer-tall', layout: 'editor', sizes: TALL });
   // the Command tab at 600 px (the tab strip only exists in the narrow layout)
   await capture({ name: 'importer-command', layout: 'editor', sizes: [[600, 700]], pre: async () => { await ask({ type: 'click', selector: '#imp-tab-command' }); await sleep(700); } });

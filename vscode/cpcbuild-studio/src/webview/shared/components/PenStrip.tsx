@@ -39,6 +39,8 @@ export interface PenStripProps {
   compact?: boolean;
   /** Redesign look (opt-in): 48 px round swatches with the pen label, colour number and name always under them. */
   round?: boolean;
+  /** With `round`: ring the left pen `left` (solid) and the right pen `right` (double) instead of one selection ring. */
+  ringSides?: boolean;
   /** Pens that exist but are not in use (above the mode's pen count): drawn dimmed, with this reason in the tooltip. */
   dim?(index: number): string | undefined;
   /** Caption under the swatch and in the accessible name; default "P3" / "Pen 3". */
@@ -123,7 +125,7 @@ export function PenStrip(p: PenStripProps) {
       >
         <span class="cb-pen-swatch">
           {p.round ? (
-            <RoundSwatch colour={s.colour} unset={s.unset} size={48} ring={isL ? 'sel' : s.unset && s.fixed ? 'dashed' : undefined} />
+            <RoundSwatch colour={s.colour} unset={s.unset} size={p.compact ? 28 : 48} ring={p.ringSides ? (isL ? 'left' : isR ? 'right' : undefined) : isL ? 'sel' : s.unset && s.fixed ? 'dashed' : undefined} />
           ) : (
             <Swatch colour={s.colour} unset={s.unset} size={p.compact ? 32 : 28} />
           )}

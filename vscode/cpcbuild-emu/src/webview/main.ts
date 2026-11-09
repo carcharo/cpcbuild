@@ -4,6 +4,7 @@
 import type { EmuModel, EmuPauseReason, EmuState } from '../emuApi';
 import type { HostNotice, HostRequest, ResponseMsg, WebviewBoot, WebviewNotice } from '../shared/protocol';
 import { usbFromCode } from '../shared/keymap';
+import { fitSize, runLabel } from '../shared/chrome';
 
 declare function acquireVsCodeApi(): { postMessage(m: unknown): void };
 const api = acquireVsCodeApi();
@@ -26,7 +27,7 @@ const MODELS: EmuModel[] = ['464', '664', '6128', 'plus'];
 const REASONS: (EmuPauseReason | undefined)[] = [undefined, 'breakpoint', 'step', 'user'];
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
-const canvas = $<HTMLCanvasElement>('screen'), stage = $('stage'), status = $('status'), modelEl = $('model');
+const canvas = $<HTMLCanvasElement>('screen'), stage = $('stage'), status = $('status'), statusText = $('statusText'), modelEl = $('model'), frame = $('frame'), soundSep = $('soundSep');
 const btnPause = $<HTMLButtonElement>('pause'), btnReset = $<HTMLButtonElement>('reset'), btnSound = $<HTMLButtonElement>('sound');
 const g = canvas.getContext('2d', { alpha: false })!;
 const image = g.createImageData(W, H);
@@ -38,6 +39,7 @@ let model: EmuModel = '6128';
 let hostVisible = true, runHidden = boot.runHidden;
 let stepping: { id: number } | null = null;
 const breakpoints = new Set<number>();
+let program: string | undefined;
 let wasmBytes: ArrayBuffer | null = null;
 const romCache = new Map<string, Uint8Array>();
 
@@ -72,7 +74,7 @@ async function enableSound(): Promise<void> {
   showSound();
 }
 function showSound(): void {
-  btnSound.hidden = audioRunning() || soundFailed;
+  btnSound.hidden = soundSep.hidden = audioRunning() || soundFailed;
 }
 btnSound.addEventListener('click', () => { void enableSound(); canvas.focus(); });
 
@@ -108,15 +110,12 @@ function readState(): EmuState {
   };
 }
 
-const hex = (n: number): string => '&' + n.toString(16).toUpperCase().padStart(4, '0');
 function updateUi(s?: EmuState): void {
   const st = s ?? (M ? readState() : undefined);
-  if (!st) {
-    status.textContent = 'No program loaded';
-    return;
-  }
-  const label = st.paused ? `Paused (${st.reason ?? 'user'}) at ${hex(st.pc)}` : suspended() ? 'Suspended (tab hidden)' : 'Running';
-  if (status.textContent !== label) { status.textContent = label; status.title = label; }
+  const lab = runLabel(st && { paused: st.paused, suspended: suspended(), pc: st.pc, program });
+  if (statusText.textContent !== lab.text) { statusText.textContent = lab.text; status.title = st?.paused ? `Paused (${st.reason ?? 'user'})` : lab.text; }
+  status.dataset.tone = lab.tone;
+  if (!st) return;
   btnPause.setAttribute('aria-label', st.paused ? 'Resume' : 'Pause');
   btnPause.title = st.paused ? 'Resume' : 'Pause';
   btnPause.querySelector('.codicon')!.className = 'codicon ' + (st.paused ? 'codicon-debug-continue' : 'codicon-debug-pause');
@@ -207,12 +206,15 @@ function loop(): void {
 
 // ---- layout ----
 function fit(): void {
-  const w = stage.clientWidth, h = stage.clientHeight;
-  if (w <= 0 || h <= 0) return;
-  let s = Math.min(w / W, h / H);
-  if (s >= 1 && Math.floor(s) / s >= 0.85) s = Math.floor(s); // integer scale when it wastes under 15%: crisp pixels; else fill
-  canvas.style.width = Math.floor(W * s) + 'px';
-  canvas.style.height = Math.floor(H * s) + 'px';
+  // room = the stage minus its own padding and the frame's padding and border, so the integer-scale rule holds for the canvas
+  const px = (v: string): number => parseFloat(v) || 0;
+  const sc = getComputedStyle(stage), fc = getComputedStyle(frame);
+  const extraX = px(sc.paddingLeft) + px(sc.paddingRight) + px(fc.paddingLeft) + px(fc.paddingRight) + px(fc.borderLeftWidth) + px(fc.borderRightWidth);
+  const extraY = px(sc.paddingTop) + px(sc.paddingBottom) + px(fc.paddingTop) + px(fc.paddingBottom) + px(fc.borderTopWidth) + px(fc.borderBottomWidth);
+  const size = fitSize(stage.clientWidth - extraX, stage.clientHeight - extraY, W, H);
+  if (!size) return;
+  canvas.style.width = size.width + 'px';
+  canvas.style.height = size.height + 'px';
 }
 new ResizeObserver(fit).observe(stage);
 fit();
@@ -245,6 +247,7 @@ async function instantiate(m: EmuModel): Promise<void> {
 async function doOpen(r: Extract<HostRequest, { type: 'open' }>): Promise<{ state: EmuState }> {
   stepping = null;
   await instantiate(r.model);
+  program = r.name;
   const path = '/media.' + r.fileKind;
   M!.FS.writeFile(path, fromB64(r.data));
   const p = cstr(path), k = cstr(r.fileKind);

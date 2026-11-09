@@ -1,0 +1,85 @@
+/* SPDX-License-Identifier: MIT — copied from cpcbuild-studio cb.css (R0); keep in sync */
+:root {
+  --cb-pill-h: 26px; --cb-pill-h-sm: 22px; --cb-pill-h-xs: 20px;
+  --cb-card-radius: 14px; --cb-card-pad: 12px;
+  --cb-sel-bg: var(--vscode-list-activeSelectionBackground);
+  --cb-sel-fg: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+  --cb-sel-border: var(--vscode-focusBorder);
+  --cb-pod-radius: 24px; --cb-pod-main: 44px; --cb-pod-btn: 34px;
+  --cb-pill-bg: var(--vscode-button-secondaryBackground);
+  --cb-pill-fg: var(--vscode-button-secondaryForeground);
+  --cb-pill-border: var(--vscode-input-border, var(--vscode-panel-border));
+  --cb-ok: var(--vscode-testing-iconPassed, var(--vscode-charts-green));
+  --cb-warn: var(--vscode-editorWarning-foreground);
+  --cb-bad: var(--vscode-errorForeground);
+}
+.cb-pill, .cb-chip, .cb-segpill button, .cb-pod-main, .cb-pod-btn, .cb-shelf-card, .cb-kbd { font: inherit; cursor: pointer; transition: background-color 100ms; }
+.cb-pill {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: var(--cb-pill-h); padding: 0 12px; border-radius: 13px;
+  border: 1px solid var(--cb-pill-border); background: var(--cb-pill-bg); color: var(--cb-pill-fg); white-space: nowrap;
+}
+.cb-pill:hover { background: var(--vscode-button-secondaryHoverBackground); }
+.cb-pill-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-color: var(--vscode-button-border, transparent); }
+.cb-pill-primary:hover { background: var(--vscode-button-hoverBackground); }
+.cb-pill-ghost { background: transparent; border-color: transparent; color: inherit; height: 28px; border-radius: 14px; padding: 0 10px; }
+.cb-pill-ghost:hover { background: var(--vscode-toolbar-hoverBackground); }
+.cb-pill-icon { width: 30px; padding: 0; }
+.cb-pill-sm { height: var(--cb-pill-h-sm); border-radius: 11px; padding: 0 10px; }
+.cb-pill-xs { height: var(--cb-pill-h-xs); border-radius: 10px; padding: 0 8px; font-size: max(11px, 0.85em); }
+.cb-pill-mono { font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; }
+.cb-pill[aria-disabled="true"], .cb-chip[aria-disabled="true"], .cb-pod-btn[aria-disabled="true"], .cb-pod-main[aria-disabled="true"], .cb-segpill button[aria-disabled="true"] { color: var(--vscode-disabledForeground); cursor: default; }
+.cb-pill[aria-disabled="true"]:hover { background: var(--cb-pill-bg); }
+.cb-pill-primary[aria-disabled="true"] { color: var(--vscode-button-foreground); opacity: 0.5; }
+.cb-pill-primary[aria-disabled="true"]:hover { background: var(--vscode-button-background); }
+.cb-pill-ghost[aria-disabled="true"]:hover { background: transparent; }
+.cb-stat { display: inline-flex; align-items: center; gap: 4px; height: var(--cb-pill-h-xs); padding: 0 8px; border-radius: 10px; font-size: max(11px, 0.85em); background: transparent; border: 1px solid var(--cb-pill-border); font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cb-stat { color: var(--vscode-foreground); }
+.cb-stat-ok { border-color: var(--cb-ok); }
+.cb-stat-warn { border-color: var(--cb-warn); }
+.cb-stat-bad { border-color: var(--cb-bad); }
+.cb-stat-ok .codicon { color: var(--cb-ok); }
+.cb-stat-warn .codicon { color: var(--cb-warn); }
+.cb-stat-bad .codicon { color: var(--cb-bad); }
+.cb-pod { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 4px 14px 4px 4px; border-radius: var(--cb-pod-radius); background: var(--vscode-editorWidget-background); border: 1px solid var(--vscode-panel-border); }
+.cb-pod-main, .cb-pod-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; border-radius: 50%; }
+.cb-pod-main { width: var(--cb-pod-main); height: var(--cb-pod-main); background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: 1px solid var(--vscode-button-border, transparent); }
+.cb-pod-main:hover { background: var(--vscode-button-hoverBackground); }
+.cb-pod-main .codicon { font-size: 18px; }
+.cb-pod-btn { width: var(--cb-pod-btn); height: var(--cb-pod-btn); background: var(--vscode-input-background); color: inherit; border: 1px solid var(--cb-pill-border); }
+.cb-pod-btn:hover { background: var(--vscode-toolbar-hoverBackground); }
+.cb-pod-btn[aria-pressed="true"] { background: var(--cb-sel-bg); color: var(--cb-sel-fg); border-color: var(--cb-sel-border); box-shadow: inset 0 0 0 1px var(--cb-sel-border); }
+.cb-pod-main[aria-disabled="true"] { color: var(--vscode-button-foreground); opacity: 0.5; }
+.cb-pod-sep { width: 1px; height: 28px; background: var(--vscode-panel-border); }
+.cb-pod-readout { display: inline-flex; align-items: baseline; gap: 4px; font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; }
+.cb-pod-big { font-size: 1.15em; font-weight: 600; }
+.cb-pod-unit { color: var(--vscode-descriptionForeground); }
+.cb-kbd { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 6px; background: var(--cb-pill-bg); color: var(--cb-pill-fg); border: 1px solid var(--cb-pill-border); box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--vscode-foreground) 15%, transparent); font-size: max(11px, 0.85em); font-family: var(--vscode-editor-font-family); cursor: default; }
+.cb-kbd-group { display: inline-flex; align-items: center; gap: 4px; }
+body.vscode-high-contrast .cb-pill, body.vscode-high-contrast .cb-chip, body.vscode-high-contrast .cb-card, body.vscode-high-contrast .cb-segpill, body.vscode-high-contrast .cb-segpill button, body.vscode-high-contrast .cb-pod, body.vscode-high-contrast .cb-pod-btn, body.vscode-high-contrast .cb-pod-main, body.vscode-high-contrast .cb-shelf-card, body.vscode-high-contrast .cb-stat, body.vscode-high-contrast .cb-kbd,
+body.vscode-high-contrast-light .cb-pill, body.vscode-high-contrast-light .cb-chip, body.vscode-high-contrast-light .cb-card, body.vscode-high-contrast-light .cb-segpill, body.vscode-high-contrast-light .cb-segpill button, body.vscode-high-contrast-light .cb-pod, body.vscode-high-contrast-light .cb-pod-btn, body.vscode-high-contrast-light .cb-pod-main, body.vscode-high-contrast-light .cb-shelf-card, body.vscode-high-contrast-light .cb-stat, body.vscode-high-contrast-light .cb-kbd { border-color: var(--vscode-contrastBorder); }
+
+body.vscode-high-contrast .cb-chip[aria-pressed="true"],
+body.vscode-high-contrast .cb-chip[aria-checked="true"],
+body.vscode-high-contrast .cb-segpill button[aria-checked="true"],
+body.vscode-high-contrast .cb-shelf-card[aria-selected="true"],
+body.vscode-high-contrast .cb-pod-btn[aria-pressed="true"],
+body.vscode-high-contrast .cb-pill-ghost[data-on="true"],
+body.vscode-high-contrast-light .cb-chip[aria-pressed="true"],
+body.vscode-high-contrast-light .cb-chip[aria-checked="true"],
+body.vscode-high-contrast-light .cb-segpill button[aria-checked="true"],
+body.vscode-high-contrast-light .cb-shelf-card[aria-selected="true"],
+body.vscode-high-contrast-light .cb-pod-btn[aria-pressed="true"],
+body.vscode-high-contrast-light .cb-pill-ghost[data-on="true"] { outline: 2px solid var(--vscode-contrastActiveBorder); outline-offset: -2px; }
+/* focused and selected: keep the inner selection outline and add an outer ring after a gap */
+body.vscode-high-contrast .cb-chip[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast .cb-chip[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast .cb-segpill button[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast .cb-shelf-card[aria-selected="true"]:focus-visible,
+body.vscode-high-contrast .cb-pod-btn[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast .cb-pill-ghost[data-on="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-chip[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-chip[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-segpill button[aria-checked="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-shelf-card[aria-selected="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-pod-btn[aria-pressed="true"]:focus-visible,
+body.vscode-high-contrast-light .cb-pill-ghost[data-on="true"]:focus-visible { outline: 2px solid var(--vscode-contrastActiveBorder); outline-offset: -2px; box-shadow: 0 0 0 2px var(--vscode-editor-background), 0 0 0 4px var(--vscode-contrastActiveBorder); }
