@@ -12,6 +12,7 @@ import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { generateTemplate } from '../../src/core/templates';
 import { serialiseRecipe, type Recipe } from '../../src/core/cpcimp';
+import { PYTHON_ABS } from '../../src/core/testutil';
 
 const PORT = 9347;
 const REPO = path.resolve(__dirname, '../../../../../..');
@@ -32,7 +33,7 @@ function makeWorkspace(extRoot: string): string {
   };
   for (const [rel, text] of Object.entries(generateTemplate('firmware', { name: 'tplfw' }).files)) put(rel, text);
   const dev = JSON.parse(
-    fs.readFileSync(path.join(extRoot, 'test', 'fixtures', 'dev-settings.json'), 'utf8').replace(/\$\{repo\}/g, repo).replace(/\$\{zxbasic\}/g, zxbasic),
+    fs.readFileSync(path.join(extRoot, 'test', 'fixtures', 'dev-settings.json'), 'utf8').replace(/\$\{repo\}/g, repo).replace(/\$\{zxbasic\}/g, zxbasic).replace(/\$\{python\}/g, () => JSON.stringify(PYTHON_ABS).slice(1, -1)),
   ) as Record<string, unknown>;
   delete dev['cpcbuild.run.emulator'];
   delete dev['cpcbuild.run.customCommand'];
