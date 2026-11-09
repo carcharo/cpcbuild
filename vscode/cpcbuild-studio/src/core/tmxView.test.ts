@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { decodePng, type RgbaImage } from './image';
 import { posixSlashes } from './pathtext';
 import { layerTiles, parseTmx, parseTsx, TmxError } from './tmx';
+import { mergeNote, pensLabel, PIXEL_SHAPE } from './cpcPreview';
 import {
+  atlasesUsed, cellAspect, cpcImage, nextProblem, reducedOf, roomLabel, summariseReduced, summaryNote, summaryPens, worstSummary,
   atlasFromImage, atlasFromPens, cellErrors, cellInfo, doTile8Call, effectiveFirstgid, FLIP_D, FLIP_H, FLIP_V, flagNames, layerWarnings, renderLayer, tileMapCall, tilesetOfGid, tileSizeNotice,
 } from './tmxView';
 import { py, REPO, scratchDir } from './testutil';
@@ -209,5 +211,77 @@ describe('snippets', () => {
     expect(doTile8Call(12, 7, 20)).toBe('DoTile8(12, 7, 20)');
     expect(tileMapCall('level')).toBe('TileMap(@level(0), 0, 0, level_W, level_H)');
     expect(tileMapCall('level', 2, 3)).toBe('TileMap(@level(0), 2, 3, level_W, level_H)');
+  });
+});
+
+
+describe('CPC mode cells', () => {
+  it('takes the pixel shape in a CPC mode and stays square otherwise', () => {
+    expect([0, 1, 2].map((m) => cellAspect('cpc', m as 0 | 1 | 2))).toEqual([PIXEL_SHAPE[0], PIXEL_SHAPE[1], PIXEL_SHAPE[2]]);
+    expect([cellAspect('cpc', 0), cellAspect('cpc', 1), cellAspect('cpc', 2)]).toEqual([2, 1, 0.5]);
+    expect(cellAspect('image', 0)).toBe(1);
+    expect(cellAspect('cpctil', 2)).toBe(1);
+  });
+
+  /** 1 x 6 image: six distinct firmware colours (one pixel each, the first twice) */
+  const six = (): { width: number; height: number; data: Uint8Array } => {
+    const cols = [[0, 0, 0], [255, 255, 255], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [0, 0, 0]];
+    const data = new Uint8Array(cols.length * 4);
+    cols.forEach((c, i) => data.set([c[0], c[1], c[2], 255], i * 4));
+    return { width: cols.length, height: 1, data };
+  };
+
+  it('reduces a tileset image to the mode instead of failing, and reports it', () => {
+    const { image, reduced } = cpcImage(six(), 1);
+    expect(reduced.used).toBe(6);
+    expect(reduced.fits).toBe(false);
+    expect(reduced.merges).toHaveLength(2);
+    expect(new Set(Array.from({ length: 7 }, (_, i) => px(image, i, 0).join(','))).size).toBe(4);
+    const s = summariseReduced(1, reduced);
+    expect(s).toMatchObject({ firstgid: 1, mode: 1, limit: 4, used: 6, fits: false });
+    expect(s.merges.map((m) => m.pixels)).toEqual([1, 1]);
+    expect(summaryNote(s)).toBe(mergeNote(reduced));
+    expect(summaryPens(s)).toBe(pensLabel(reduced));
+    expect(reducedOf(s).kept).toHaveLength(4);
+  });
+
+  it('leaves an image that fits alone, transparency included', () => {
+    const img = six();
+    img.data[3] = 0;
+    const { image, reduced } = cpcImage(img, 0);
+    expect(reduced.fits).toBe(true);
+    expect(summaryNote(summariseReduced(1, reduced))).toBe('fits: 6 colours');
+    expect(px(image, 0, 0)[3]).toBe(0);
+    expect(px(image, 1, 0)).toEqual([255, 255, 255, 255]);
+  });
+
+  it('picks the summary to show: a tileset that does not fit, else the busiest', () => {
+    const mk = (firstgid: number, used: number, fits: boolean) => ({ firstgid, mode: 1 as const, limit: 4, used, fits, merges: [] });
+    expect(worstSummary([])).toBeUndefined();
+    expect(worstSummary([mk(1, 3, true), mk(9, 4, true)])?.firstgid).toBe(9);
+    expect(worstSummary([mk(1, 3, true), mk(9, 6, false), mk(20, 5, false)])?.firstgid).toBe(9);
+  });
+
+  it('finds the atlases a layer draws from', () => {
+    const at = [{ firstgid: 1, count: 4 }, { firstgid: 10, count: 4 }];
+    expect(atlasesUsed([0, 2, 3], at).map((a) => a.firstgid)).toEqual([1]);
+    expect(atlasesUsed([1, 11], at).map((a) => a.firstgid)).toEqual([1, 10]);
+    expect(atlasesUsed([0, 0], at)).toHaveLength(2);
+    expect(atlasesUsed([0x80000000 + 11], at).map((a) => a.firstgid)).toEqual([10]);
+  });
+});
+
+describe('problems and rooms', () => {
+  const ps = [{ x: 1, y: 0 }, { x: 3, y: 2 }, { x: 0, y: 4 }];
+  it('moves to the next problem in reading order and wraps', () => {
+    expect(nextProblem([], 5, null)).toBeUndefined();
+    expect(nextProblem(ps, 5, null)).toEqual(ps[0]);
+    expect(nextProblem(ps, 5, { x: 1, y: 0 })).toEqual(ps[1]);
+    expect(nextProblem(ps, 5, { x: 4, y: 3 })).toEqual(ps[2]);
+    expect(nextProblem(ps, 5, { x: 0, y: 4 })).toEqual(ps[0]);
+  });
+  it('labels rooms from 1 in reading order', () => {
+    expect(roomLabel(0, 0, 3, 20, 16)).toBe('Room 1 \u00b7 20 \u00d7 16');
+    expect(roomLabel(2, 1, 3, 20, 16)).toBe('Room 6 \u00b7 20 \u00d7 16');
   });
 });

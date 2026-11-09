@@ -7,6 +7,8 @@
  * the tool's, so a red cell says what the converter would say.
  */
 import type { RgbaImage } from './image';
+import { fromRgba, mergeNote, PIXEL_SHAPE, pensLabel, reducePens, TRANSPARENT, type Reduced } from './cpcPreview';
+import type { Mode } from './pixels';
 import { GID_MASK, TmxLayer, TmxMap } from './tmx';
 
 export const FLIP_H = 0x80000000;
@@ -195,6 +197,85 @@ export function atlasFromPens(tiles: readonly (readonly (readonly number[])[])[]
 export function tileSizeNotice(tw: number, th: number, mapTw: number, mapTh: number): string | undefined {
   if (tw === mapTw && th === mapTh) return undefined;
   return `The tile set's tiles are ${tw}x${th} but the map's cells are ${mapTw}x${mapTh}; set the map's tile width and height to ${tw} and ${th} in Tiled so the tiles line up.`;
+}
+
+// ------------------------------------------------------------------ CPC modes
+
+/** Width of a map cell as a multiple of its height-scale: the pixel shape in a CPC mode, square otherwise (Tiled image, .cpctil). */
+export function cellAspect(source: 'image' | 'cpc' | 'cpctil', mode: Mode): number {
+  return source === 'cpc' ? PIXEL_SHAPE[mode] : 1;
+}
+
+/** The part of a Reduced the readouts need (it crosses to the webview; no pixel data). */
+export interface ReducedSummary {
+  /** gid of the atlas's tile 0, so the webview knows which tileset it describes. */
+  firstgid: number;
+  mode: Mode;
+  limit: number;
+  used: number;
+  fits: boolean;
+  merges: { fromName: string; toName: string; pixels: number }[];
+}
+
+export function summariseReduced(firstgid: number, r: Reduced): ReducedSummary {
+  return { firstgid, mode: r.mode, limit: r.limit, used: r.used, fits: r.fits, merges: r.merges.map((m) => ({ fromName: m.fromName, toName: m.toName, pixels: m.pixels })) };
+}
+
+/** A Reduced the cpcPreview wording helpers accept (mergeNote, pensLabel), rebuilt from a summary. */
+export function reducedOf(s: ReducedSummary): Reduced {
+  return {
+    mode: s.mode, limit: s.limit, used: s.used, fits: s.fits,
+    kept: new Array<number>(s.fits ? s.used : s.limit).fill(0),
+    pixels: new Uint8Array(0),
+    merges: s.merges.map((m, i) => ({ from: i, to: -1, fromName: m.fromName, toName: m.toName, pixels: m.pixels })),
+  };
+}
+
+/** The summary to show for several tileset images: a tileset that does not fit wins (most colours first), else the one with most colours. */
+export function worstSummary(list: readonly ReducedSummary[]): ReducedSummary | undefined {
+  let best: ReducedSummary | undefined;
+  for (const s of list) {
+    if (!best || (!s.fits && best.fits) || (s.fits === best.fits && s.used > best.used)) best = s;
+  }
+  return best;
+}
+
+export const summaryNote = (s: ReducedSummary): string => mergeNote(reducedOf(s));
+export const summaryPens = (s: ReducedSummary): string => pensLabel(reducedOf(s));
+
+/** Atlases some cell of the layer draws from (all of them when the layer uses none, so the readouts are never blank). */
+export function atlasesUsed<A extends { firstgid: number; count: number }>(gids: readonly number[], atlases: readonly A[]): A[] {
+  const used = atlases.filter((a) => gids.some((raw) => {
+    const g = (raw & GID_MASK) >>> 0;
+    return g !== 0 && g >= a.firstgid && g - a.firstgid < a.count;
+  }));
+  return used.length ? used : [...atlases];
+}
+
+/** A tileset image seen in a CPC mode: snapped to the firmware colours, reduced to the mode's pens (nothing fails), as RGBA. */
+export function cpcImage(img: RgbaImage, mode: Mode): { image: RgbaImage; reduced: Reduced } {
+  const ind = fromRgba(img.width, img.height, img.data);
+  const reduced = reducePens(ind, mode);
+  const data = new Uint8Array(img.width * img.height * 4);
+  for (let i = 0; i < reduced.pixels.length; i++) {
+    const p = reduced.pixels[i];
+    if (p === TRANSPARENT) continue;
+    const rgb = ind.palette[p].rgb;
+    data.set([rgb[0], rgb[1], rgb[2], 255], i * 4);
+  }
+  return { image: { width: img.width, height: img.height, data }, reduced };
+}
+
+/** The next cell with a problem after the selection in reading order, wrapping to the first; undefined when there are none. */
+export function nextProblem<C extends { x: number; y: number }>(problems: readonly C[], width: number, sel: { x: number; y: number } | null): C | undefined {
+  if (!problems.length) return undefined;
+  const cur = sel ? sel.y * width + sel.x : -1;
+  return problems.find((e) => e.y * width + e.x > cur) ?? problems[0];
+}
+
+/** "Room 3 · 20 × 16": rooms are numbered from 1 in reading order across a map `cols` rooms wide. */
+export function roomLabel(rx: number, ry: number, cols: number, w: number, h: number): string {
+  return `Room ${ry * cols + rx + 1} · ${w} × ${h}`;
 }
 
 // ------------------------------------------------------------------ render
