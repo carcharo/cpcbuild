@@ -4,6 +4,7 @@
  * atlases (the host reads the images), conversion, and a few actions.
  */
 import type { TmxLayer, TmxObjectGroup } from '../core/tmx';
+import type { ReducedSummary } from '../core/tmxView';
 import type { BaseRequests, HostToWeb, ViewBase, WebToHost } from './protocol';
 
 export type TileSource = 'image' | 'cpc' | 'cpctil';
@@ -59,6 +60,8 @@ export interface WireAtlas {
 export interface AtlasResult {
   atlases: WireAtlas[];
   notices: ViewNotice[];
+  /** In a CPC mode: how each tileset image reduced to the mode's pens (the readouts under the map). */
+  reduced?: ReducedSummary[];
 }
 
 export interface ConvertOptions {

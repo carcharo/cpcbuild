@@ -202,7 +202,10 @@ export async function run(): Promise<void> {
   await capture({ name: 'importer-command', layout: 'editor', sizes: [[600, 700]], pre: async () => { await ask({ type: 'click', selector: '#imp-tab-command' }); await sleep(700); } });
   await openWith('maps/level.tmx', 'cpcbuild.tmxViewer', ready((a) => a.tmx));
   await sleep(2500);
-  await capture({ name: 'tmx', layout: 'editor', sizes: E });
+  await capture({ name: 'tmx', layout: 'editor', sizes: [...E, [560, 900]] });
+  // CPC mode 0 and mode 1 previews (pixel shape, pens, merges); the next capture's own pre leaves another screen open
+  await capture({ name: 'tmx-mode0', layout: 'editor', sizes: E, pre: async () => { await ask({ type: 'click', selector: '[data-testid="tmx-showas-m0"]' }); await sleep(1500); } });
+  await capture({ name: 'tmx-mode1', layout: 'editor', sizes: E, pre: async () => { await ask({ type: 'click', selector: '[data-testid="tmx-showas-m1"]' }); await sleep(1500); } });
   await capture({
     name: 'gallery-basics', layout: 'editor', sizes: [...E, [560, 900]],
     pre: async () => { await exec('cpcbuild.dev.gallery', 'basics'); await sleep(1200); },

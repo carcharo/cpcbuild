@@ -10,14 +10,14 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { decodeImage } from '../core/imageio';
-import { newRecipe, previewOf } from '../core/cpcimp';
 import { FW_TABLE, parseRgb12List } from '../core/palette';
 import { parseSprite, resolvePalette } from '../core/spriteDoc';
 import { defaultMapName, parseTmx, parseTsx, TmxError, TmxMap, TmxTileset } from '../core/tmx';
-import { Atlas, atlasFromImage, atlasFromPens, effectiveFirstgid, tileMapCall, tileSizeNotice } from '../core/tmxView';
+import { Atlas, atlasFromImage, atlasFromPens, cpcImage, effectiveFirstgid, summariseReduced, tileMapCall, tileSizeNotice } from '../core/tmxView';
+import type { ReducedSummary } from '../core/tmxView';
 import type { EditorSettings, HostToWeb } from '../shared/protocol';
 import type { AtlasResult, ConvertOptions, ConvertResult, TmxViewerView, ViewNotice, ViewTileset, WireAtlas } from '../shared/tmxProtocol';
-import { cachedDecode, decoderFor, rootIo } from './assetsGen';
+import { cachedDecode } from './assetsGen';
 import { channelSink, getChannel } from './channel';
 import { readSettings, resolveLibrary } from './config';
 import { insideRootFrom, PathEscapeError } from '../core/paths';
@@ -384,6 +384,7 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
       doc.atlasCache.set(key, out);
       return out;
     }
+    const reduced: ReducedSummary[] = [];
     view.tilesets.forEach((t, i) => {
       if (t.imageStatus !== 'ok' || !t.imagePath) return;
       const geo = doc.tilesets[i];
@@ -391,14 +392,10 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
         const bytes = fs.readFileSync(t.imagePath);
         let img = cachedDecode(t.imagePath, new Uint8Array(bytes));
         if (source === 'cpc') {
-          const pv = previewOf(newRecipe(posix(path.relative(root, t.imagePath)), { mode, kind: 'tiles', emitPalette: false }), rootIo(root), { decode: decoderFor(root) });
-          const data = new Uint8Array(pv.width * pv.height * 4);
-          pv.indices.forEach((pen, k) => {
-            const row = pv.rows[pen];
-            if (!row) return;
-            data.set([row.rgb[0], row.rgb[1], row.rgb[2], 255], k * 4);
-          });
-          img = { width: pv.width, height: pv.height, data };
+          // the picture is snapped to firmware colours and merged down to the mode's pens: it never fails, it reports
+          const c = cpcImage(img, mode);
+          img = c.image;
+          reduced.push(summariseReduced(t.firstgid, c.reduced));
         }
         out.atlases.push(
           wire(atlasFromImage(img, { tw: t.tilewidth, th: t.tileheight, margin: geo.margin, spacing: geo.spacing, columns: geo.columns, count: geo.tilecount, firstgid: t.firstgid })),
@@ -407,6 +404,7 @@ export class TmxViewerProvider implements vscode.CustomReadonlyEditorProvider<Tm
         out.notices.push({ severity: 'warning', text: `${source === 'cpc' ? 'CPC preview of ' : ''}${path.basename(t.imagePath)}: ${e instanceof Error ? e.message : String(e)}` });
       }
     });
+    if (source === 'cpc') out.reduced = reduced;
     doc.atlasCache.set(key, out);
     return out;
   }

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
+import { encodePng } from '../../src/core/image';
 import { newSprite, serialiseSprite } from '../../src/core/spriteDoc';
 import type { TmxDocument } from '../../src/ext/tmxViewer';
 import type { ConvertResult } from '../../src/shared/tmxProtocol';
@@ -92,6 +93,29 @@ test('tmx viewer: tile colour sources (Tiled image, CPC preview, .cpctil) and a 
   await closeAll();
   fs.renameSync(path.join(ws, 'maps/bgtiles.png.away'), path.join(ws, 'maps/bgtiles.png'));
   rm('maps/bgtiles.cpctil');
+});
+
+test('tmx viewer: Show as mode 1 on a tileset with more than 4 colours merges instead of failing', async () => {
+  const a = await api();
+  // three 8x8 tiles, eight distinct firmware colours across them
+  const cols = [[0, 0, 0], [255, 255, 255], [255, 0, 0], [0, 255, 0], [0, 0, 255], [255, 255, 0], [0, 255, 255], [255, 0, 255]];
+  const data = new Uint8Array(24 * 8 * 4);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 24; x++) data.set([...cols[(x + y * 3) % 8], 255], (y * 24 + x) * 4);
+  fs.writeFileSync(path.join(ws, 'maps/bgtiles.png'), encodePng({ width: 24, height: 8, data }));
+  const { doc } = await openViewer(vscode.Uri.file(path.join(ws, 'maps/level.tmx')));
+  type R = { atlases: { count: number }[]; notices: { severity: string; text: string }[]; reduced?: { mode: number; limit: number; used: number; fits: boolean; merges: { fromName: string; pixels: number }[] }[] };
+  const r1 = (await a.tmx.request(doc, 'atlases', { source: 'cpc', mode: 1 })) as R;
+  assert.strictEqual(r1.atlases.length, 1, JSON.stringify(r1.notices));
+  assert.deepStrictEqual(r1.notices.filter((n) => n.severity !== 'info'), []);
+  assert.deepStrictEqual([r1.reduced![0].mode, r1.reduced![0].limit, r1.reduced![0].used, r1.reduced![0].fits], [1, 4, 8, false]);
+  assert.strictEqual(r1.reduced![0].merges.length, 4);
+  // mode 0 has 16 pens: the same image fits and reports no merges
+  const r0 = (await a.tmx.request(doc, 'atlases', { source: 'cpc', mode: 0 })) as R;
+  assert.deepStrictEqual([r0.reduced![0].fits, r0.reduced![0].merges.length], [true, 0]);
+  // the Tiled image source carries no reduction
+  assert.strictEqual(((await a.tmx.request(doc, 'atlases', { source: 'image', mode: 0 })) as R).reduced, undefined);
+  await closeAll();
+  copyIn('examples/assets/bgtiles.png', 'maps/bgtiles.png');
 });
 
 test('tmx viewer: picking a tile copies its number and its DoTile8 call', async () => {
