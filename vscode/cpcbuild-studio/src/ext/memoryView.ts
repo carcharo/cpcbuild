@@ -7,14 +7,17 @@
  */
 import * as vscode from 'vscode';
 import { MemoryModel, pageBase, toBase64, WINDOW_BYTES, BYTES_PER_ROW } from '../core/memdiff';
+import { pushRecent, stackRange, stackRows, type RecentRec } from '../core/debugModel';
 import { hex4 } from '../core/map';
 import { describeAddress, resolveTarget } from '../core/symbols';
-import { parseMemWebMsg, type MemEmpty, type MemHostMsg, type MemSnapshot, type MemStatus, type MemWebMsg } from '../shared/memoryProtocol';
+import { parseMemWebMsg, type MemCpu, type MemEmpty, type MemHostMsg, type MemSnapshot, type MemStatus, type MemWebMsg } from '../shared/memoryProtocol';
 import { DebugController } from './debug';
 import { isError } from './emuClient';
 import { webviewHtml, webviewRoot } from './webviewHtml';
 
 export const MEMORY_VIEW_TYPE = 'cpcbuild.memoryView';
+/** workspaceState key: project root -> the last distinct go-to targets (newest first). */
+const RECENT_KEY = 'cpcbuild.memoryRecent';
 /** Commands the webview may ask for (a fixed list: the webview never names an arbitrary command). */
 const ALLOWED = new Set(['cpcbuild.buildAndRun', 'workbench.extensions.search']);
 
@@ -34,6 +37,9 @@ export class MemoryView implements vscode.Disposable {
   /** Webview start-ups and uncaught webview errors (extension-host tests check the page came up clean). */
   readonly stats = { ready: 0, errors: [] as string[] };
   private last?: MemSnapshot;
+  /** The CPU panel as of the last pause (resent, frozen, while the program runs) and the stack bytes read for it. */
+  private lastCpu?: MemCpu;
+  private stackRead?: { seq: number; sp: number; bytes: Uint8Array | undefined };
   private refreshing = false;
   private again = false;
   private readonly subs: vscode.Disposable[] = [];
@@ -49,6 +55,17 @@ export class MemoryView implements vscode.Disposable {
   /** The last snapshot posted (extension-host tests read this instead of the webview). */
   get snapshot(): MemSnapshot | undefined {
     return this.last;
+  }
+
+  /** The recent go-to targets of this project, newest first. */
+  recent(): RecentRec[] {
+    return (this.ctx.workspaceState.get<Record<string, RecentRec[]>>(RECENT_KEY) ?? {})[this.ctl.rootKey()] ?? [];
+  }
+
+  private async remember(rec: RecentRec): Promise<void> {
+    const all = { ...(this.ctx.workspaceState.get<Record<string, RecentRec[]>>(RECENT_KEY) ?? {}) };
+    all[this.ctl.rootKey()] = pushRecent(this.recent(), rec);
+    await this.ctx.workspaceState.update(RECENT_KEY, all);
   }
 
   get isOpen(): boolean {
@@ -71,6 +88,7 @@ export class MemoryView implements vscode.Disposable {
         const offset = 'offset' in r ? r.offset : undefined;
         this.follow = r.symbol && !offset ? r.symbol.name : undefined;
         this.targetText = r.symbol ? (exact ? r.symbol.name : text) : hex4(r.addr);
+        await this.remember({ addr: r.addr, text: this.targetText });
       }
     }
     await this.refresh();
@@ -200,6 +218,7 @@ export class MemoryView implements vscode.Disposable {
         rowNames[row] = rowNames[row] ? `${rowNames[row]}, ${s.name}` : s.name;
       }
     }
+    const cpu = await this.cpuPanel();
     const snap: MemSnapshot = {
       base: upd.base,
       bytes: toBase64(bytes),
@@ -209,9 +228,32 @@ export class MemoryView implements vscode.Disposable {
       following: this.follow,
       pc: this.ctl.state?.pc,
       sp: this.ctl.state?.sp,
+      recent: this.recent(),
+      ...(cpu ? { cpu } : {}),
     };
     this.last = snap;
     this.post({ type: 'snapshot', snap, status: this.status() });
+  }
+
+  /**
+   * The CPU panel: rebuilt from the controller's state while paused (the stack is read once per pause or step, never while
+   * running); while running the values of the last pause are sent again, marked `running`.
+   */
+  private async cpuPanel(): Promise<MemCpu | undefined> {
+    const st = this.ctl.state;
+    const table = this.ctl.symbols.table;
+    if (st?.paused) {
+      const seq = this.ctl.pauseSeq;
+      if (this.stackRead?.seq !== seq || this.stackRead.sp !== st.sp) {
+        const range = stackRange(st.sp);
+        const r = await this.ctl.client.readMemory(range.addr, range.length);
+        this.stackRead = { seq, sp: st.sp, bytes: isError(r) ? undefined : r.subarray(range.skip) };
+      }
+      const model = this.ctl.cpu();
+      if (model) this.lastCpu = { model, stack: this.stackRead.bytes ? stackRows(st.sp, this.stackRead.bytes, table) : [], sp: st.sp, running: false };
+      return this.lastCpu;
+    }
+    return this.lastCpu && { ...this.lastCpu, running: !!st };
   }
 
   dispose(): void {

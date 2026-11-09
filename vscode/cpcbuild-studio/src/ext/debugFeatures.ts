@@ -5,7 +5,7 @@
  */
 import * as vscode from 'vscode';
 import type { EmuEvent } from '../emuApi';
-import type { BreakpointRec, RegisterRow } from '../core/debugModel';
+import type { BreakpointRec, CpuModel, RecentRec, RegisterRow } from '../core/debugModel';
 import type { SymbolTable } from '../core/symbols';
 import { BreakpointsView, DebugController, registerDebugCommands, RegistersView } from './debug';
 import { MemoryView, ShowArgs } from './memoryView';
@@ -24,6 +24,10 @@ export interface DebugApi {
   /** The registers view's rows (empty unless paused). */
   registers(): RegisterRow[];
   breakpoints(): BreakpointRec[];
+  /** The CPU panel's rows for the paused state, with the changed marks of the last step (undefined unless paused). */
+  cpu(): CpuModel | undefined;
+  /** The memory view's recent go-to targets for this project. */
+  memoryRecent(): RecentRec[];
   symbols(): SymbolTable | undefined;
   reloadSymbols(): Promise<void>;
   /** The one map file the symbol source watches (the active target's), if any. */
@@ -61,6 +65,8 @@ export function registerDebugFeatures(context: vscode.ExtensionContext, reg: (id
     paused: () => !!ctl.state?.paused,
     registers: () => ctl.registers(),
     breakpoints: () => ctl.breakpoints(),
+    cpu: () => ctl.cpu(),
+    memoryRecent: () => memory.recent(),
     symbols: () => ctl.symbols.table,
     reloadSymbols: () => ctl.symbols.reload(),
     watchedMap: () => ctl.symbols.watchedMap,

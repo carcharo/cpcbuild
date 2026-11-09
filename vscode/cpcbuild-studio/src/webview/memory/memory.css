@@ -1,25 +1,94 @@
-/* memory.css -- the memory view (S9). Only --vscode-* variables. */
+/* memory.css -- the memory view (S9, R6). Only --vscode-* and --cb-* variables. */
+:root { --mem-cell: calc(2ch + 6px); --mem-orange: var(--vscode-charts-orange, var(--vscode-editorWarning-foreground)); }
 .mem { display: flex; flex-direction: column; min-height: 100vh; }
-.mem-go { display: flex; gap: var(--cb-space-2); align-items: center; padding: var(--cb-space-2) var(--cb-space-3); flex-wrap: wrap; }
+
+/* go-to row */
+.mem-go { display: flex; gap: var(--cb-space-2) var(--cb-space-3); align-items: center; padding: var(--cb-space-2) var(--cb-space-3); flex-wrap: wrap; }
+.mem-goform { display: flex; gap: var(--cb-space-2); align-items: center; }
 .mem-input {
-  height: var(--cb-control-h); min-width: 14em; padding: 0 var(--cb-space-2); font-family: var(--vscode-editor-font-family);
-  background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, transparent); border-radius: var(--cb-radius);
+  height: var(--cb-pill-h); min-width: 12em; padding: 0 var(--cb-space-3); font-family: var(--vscode-editor-font-family); border-radius: calc(var(--cb-pill-h) / 2);
+  background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border, var(--cb-pill-border));
 }
-.mem-dump { flex: 1; padding: var(--cb-space-2) var(--cb-space-3); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); font-variant-numeric: tabular-nums; overflow: auto; }
+.mem-recent { display: flex; flex-wrap: wrap; gap: var(--cb-space-1); align-items: center; }
+.mem-spacer { flex: 1; }
+.mem-pager { display: inline-flex; gap: var(--cb-space-1); }
+
+/* body: hex panel + run pod on the left, CPU panel on the right */
+.mem-body { flex: 1; display: flex; gap: var(--cb-space-3); align-items: flex-start; padding: 0 var(--cb-space-3) var(--cb-space-3); }
+.mem-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--cb-space-3); }
+.mem-cpu { flex: none; width: 300px; display: flex; flex-direction: column; gap: var(--cb-space-3); }
+.mem-podrow { display: flex; }
+
+/* hex panel */
+.mem-panel { border: 1px solid var(--vscode-panel-border); border-radius: var(--cb-card-radius); background: var(--vscode-editorWidget-background); overflow: hidden; }
+.mem-dump { padding: var(--cb-space-2) var(--cb-space-1); font-family: var(--vscode-editor-font-family); font-size: var(--vscode-editor-font-size); font-variant-numeric: tabular-nums; overflow-x: auto; }
 .mem-stale { opacity: 0.6; }
-.mem-row { display: grid; grid-template-columns: 6ch auto 17ch minmax(8ch, 1fr); gap: 0 var(--cb-space-3); white-space: pre; line-height: 1.5; }
-.mem-addr { color: var(--vscode-descriptionForeground); }
-.mem-bytes { display: inline-flex; gap: 0.6ch; }
-.mem-b { padding: 0 2px; border-radius: 2px; }
-.mem-b:nth-child(8) { margin-right: 1ch; }
-.mem-changed { background: var(--vscode-editor-findMatchHighlightBackground); text-decoration: underline dotted; }
+.mem-head, .mem-row { display: grid; grid-template-columns: 9ch auto 17ch minmax(8ch, 1fr); gap: 0 var(--cb-space-3); white-space: pre; line-height: 1.5; padding: 0 var(--cb-space-2); }
+.mem-head { color: var(--vscode-descriptionForeground); font-size: 0.9em; border-bottom: 1px solid var(--vscode-panel-border); margin-bottom: var(--cb-space-1); }
+.mem-row { border-radius: 4px; }
+.mem-row-pc { background: color-mix(in srgb, var(--cb-playhead) 14%, transparent); box-shadow: inset 3px 0 0 var(--cb-playhead); }
+.mem-addr { color: var(--vscode-descriptionForeground); display: inline-flex; gap: 0.6ch; align-items: baseline; }
+.mem-pcmark { font-weight: 700; font-size: 0.85em; color: var(--vscode-foreground); }
+.mem-bytes { display: inline-flex; gap: 1.6ch; }
+.mem-grp { display: inline-grid; grid-template-columns: repeat(4, var(--mem-cell)); }
+.mem-grp-h { display: block; padding-left: 3px; }
+.mem-b { text-align: center; border-radius: 4px; }
+.mem-changed { background: color-mix(in srgb, var(--mem-orange) 25%, transparent); text-decoration: underline dotted; }
 .mem-pc { outline: 1px solid var(--vscode-debugIcon-breakpointForeground, var(--vscode-focusBorder)); }
 .mem-sp { outline: 1px dashed var(--vscode-focusBorder); }
-.mem-sym { overflow: hidden; text-overflow: ellipsis; }
-/* narrow: drop the ASCII column first, keep the symbol names (the CPC-specific part) on a second line under the row */
-@media (max-width: 720px) {
-  .mem-row { grid-template-columns: 6ch auto; }
+.mem-sym { display: inline-flex; flex-wrap: wrap; gap: 0 var(--cb-space-1); align-items: center; overflow: hidden; }
+.mem-chip { padding: 0 6px; border: 1px dashed var(--vscode-textLink-foreground); border-radius: 9px; color: var(--vscode-textLink-foreground); line-height: 1.3; font-size: 0.92em; }
+
+/* CPU panel */
+.mem-cpu-stale .cpu-table, .mem-cpu-stale .cpu-flags, .mem-cpu-stale .cpu-cpu, .mem-cpu-stale .cpu-alt, .mem-cpu-stale .cpu-stackh { opacity: 0.55; }
+.mem-none { margin: 0; }
+.mem-foot { margin: 0; padding: 0 var(--cb-space-1); }
+.cpu-table { width: 100%; border-collapse: collapse; }
+.cpu-table th, .cpu-table td { padding: 2px 0; text-align: left; font-weight: normal; vertical-align: middle; }
+.cpu-name { width: 4.5ch; color: var(--vscode-descriptionForeground); font-family: var(--vscode-editor-font-family); }
+.cpu-table th.cpu-name { width: auto; padding-right: var(--cb-space-2); white-space: nowrap; }
+.cpu-note { padding-left: var(--cb-space-2); overflow-wrap: anywhere; }
+.cpu-go { width: 1%; text-align: right; }
+.cpu-val {
+  display: inline-flex; align-items: center; gap: 4px; height: var(--cb-pill-h-xs); padding: 0 8px; border-radius: 10px; border: 1px solid var(--cb-pill-border);
+  font-family: var(--vscode-editor-font-family); font-variant-numeric: tabular-nums; font-size: max(11px, 0.85em); white-space: nowrap; color: var(--vscode-foreground);
+}
+.cpu-val.cpu-changed { border: 2px solid var(--mem-orange); padding: 0 7px; background: color-mix(in srgb, var(--mem-orange) 14%, transparent); }
+.cpu-val .codicon { font-size: 8px; color: var(--mem-orange); }
+.cpu-flags, .cpu-cpu { display: flex; flex-wrap: wrap; gap: var(--cb-space-1); margin: var(--cb-space-1) 0 0; padding: 0; list-style: none; }
+.cpu-flag {
+  display: inline-flex; align-items: center; gap: 3px; height: var(--cb-pill-h-xs); padding: 0 8px; border-radius: 10px; border: 1px solid var(--cb-pill-border);
+  font-family: var(--vscode-editor-font-family); font-size: max(11px, 0.85em); color: var(--vscode-descriptionForeground);
+}
+.cpu-flag-set { background: var(--cb-pill-bg); color: var(--cb-pill-fg); border-color: color-mix(in srgb, var(--vscode-foreground) 70%, transparent); font-weight: 600; }
+.cpu-flag .codicon { font-size: 11px; }
+.cpu-flag.cpu-changed { border: 2px solid var(--mem-orange); padding: 0 7px; }
+.cpu-item { display: inline-flex; align-items: center; gap: var(--cb-space-1); }
+.cpu-item .cpu-name { width: auto; }
+.cpu-alt { margin-top: var(--cb-space-1); }
+.cpu-alt summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
+.cpu-altcount { margin-left: var(--cb-space-2); color: var(--vscode-foreground); }
+.cpu-altcount .codicon { font-size: 8px; color: var(--mem-orange); }
+.cpu-stackh { margin: 0; color: var(--vscode-descriptionForeground); }
+.cpu-top th, .cpu-top td { background: var(--cb-sel-bg); color: var(--cb-sel-fg); }
+.cpu-top th { box-shadow: inset 3px 0 0 var(--cb-sel-border); padding-left: var(--cb-space-1); border-radius: 4px 0 0 4px; }
+.cpu-top td:last-child { border-radius: 0 4px 4px 0; }
+.cpu-top .cpu-name, .cpu-top .cpu-note { color: var(--cb-sel-fg); }
+
+body.vscode-high-contrast .cpu-val, body.vscode-high-contrast .cpu-flag, body.vscode-high-contrast-light .cpu-val, body.vscode-high-contrast-light .cpu-flag { border-color: var(--vscode-contrastBorder); }
+body.vscode-high-contrast .cpu-changed, body.vscode-high-contrast-light .cpu-changed { border-color: var(--vscode-contrastActiveBorder, var(--mem-orange)); }
+
+/* narrow: the CPU panel goes under the hex panel; the recent addresses take their own row */
+@media (max-width: 960px) {
+  .mem-head, .mem-row { grid-template-columns: 9ch auto minmax(8ch, 1fr); }
   .mem-ascii { display: none; }
-  .mem-sym { grid-column: 1 / -1; padding-left: calc(6ch + var(--cb-space-3)); line-height: 1.2; font-size: 0.9em; }
+}
+@media (max-width: 720px) {
+  .mem-body { flex-direction: column; align-items: stretch; }
+  .mem-cpu { width: auto; }
+  .mem-recent { flex-basis: 100%; order: 5; }
+  .mem-spacer { display: none; }
+  .mem-head, .mem-row { grid-template-columns: 9ch auto; }
+  .mem-sym { grid-column: 1 / -1; padding-left: calc(9ch + var(--cb-space-3)); line-height: 1.2; font-size: 0.9em; }
   .mem-sym:empty { display: none; }
 }
