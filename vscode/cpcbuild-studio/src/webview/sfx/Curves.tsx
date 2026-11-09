@@ -1,24 +1,28 @@
 /**
  * Curves.tsx -- the three lanes of the sound-effects editor on one time axis: the pitch curve, the
  * volume bars and the mixer / noise lane (tone on-off strip, noise on-off strip, noise period bars).
- * Mouse: click or drag sets values; Shift+drag draws a straight line from the last point; points
+ * Mouse: click or drag sets values; in Line mode (or with Shift held in Draw mode) a click draws a
+ * straight line from the last point; points
  * snap to semitones unless Alt is held. Keyboard (each canvas takes focus): Left / Right move the
  * frame cursor, Up / Down change the value there, T and N toggle tone and noise, Insert and Delete
  * add and remove a frame. The pure maths is in curve.ts.
  */
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { CLOCKS, SfxFrame, SfxTarget, noteName, period } from '../../core/sfxDoc';
+import { CLOCKS, SfxFrame, noteName, period } from '../../core/sfxDoc';
 import { themeVar, useThemeVersion, withAlpha } from '../shared/theme';
 import * as C from './curve';
 
-export const AXIS_W = 48;
+export const AXIS_W = 88;
 const PITCH_H = 220;
 const VOL_H = 96;
-const STRIP_H = 16;
+const ROW_H = 22; // the tone row and the noise row
+const ROW_GAP = 4;
+const NOISE_Y = ROW_H + ROW_GAP;
+const PERIOD_Y = NOISE_Y + ROW_H + ROW_GAP;
 const PERIOD_H = 64;
-const PERIOD_Y = 36; // tone strip 0-16, noise strip 18-34, period bars from 36
 const NOISE_H = PERIOD_Y + PERIOD_H;
-const RULER_H = 18;
+const TONE_H = ROW_H;
+const RULER_H = 16;
 const PAD_R = 16;
 
 type Kind = 'pitch' | 'volume' | 'noise';
@@ -37,7 +41,8 @@ export interface CurvesProps {
   effectName: string;
   cellW: number;
   range: { lo: number; hi: number };
-  target: SfxTarget;
+  /** Line mode: a click or drag draws a straight line from the last point (Shift flips the mode while held). */
+  mode: C.DrawMode;
   cursor: number;
   playFrame: number | null;
   onCursor(i: number): void;
@@ -98,46 +103,77 @@ export function Curves(p: CurvesProps) {
   // ------------------------------------------------------------- drawing
   useEffect(() => {
     const col = {
-      bg: themeVar('--vscode-editor-background', '#1e1e1e'),
+      bg: themeVar('--vscode-sideBar-background', themeVar('--vscode-editor-background', '#1e1e1e')),
+      cell: themeVar('--vscode-editor-background', '#1e1e1e'),
       fg: themeVar('--vscode-editor-foreground', '#cccccc'),
       desc: themeVar('--vscode-descriptionForeground', '#9d9d9d'),
       pitch: themeVar('--vscode-charts-blue', '#3794ff'),
       vol: themeVar('--vscode-charts-green', '#89d185'),
       noise: themeVar('--vscode-charts-orange', '#d18616'),
-      play: themeVar('--vscode-charts-red', '#f14c4c'),
+      play: themeVar('--cb-playhead', themeVar('--vscode-charts-green', '#89d185')),
       focus: themeVar('--vscode-focusBorder', '#007fd4'),
-      border: themeVar('--vscode-panel-border', '#80808059'),
     };
-    const font = `11px ${themeVar('--vscode-editor-font-family', 'monospace')}`;
+    const fam = themeVar('--vscode-editor-font-family', 'monospace');
+    const size = parseFloat(themeVar('--vscode-editor-font-size', '13')) || 13;
+    const font = `${Math.max(10, Math.round(size * 0.9))}px ${fam}`;
+    const fontStrong = `600 ${font}`;
+    const rulerFont = `${Math.max(9, Math.round(size * 0.78))}px ${fam}`;
+    const rulerStrong = `600 ${rulerFont}`;
     const grid = withAlpha(col.fg, 0.12);
     const grid2 = withAlpha(col.fg, 0.28);
+    const cellFill = withAlpha(col.fg, 0.05);
+    const dashed = withAlpha(col.fg, 0.4);
     const cursorFill = withAlpha(col.focus, 0.2);
-    const playFill = withAlpha(col.play, 0.3);
+    const playFill = withAlpha(col.play, 0.16);
+    const inset = cellW > 3 ? 1 : 0;
+    const barW = Math.max(1, cellW - 2 * inset);
 
+    const rr = (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number | number[]): void => {
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, h, r);
+    };
+    /** The lane background (rounded cells, or one strip when the cells are too narrow), then the cursor and the playhead column. */
     const base = (ctx: CanvasRenderingContext2D, h: number): void => {
-      ctx.fillStyle = col.bg;
-      ctx.fillRect(0, 0, plotW, h);
+      ctx.clearRect(0, 0, plotW, h);
+      ctx.fillStyle = cellFill;
+      if (cellW >= 6) {
+        for (let i = 0; i < n; i++) {
+          rr(ctx, i * cellW + 0.5, 0, cellW - 1, h, 6);
+          ctx.fill();
+        }
+      } else {
+        rr(ctx, 0, 0, n * cellW, h, 6);
+        ctx.fill();
+      }
       if (p.cursor < n) {
         ctx.fillStyle = cursorFill;
-        ctx.fillRect(p.cursor * cellW, 0, cellW, h);
+        rr(ctx, p.cursor * cellW, 0, cellW, h, Math.min(6, cellW / 2));
+        ctx.fill();
       }
       if (p.playFrame !== null && p.playFrame < n) {
         ctx.fillStyle = playFill;
         ctx.fillRect(p.playFrame * cellW, 0, cellW, h);
+        ctx.strokeStyle = col.play;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(p.playFrame * cellW + 0.5, 0.5, Math.max(0, cellW - 1), h - 1);
       }
-      ctx.strokeStyle = col.border;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(0.5, 0.5, n * cellW, h - 1);
     };
     const axisBase = (ctx: CanvasRenderingContext2D | null, h: number): CanvasRenderingContext2D | null => {
       if (!ctx) return null;
-      ctx.fillStyle = col.bg;
-      ctx.fillRect(0, 0, AXIS_W, h);
+      ctx.clearRect(0, 0, AXIS_W, h);
       ctx.font = font;
       ctx.fillStyle = col.desc;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'middle';
       return ctx;
+    };
+    const name = (ax: CanvasRenderingContext2D, text: string, y: number): void => {
+      ax.save();
+      ax.font = fontStrong;
+      ax.fillStyle = col.fg;
+      ax.textAlign = 'left';
+      ax.fillText(text, 8, y);
+      ax.restore();
     };
 
     // pitch
@@ -150,28 +186,31 @@ export function Curves(p: CurvesProps) {
           if (px < 5 && m % 12 !== 0) continue;
           const y = Math.round(C.pitchToY(m, PITCH_H, range.lo, range.hi)) + 0.5;
           ctx.strokeStyle = m % 12 === 0 ? grid2 : grid;
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(0, y);
           ctx.lineTo(n * cellW, y);
           ctx.stroke();
         }
-        ctx.lineWidth = 2;
+        const bh = cellW >= 6 ? 8 : 5;
+        ctx.lineWidth = 1;
         ctx.strokeStyle = col.pitch;
+        ctx.fillStyle = col.pitch;
         for (let i = 0; i < n; i++) {
           const f = shown[i];
           const y = C.pitchToY(f.pitch, PITCH_H, range.lo, range.hi);
-          ctx.globalAlpha = f.volume === 0 || !f.tone ? 0.3 : 1;
-          ctx.beginPath();
-          ctx.moveTo(i * cellW + 1, y);
-          ctx.lineTo((i + 1) * cellW - 1, y);
-          ctx.stroke();
           if (i > 0) {
-            ctx.globalAlpha = 0.45;
+            ctx.globalAlpha = 0.35;
             ctx.beginPath();
-            ctx.moveTo(i * cellW, C.pitchToY(shown[i - 1].pitch, PITCH_H, range.lo, range.hi));
-            ctx.lineTo(i * cellW, y);
+            ctx.moveTo(i * cellW + 0.5, C.pitchToY(shown[i - 1].pitch, PITCH_H, range.lo, range.hi));
+            ctx.lineTo(i * cellW + 0.5, y);
             ctx.stroke();
           }
+          ctx.globalAlpha = f.volume === 0 || !f.tone ? 0.3 : 1;
+          const x = i * cellW + (cellW >= 8 ? 3 : inset);
+          const w = Math.max(1, cellW - 2 * (cellW >= 8 ? 3 : inset));
+          rr(ctx, x, Math.min(PITCH_H - bh, Math.max(0, y - bh / 2)), w, bh, Math.min(4, w / 2));
+          ctx.fill();
         }
         ctx.globalAlpha = 1;
       }
@@ -181,8 +220,9 @@ export function Curves(p: CurvesProps) {
         for (let m = Math.ceil(range.lo); m <= range.hi; m++) {
           const c = m % 12;
           if (!(c === 0 || (px >= 11) || (px >= 5 && (c === 4 || c === 7)))) continue;
-          ax.fillText(noteName(m), AXIS_W - 4, C.pitchToY(m, PITCH_H, range.lo, range.hi));
+          ax.fillText(noteName(m), AXIS_W - 6, C.pitchToY(m, PITCH_H, range.lo, range.hi));
         }
+        name(ax, 'Pitch', 10);
       }
     }
     // volume
@@ -193,6 +233,7 @@ export function Curves(p: CurvesProps) {
         for (const v of [5, 10]) {
           const y = Math.round(C.levelToY(v, VOL_H, 15)) + 0.5;
           ctx.strokeStyle = grid;
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(0, y);
           ctx.lineTo(n * cellW, y);
@@ -200,71 +241,81 @@ export function Curves(p: CurvesProps) {
         }
         ctx.fillStyle = col.vol;
         for (let i = 0; i < n; i++) {
-          const v = shown[i].volume;
-          const h = Math.max(1, (v / 15) * VOL_H);
-          ctx.fillRect(i * cellW + (cellW > 3 ? 1 : 0), VOL_H - h, Math.max(1, cellW - (cellW > 3 ? 1 : 0)), h);
+          const h = Math.max(1, (shown[i].volume / 15) * VOL_H);
+          rr(ctx, i * cellW + inset, VOL_H - h, barW, h, [Math.min(5, barW / 2, h), Math.min(5, barW / 2, h), 0, 0]);
+          ctx.fill();
         }
       }
       const ax = axisBase(prep(axV.current, AXIS_W, VOL_H), VOL_H);
       if (ax) {
-        ax.fillText('15', AXIS_W - 4, 7);
-        ax.fillText('8', AXIS_W - 4, VOL_H / 2);
-        ax.fillText('0', AXIS_W - 4, VOL_H - 7);
-        ax.textAlign = 'left';
-        ax.fillText('vol', 2, VOL_H / 2 - 12);
+        ax.fillText('15', AXIS_W - 6, 7);
+        ax.fillText('8', AXIS_W - 6, VOL_H / 2);
+        ax.fillText('0', AXIS_W - 6, VOL_H - 7);
+        name(ax, 'Volume', 10);
       }
     }
-    // mixer and noise
+    // tone row, noise row and noise period lane
     {
       const ctx = prep(cvN.current, plotW, NOISE_H);
       if (ctx) {
         base(ctx, NOISE_H);
+        // the gaps between the rows show the panel, not the cells
+        ctx.clearRect(0, TONE_H, plotW, ROW_GAP);
+        ctx.clearRect(0, NOISE_Y + ROW_H, plotW, PERIOD_Y - NOISE_Y - ROW_H);
+        const row = (i: number, y: number, on: boolean, colour: string): void => {
+          const x = i * cellW + inset;
+          const pill = Math.min(ROW_H / 2, barW / 2);
+          if (on) {
+            ctx.fillStyle = colour;
+            rr(ctx, x, y + 1, barW, ROW_H - 2, pill);
+            ctx.fill();
+          } else if (cellW > 3) {
+            ctx.strokeStyle = dashed;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([3, 2]);
+            rr(ctx, x + 0.5, y + 1.5, Math.max(1, barW - 1), ROW_H - 3, pill);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          }
+        };
         for (let i = 0; i < n; i++) {
           const f = shown[i];
-          const x = i * cellW + (cellW > 3 ? 1 : 0);
-          const w = Math.max(1, cellW - (cellW > 3 ? 1 : 0));
-          ctx.fillStyle = col.pitch;
-          ctx.globalAlpha = f.tone ? 1 : 0.12;
-          ctx.fillRect(x, 1, w, STRIP_H - 2);
-          ctx.fillStyle = col.noise;
-          ctx.globalAlpha = f.noise ? 1 : 0.12;
-          ctx.fillRect(x, STRIP_H + 3, w, STRIP_H - 2);
+          row(i, 0, f.tone, col.pitch);
+          row(i, NOISE_Y, f.noise, col.noise);
           const h = Math.max(1, (f.noisePeriod / 31) * PERIOD_H);
+          ctx.fillStyle = col.noise;
           ctx.globalAlpha = f.noise ? 1 : 0.25;
-          ctx.fillRect(x, PERIOD_Y + PERIOD_H - h, w, h);
+          rr(ctx, i * cellW + inset, PERIOD_Y + PERIOD_H - h, barW, h, [Math.min(4, barW / 2, h), Math.min(4, barW / 2, h), 0, 0]);
+          ctx.fill();
+          ctx.globalAlpha = 1;
         }
-        ctx.globalAlpha = 1;
       }
       const ax = axisBase(prep(axN.current, AXIS_W, NOISE_H), NOISE_H);
       if (ax) {
-        ax.fillText('tone', AXIS_W - 4, STRIP_H / 2);
-        ax.fillText('noise', AXIS_W - 4, STRIP_H + 2 + STRIP_H / 2);
-        ax.fillText('31', AXIS_W - 4, PERIOD_Y + 6);
-        ax.fillText('0', AXIS_W - 4, NOISE_H - 6);
+        name(ax, 'Tone', ROW_H / 2);
+        name(ax, 'Noise', NOISE_Y + ROW_H / 2);
+        name(ax, 'Noise pitch', PERIOD_Y + 8);
+        ax.fillText('31', AXIS_W - 6, PERIOD_Y + 24); // below the lane name, never beside it
+        ax.fillText('0', AXIS_W - 6, NOISE_H - 6);
       }
     }
-    // ruler
+    // ruler: every frame labelled when there is room, else every 2nd, 4th, 8th...; multiples of 4 are stronger
     {
       const ctx = prep(cvR.current, plotW, RULER_H);
       if (ctx) {
-        ctx.fillStyle = col.bg;
-        ctx.fillRect(0, 0, plotW, RULER_H);
-        ctx.font = font;
-        ctx.fillStyle = col.desc;
-        ctx.strokeStyle = grid2;
-        ctx.textAlign = 'left';
+        ctx.clearRect(0, 0, plotW, RULER_H);
+        ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const step = [1, 2, 5, 10, 25, 50].find((s) => s * cellW >= 34) ?? 50;
-        for (let i = 0; i < n; i += step) {
-          ctx.beginPath();
-          ctx.moveTo(i * cellW + 0.5, 0);
-          ctx.lineTo(i * cellW + 0.5, 4);
-          ctx.stroke();
-          ctx.fillText(String(i + 1), i * cellW + 2, RULER_H / 2 + 2);
+        const step = [1, 2, 4, 8, 16, 32, 64].find((s) => s * cellW >= 26) ?? 64;
+        for (let i = step - 1; i < n; i += step) {
+          const strong = (i + 1) % 4 === 0;
+          ctx.font = strong ? rulerStrong : rulerFont;
+          ctx.fillStyle = strong ? col.fg : col.desc;
+          ctx.fillText(String(i + 1), i * cellW + cellW / 2, RULER_H / 2 + 1);
         }
       }
       const ax = axisBase(prep(axR.current, AXIS_W, RULER_H), RULER_H);
-      ax?.fillText('frame', AXIS_W - 4, RULER_H / 2 + 2);
+      if (ax) name(ax, 'Frame', RULER_H / 2 + 1);
     }
   });
   // (no dependency list: every render redraws; a redraw is a few hundred rectangles)
@@ -290,7 +341,7 @@ export function Curves(p: CurvesProps) {
     const i = C.xToFrame(x, cellW, current().length);
     if (kind === 'pitch') return { lane: 'pitch', i, v: C.snapPitch(C.yToPitch(y, PITCH_H, range.lo, range.hi), e.altKey) };
     if (kind === 'volume') return { lane: 'volume', i, v: C.yToLevel(y, VOL_H, 15) };
-    const ln: C.Lane = lane ?? (y < STRIP_H + 1 ? 'tone' : y < PERIOD_Y - 1 ? 'noise' : 'period');
+    const ln: C.Lane = lane ?? (y < NOISE_Y - ROW_GAP / 2 ? 'tone' : y < PERIOD_Y - ROW_GAP / 2 ? 'noise' : 'period');
     return { lane: ln, i, v: ln === 'period' ? C.yToLevel(y - PERIOD_Y, PERIOD_H, 31) : 0 };
   };
 
@@ -308,7 +359,7 @@ export function Curves(p: CurvesProps) {
       setBoth(C.paintFlags(base, s.lane, s.i, s.i, flag));
       return;
     }
-    const anchor = e.shiftKey ? last.current[s.lane] ?? null : null;
+    const anchor = C.drawsLine(p.mode, e.shiftKey) ? last.current[s.lane] ?? null : null;
     gesture.current = { lane: s.lane, base, anchor, prev: { i: s.i, v: s.v }, flag: false };
     const round = roundFor(s.lane, e.altKey);
     setBoth(anchor ? C.paintLine(base, s.lane, anchor.i, anchor.v, s.i, s.v, round) : C.paintLine(base, s.lane, s.i, s.v, s.i, s.v, round));
@@ -402,7 +453,7 @@ export function Curves(p: CurvesProps) {
   // -------------------------------------------------------------- labels
   const c = Math.min(p.cursor, n - 1);
   const f = shown[c];
-  const clock = CLOCKS[p.target];
+  const clock = CLOCKS.cpc;
   const where = `${p.effectName}, frame ${c + 1} of ${n}`;
   const labels = {
     pitch: `Pitch curve, ${where}: ${noteName(f.pitch)} (${f.pitch.toFixed(2)}), tone period ${period(f.pitch, clock)}. Left and Right move between frames, Up and Down change the pitch, Shift an octave, Alt a tenth of a semitone.`,
@@ -423,18 +474,18 @@ export function Curves(p: CurvesProps) {
   });
 
   return (
-    <div class="sx-lanes">
+    <div class="sx-panel">
       <div class="sx-axes" style={{ width: `${AXIS_W}px` }} aria-hidden="true">
+        <canvas ref={axR} />
         <canvas ref={axP} />
         <canvas ref={axV} />
         <canvas ref={axN} />
-        <canvas ref={axR} />
       </div>
       <div class="sx-scroll" ref={scroll}>
+        <canvas ref={cvR} aria-hidden="true" />
         <canvas {...props('pitch', cvP)} />
         <canvas {...props('volume', cvV)} />
         <canvas {...props('noise', cvN)} />
-        <canvas ref={cvR} aria-hidden="true" />
       </div>
     </div>
   );

@@ -4,11 +4,11 @@
  * the effect's per-frame registers to the worklet, which times them at 50 Hz from the audio clock.
  * The AudioContext must be created or resumed from a user gesture (play() calls resume()).
  */
-import { CLOCKS, frameRegs, type SfxFrameLike, type Target } from './ay';
+import { CPC_CLOCK, frameRegs, type SfxFrameLike } from './ay';
 
 export interface SfxPlayer {
   /** Start the effect (replacing any playing one). Resolves once the worklet has the frames. */
-  play(frames: readonly SfxFrameLike[], target: Target): Promise<void>;
+  play(frames: readonly SfxFrameLike[]): Promise<void>;
   /** Stop at once; 'ended' fires if something was playing. */
   stop(): void;
   /** Called as frame n (0-based) starts sounding. Returns an unsubscribe function. */
@@ -41,8 +41,8 @@ export function createSfxPlayer(ctx: AudioContext, workletUrl: string): SfxPlaye
   };
 
   return {
-    async play(frames, target) {
-      const clock = CLOCKS[target];
+    async play(frames) {
+      const clock = CPC_CLOCK;
       const regs = new Int32Array(frames.length * 4);
       frames.forEach((f, i) => regs.set(frameRegs(f, clock), i * 4));
       if (ctx.state === 'suspended') await ctx.resume();
