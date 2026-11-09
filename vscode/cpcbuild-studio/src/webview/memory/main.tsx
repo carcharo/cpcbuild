@@ -36,8 +36,22 @@ function App() {
   const [m, setM] = useState<Model>({ status: { live: false, paused: false, text: 'Waiting for the host...' } });
   const [goto, setGoto] = useState('');
   // the CPU cards start collapsed in the narrow layout (they sit under the hex panel there); the fold keeps its state across snapshots
-  const [regsOpen, setRegsOpen] = useState(() => !narrow());
-  const [stackOpen, setStackOpen] = useState(() => !narrow());
+  // open above 720px, collapsed below; once the user toggles a card, that choice stands for the life of the view
+  const [isNarrow, setIsNarrow] = useState(narrow);
+  const [regsUser, setRegsUser] = useState<boolean | undefined>();
+  const [stackUser, setStackUser] = useState<boolean | undefined>();
+  const regsOpen = regsUser ?? !isNarrow;
+  const stackOpen = stackUser ?? !isNarrow;
+  const setRegsOpen = setRegsUser;
+  const setStackOpen = setStackUser;
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(max-width: 720px)');
+    const on = (): void => setIsNarrow(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   const [altOpen, setAltOpen] = useState(false);
   const gotoRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -162,8 +176,8 @@ function App() {
                         ))}
                       </span>
                       <span class="mem-ascii" aria-hidden="true">{r.ascii}</span>
-                      <span class="mem-sym" role="cell">
-                        {names && names.split(', ').map((n) => <span key={n} class="mem-chip">{n}</span>)}
+                      <span class="mem-sym" role="cell" title={names ? names.split(', ').join(', ') : undefined}>
+                        {names && <SymChips names={names.split(', ')} />}
                       </span>
                     </div>
                   );
@@ -202,6 +216,17 @@ function App() {
         hint="Read-only. Changed bytes are marked until the next refresh."
       />
     </div>
+  );
+}
+
+/** A row's symbols on one line: the first as a dashed chip, "+N" for the rest (all of them in the tooltip and the spoken text). */
+function SymChips({ names }: { names: string[] }) {
+  return (
+    <>
+      <span class="mem-chip">{names[0]}</span>
+      {names.length > 1 && <span class="mem-more" aria-hidden="true">+{names.length - 1}</span>}
+      {names.length > 1 && <span class="cb-visually-hidden">{`, and ${names.slice(1).join(', ')}`}</span>}
+    </>
   );
 }
 
