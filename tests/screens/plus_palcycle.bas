@@ -15,9 +15,9 @@ REM call does nothing and the program writes NO PLUS.
 #include "../conformance/assets/plus_ball.bas"
 #include "lib/shot.bas"
 
-DIM ramp(7) AS UINTEGER => {$0F00, $0F80, $0FF0, $08F0, $00F0, $00F8, $00FF, $008F}
-DIM sweep(6) AS UINTEGER => {$0FFF, $0CCC, $0999, $0666, $0333, $0111, $0000}
-DIM spr(3) AS UINTEGER => {$0F0F, $0FF0, $00FF, $0F00}
+DIM ramp(7) AS UINTEGER => {&0F00, &0F80, &0FF0, &08F0, &00F0, &00F8, &00FF, &008F}
+DIM sweep(6) AS UINTEGER => {&0FFF, &0CCC, &0999, &0666, &0333, &0111, &0000}
+DIM spr(3) AS UINTEGER => {&0F0F, &0FF0, &00FF, &0F00}
 DIM p, i AS UBYTE
 
 Mode 0
@@ -31,8 +31,8 @@ SetInk(0, 0)
 ' chips goldens (no ASIC: the cycles do nothing) are the same with and without firmware
 SetInk(14, 1)
 SetInk(15, 11)
-SetPalette12(0, $0000)
-SetBorder12($0222)
+SetPalette12(0, &0000)
+SetBorder12(&0222)
 PRINT AT 0, 1; "PALETTE CYCLING"
 IF PlusAvailable() = 0 THEN
   PRINT AT 24, 1; "NO PLUS"

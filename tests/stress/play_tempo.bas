@@ -102,10 +102,10 @@ FUNCTION WriteLoopOff() AS ULONG
 END FUNCTION
 
 DIM nTrial AS UBYTE
-DIM trName(0 TO 15) AS STRING
-DIM trPt(0 TO 15) AS ULONG
-DIM trTicks(0 TO 15) AS UINTEGER
-DIM trTempo(0 TO 15) AS UBYTE
+DIM trName(15) AS STRING
+DIM trPt(15) AS ULONG
+DIM trTicks(15) AS UINTEGER
+DIM trTempo(15) AS UBYTE
 
 REM Plays the three strings and records the clock ticks it took;
 REM ticks = the musical length in Play ticks (96 per bar); tempo = the T

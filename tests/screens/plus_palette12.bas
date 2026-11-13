@@ -24,8 +24,8 @@ REM them steady first so the goldens without an ASIC are the same in both modes
 SetInk(14, 6)
 SetInk(15, 18)
 SetPalette12Block(@plusbars_pal(0), 0, 16)
-SetBorder12($0C80)
-SetPalette12(3, $0FFF)
+SetBorder12(&0C80)
+SetPalette12(3, &0FFF)
 SetPalette12(4, GetPalette12(13))
 PRINT AT 0, 0; "12-BIT PENS"
 WaitRetrace(60)

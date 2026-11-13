@@ -68,7 +68,7 @@ Mode 1
 ScreenInit()
 CLS
 FillRect(0, 0, 80, 200, 0)
-SetPalette12(1, $0FFF)
+SetPalette12(1, &0FFF)
 PRINT AT 11, 6; "CPC PLUS RASTER BARS";
 IF PlusAvailable() = 0 THEN
   PRINT AT 1, 1; "NO PLUS"

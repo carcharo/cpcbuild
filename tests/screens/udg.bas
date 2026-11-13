@@ -20,14 +20,14 @@ POKE USR "c" + 5, 153
 POKE USR "c" + 6, 66
 POKE USR "c" + 7, 60
 PRINT AT 0, 0; "UDGs:";
-PRINT AT 1, 0; CHR$ 144; CHR$ 145; CHR$ 146; CHR$ 144; CHR$ 145; CHR$ 146
+PRINT AT 1, 0; CHR$(144); CHR$(145); CHR$(146); CHR$(144); CHR$(145); CHR$(146)
 PRINT AT 3, 0; "Blocks 128-143:"
 PRINT AT 4, 0;
 FOR c = 128 TO 143
-  PRINT CHR$ c;
+  PRINT CHR$(c);
 NEXT c
 PRINT AT 6, 0; "Chars 144-255:"
 FOR c = 144 TO 255
-  PRINT AT 7 + (c - 144) / 40, (c - 144) MOD 40; CHR$ c;
+  PRINT AT 7 + (c - 144) / 40, (c - 144) MOD 40; CHR$(c);
 NEXT c
 Shot("udg")

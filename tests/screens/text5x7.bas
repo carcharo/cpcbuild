@@ -11,7 +11,7 @@ REM fit the queue left on one screen only); then mode 1, and back to mode 0.
 #include "lib/shot.bas"
 
 DIM ft(font_COUNT * 7 - 1) AS UBYTE
-DIM tiny(7) AS UBYTE => {$FF, $81, $81, $FF, $AA, $55, $AA, $55}
+DIM tiny(7) AS UBYTE => {&FF, &81, &81, &FF, &AA, &55, &AA, &55}
 DIM i AS UINTEGER
 
 REM the game's glyphs have bit 4 leftmost; the library wants bit 7

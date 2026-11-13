@@ -23,18 +23,18 @@ FillRect(0, 0, 80, 100, 0)
 FillRect(0, 100, 40, 100, 2)
 FillRect(40, 100, 40, 100, 3)
 FillRect(20, 40, 40, 20, 1)
-SetPalette12(0, $0126)
-SetPalette12(1, $0FE8)
-SetPalette12(2, $0A3C)
-SetPalette12(3, $04D6)
-SetBorder12($0F61)
+SetPalette12(0, &0126)
+SetPalette12(1, &0FE8)
+SetPalette12(2, &0A3C)
+SetPalette12(3, &04D6)
+SetBorder12(&0F61)
 PRINT AT 0, 1; "CPC PLUS SPRITES"
 IF PlusAvailable() = 0 THEN
   PRINT AT 24, 1; "NO PLUS"
 END IF
 
 SpritePalette(@plusball_pal(0))
-SpriteColour(1, $0F0F)
+SpriteColour(1, &0F0F)
 DIM n AS UBYTE
 FOR n = 0 TO 3
   SpriteSetImage(n, @plusball(0))

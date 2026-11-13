@@ -52,7 +52,7 @@ Snap()
 startF = sF
 gm = 0
 DO
-  gm = (passes >> 1) bAND 1
+  gm = (passes >> 1) AND 1
   GameMode(gm)
   Snap()
   bF = sF : bH = sH
@@ -63,17 +63,17 @@ DO
   WorkFW(4)
   IF wAcc <> refB OR wF <> refG OR wX <> refY THEN Fail("work_fw")
   ScanKeys()
-  pal(0) = passes bAND 15
+  pal(0) = passes AND 15
   SetPalette(@pal(0), 4)
-  IF (passes bAND 7) = 0 THEN ClearScreen(passes bAND 3)
-  PutCh(48 + (passes bAND 31))
+  IF (passes AND 7) = 0 THEN ClearScreen(passes AND 3)
+  PutCh(48 + (passes AND 31))
   k$ = INKEY$
 
   dT = Ticks() - bT
   Snap()
   dF = sF - bF
   dH = sH - bH
-  IF dH <> (dF bAND $FFFF) THEN Fail("hook_ne_frames")
+  IF dH <> (dF AND &FFFF) THEN Fail("hook_ne_frames")
   IF gm = 0 THEN
     nPasses = nPasses + 1
     d = CAST(LONG, dF) - CAST(LONG, dT) / 6
@@ -83,7 +83,7 @@ DO
   ELSE
     gmPasses = gmPasses + 1
   END IF
-  IF (passes bAND 7) = 3 THEN
+  IF (passes AND 7) = 3 THEN
     Snap()
     bF = sF
     PollBusy(1)
@@ -107,6 +107,6 @@ PRINT
 PRINT "INFO passes="; passes; " normal="; nPasses; " game="; gmPasses; " vsync checks="; polls; " frames="; total; " hook="; sH
 CHK("no_fails", STR$(fails), "0")
 DIM okh AS UBYTE
-okh = (sH = (total bAND $FFFF))
+okh = (sH = (total AND &FFFF))
 CHK("hook_total", STR$(okh), "1")
 PRINT "DONE"

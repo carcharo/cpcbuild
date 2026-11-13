@@ -66,7 +66,7 @@ SUB FASTCALL PutCh(c AS UBYTE)
 END SUB
 
 FUNCTION Mix(a AS ULONG, b AS UINTEGER, c AS UBYTE) AS ULONG
-  RETURN (a * 3 + b) bXOR (CAST(ULONG, c) << 5)
+  RETURN (a * 3 + b) XOR (CAST(ULONG, c) << 5)
 END FUNCTION
 
 DIM wAcc AS ULONG
@@ -79,7 +79,7 @@ SUB Work(n AS UINTEGER)
   wF = 1.5
   wX = 0.25
   FOR i = 1 TO n
-    wAcc = Mix(wAcc, i, i bAND 255)
+    wAcc = Mix(wAcc, i, i AND 255)
     wF = wF * 0.999 + SIN(wF) / 7
     wX = wX * 0.75 + 0.5
   NEXT i
@@ -100,11 +100,11 @@ refA = wAcc : refF = wF : refX = wX
 EnableInts()
 
 buf = allocate(32)
-POKE UINTEGER buf + 10, 0
-POKE buf + 12, $2A : POKE UINTEGER buf + 13, buf + 10
-POKE buf + 15, $23
-POKE buf + 16, $22 : POKE UINTEGER buf + 17, buf + 10
-POKE buf + 19, $C9
+POKE UINTEGER, buf + 10, 0
+POKE buf + 12, &2A : POKE UINTEGER, buf + 13, buf + 10
+POKE buf + 15, &23
+POKE buf + 16, &22 : POKE UINTEGER, buf + 17, buf + 10
+POKE buf + 19, &C9
 NewFrameFly(buf, buf + 12)
 
 t0 = Ticks()
@@ -116,10 +116,10 @@ DO
     PRINT "FAIL work pass="; passes
   END IF
   ScanKeys()
-  pal(0) = passes bAND 15
+  pal(0) = passes AND 15
   SetPalette(@pal(0), 4)
-  IF (passes bAND 7) = 0 THEN ClearScreen(passes bAND 3)
-  PutCh(48 + (passes bAND 31))
+  IF (passes AND 7) = 0 THEN ClearScreen(passes AND 3)
+  PutCh(48 + (passes AND 31))
   k$ = INKEY$
   passes = passes + 1
   t = Ticks() - t0
