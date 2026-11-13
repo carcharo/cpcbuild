@@ -40,18 +40,15 @@ Rasm at the address zxbc placed it and comparing the bytes).
 
     python3 tools/aks2bas.py tune.aks tune.bas --name tune          # SongToAkg
     python3 tools/aks2bas.py --sfx fx.aks fx.bas --name fx          # SongToSoundEffects
-    python3 tools/aks2bas.py --sfx --psg spectrum fx.aks fx.bas --name fx   # for the 128K
+    python3 tools/aks2bas.py --sfx --psg cpc fx.aks fx.bas --name fx        # clock forced to 1 MHz
     python3 tools/aks2bas.py --from-asm src.asm out.bas --name n --prefix n_
 
-Songs (AKG) are identical for CPC and Spectrum (SongToAkg output is byte for
-byte the same whatever the .aks's PSG clock: the player has the period
-table). Sound-effect banks (AKX) bake software periods from the .aks's
-clock, so export them per machine: `--psg cpc` (1000000 Hz) or
-`--psg spectrum` (1773400 Hz) rewrites the clock in a temporary copy first
-(the Arkos tools have no option for it). The repo's test bank
-(`tests/conformance/assets/music/sfx.bas`) is a CPC export from an .asm
-source, so on a Spectrum it sounds about 10 semitones low; it is only used
-for register checks.
+Songs (AKG) do not depend on the .aks's PSG clock (SongToAkg output is byte for
+byte the same: the player has the period table). Sound-effect banks (AKX) bake
+software periods from the .aks's clock, so `--psg cpc` (1000000 Hz) rewrites the
+clock in a temporary copy first (the Arkos tools have no option for it). The
+repo's test bank (`tests/conformance/assets/music/sfx.bas`) is only used for
+register checks.
 See the header of `tools/aks2bas.py` and `lib/music/music.bas`.
 
 ## Notes

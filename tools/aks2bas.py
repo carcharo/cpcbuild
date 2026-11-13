@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""aks2bas.py -- Arkos Tracker songs / sound-effect banks -> Boriel include.
+"""aks2bas.py -- Arkos Tracker songs / sound-effect banks -> CPC BASIC include.
 
     aks2bas.py song.aks   out.bas [--name NAME] [--subsongs 1,3]  # SongToAkg
     aks2bas.py --sfx bank.aks out.bas [--name NAME]               # SongToSoundEffects
     aks2bas.py song.aks   out.bas --at 0x4000 [--bin out.bin]       # a song for a 6128 RAM bank
-    aks2bas.py [--sfx] in.aks out.bas --psg spectrum|cpc          # set the sound chip's clock
+    aks2bas.py [--sfx] in.aks out.bas --psg cpc                   # set the sound chip's clock to 1 MHz
     aks2bas.py --from-asm src.asm out.bas [--name NAME] [--prefix P]
                                           # no Arkos tool: convert an
                                           # already-exported AKG/AKX source
 
 The Arkos command-line tools export Z80 source (AKG format for songs, AKX
-for sound effects) in a profile that needs three changes for Boriel's
+for sound effects) in a profile that needs three changes for cpcbas's
 assembler, done here by post-processing (no custom source profile needed):
 labels get a ':' (and go on their own line), '#hex' becomes '0x', and the
 whole thing is wrapped in an `asm` block. The tools are run with
@@ -29,15 +29,14 @@ subsong chosen with --subsongs (default all) goes into the one image; the
 song is then started with MusicInitBank(0x4000, subsong, bank).
 
 Sound chip clock (--psg). The Arkos exporters take the PSG clock from the
-song itself (the .aks's <frequencyHz>, 1 MHz for a CPC song, 1.7734 MHz for
-a Spectrum one ...) and have no option for it. It matters for sound effects
-only: an AKX bank stores software periods, computed from that clock, so a
-bank exported for the CPC plays about 10 semitones flat on a Spectrum. AKG
-song data stores notes and the player converts them with its own period
-table, so a song exports byte-identically whatever the clock (checked with
-SongToAkg). `--psg cpc|spectrum` makes this tool rewrite the clock in a
-temporary copy of the .aks before the export (1000000 or 1773400 Hz); without
-it the song's own clock is kept. Not available with --from-asm (the periods
+song itself (the .aks's <frequencyHz>, 1 MHz for a CPC song) and have no
+option for it. It matters for sound effects only: an AKX bank stores
+software periods, computed from that clock, so a bank exported for another
+clock plays out of tune on the CPC. AKG song data stores notes and the
+player converts them with its own period table, so a song exports
+byte-identically whatever the clock (checked with SongToAkg). `--psg cpc`
+makes this tool rewrite the clock in a temporary copy of the .aks before the
+export (1000000 Hz); without it the song's own clock is kept. Not available with --from-asm (the periods
 are already baked in).
 
 The output is a .bas include. Use it like this (see lib/music/music.bas):
@@ -96,8 +95,8 @@ def sanitize_name(name: str) -> str:
     return n
 
 
-def to_boriel(text: str, name: str, prefix: str = "", kind: str = "song") -> str:
-    """Post-process an Arkos source export into a Boriel include (.bas)."""
+def to_basic(text: str, name: str, prefix: str = "", kind: str = "song") -> str:
+    """Post-process an Arkos source export into a CPC BASIC include (.bas)."""
     raw = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
     # Pass 1: every column-0 label (with or without ':').
@@ -195,7 +194,7 @@ def bank_include(data: bytes, name: str, adr: int) -> str:
     return "\n".join(head + lines + tail)
 
 
-PSG_HZ = {"cpc": 1_000_000, "spectrum": 1_773_400}
+PSG_HZ = {"cpc": 1_000_000}
 FREQ_RE = re.compile(rb"(<frequencyHz>)\s*[0-9.]+\s*(</frequencyHz>)")
 
 
@@ -245,8 +244,8 @@ def main(argv=None) -> int:
     ap.add_argument("--from-asm", action="store_true", help="input is already an Arkos source export")
     ap.add_argument("--subsongs", help="SongToAkg: 1-based subsong numbers, comma separated (default all)")
     ap.add_argument("--psg", choices=sorted(PSG_HZ),
-                    help="set the sound chip clock before exporting: cpc (1000000 Hz) or "
-                         "spectrum (1773400 Hz, 128K AY); matters for --sfx (see above)")
+                    help="set the sound chip clock before exporting: cpc (1000000 Hz); "
+                         "matters for --sfx (see above)")
     ap.add_argument("--at", metavar="ADDR",
                     help="export the song as a binary assembled for ADDR (0x4000-0x7FFF: a 6128 RAM bank "
                          "window); the include holds the image as data (see above)")
@@ -311,7 +310,7 @@ def main(argv=None) -> int:
             src = Path(tmp).read_text(encoding="utf-8")
         prefix = ""   # the tool already prefixed
     with open(a.output, "w", encoding="utf-8", newline="\n") as f:
-        f.write(to_boriel(src, name, prefix, kind))
+        f.write(to_basic(src, name, prefix, kind))
     return 0
 
 

@@ -227,7 +227,7 @@ class AsepriteExtension(unittest.TestCase):
         p = py("tmx2bas.py", str(self.tmp / "ground4_map.tmx"), "-o", str(out))
         self.assertEqual(p.returncode, 0, p.stderr)
         text = out.read_text()
-        self.assertIn("$01, $02, $02, $02, $02, $02, $02, $03", text)   # gid - firstgid = tile index
+        self.assertIn("&01, &02, &02, &02, &02, &02, &02, &03", text)   # gid - firstgid = tile index
         self.assertIn("CONST ground4_map_W AS UBYTE = 8", text)
         self.assertIn("CONST ground4_map_H AS UBYTE = 1", text)
         self.assertIn("DIM ground4_map(", text)
@@ -245,7 +245,7 @@ class AsepriteExtension(unittest.TestCase):
         self.assertIn("CONST ground8_COUNT AS UBYTE = 4", out.read_text())
         p = py("tmx2bas.py", str(self.tmp / "ground8_map.tmx"), "-o", str(self.tmp / "ground8_map.bas"))
         self.assertEqual(p.returncode, 0, p.stderr)
-        self.assertIn("$01, $02, $02, $02, $02, $02, $02, $03", (self.tmp / "ground8_map.bas").read_text())
+        self.assertIn("&01, &02, &02, &02, &02, &02, &02, &03", (self.tmp / "ground8_map.bas").read_text())
 
     def test_tileset_rejects_illegal_width(self):
         r = ase("action=new_tiles", "mode=0", "tw=6", "name=x", f"out={self.tmp / 'x.aseprite'}",

@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import tmx2bas  # noqa: E402
+import cpcbas_check  # noqa: E402
 
 FLIP_H = 0x80000000
 FLIP_V = 0x40000000
@@ -64,7 +65,7 @@ class TestTmx(unittest.TestCase):
         self.assertEqual(rc, 0)
         text = out.getvalue()
         m = re.search(r"DIM (\w+)\((\d+)\) AS UBYTE => \{ _\n(.*?)\n\}", text, re.S)
-        vals = [int(v[1:], 16) for v in re.findall(r"\$[0-9A-F]{2}", m.group(3))]
+        vals = [int(v[1:], 16) for v in re.findall(r"&[0-9A-F]{2}", m.group(3))]
         self.assertEqual(len(vals), int(m.group(2)) + 1)
         consts = {a: int(b) for a, b in re.findall(r"CONST (\w+) AS UBYTE = (\d+)", text)}
         return m.group(1), vals, consts, text
@@ -134,9 +135,18 @@ class TestTmx(unittest.TestCase):
         p = self.write(tmx_text([csv_layer("L", 20, 2, list(range(1, 41)))], 20, 2))
         _, _, _, text = self.run_tool(p, "--name", "m")
         self.assertIn("DIM m(39) AS UBYTE => { _", text)
-        data_lines = [l for l in text.splitlines() if l.startswith("    $")]
+        data_lines = [l for l in text.splitlines() if l.startswith("    &")]
         self.assertEqual(len(data_lines), 3)
         self.assertTrue(data_lines[-1].endswith(" _") and not data_lines[-1].endswith(", _"))
+
+    def test_output_has_no_boriel_hex_and_compiles_with_cpcbas(self):
+        p = self.write(tmx_text([csv_layer("L", 20, 2, list(range(1, 41)))], 20, 2))
+        text = self.run_tool(p, "--name", "m")[3]
+        self.assertNotIn("$", text.split("\n\n", 1)[1])
+        if not cpcbas_check.available():
+            self.skipTest("cpcbas is not built")
+        rc, out = cpcbas_check.parse_only(text)
+        self.assertEqual(rc, 0, out)
 
 
 if __name__ == "__main__":
