@@ -214,14 +214,14 @@ d('docs mapping', () => {
     const known = new Set(lib.routines.map((r) => r.name.toLowerCase()));
     // table rows that are not SUB/FUNCTION: variables, macros, SoundQueue's argument table, and the tools table
     const notRoutines = new Set([
-      'musicauto', 'frames', 'channels', 'period', 'duration', 'envelope', 'volume', 'build_assets', 'cpcrun', 'run', 'zxbc',
+      'musicauto', 'frames', 'channels', 'period', 'duration', 'envelope', 'volume', 'build_assets', 'cpcrun', 'run',
       'dma_load', 'dma_pause', 'dma_repeat', 'dma_nop', 'dma_loop', 'dma_int', 'dma_stop',
     ]);
     const missing = [...docs.byName.keys()].filter((k) => !known.has(k) && !notRoutines.has(k)).sort();
     // library.md still has rows for routines the library no longer has (the Spectrum sprite module, the Boriel
-    // `Mode`, `WaitVsync`, `input`, `point`, `screen`, `SetFont`): the reference is rewritten separately. Any other
+    // `Mode`, `WaitVsync`, `input`, `point`, `screen`, `SetFont`, and the old compiler's name in the tools table): the reference is rewritten separately. Any other
     // documented name must be in a header.
-    const removed = new Set(['input', 'mode', 'point', 'screen', 'setfont', 'waitvsync', ...[...docs.byName.keys()].filter((k) => /^sprites?(add|image|begin|done|flip|init|reset|screen|sync)$/.test(k))]);
+    const removed = new Set(['input', 'mode', 'point', 'screen', 'setfont', 'waitvsync', ...[...docs.byName.keys()].filter((k) => /^(sprites?(add|image|begin|done|flip|init|reset|screen|sync)|zx\w*)$/.test(k))]);
     expect(missing.filter((k) => !removed.has(k)), 'documented but not found in any header').toEqual([]);
   });
 });
