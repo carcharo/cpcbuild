@@ -33,7 +33,7 @@ import { MAXPENS } from './pixels';
 
 export { defaultGrid, gridLayout, type GridLayout, type GridSpec } from './cpcgrid';
 
-export type ImportTarget = 'cpc' | 'plus-sprite' | 'plus-palette' | 'spectrum';
+export type ImportTarget = 'cpc' | 'plus-sprite' | 'plus-palette';
 export type PlusFormat = 'bas' | 'asm' | 'bin';
 
 export interface PalRef {
@@ -63,7 +63,6 @@ export interface Recipe {
   /** false = `--no-palette`. */
   emitPalette?: boolean;
   writePalette?: string;
-  zxSprite?: boolean;
   plus?: { packed?: boolean; format?: PlusFormat; palette?: PalRef };
   grid?: GridSpec;
   /** Fields this version does not know, kept so a newer file survives a save. */
@@ -85,7 +84,7 @@ export function newRecipe(source = '', over: Partial<Recipe> = {}): Recipe {
 
 const KEY_ORDER = [
   'format', 'version', 'source', 'output', 'target', 'mode', 'name', 'kind', 'frame', 'tileWidth', 'dedupe', 'masked',
-  'transparent', 'palette', 'pen0', 'emitPalette', 'writePalette', 'zxSprite', 'plus', 'grid',
+  'transparent', 'palette', 'pen0', 'emitPalette', 'writePalette', 'plus', 'grid',
 ];
 
 export function serialiseRecipe(r: Recipe): string {
@@ -96,6 +95,10 @@ export function serialiseRecipe(r: Recipe): string {
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** What a recipe that still targets the Spectrum says when it is opened or run. */
+export const SPECTRUM_RECIPE =
+  'this recipe converts for the ZX Spectrum, which CPCBuild 0.2.0 no longer supports. Open it as text and change "target" to "cpc" (with a "mode" of 0, 1 or 2), or delete it. CPCBuild 0.1.x still converts for the Spectrum.';
 
 function checkField(r: Record<string, unknown>, key: string, ok: (v: unknown) => boolean, what: string): void {
   if (r[key] !== undefined && !ok(r[key])) throw new RecipeError(`"${key}" must be ${what}`);
@@ -111,7 +114,8 @@ export function validateRecipe(raw: unknown): Recipe {
   const bool = (v: unknown): boolean => typeof v === 'boolean';
   checkField(raw, 'source', str, 'a path string');
   checkField(raw, 'output', str, 'a path string');
-  checkField(raw, 'target', (v) => v === 'cpc' || v === 'plus-sprite' || v === 'plus-palette' || v === 'spectrum', '"cpc", "plus-sprite", "plus-palette" or "spectrum"');
+  if (raw.target === 'spectrum') throw new RecipeError(SPECTRUM_RECIPE);
+  checkField(raw, 'target', (v) => v === 'cpc' || v === 'plus-sprite' || v === 'plus-palette', '"cpc", "plus-sprite" or "plus-palette"');
   checkField(raw, 'mode', (v) => v === 0 || v === 1 || v === 2, '0, 1 or 2');
   checkField(raw, 'name', str, 'a string');
   checkField(raw, 'kind', (v) => v === 'sprite' || v === 'tiles', '"sprite" or "tiles"');
@@ -123,7 +127,6 @@ export function validateRecipe(raw: unknown): Recipe {
   checkField(raw, 'pen0', (v) => typeof v === 'number' && Number.isInteger(v), 'a whole number');
   checkField(raw, 'emitPalette', bool, 'true or false');
   checkField(raw, 'writePalette', str, 'a path string');
-  checkField(raw, 'zxSprite', bool, 'true or false');
   const palOk = (v: unknown): boolean => isObj(v) && (v.list === undefined || (Array.isArray(v.list) && v.list.every((x) => typeof x === 'number' || typeof x === 'string'))) && (v.file === undefined || typeof v.file === 'string');
   checkField(raw, 'palette', palOk, 'an object {"list": [...]} or {"file": "..."}');
   checkField(raw, 'plus', (v) => isObj(v) && (v.packed === undefined || bool(v.packed)) && (v.format === undefined || v.format === 'bas' || v.format === 'asm' || v.format === 'bin') && (v.palette === undefined || palOk(v.palette)), 'an object {"packed", "format", "palette"}');
@@ -276,7 +279,7 @@ export function effectiveName(r: Recipe): string {
 /** The output file img2cpc.py writes (-o): the recipe's, else beside the source. */
 export function effectiveOutput(r: Recipe): string {
   if (r.output) return r.output;
-  const ext = r.target === 'cpc' || r.target === 'spectrum' ? 'bas' : (r.plus?.format ?? 'bas');
+  const ext = r.target === 'cpc' ? 'bas' : (r.plus?.format ?? 'bas');
   const stem = r.source.replace(/\.[^./]*$/, '');
   return `${stem || 'out'}.${ext}`;
 }
@@ -303,7 +306,7 @@ export function inputsOf(r: Recipe): string[] {
 /**
  * The command line (without the program name) for a recipe. Fixed order, which is the order the
  * repo's build scripts use:
- *   target flags (--mode N | --plus-sprite [--packed] [--plus-format F] | --plus-palette | --spectrum [--zx-sprite])
+ *   target flags (--mode N | --plus-sprite [--packed] [--plus-format F] | --plus-palette)
  *   --name N, [--sprite|--tiles [--tile-width PX]] [--dedupe] [--frame WxH] [--masked], [--transparent RRGGBB],
  *   [--palette L | --palette-file F], [--pen0 N], [--no-palette], [--write-palette F], SOURCE, -o OUTPUT
  * With a grid the frame is the cell size (sprites) and the source is the recipe's source (the sheet
@@ -325,10 +328,6 @@ export function recipeToArgv(r: Recipe, side?: Sidecar): string[] {
     case 'plus-palette':
       a.push('--plus-palette');
       if (r.plus?.format && r.plus.format !== 'bas') a.push('--plus-format', r.plus.format);
-      break;
-    case 'spectrum':
-      a.push('--spectrum');
-      if (r.zxSprite) a.push('--zx-sprite');
       break;
   }
   if (r.name !== undefined || side?.name === undefined) a.push('--name', effectiveName(r));
@@ -369,7 +368,7 @@ export function commandLine(r: Recipe, side?: Sidecar): { command?: string; reas
 }
 
 const VALUE_FLAGS = new Set(['--mode', '--name', '-o', '--output', '--frame', '--transparent', '--palette', '--palette-file', '--pen0', '--tile-width', '--write-palette', '--plus-format']);
-const BOOL_FLAGS = new Set(['--sprite', '--tiles', '--dedupe', '--masked', '--no-palette', '--plus-sprite', '--plus-palette', '--packed', '--spectrum', '--zx-sprite']);
+const BOOL_FLAGS = new Set(['--sprite', '--tiles', '--dedupe', '--masked', '--no-palette', '--plus-sprite', '--plus-palette', '--packed']);
 
 /** Splits a shell line into words (single and double quotes, backslash); no expansion. */
 export function shellSplit(line: string): string[] {
@@ -447,7 +446,6 @@ export function argvToRecipe(words: readonly string[]): ArgvImport {
   delete r.mode;
   if (o.plusSprite) r.target = 'plus-sprite';
   else if (o.plusPalette) r.target = 'plus-palette';
-  else if (o.spectrum) r.target = 'spectrum';
   else {
     r.target = 'cpc';
     r.mode = o.mode;
@@ -467,7 +465,6 @@ export function argvToRecipe(words: readonly string[]): ArgvImport {
     if (o.noPalette) r.emitPalette = false;
     if (a.writePalette) r.writePalette = a.writePalette;
   }
-  if (o.zxSprite) r.zxSprite = true;
   const transparentWord = (() => {
     const k = clean.findIndex((w) => w === '--transparent' || w.startsWith('--transparent='));
     if (k < 0) return undefined;
@@ -687,8 +684,6 @@ export function previewOf(r: Recipe, io: CliIo, opts: RunOptions = {}): Preview 
       colourSets.push(new Set());
     });
     if (pal.length) pix.forEach((row, y) => row.forEach((p, x) => count(p ? nearest(rgb12(p), pal) : -1, p, y * w + x)));
-  } else if (o.spectrum) {
-    throw new Img2cpcError('there is no CPC preview of Spectrum output');
   } else {
     const fixed = o.palette !== undefined ? parsePalList(o.palette) : undefined;
     const pal = buildPalette(pix, o.mode!, fixed, o.pen0);

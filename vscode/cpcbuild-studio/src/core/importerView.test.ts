@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultGrid } from './cpcgrid';
 import { reducePens } from './cpcPreview';
-import { composedSource, isLegacyTarget, mappingRows, parseHexRgb, previewResultImage, previewSourceImage, resultState, rgbHex, type PreviewLike } from './importerView';
+import { composedSource, mappingRows, parseHexRgb, previewResultImage, previewSourceImage, resultState, rgbHex, type PreviewLike } from './importerView';
 
 /** A w x h RGBA image from a list of RGB triples (null = transparent). */
 const rgba = (w: number, h: number, px: ([number, number, number] | null)[]): { width: number; height: number; rgba: Uint8ClampedArray } => {
@@ -10,13 +10,6 @@ const rgba = (w: number, h: number, px: ([number, number, number] | null)[]): { 
   return { width: w, height: h, rgba: d };
 };
 const BLACK: [number, number, number] = [0, 0, 0], WHITE: [number, number, number] = [255, 255, 255], RED: [number, number, number] = [255, 0, 0];
-
-describe('legacy target', () => {
-  it('only spectrum', () => {
-    expect(isLegacyTarget('spectrum')).toBe(true);
-    for (const t of ['cpc', 'plus-sprite', 'plus-palette']) expect(isLegacyTarget(t)).toBe(false);
-  });
-});
 
 describe('resultState (F17)', () => {
   it('an error wins, then stale, else up to date', () => {

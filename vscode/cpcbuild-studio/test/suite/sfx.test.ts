@@ -200,7 +200,6 @@ test('sfx: Regenerate Assets writes sfx.vt2 and sfx.bas with the constants, and 
   const bas = fs.readFileSync(path.join(root, 'assets/sfx.bas'), 'utf8');
   assert.ok(bas.includes('CONST SFX_BLIP AS UBYTE = 1\nCONST SFX_COIN AS UBYTE = 2'), 'the constants');
   assert.ok(fs.existsSync(path.join(root, 'assets/sfx.vt2')));
-  assert.ok(!fs.existsSync(path.join(root, 'assets/sfx_zx.bas')), 'a CPC-only project has no Spectrum include');
   // the pre-build pass: remove the output, build, and it is back (stale = missing)
   fs.rmSync(path.join(root, 'assets/sfx.bas'));
   const b = await a.build(fs.realpathSync(root), 'cpc6128');

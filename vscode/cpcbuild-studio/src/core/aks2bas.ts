@@ -149,10 +149,7 @@ export function bankInclude(data: Uint8Array, name: string, adr: number): string
   return [...head, ...lines, ...tail].join('\n');
 }
 
-/** The old name of toBasic (src/ext/arkos.ts still imports it). */
-export const toBoriel = toBasic;
-
-export const PSG_HZ = { cpc: 1_000_000, spectrum: 1_773_400 } as const;
+export const PSG_HZ = { cpc: 1_000_000 } as const;
 
 /** Bytes <-> a string of one char per byte (TextDecoder's "latin1" is windows-1252, so by hand). */
 const latin1 = (b: Uint8Array): string => Array.from({ length: Math.ceil(b.length / 8192) }, (_, i) => String.fromCharCode(...b.subarray(i * 8192, (i + 1) * 8192))).join('');

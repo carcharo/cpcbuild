@@ -44,10 +44,9 @@ describe('bankInclude', () => {
 
 describe('setPsgClock', () => {
   for (const n of ['plain', 'zip', 'stored']) {
-    it(`${n}: both clocks, byte for byte`, () => {
+    it(`${n}: the CPC clock, byte for byte`, () => {
       const d = bin(`psg_${n}.aks`);
       expect(Buffer.from(setPsgClock(d, PSG_HZ.cpc)).equals(bin(`psg_${n}.cpc.expected`))).toBe(true);
-      expect(Buffer.from(setPsgClock(d, PSG_HZ.spectrum)).equals(bin(`psg_${n}.spectrum.expected`))).toBe(true);
     });
   }
   it('says so when the song has no clock', () => {

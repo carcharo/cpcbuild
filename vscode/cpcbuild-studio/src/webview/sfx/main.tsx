@@ -438,7 +438,7 @@ function SfxApp({ client, view }: Host) {
   // ------------------------------------------------------------- notices
   const notices = [];
   if (view.saveProblem) notices.push(<Notice key="save" severity="error">{view.saveProblem}. Saving is disabled until this is fixed.</Notice>);
-  const problems = vt2Problems(doc, 'cpc');
+  const problems = vt2Problems(doc);
   for (const text of problems.slice(0, 3)) notices.push(<Notice key={`p${text}`} severity="warning">{text}. The build cannot make this bank until it is fixed.</Notice>);
   if (problems.length > 3) notices.push(<Notice key="pmore" severity="warning">{problems.length - 3} more problems.</Notice>);
   if (msg) notices.push(<Notice key="msg" severity={msg.severity} onDismiss={() => setMsg(null)}>{msg.text}</Notice>);

@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { quietSongVt2, sfxBankName, sfxConstants, sfxConstName, sfxOutputs, sfxStale, sfxTargetsOf, sfxUseEdits, sfxUseSnippet, soundSetupHint, SFX_GLOB, withSfxConstants, withSfxGlob } from './sfxBuild';
+import { quietSongVt2, sfxBankName, sfxConstants, sfxConstName, sfxOutput, sfxStale, sfxUseEdits, sfxUseSnippet, soundSetupHint, SFX_GLOB, withSfxConstants, withSfxGlob } from './sfxBuild';
 import { SfxDoc } from './sfxDoc';
 import { newBank, presetEffect } from './sfxPresets';
 import { toBasic } from './aks2bas';
@@ -19,16 +19,9 @@ describe('sfxBuild: names', () => {
     expect(sfxBankName('a\\b\\my-fx.cpcsfx')).toBe('my_fx');
     expect(sfxBankName('assets/2fast.cpcsfx')).toBe('_2fast');
   });
-  it('outputs go beside the bank: <stem> for the CPC, <stem>_zx for the Spectrum (as games/shooter)', () => {
-    expect(sfxOutputs('assets/sfx.cpcsfx', ['cpc'])).toEqual([{ target: 'cpc', vt2: 'assets/sfx.vt2', bas: 'assets/sfx.bas' }]);
-    expect(sfxOutputs('assets/sfx.cpcsfx', ['cpc', 'spectrum', 'cpc']).map((o) => o.bas)).toEqual(['assets/sfx.bas', 'assets/sfx_zx.bas']);
-    expect(sfxOutputs('assets/sfx.cpcsfx', ['spectrum'])[0].vt2).toBe('assets/sfx_zx.vt2');
-  });
-  it('the targets come from the architectures of the project', () => {
-    expect(sfxTargetsOf(['cpc', 'cpc'])).toEqual(['cpc']);
-    expect(sfxTargetsOf(['cpc', 'zx48k'])).toEqual(['cpc', 'spectrum']);
-    expect(sfxTargetsOf(['zx48k'])).toEqual(['spectrum']);
-    expect(sfxTargetsOf([])).toEqual(['cpc']);
+  it('outputs go beside the bank, with its stem (as games/shooter)', () => {
+    expect(sfxOutput('assets/sfx.cpcsfx')).toEqual({ vt2: 'assets/sfx.vt2', bas: 'assets/sfx.bas' });
+    expect(sfxOutput('sfx.cpcsfx').vt2).toBe('sfx.vt2');
   });
 });
 
@@ -120,13 +113,13 @@ describe('sfxBuild: Insert Asset Use into code', () => {
 });
 
 describe('sfxBuild: the build hint for a missing sound library', () => {
-  it('names the call and Insert in code when zxbc reports a sound call undeclared', () => {
-    const out = 'main.bas:41: warning: [W100] Using default implicit type \'float\' for \'SFX_TEST1\'\nmain.bas:41: error: Undeclared function "SfxPlay"\n';
+  it('names the call and Insert in code when the compiler reports a sound call undeclared', () => {
+    const out = "src/main.bas:41:1: error E205: 'SfxPlay' is not a SUB or FUNCTION\n  hint: Define it with SUB SfxPlay ... END SUB, or fix the spelling.\n";
     expect(soundSetupHint(out)).toMatch(/^SfxPlay is in the sound library.*Insert in code.*#include <music\/music\.bas>/);
-    expect(soundSetupHint('error: Undeclared function "MusicInit"')).toMatch(/^MusicInit /);
+    expect(soundSetupHint("error E205: 'MusicInit' is not a SUB or FUNCTION")).toMatch(/^MusicInit /);
   });
   it('says nothing for other errors', () => {
-    expect(soundSetupHint('main.bas:3: error: Undeclared function "PutSprite"')).toBeUndefined();
+    expect(soundSetupHint("main.bas:3:1: error E205: 'PutSprite' is not a SUB or FUNCTION")).toBeUndefined();
     expect(soundSetupHint('')).toBeUndefined();
   });
 });

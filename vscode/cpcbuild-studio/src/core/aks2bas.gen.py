@@ -72,5 +72,3 @@ with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
 for n in ("plain", "zip", "stored"):
     d = (out / f"psg_{n}.aks").read_bytes()
     (out / f"psg_{n}.cpc.expected").write_bytes(a2b.set_psg_clock(d, a2b.PSG_HZ["cpc"]))
-    # the Spectrum clock stays in the Studio's twin (the Python tool no longer has --psg spectrum): set_psg_clock takes any rate
-    (out / f"psg_{n}.spectrum.expected").write_bytes(a2b.set_psg_clock(d, 1_773_400))

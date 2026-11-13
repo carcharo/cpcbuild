@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import { SfxDoc, describeError, parseSfx, serialiseSfx, validateSfx } from '../core/sfxDoc';
 import { SfxOp, applyOp } from '../core/sfxOps';
 import { newBank } from '../core/sfxPresets';
-import { sfxBankName, sfxOutputs, sfxTargetsOf, sfxUseEdits, sfxUseSnippet, SFX_GLOB, withSfxGlob } from '../core/sfxBuild';
+import { sfxBankName, sfxOutput, sfxUseEdits, sfxUseSnippet, SFX_GLOB, withSfxGlob } from '../core/sfxBuild';
 import { Vt2Error, sfxToVt2 } from '../core/vt2';
 import type { SfxView } from '../shared/protocol';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
@@ -81,7 +81,7 @@ export class SfxEditorProvider extends StudioEditorProvider<SfxDoc, SfxOp, SfxVi
     const bank = sfxBankName(file);
     let vt2: string;
     try {
-      vt2 = sfxToVt2(doc.state, 'cpc', bank);
+      vt2 = sfxToVt2(doc.state, bank);
     } catch (e) {
       if (e instanceof Vt2Error) throw new Error(e.message);
       throw e;
@@ -136,7 +136,7 @@ export function sfxTabUri(tab: vscode.Tab | undefined): vscode.Uri | undefined {
 /**
  * Insert Asset Use for a bank: the includes and SfxInit go once, below the code's #include lines (only the
  * ones missing), and a SfxPlay of the selected effect goes at the cursor of the visible code editor (all of
- * it is copied when none is visible). The include is the CPC one, or the Spectrum one in a Spectrum-only project.
+ * it is copied when none is visible).
  */
 export async function insertSfxUse(target: vscode.Uri, effect?: number): Promise<string | undefined> {
   const text = Buffer.from(await vscode.workspace.fs.readFile(target)).toString('utf8');
@@ -146,10 +146,8 @@ export async function insertSfxUse(target: vscode.Uri, effect?: number): Promise
     return undefined;
   }
   const fx = effect ?? selectedEffect.get(target.toString()) ?? 0;
-  const code = vscode.window.visibleTextEditors.find((e) => /\.(bas|zxb|zxbas)$/i.test(e.document.fileName)) ?? vscode.window.visibleTextEditors.find((e) => e.document.uri.scheme === 'file' && !SFX_FILE.test(e.document.fileName) && !/\.(cpcspr|cpctil)$/i.test(e.document.fileName));
-  const root = projectRootOf(target.fsPath);
-  const archs = root ? loadProjectFile(path.join(root, PROJECT_FILE)).project?.targets.map((t) => t.arch) : undefined;
-  const out = sfxOutputs(target.fsPath, archs ? sfxTargetsOf(archs).slice(0, 1) : ['cpc'])[0].bas;
+  const code = vscode.window.visibleTextEditors.find((e) => /\.bas$/i.test(e.document.fileName)) ?? vscode.window.visibleTextEditors.find((e) => e.document.uri.scheme === 'file' && !SFX_FILE.test(e.document.fileName) && !/\.(cpcspr|cpctil)$/i.test(e.document.fileName));
+  const out = sfxOutput(target.fsPath).bas;
   const rel = code ? path.relative(path.dirname(code.document.uri.fsPath), out).split(path.sep).join('/') : path.basename(out);
   const bank = sfxBankName(target.fsPath);
   if (code) {

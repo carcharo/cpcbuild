@@ -16,8 +16,7 @@ import { decodeImage } from './imageio';
 import { encodePng, newImage, setPixel } from './image';
 import type { CliIo } from './img2cpc';
 import { committed } from './testcorpus';
-import { committedText } from './committedText';
-import { py, pySpawn, REPO, scratchDir } from './testutil';
+import { py, pySpawn, REPO, scratchDir, repoText } from './testutil';
 
 const ioAt = (root: string): CliIo => ({
   readFile: (p) => new Uint8Array(fs.readFileSync(path.resolve(root, p))),
@@ -112,7 +111,7 @@ describe('recipe <-> argv', () => {
 
 describe('the repo corpus: committed generated files', () => {
   it('finds the build scripts\' invocations', () => {
-    expect(CASES.length).toBeGreaterThanOrEqual(17);
+    expect(CASES.length).toBeGreaterThanOrEqual(16);
     // the three --plus-* ones are in it
     expect(CASES.filter(([, a]) => a.some((w) => w.startsWith('--plus-'))).length).toBeGreaterThanOrEqual(3);
   });
@@ -126,7 +125,7 @@ describe('the repo corpus: committed generated files', () => {
       expect(recipeToArgv(back)).toEqual(argv);
       const out = runRecipe(back, io);
       const f = out.files.find((x) => x.path === file);
-      expect(f?.data).toBe(committedText(file));
+      expect(f?.data).toBe(repoText(file));
     });
     it(`${file}: Python prints the same text`, () => {
       const { recipe } = argvToRecipe(argv);
@@ -139,22 +138,22 @@ describe('the repo corpus: committed generated files', () => {
     });
   }
   it('--write-palette: a_spr0 writes the committed pens16.pal', () => {
-    const argv = ['--mode', '0', '--name', 'a_spr0', '--write-palette', 'tests/conformance/assets/pens16.pal', 'tests/conformance/assets/spr0.png', '-o', 'tests/conformance/assets/spr0.bas'];
+    const argv = ['--mode', '0', '--name', 'a_spr0', '--write-palette', 'vscode/cpcbuild-studio/src/core/fixtures/art/pens16.pal', 'vscode/cpcbuild-studio/src/core/fixtures/art/spr0.png', '-o', 'vscode/cpcbuild-studio/src/core/fixtures/art/spr0.bas'];
     const { recipe } = argvToRecipe(argv);
     const out = runRecipe(recipe, io);
-    expect(out.files.map((f) => f.path)).toEqual(['tests/conformance/assets/pens16.pal', 'tests/conformance/assets/spr0.bas']);
-    expect(out.files[0].data).toBe(fs.readFileSync(path.join(REPO, 'tests/conformance/assets/pens16.pal'), 'utf8'));
-    expect(out.files[1].data).toBe(committedText('tests/conformance/assets/spr0.bas'));
+    expect(out.files.map((f) => f.path)).toEqual(['vscode/cpcbuild-studio/src/core/fixtures/art/pens16.pal', 'vscode/cpcbuild-studio/src/core/fixtures/art/spr0.bas']);
+    expect(out.files[0].data).toBe(fs.readFileSync(path.join(REPO, 'vscode/cpcbuild-studio/src/core/fixtures/art/pens16.pal'), 'utf8'));
+    expect(out.files[1].data).toBe(repoText('vscode/cpcbuild-studio/src/core/fixtures/art/spr0.bas'));
   });
   it('a recipe using palette.file re-run gives identical bytes', () => {
-    const r = newRecipe('tests/conformance/assets/msk0.png', { mode: 0, name: 'a_msk0', masked: true, palette: { file: 'tests/conformance/assets/pens16.pal' }, output: 'x.bas' });
+    const r = newRecipe('vscode/cpcbuild-studio/src/core/fixtures/art/msk0.png', { mode: 0, name: 'a_msk0', masked: true, palette: { file: 'vscode/cpcbuild-studio/src/core/fixtures/art/pens16.pal' }, output: 'x.bas' });
     expect(runRecipe(r, io).files[0].data).toBe(runRecipe(r, io).files[0].data);
     expect(runRecipe(r, io).result.text.split('\n').slice(1)).toEqual(py('img2cpc.py', recipeToArgv(r).slice(0, -2)).stdout.split('\n').slice(1));
   });
 });
 
 describe('header modes', () => {
-  const r = newRecipe('tests/conformance/assets/spr1.png', { mode: 1, name: 'a_spr1', palette: { list: [0, 26, 6, 18] }, output: 'o.bas' });
+  const r = newRecipe('vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png', { mode: 1, name: 'a_spr1', palette: { list: [0, 26, 6, 18] }, output: 'o.bas' });
   const text = runRecipe(r, io).result.text;
   it('img2cpc keeps it, none drops all five lines, studio names the recipe', () => {
     expect(restyleHeader(text, 'img2cpc', undefined)).toBe(text);
@@ -267,7 +266,7 @@ describe('grid extraction', () => {
 
 describe('preview', () => {
   it('pen indices follow the converter and the table counts pixels', () => {
-    const r = newRecipe('tests/conformance/assets/spr1.png', { mode: 1, name: 'a', palette: { list: [0, 26, 6, 18] }, output: 'o.bas' });
+    const r = newRecipe('vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png', { mode: 1, name: 'a', palette: { list: [0, 26, 6, 18] }, output: 'o.bas' });
     const p = previewOf(r, io);
     expect(p.rows.map((x) => x.label)).toEqual(['0', '26', '6', '18']);
     expect(p.indices.length).toBe(p.width * p.height);
@@ -275,13 +274,13 @@ describe('preview', () => {
     expect(p.summary).toMatch(/frame\(s\)/);
   });
   it('Plus sprites preview with 12-bit colours', () => {
-    const r = newRecipe('tests/conformance/assets/plus_ball.png', { target: 'plus-sprite', name: 'b', output: 'o.bas' });
+    const r = newRecipe('vscode/cpcbuild-studio/src/core/fixtures/art/plus_ball.png', { target: 'plus-sprite', name: 'b', output: 'o.bas' });
     const p = previewOf(r, io);
     expect(p.rows.length).toBeGreaterThan(0);
     expect(p.rows[0].label).toMatch(/^[0-9A-F]{3}$/);
   });
   it('an error carries the converter text', () => {
-    const r = newRecipe('tests/conformance/assets/spr0.png', { mode: 2, name: 'b', output: 'o.bas' });
+    const r = newRecipe('vscode/cpcbuild-studio/src/core/fixtures/art/spr0.png', { mode: 2, name: 'b', output: 'o.bas' });
     expect(() => previewOf(r, io)).toThrow(/mode 2 has only 2 pens/);
   });
 });
@@ -444,7 +443,7 @@ describe('Import Image with a sidecar: the sidecar stays the source of the setti
 
   it('a grid recipe or a non-CPC target does not use the sidecar', () => {
     expect(sidecarOf(newRecipe('hero.png', { grid: defaultGrid(32, 8) }), sio)).toBeUndefined();
-    expect(sidecarOf(newRecipe('hero.png', { target: 'spectrum' }), sio)).toBeUndefined();
+    expect(sidecarOf(newRecipe('hero.png', { target: 'plus-sprite' }), sio)).toBeUndefined();
   });
 
   it('an invalid sidecar shows its error, and the run reports it too', () => {
@@ -456,28 +455,20 @@ describe('Import Image with a sidecar: the sidecar stays the source of the setti
   });
 });
 
-describe('R5: Spectrum recipes stay readable and generate; the editor no longer offers them', () => {
-  const zx = ['games/lamplighter/assets/zx/zx_tiles.cpcimp', 'games/lamplighter/assets/zx/zx_sprites.cpcimp'];
-  const gio = ioAt(path.join(REPO, 'games/lamplighter')); // recipe paths are relative to the game's project root
-  it.each(zx)('%s validates, has a command and generates', (rel) => {
-    const r = parseRecipe(fs.readFileSync(path.join(REPO, rel), 'utf8'));
-    expect(r.target).toBe('spectrum');
-    expect(commandLine(r).command).toContain('--spectrum');
-    const out = runRecipe(r, gio);
-    expect(out.files[0].path).toBe(r.output);
-    expect(String(out.files[0].data).length).toBeGreaterThan(50);
-    expect(() => previewOf(r, gio)).toThrow(/no CPC preview of Spectrum/);
+describe('a recipe that names the Spectrum is refused with a message, not an exception from deeper in', () => {
+  it('parseRecipe says what to do', () => {
+    const text = JSON.stringify({ format: 'cpcimp', version: 1, source: 'a.png', output: 'a.bas', target: 'spectrum' });
+    expect(() => parseRecipe(text)).toThrow(RecipeError);
+    expect(() => parseRecipe(text)).toThrow(/ZX Spectrum, which CPCBuild 0\.2\.0 no longer supports.*change "target" to "cpc"/);
   });
-  it('Switch to CPC is a plain set of the target (and a mode)', () => {
-    const r = parseRecipe(fs.readFileSync(path.join(REPO, zx[0]), 'utf8'));
-    const o = applyRecipeOp(r, { op: 'set', patch: { target: 'cpc', mode: 1 } });
-    expect('state' in o && o.state).toMatchObject({ target: 'cpc', mode: 1 });
+  it('the command line --spectrum is not an option any more (the converter says --mode is required)', () => {
+    expect(() => argvToRecipe(['--spectrum', 'a.png'])).toThrow();
   });
 });
 
 describe('R5: Use mode N is the edit op set {mode}', () => {
   it('patches the mode; a tile width the new mode refuses comes back as the converter message', () => {
-    const r = newRecipe('tests/conformance/assets/spr1.png', { mode: 0, kind: 'tiles', tileWidth: 2, name: 'b', output: 'o.bas', palette: { list: [0, 26, 6, 18] } });
+    const r = newRecipe('vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png', { mode: 0, kind: 'tiles', tileWidth: 2, name: 'b', output: 'o.bas', palette: { list: [0, 26, 6, 18] } });
     const o = applyRecipeOp(r, { op: 'set', patch: { mode: 1 } });
     expect('state' in o && o.state.mode).toBe(1);
     expect('state' in o && o.state.tileWidth).toBe(2); // the patch itself is accepted

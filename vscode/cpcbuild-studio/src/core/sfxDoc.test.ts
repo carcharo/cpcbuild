@@ -12,14 +12,12 @@ const good = (): SfxDoc => ({
 describe('sfx document: period and helpers', () => {
   it('period matches the measured Arkos periods at both clocks', () => {
     expect(period(60, CLOCKS.cpc)).toBe(239);
-    expect(period(60, CLOCKS.spectrum)).toBe(424);
-    expect(period(24, CLOCKS.cpc)).toBe(1911);
-    expect(period(107, CLOCKS.spectrum)).toBe(28);
-  });
+        expect(period(24, CLOCKS.cpc)).toBe(1911);
+      });
 
   it('period is clamped to 1-4095', () => {
     expect(period(300, CLOCKS.cpc)).toBe(1);
-    expect(period(-100, CLOCKS.spectrum)).toBe(4095);
+    expect(period(-100, CLOCKS.cpc)).toBe(4095);
   });
 
   it('lengthMs is 20 ms a frame', () => {
