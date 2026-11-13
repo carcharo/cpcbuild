@@ -7,8 +7,8 @@
 CPCEC's shots (--shot, --shot-dir, the test goldens) are 768x272: one row per
 scanline, so they show at half height on a page. This doubles each row
 (nearest neighbour, no blur) to 768x544, the shape of a real CPC screen.
-Shots that already have doubled scanlines (Caprice32's 768x540) and Spectrum
-shots (320x256, square pixels) are copied unchanged.
+Shots that already have doubled scanlines (Caprice32's 768x540) are copied
+unchanged.
 
 Docs link the copies in docs/images, never the goldens; after a golden
 changes, run --refresh. tests/tools/test_docshot.py checks both rules.

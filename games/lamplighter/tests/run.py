@@ -8,21 +8,20 @@
                 The sound switches (-D NOMUSIC, NOSFX, NOSOUND) must not
                 change a pixel of room 9
   LAMP_BASIC    logic and playthrough again with -D LAMP_BASIC (game.bas's
-                plain BASIC versions of its assembly routines) on the 464 and
-                the 48K, and the room 0 and walk shots on the 464: the same
+                plain BASIC versions of its assembly routines) on the 464, and the room 0 and walk shots on the 464: the same
                 goldens, the same pixels
   screenshots   each of the 12 rooms in its entry state (-D START_ROOM=n -D
                 SHOT=3: the player on the room's start cell after 3 logic
                 steps), and five scenes (SCENES: lit rooms with the door
                 open, the player on a ladder, walking and jumping, the title) of the real builds (464: -D CPC464, 6128: -D CPC6128),
                 compared pixel for pixel with golden/<model>/room<nn>.png.
-                A shot is the visible display, 768x272 RGB (chipsrun) on the CPC, 320x256 on the Spectrum builds (zx48, zx128: -D ZX48 / ZX128, run by zxrun.py).
+                A shot is the visible display, 768x272 RGB (chipsrun).
 
   --update   write the shots as the new goldens
 On a mismatch the actual image and a diff image (differing pixels in red over
 a dimmed copy) are written next to the golden. Exit status 0 if all passed.
 
-Usage: run.py [--update] [--model 464|6128|zx48|zx128] [-k PATTERN] [--timeout S]
+Usage: run.py [--update] [--model 464|6128] [-k PATTERN] [--timeout S]
 """
 from __future__ import annotations
 
@@ -41,9 +40,8 @@ HERE = Path(__file__).resolve().parent
 GAME = HERE.parent
 REPO = GAME.parent.parent
 CPCRUN = REPO / "tools" / "cpcrun.py"
-ZXRUN = REPO / "tools" / "zxrun.py"
 GOLDEN = HERE / "golden"
-MODELS = ("464", "6128", "zx48", "zx128")
+MODELS = ("464", "6128")
 ROOMS = range(12)
 ORG = "0x40"
 
@@ -76,27 +74,10 @@ def cpcrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir:
                           timeout=timeout * 4 + 120)
 
 
-def zxrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir: Path | None = None):
-    """model: zx48 or zx128; the Spectrum builds get a 512-byte heap (the
-    HUD makes small strings)."""
-    cmd = [sys.executable, str(ZXRUN), str(prog), "--model", model[2:], "--timeout", str(timeout)]
-    if shot_dir:
-        cmd += ["--shot-dir", str(shot_dir), "--quiet"]
-    for d in defines:
-        cmd += ["--zxbc-arg=-D", f"--zxbc-arg={d}"]
-    if shot_dir:
-        cmd += ["--zxbc-arg=-H", "--zxbc-arg=512"]
-    return subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL,
-                          timeout=timeout * 4 + 120)
-
-
 def logic_test(model: str, timeout: float, prog: str = "logic", defines: list[str] | None = None):
     label = f"{model}/{prog}" + ("+" + "+".join(defines) if defines else "")
     defines = defines or []
-    if model.startswith("zx"):
-        proc = zxrun(HERE / f"{prog}.bas", model, defines, timeout)
-    else:
-        proc = cpcrun(HERE / f"{prog}.bas", model, defines, timeout)
+    proc = cpcrun(HERE / f"{prog}.bas", model, defines, timeout)
     out = proc.stdout
     if proc.returncode != 0:
         return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]
@@ -130,7 +111,7 @@ SWITCHES = {
 # -D LAMP_BASIC (the plain BASIC versions of the assembly routines, game.bas)
 # must play the same: logic + playthrough on these models, and these shots on
 # the 464, pixel for pixel against the same goldens
-LAMP_BASIC_MODELS = ("464", "zx48")
+LAMP_BASIC_MODELS = ("464",)
 LAMP_BASIC_SHOTS = {
     "room00+LAMP_BASIC": ("room00", ["LAMP_BASIC"]),
     "walk+LAMP_BASIC": ("walk", ["LAMP_BASIC"]),
@@ -145,14 +126,13 @@ def shot_test(model: str, name: str, timeout: float, update: bool):
     if name in SWITCHES:
         gname, extra = SWITCHES[name]
         name = gname
-    flag = {"464": "CPC464", "6128": "CPC6128", "zx48": "ZX48", "zx128": "ZX128"}[model]
+    flag = {"464": "CPC464", "6128": "CPC6128"}[model]
     if name in SCENES:
         defs = SCENES[name]
     else:
         defs = ["SHOT=3", f"START_ROOM={int(name[4:])}"]
     with tempfile.TemporaryDirectory(prefix="lamp-") as tmp:
-        run = zxrun if model.startswith("zx") else cpcrun
-        proc = run(GAME / "main.bas", model, [flag, *defs, *extra], timeout, Path(tmp))
+        proc = cpcrun(GAME / "main.bas", model, [flag, *defs, *extra], timeout, Path(tmp))
         if proc.returncode != 0:
             return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]
         shots = sorted(Path(tmp).glob("*.png"))
@@ -211,7 +191,7 @@ def main() -> int:
             for prog in ("logic", "playthrough"):
                 jobs.append((f"{m}/{prog}+LAMP_BASIC",
                              lambda m=m, prog=prog: logic_test(m, args.timeout, prog, ["LAMP_BASIC"])))
-        switches = [n for n in SWITCHES if n not in LAMP_BASIC_SHOTS and m in ("464", "zx128")]
+        switches = [n for n in SWITCHES if n not in LAMP_BASIC_SHOTS and m == "464"]
         if m == "464":
             switches += list(LAMP_BASIC_SHOTS)
         for name in [f"room{r:02d}" for r in ROOMS] + list(SCENES) + switches:

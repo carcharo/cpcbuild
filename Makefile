@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-lamp reach-lamp lamp-plus test-lamp-plus test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
+.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-games test-lamp reach-lamp lamp-plus test-lamp-plus test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
 
 PYTHON := python3
 # ?= so an environment ZXBASIC (CI, or a git worktree whose sibling is elsewhere) is exported to the recipes
@@ -48,14 +48,10 @@ test-bare-cold: chips ## Bare-metal cold-start (no firmware) conformance (6128, 
 	$(PYTHON) tests/conformance/run.py --emu chips --model 464 --cold
 	$(PYTHON) tests/screens/run.py --cold
 
-test-zx: chips ## Spectrum 48K/128K conformance and screenshot tests on chips (tests/zx)
-	$(PYTHON) tests/zx/run.py
-
-test-games: chips ## Starfall: logic tests and screenshot goldens for all four builds on chips
+test-games: chips ## Starfall: logic tests and screenshot goldens for the CPC builds on chips
 	$(PYTHON) games/shooter/tests/run.py
-	$(PYTHON) games/shooter/tests/zx/run.py
 
-test-lamp: chips ## Lamplighter: logic tests, whole-tower playthrough and screenshot goldens for the 464, 6128, Spectrum 48K and 128K builds on chips
+test-lamp: chips ## Lamplighter: logic tests, whole-tower playthrough and screenshot goldens for the 464 and 6128 builds on chips
 	$(PYTHON) games/lamplighter/tests/run.py
 
 lamp-plus: ## Lamplighter Plus: build/lampplus.dsk (RUN"PLUS, 6128 Plus) and lampplus.cpr (cartridge), games/lamplighter/build_plus.sh
@@ -117,7 +113,7 @@ vsix: wasm ## Package both VS Code extensions: vscode/cpcbuild-studio/*.vsix and
 
 ci-vscode: test-vscode test-wasm ## The VS Code extension CI job, serially (not part of ci: it needs Node 22 and an emsdk)
 
-chips: ## Build chipsrun (CPC) and zxrun (Spectrum) headless runners
+chips: ## Build the chipsrun headless runner
 	sh tools/chipsrun/build.sh
 
 assets: ## Build assets
@@ -126,7 +122,7 @@ assets: ## Build assets
 bench: ## Run benchmark
 	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
 
-ci: unit test-chips test-bare test-zx test-games test-lamp reach-lamp ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, zx, games, Lamplighter (no Caprice32: the Plus tests, test-plus, have their own CI job)
+ci: unit test-chips test-bare test-games test-lamp reach-lamp ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, games, Lamplighter (no Caprice32: the Plus tests, test-plus, have their own CI job)
 
 clean: ## Clean build artifacts
 	rm -f tools/chipsrun/chipsrun

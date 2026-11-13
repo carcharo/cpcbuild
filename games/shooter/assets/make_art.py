@@ -20,15 +20,6 @@ one; transparent = alpha 0):
                        2: bit 7 the leftmost pixel), what the CPC layer
                        includes; font.bas stays for tests/screens/text5x7.bas
   starfall.pal the 16 pens (firmware colours)
-
-Spectrum 1-bit art for the Spectrum builds (assets/zx/): the same shapes,
-every pixel doubled horizontally (1 logical unit = 2 pixels) to 16x8 and
-padded to 16x16 with the lower half transparent, frames stacked vertically
-(a 16-wide column: frame f is rows 16f..16f+15; with img2cpc --spectrum the
-cells come out row-major, so frame f is cells 4f (top-left), 4f+1
-(top-right), 4f+2 and 4f+3 (the empty lower half)). White = ink = also the
-mask (the shapes have no opaque black pixels). zx_shots.png is the same for
-bullet and bomb (a 2-pixel wide column at the left, 4 lines).
 """
 import sys
 from pathlib import Path
@@ -290,31 +281,8 @@ def font_bas(shift=0, name="font.bas"):
     return "\n".join(out) + "\n"
 
 
-def zx_frame(rows, w, h):
-    """Rows of art -> a 16x16 frame (bool grid), pixels doubled
-    horizontally, lower part empty."""
-    g = [[False] * 16 for _ in range(16)]
-    for y, r in enumerate(rows):
-        for x, ch in enumerate(r):
-            if ch != ".":
-                g[y][2 * x] = g[y][2 * x + 1] = True
-    return g
-
-
-def zx_sheet(frames, w, h):
-    im = Image.new("RGB", (16, 16 * len(frames)), (0, 0, 0))
-    for i, f in enumerate(frames):
-        g = zx_frame(f, w, h)
-        for y in range(16):
-            for x in range(16):
-                if g[y][x]:
-                    im.putpixel((x, 16 * i + y), (255, 255, 255))
-    return im
-
-
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
-    (out / "zx").mkdir(exist_ok=True)
     sheet(FRAMES).save(out / "sprites.png")
     sheet([BULLET, BOMB], 2).save(out / "shots.png")
     tiles_image().save(out / "tiles.png")
@@ -322,14 +290,6 @@ def main():
     (out / "fontcpc.bas").write_text(font_bas(2, "fontcpc.bas"))
     (out / "starfall.pal").write_text(
         "# Starfall's 16 pens (firmware colours)\n" + ",".join(map(str, PENS)) + "\n")
-    zx_sheet(FRAMES, 8, 8).save(out / "zx" / "zx_sprites.png")
-    zx_sheet([BULLET, BOMB], 2, 4).save(out / "zx" / "zx_shots.png")
-    icon = Image.new("RGB", (8, 8), (0, 0, 0))
-    for y, r in enumerate(SHIP):
-        for x, ch in enumerate(r):
-            if ch != ".":
-                icon.putpixel((x, y), (255, 255, 255))
-    icon.save(out / "zx" / "zx_icon.png")
 
 
 if __name__ == "__main__":

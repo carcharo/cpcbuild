@@ -1,9 +1,8 @@
 #!/bin/sh
-# Regenerate lib/music/akg_cpc.asm (Amstrad CPC) and lib/music/akg_zx.asm
-# (ZX Spectrum 128K: AY at ports &FFFD/&BFFD, 1.7734 MHz period table) from
+# Regenerate lib/music/akg_cpc.asm (Amstrad CPC) from
 # the Arkos Tracker 3.7 AKG player:
 #
-#   Rasm 3.3    assembles PlayerAkg.asm for the CPC / the Spectrum, effects on,
+#   Rasm 3.3    assembles PlayerAkg.asm for the CPC, effects on,
 #               default (full) player configuration, at ORG 0x8000 (symbols
 #               to a file)
 #   Disark      binary + symbols -> plain Z80 source (pasmo profile, 0x hex,
@@ -45,7 +44,7 @@ EOT
   "$B/rasm" wrap_$1_$2.asm -ob "$3" ${4:+-s -sl -sq -os "$4"} >rasm_$1_$2.log 2>&1 || { cat rasm_$1_$2.log; exit 1; }
 }
 
-convert() { # HW(CPC|SPECTRUM) name description
+convert() { # HW(CPC) name description
   hw=$1; name=$2; desc=$3
   OUT=$REPO/lib/music/akg_$name.asm
   assemble_rasm $hw "#8000" ref_$name.bin ref_$name.sym
@@ -93,4 +92,3 @@ EOT
 }
 
 convert CPC cpc "Amstrad CPC"
-convert SPECTRUM zx "ZX Spectrum 128K (AY, ports &FFFD/&BFFD, 1773400 Hz)"

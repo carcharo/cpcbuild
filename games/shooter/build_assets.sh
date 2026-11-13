@@ -6,7 +6,6 @@
 set -e
 cd "$(dirname "$0")/../.."
 A=games/shooter/assets
-Z=$A/zx
 I="python3 tools/img2cpc.py"
 
 python3 $A/make_art.py
@@ -21,12 +20,6 @@ $I --mode 0 --name tiles --tiles --palette-file $A/starfall.pal $A/tiles.png -o 
 # 12-bit pens; make_plus_art.py draws plus_sprites.png from the same pictures
 python3 $A/make_plus_art.py
 $I --plus-sprite --packed --name plsprites $A/plus_sprites.png -o $A/plsprites.bas
-
-# Spectrum: 1-bit sprite art (see make_art.py for the layout); --zx-sprite
-# keeps every sprite pixel as ink (the picture rule would invert dense cells)
-$I --spectrum --zx-sprite --name zx_sprites $Z/zx_sprites.png -o $Z/zx_sprites.bas
-$I --spectrum --zx-sprite --name zx_shots $Z/zx_shots.png -o $Z/zx_shots.bas
-$I --spectrum --zx-sprite --name zx_icon $Z/zx_icon.png -o $Z/zx_icon.bas
 
 # Music and effects (skipped, keeping the committed ones, without the Arkos tools)
 T="${AT3_TOOLS:-tools/arkos/work/bin}"
@@ -44,7 +37,6 @@ assert len(t) <= 0x400
 open("$A/starfall.dat", "wb").write(t + bytes(0x400 - len(t)) + g)
 PY
   python3 tools/aks2bas.py --sfx $A/sfx.vt2 $A/sfx.bas --name sf_sfx
-  python3 tools/aks2bas.py --sfx $Z/sfx_zx.vt2 $Z/sfx_zx.bas --name sf_sfx
 else
   echo "build_assets: Arkos tools not found (run tools/arkos/fetch.sh); keeping the committed music .bas"
 fi
