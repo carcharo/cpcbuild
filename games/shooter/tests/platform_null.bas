@@ -6,7 +6,7 @@
 DIM nSprites, sfxLast, sfxCount AS UBYTE
 DIM spKind, spX, spY AS UBYTE
 
-SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
+SUB PlatSprite(kind AS UBYTE, frame_ AS UBYTE, x AS UBYTE, y AS UBYTE)
   nSprites = nSprites + 1
   spKind = kind
   spX = x

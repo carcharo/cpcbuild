@@ -88,7 +88,7 @@
 ' read by the firmware through a pointer (and &8000-&BFFF would be fine for
 ' that anyway). The 464 has one screen and no limit at &4000, so it keeps
 ' everything in place.
-#pragma hidata = $8000
+#pragma hidata = &8000
 #endif
 ' sprites: 12 frames of 4 bytes x 8 lines (32 bytes, pixels only: they are ORed
 ' onto the erased black); shots: 2 of 1 x 4 (4 bytes)
@@ -103,26 +103,26 @@
 #include "assets/fontcpc.bas"
 ' the static stars: 20 x (offset in the 16 KB screen, byte)
 DIM starTab(59) AS UBYTE => { _
-    $61, $02, $AA, _
-    $2A, $31, $51, _
-    $01, $1E, $A2, _
-    $24, $3C, $55, _
-    $13, $19, $A2, _
-    $13, $0D, $51, _
-    $B6, $09, $AA, _
-    $7E, $09, $51, _
-    $E7, $1A, $A2, _
-    $89, $23, $55, _
-    $1D, $32, $A2, _
-    $57, $26, $51, _
-    $6F, $0E, $AA, _
-    $AF, $21, $51, _
-    $80, $0C, $A2, _
-    $8F, $32, $55, _
-    $37, $16, $A2, _
-    $FE, $13, $51, _
-    $83, $3E, $AA, _
-    $52, $34, $51 _
+    &61, &02, &AA, _
+    &2A, &31, &51, _
+    &01, &1E, &A2, _
+    &24, &3C, &55, _
+    &13, &19, &A2, _
+    &13, &0D, &51, _
+    &B6, &09, &AA, _
+    &7E, &09, &51, _
+    &E7, &1A, &A2, _
+    &89, &23, &55, _
+    &1D, &32, &A2, _
+    &57, &26, &51, _
+    &6F, &0E, &AA, _
+    &AF, &21, &51, _
+    &80, &0C, &A2, _
+    &8F, &32, &55, _
+    &37, &16, &A2, _
+    &FE, &13, &51, _
+    &83, &3E, &AA, _
+    &52, &34, &51 _
 }
 #ifdef CPC6128
 #pragma hidata = 0
@@ -227,7 +227,7 @@ SF_END:
 end asm
 
 #ifndef PLUS
-SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
+SUB PlatSprite(kind AS UBYTE, frame_ AS UBYTE, x AS UBYTE, y AS UBYTE)
   ASM
   call SF_SPRITE
   END ASM
@@ -606,9 +606,9 @@ FUNCTION PlatInput() AS UBYTE
   ScanKeys()
   r = 0
   IF KeyDown(KEY_O) <> 0 OR KeyDown(KEY_LEFT) <> 0 OR KeyDown(JOY_LEFT) <> 0 THEN r = 1
-  IF KeyDown(KEY_P) <> 0 OR KeyDown(KEY_RIGHT) <> 0 OR KeyDown(JOY_RIGHT) <> 0 THEN r = r BOR 2
-  IF KeyDown(KEY_SPACE) <> 0 OR KeyDown(JOY_FIRE1) <> 0 THEN r = r BOR 4
-  IF AnyKeyDown() <> 0 THEN r = r BOR 8
+  IF KeyDown(KEY_P) <> 0 OR KeyDown(KEY_RIGHT) <> 0 OR KeyDown(JOY_RIGHT) <> 0 THEN r = r OR 2
+  IF KeyDown(KEY_SPACE) <> 0 OR KeyDown(JOY_FIRE1) <> 0 THEN r = r OR 4
+  IF AnyKeyDown() <> 0 THEN r = r OR 8
   RETURN r
 END FUNCTION
 
@@ -619,7 +619,7 @@ END FUNCTION
 ' 0 off, 1 title, 2 in-game (and game mode, unless -D NOGAMEMODE).
 SUB PlatMusic(tune AS UBYTE)
 #ifndef NOSOUND
-  IF tune = curTune THEN RETURN
+  IF tune = curTune THEN EXIT SUB
   curTune = tune
   IF tune = 0 THEN
     GameMode(0)

@@ -97,7 +97,7 @@ SUB Tick(w AS UBYTE)
 END SUB
 #endif
 
-DIM inp, st AS UBYTE
+DIM inp_, st AS UBYTE
 
 ' The title screen. Returns 0 when the player starts, 1 after a few
 ' seconds idle (the attract mode).
@@ -121,23 +121,23 @@ FUNCTION TitleScreen() AS UBYTE
   idle = 0
   DO
     PlatFrameBegin()
-    inp = PlatInput()
-    f = (idle >> 3) BAND 1
+    inp_ = PlatInput()
+    f = (idle >> 3) AND 1
     PlatSprite(K_ENEMY + 2, f, LEG_X, LEG_Y)
     PlatSprite(K_ENEMY + 1, f, LEG_X, LEG_Y + 16)
     PlatSprite(K_ENEMY, f, LEG_X, LEG_Y + 32)
     PlatSprite(K_DIVER, f, LEG_X, LEG_Y + 48)
-    tx = CAST(UBYTE, idle) BAND 127
+    tx = CAST(UBYTE, idle) AND 127
     IF tx > 63 THEN tx = 127 - tx
-    PlatSprite(K_SHIP, 0, 28 + (tx BAND 126), SHIP_Y)
+    PlatSprite(K_SHIP, 0, 28 + (tx AND 126), SHIP_Y)
     PlatHud(gScore, 3, 1, gHi)
     PlatFrameEnd()
 #ifdef TESTSW
     Tick(0)
 #endif
     idle = idle + 1
-    IF (inp BAND 8) = 0 THEN released = 1
-    IF released = 1 AND (inp BAND 8) <> 0 THEN
+    IF (inp_ AND 8) = 0 THEN released = 1
+    IF released = 1 AND (inp_ AND 8) <> 0 THEN
       GameSeed(PlatFrames() + idle)
       RETURN 0
     END IF
@@ -159,12 +159,12 @@ SUB RunGame(demo AS UBYTE, tune AS UBYTE)
     PlatFrameBegin()
     keys = PlatInput()
     IF demo = 1 THEN
-      IF (keys BAND 8) <> 0 THEN EXIT DO
-      inp = AttractInput()
+      IF (keys AND 8) <> 0 THEN EXIT DO
+      inp_ = AttractInput()
     ELSE
-      inp = keys
+      inp_ = keys
     END IF
-    st = GameStep(inp)
+    st = GameStep(inp_)
     GameDraw()
     PlatHud(gScore, gLives, gWave, gHi)
     PlatFrameEnd()
@@ -178,7 +178,7 @@ SUB RunGame(demo AS UBYTE, tune AS UBYTE)
       END IF
       ov = ov + 1
       IF ov > 70 THEN EXIT DO
-      IF ov > 20 AND (keys BAND 4) <> 0 THEN EXIT DO
+      IF ov > 20 AND (keys AND 4) <> 0 THEN EXIT DO
     END IF
   LOOP
   PlatMusic(0)

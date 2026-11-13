@@ -161,12 +161,12 @@ END FUNCTION
 ' Moves the formation one step sideways, or down at an edge.
 SUB FormMove()
   DIM m, c, cmin, cmax AS UBYTE
-  m = rm(0) BOR rm(1) BOR rm(2)
-  IF gDive <> 0 THEN m = m BOR bitv(gDvC)
+  m = rm(0) OR rm(1) OR rm(2)
+  IF gDive <> 0 THEN m = m OR bitv(gDvC)
   cmin = 5
   cmax = 0
   FOR c = 0 TO 5
-    IF (m BAND bitv(c)) <> 0 THEN
+    IF (m AND bitv(c)) <> 0 THEN
       IF c < cmin THEN cmin = c
       cmax = c
     END IF
@@ -184,7 +184,7 @@ SUB FormMove()
   ELSE
     IF gDir = 0 THEN gFxB = gFxB + 2 ELSE gFxB = gFxB - 2
   END IF
-  gMoves = gMoves BXOR 1
+  gMoves = gMoves XOR 1
 END SUB
 
 ' The ship is hit: a life lost, the explosion and the pause start.
@@ -200,9 +200,9 @@ END SUB
 FUNCTION LowestIn(c AS UBYTE) AS UBYTE
   DIM b AS UBYTE
   b = bitv(c)
-  IF (rm(0) BAND b) <> 0 THEN RETURN 0
-  IF (rm(1) BAND b) <> 0 THEN RETURN 1
-  IF (rm(2) BAND b) <> 0 THEN RETURN 2
+  IF (rm(0) AND b) <> 0 THEN RETURN 0
+  IF (rm(1) AND b) <> 0 THEN RETURN 1
+  IF (rm(2) AND b) <> 0 THEN RETURN 2
   RETURN 255
 END FUNCTION
 
@@ -212,14 +212,14 @@ FUNCTION BulletHit(x AS UBYTE, y AS UBYTE) AS UBYTE
   DIM dx, c, r, b, ey AS UBYTE
   dx = x + FBIAS - gFxB
   IF dx >= 96 THEN RETURN 0
-  IF (dx BAND 15) >= 8 THEN RETURN 0
+  IF (dx AND 15) >= 8 THEN RETURN 0
   c = dx >> 4
   b = bitv(c)
   FOR r = 0 TO 2
-    IF (PEEK(@rm(0) + r) BAND b) <> 0 THEN
+    IF (PEEK(@rm(0) + r) AND b) <> 0 THEN
       ey = FormY(r)
       IF (y + 3 - ey) < 11 THEN
-        POKE @rm(0) + r, PEEK(@rm(0) + r) BAND (63 - b)
+        POKE @rm(0) + r, PEEK(@rm(0) + r) AND (63 - b)
         gAlive = gAlive - 1
         AddScore((r + 1) * 10)
         Boom(FormX(c), ey)
@@ -233,7 +233,7 @@ END FUNCTION
 
 ' One logic step. inp: PlatInput bits (1 left, 2 right, 4 fire).
 ' Returns the game state.
-FUNCTION GameStep(inp AS UBYTE) AS UBYTE
+FUNCTION GameStep(inp_ AS UBYTE) AS UBYTE
   DIM p AS UINTEGER
   DIM i, j, x, y, tx, ty AS UBYTE
 
@@ -250,7 +250,7 @@ FUNCTION GameStep(inp AS UBYTE) AS UBYTE
         gFireCd = 0
         ' a diver goes back to its slot
         IF gDive <> 0 THEN
-          rm(gDvR) = rm(gDvR) BOR bitv(gDvC)
+          rm(gDvR) = rm(gDvR) OR bitv(gDvC)
           gDive = 0
         END IF
       END IF
@@ -271,15 +271,15 @@ FUNCTION GameStep(inp AS UBYTE) AS UBYTE
 
   ' --- the ship ---
   x = gShipX
-  IF (inp BAND 1) <> 0 THEN
+  IF (inp_ AND 1) <> 0 THEN
     IF x >= 4 THEN x = x - 4 ELSE x = 0
   END IF
-  IF (inp BAND 2) <> 0 THEN
+  IF (inp_ AND 2) <> 0 THEN
     IF x <= 116 THEN x = x + 4 ELSE x = 120
   END IF
   gShipX = x
   IF gFireCd > 0 THEN gFireCd = gFireCd - 1
-  IF (inp BAND 4) <> 0 AND gFireCd = 0 THEN
+  IF (inp_ AND 4) <> 0 AND gFireCd = 0 THEN
     p = @bl(0)
     FOR i = 0 TO 1
       IF PEEK(p + 1) = 255 THEN
@@ -344,11 +344,11 @@ FUNCTION GameStep(inp AS UBYTE) AS UBYTE
   ' --- the diver ---
   IF gDive = 0 THEN
     IF gWave >= 2 AND gAlive > 1 THEN
-      IF (Rand() BAND 63) = 0 THEN
+      IF (Rand() AND 63) = 0 THEN
         j = Rand6()
         i = LowestIn(j)
         IF i <> 255 THEN
-          rm(i) = rm(i) BAND (63 - bitv(j))
+          rm(i) = rm(i) AND (63 - bitv(j))
           gDvR = i
           gDvC = j
           gDvX = FormX(j)
@@ -364,14 +364,14 @@ FUNCTION GameStep(inp AS UBYTE) AS UBYTE
     y = gDvY
     IF gDive = 2 THEN
       y = y + 3
-      x = x + sway(gDvPh BAND 15)
-      IF (gDvPh BAND 1) = 0 THEN
+      x = x + sway(gDvPh AND 15)
+      IF (gDvPh AND 1) = 0 THEN
         IF x < gShipX THEN x = x + 1
         IF x > gShipX THEN x = x - 1
       END IF
       IF x > 200 THEN x = 0
       IF x > 120 THEN x = 120
-      x = x BAND 254
+      x = x AND 254
       IF y >= 160 THEN
         gDive = 3
         y = 0
@@ -392,7 +392,7 @@ FUNCTION GameStep(inp AS UBYTE) AS UBYTE
       IF y >= ty THEN
         y = ty
         IF x = tx THEN
-          rm(gDvR) = rm(gDvR) BOR bitv(gDvC)
+          rm(gDvR) = rm(gDvR) OR bitv(gDvC)
           gDive = 0
         END IF
       END IF
@@ -424,7 +424,7 @@ FUNCTION GameStep(inp AS UBYTE) AS UBYTE
   IF j < 3 THEN
     j = gWave + 1
     IF j > 8 THEN j = 8
-    IF (Rand() BAND 31) < j THEN
+    IF (Rand() AND 31) < j THEN
       j = Rand6()
       i = LowestIn(j)
       IF i <> 255 THEN
@@ -484,14 +484,14 @@ SUB GameDraw()
       x = gFxB - FBIAS
       y = FormY(r)
       FOR i = 0 TO 5
-        IF (m BAND 1) <> 0 THEN PlatSprite(K_ENEMY + r, fr, x, y)
+        IF (m AND 1) <> 0 THEN PlatSprite(K_ENEMY + r, fr, x, y)
         m = m >> 1
         x = x + 16
       NEXT i
     END IF
   NEXT k
   IF gDive <> 0 THEN
-    IF gDvY < 153 THEN PlatSprite(K_DIVER, (gDvPh >> 1) BAND 1, gDvX, gDvY)
+    IF gDvY < 153 THEN PlatSprite(K_DIVER, (gDvPh >> 1) AND 1, gDvX, gDvY)
   END IF
   IF gState = S_DYING THEN
     i = (DYING_STEPS - gTimer) >> 3
@@ -554,7 +554,7 @@ FUNCTION AttractInput() AS UBYTE
   END IF
   ' the target column: one with enemies in it, re-picked now and then
   aiN = aiN + 1
-  IF (LowestIn(aiCol) = 255) OR (aiN BAND 31) = 0 THEN
+  IF (LowestIn(aiCol) = 255) OR (aiN AND 31) = 0 THEN
     FOR i = 1 TO 6
       aiCol = aiCol + 1
       IF aiCol > 5 THEN aiCol = 0
@@ -568,7 +568,7 @@ FUNCTION AttractInput() AS UBYTE
   ELSE
     IF sx + 3 < tx THEN r = 2 ELSE r = 4
   END IF
-  IF (tx + 8 - sx) < 17 THEN r = r BOR 4
+  IF (tx + 8 - sx) < 17 THEN r = r OR 4
   ' don't walk into a bomb
   IF r = 1 THEN
     IF BombNear(sx - 4, 60) <> 0 THEN r = 0

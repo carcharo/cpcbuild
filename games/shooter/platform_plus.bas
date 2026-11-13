@@ -380,7 +380,7 @@ END FUNCTION
 ' longer wanted go, so the table is never empty (that would switch raster mode off and on).
 SUB MxLines()
   DIM i, j, a, n, keep AS UBYTE
-  IF MxLinesValid() = 0 THEN RETURN
+  IF MxLinesValid() = 0 THEN EXIT SUB
   ' the usual case, and one pass over the four lines when nothing changed: every
   ' line moves in the table (RasterIntMove); a line whose target is still held by
   ' another of ours waits for the next pass (the formation moves its rows together,
@@ -397,7 +397,7 @@ SUB MxLines()
         END IF
       END IF
     NEXT i
-    IF keep = 1 THEN RETURN
+    IF keep = 1 THEN EXIT SUB
   NEXT j
   FOR i = 0 TO 3
     RasterIntAt(PEEK(mxNewP + i), MxHandler(i))
@@ -423,7 +423,7 @@ SUB MxClear()
   DIM s AS UBYTE
   MxHideAll()
   FOR s = 10 TO 15
-    PlusPoke($6004 + (CAST(UINTEGER, s) << 3), 9)
+    PlusPoke(&6004 + (CAST(UINTEGER, s) << 3), 9)
   NEXT s
 END SUB
 
@@ -489,10 +489,10 @@ END SUB
 
 SUB HwInit()
   ASM
-  ld hl, _hwReg.__DATA__
+  ld hl, _hwReg__a.__DATA__
   ld (HW_REGP), hl
 #ifdef PLUS_MUX
-  ld hl, _plpix.__DATA__
+  ld hl, _plpix__a.__DATA__
   ld (HW_PIXP), hl
 #endif
   END ASM
@@ -507,7 +507,7 @@ SUB HwFrame()
   END ASM
 END SUB
 
-SUB PlatSprite(kind AS UBYTE, frame AS UBYTE, x AS UBYTE, y AS UBYTE)
+SUB PlatSprite(kind AS UBYTE, frame_ AS UBYTE, x AS UBYTE, y AS UBYTE)
   ASM
   call HW_SPRITE
   END ASM
@@ -599,7 +599,7 @@ SUB PlatFrameEnd()
     NEXT i
     HwPendingDone()
   END IF
-  PlusPokeBlock($6000, @hwReg(0), CAST(UINTEGER, HW_SLOTS) << 3)
+  PlusPokeBlock(&6000, @hwReg(0), CAST(UINTEGER, HW_SLOTS) << 3)
 #endif
 #ifdef MX_TEST
   ASM
@@ -615,7 +615,7 @@ SUB PlatClear()
 #ifdef PLUS_MUX
   MxClear()
 #endif
-  PlusPokeBlock($6000, @hwReg(0), CAST(UINTEGER, HW_SLOTS) << 3)
+  PlusPokeBlock(&6000, @hwReg(0), CAST(UINTEGER, HW_SLOTS) << 3)
 END SUB
 
 SUB PlatInit()
