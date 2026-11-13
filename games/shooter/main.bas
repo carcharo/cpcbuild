@@ -89,7 +89,9 @@ SUB Tick(w AS UBYTE)
     BenchErr(CAST(UBYTE, t - 400))
 #else
     r = 62500 / (t >> 1)
-    PRINT "INFO steps="; benchN - 1; " frames="; t; " per second="; r / 10; "."; r - (r / 10) * 10
+    ' two lines: Locomotive's PRINT pads each number and wraps at 40 columns (tests/bench.sh joins them)
+    PRINT "INFO steps="; benchN - 1; "frames="; t
+    PRINT "INFO per second="; r / 10; "."; r - (r / 10) * 10
 #endif
     END
   END IF
