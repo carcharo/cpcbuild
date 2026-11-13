@@ -15,12 +15,11 @@ python3 tools/img2cpc.py --mode 1 --sprite --name landscape --palette 0,26,4,10 
 [ "$1" = "--assets" ] && exit 0
 
 # The cartridge: a bare build with the program's own font (no firmware ROM in a
-# cartridge-only machine), then the .cpr wrapper (boot stub that copies it to RAM).
-# (extra arguments go to zxbc: -D DEMO_FRAMES=100 -D __CPC_PRINTER_ECHO__ makes a
+# cartridge-only machine), written as a .cpr by cpcbas (boot stub that copies it to RAM).
+# (extra arguments go to cpcbas: -D DEMO_FRAMES=100 -D __CPC_PRINTER_ECHO__ makes a
 # cartridge that ends by itself, as tests/plus does for cpcrun.py --cpr)
-ROOT=$(pwd)
+CPCBAS="${CPCBAS:-$(pwd)/../cpcbas}"
 mkdir -p build
-(cd ../zxbasic && poetry run zxbc --arch cpc -D CPC_BAREMETAL -D CPC_OWNFONT "$@" \
-  -I "$ROOT/lib" -M "$ROOT/build/plusdemo.map" -o "$ROOT/build/plusdemo.bin" "$ROOT/examples/plusdemo.bas")
-python3 tools/mkcpr.py build/plusdemo.bin -o build/plusdemo.cpr
-ls -l build/plusdemo.bin build/plusdemo.cpr
+node "$CPCBAS/packages/cpcbas/dist/bin/cpcbas.js" examples/plusdemo.bas -D CPC_BAREMETAL -D CPC_OWNFONT "$@" \
+  -f cpr -M build/plusdemo.map -o build/plusdemo.cpr
+ls -l build/plusdemo.cpr

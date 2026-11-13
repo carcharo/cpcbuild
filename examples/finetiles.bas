@@ -16,7 +16,7 @@
 '
 ' Benchmark: built with -D BENCH it runs 250 updates, then prints the
 ' rate, timed with Frames() (headless: tools/cpcrun.py
-' examples/finetiles.bas --zxbc-arg=-D --zxbc-arg=BENCH).
+' examples/finetiles.bas --cpcbas-arg=-D --cpcbas-arg=BENCH --emu chips).
 '
 ' Screenshot test: -D SHOT=n runs n updates, takes a program-triggered
 ' screenshot (tests/screens/lib/shot.bas; tests/screens/run.py) and ENDs.
@@ -82,11 +82,11 @@ p = @st(0)
 FOR i = 0 TO NSPR - 1
   POKE p + BX, 6 + i * 16
   POKE p + BY, 24 + i * 40
-  IF i bAND 1 THEN POKE p + VX, 255 ELSE POKE p + VX, 1
+  IF i AND 1 THEN POKE p + VX, 255 ELSE POKE p + VX, 1
   POKE p + VY, 1 + (i MOD 3)
   POKE p + OX, 255
   POKE p + OX + 1, 255
-  POKE UINTEGER p + SPR, @finesprites(CAST(UINTEGER, i MOD 3) * finesprites_SIZE)
+  POKE UINTEGER, p + SPR, @finesprites(CAST(UINTEGER, i MOD 3) * finesprites_SIZE)
   p = p + REC
 NEXT i
 

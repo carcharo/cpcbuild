@@ -143,7 +143,7 @@ pd_colour:
   add a, a
   ld e, a
   ld d, 0
-  ld hl, _barTab.__DATA__       ; an array's data follows a short header
+  ld hl, _barTab__a.__DATA__       ; an array's data follows a short header
   add hl, de
   ld e, (hl)                    ; E = red << 4 | blue
   inc hl
@@ -189,18 +189,18 @@ vars = @barTab(0) + @barIdx + @barPhase + @scrDx + @barNo + @spr(0) + @xTab(0) +
 FUNCTION Rainbow(h AS UBYTE) AS UINTEGER
   DIM s, t AS UBYTE
   s = h >> 4
-  t = h BAND 15
-  IF s = 0 THEN RETURN $0F00 + t * 16
-  IF s = 1 THEN RETURN (15 - t) * 256 + $00F0
-  IF s = 2 THEN RETURN $00F0 + t
-  IF s = 3 THEN RETURN (15 - t) * 16 + $000F
-  IF s = 4 THEN RETURN t * 256 + $000F
-  RETURN $0F00 + (15 - t)
+  t = h AND 15
+  IF s = 0 THEN RETURN &0F00 + t * 16
+  IF s = 1 THEN RETURN (15 - t) * 256 + &00F0
+  IF s = 2 THEN RETURN &00F0 + t
+  IF s = 3 THEN RETURN (15 - t) * 16 + &000F
+  IF s = 4 THEN RETURN t * 256 + &000F
+  RETURN &0F00 + (15 - t)
 END FUNCTION
 
 ' One word of the DMA list.
 SUB AddWord(w AS UINTEGER)
-  POKE UINTEGER dmaP, w
+  POKE UINTEGER, dmaP, w
   dmaP = dmaP + 2
 END SUB
 
@@ -210,14 +210,14 @@ END SUB
 SUB BuildJingle()
   DIM i AS UBYTE
   dmaP = DmaAlign(@dmaBuf(0))
-  AddWord(DMA_LOAD(7, $3C))             ' mixer: tones A and B on, noise off
+  AddWord(DMA_LOAD(7, &3C))             ' mixer: tones A and B on, noise off
   AddWord(DMA_LOAD(9, 11))              ' bass volume
   AddWord(DMA_REPEAT(4000))
   FOR i = 0 TO 31
-    AddWord(DMA_LOAD(0, mel(i) BAND 255))
+    AddWord(DMA_LOAD(0, mel(i) AND 255))
     AddWord(DMA_LOAD(1, mel(i) >> 8))
-    IF (i BAND 1) = 0 THEN
-      AddWord(DMA_LOAD(2, bass(i >> 1) BAND 255))
+    IF (i AND 1) = 0 THEN
+      AddWord(DMA_LOAD(2, bass(i >> 1) AND 255))
       AddWord(DMA_LOAD(3, bass(i >> 1) >> 8))
     END IF
     AddWord(DMA_LOAD(8, 13))
@@ -238,8 +238,8 @@ END SUB
 SUB FASTCALL MoveSprites()
   ASM
   push ix
-  ld ix, _spr.__DATA__          ; an array's data follows a short header
-  ld de, _posTab.__DATA__
+  ld ix, _spr__a.__DATA__          ; an array's data follows a short header
+  ld de, _posTab__a.__DATA__
   ld c, 0                       ; the sprite
 pd_ms:
   ld a, (ix+0)                  ; x phase
@@ -248,7 +248,7 @@ pd_ms:
   ld l, a
   ld h, 0
   push de
-  ld de, _xTab.__DATA__
+  ld de, _xTab__a.__DATA__
   add hl, de
   ld l, (hl)                    ; n = (x - 16) / 4
   ld h, 0
@@ -269,7 +269,7 @@ pd_ms:
   ld l, a
   ld h, 0
   push de
-  ld de, _yTab.__DATA__
+  ld de, _yTab__a.__DATA__
   add hl, de
   pop de
   ld a, (hl)
@@ -302,7 +302,7 @@ SUB FASTCALL LandscapeWord(c AS UINTEGER)
   and 15
   ld e, a
   ld d, 0
-  ld hl, _landscape.__DATA__
+  ld hl, _landscape__a.__DATA__
   add hl, de                    ; HL = the picture's bytes, line by line
   ld c, 13                      ; BAND_ROWS
 pd_lw_row:
@@ -358,7 +358,7 @@ END SUB
 ' --- start ---------------------------------------------------------------
 
 DIM i, n AS UBYTE
-DIM frame, j AS UINTEGER
+DIM frame_, j AS UINTEGER
 DIM p, w, wOld, c AS UINTEGER
 
 Mode 1
@@ -381,17 +381,17 @@ END IF
 
 ' Colours: pen 0 and the border belong to the bars; pen 1 is the rainbow;
 ' pens 2 and 3 are the hills and the ground (and the captions).
-SetPalette12(0, $0008)
-SetPalette12(1, $0FFF)
-SetPalette12(2, $0527)
-SetPalette12(3, $06DB)
-SetBorder12($0008)
+SetPalette12(0, &0008)
+SetPalette12(1, &0FFF)
+SetPalette12(2, &0527)
+SetPalette12(3, &06DB)
+SetBorder12(&0008)
 
 ' The copper colours: a rainbow at half brightness, so the text stays legible.
 FOR i = 0 TO 63
-  c = (Rainbow((i * 3) >> 1) >> 1) BAND $0777
-  barTab(i * 2) = ((c >> 8) << 4) BOR (c BAND 15)       ' the ASIC's own two bytes
-  barTab(i * 2 + 1) = (c >> 4) BAND 15
+  c = (Rainbow((i * 3) >> 1) >> 1) AND &0777
+  barTab(i * 2) = ((c >> 8) << 4) OR (c AND 15)       ' the ASIC's own two bytes
+  barTab(i * 2 + 1) = (c >> 4) AND 15
 NEXT i
 
 ' The panel's screen is at &4000: cpcbuild's double buffering shows it (and
@@ -402,12 +402,15 @@ EnableDoubleBuffer()
 FillRect(0, 0, 80, 200, 0)
 FlipBuffer()
 
-PRINT AT 1, 9; INK 6; "CPC PLUS FEATURE DEMO"      ' (INK 6 = pen 1 in mode 1)
-PRINT AT 3, 2; INK 3; "HARDWARE SPRITES: x1 x2 x4, NO REDRAW"
-PRINT AT 4, 2; INK 3; "12-BIT COLOUR: 4096 SHADES"
-PRINT AT 5, 2; INK 3; "RASTER BARS: AN INTERRUPT EACH"
-PRINT AT 6, 2; INK 3; "DMA SOUND: THE TUNE COSTS NO CPU"
-PRINT AT 9, 2; INK 3; "SPLIT SCREEN + SOFT SCROLL BELOW"
+PEN 1
+PRINT AT 1, 9; "CPC PLUS FEATURE DEMO"
+PEN 3
+PRINT AT 3, 2; "HARDWARE SPRITES: x1 x2 x4, NO REDRAW"
+PRINT AT 4, 2; "12-BIT COLOUR: 4096 SHADES"
+PRINT AT 5, 2; "RASTER BARS: AN INTERRUPT EACH"
+PRINT AT 6, 2; "DMA SOUND: THE TUNE COSTS NO CPU"
+PRINT AT 9, 2; "SPLIT SCREEN + SOFT SCROLL BELOW"
+PEN 1
 
 ' The landscape: its first window of 80 bytes a row (the rest is written as it scrolls in)
 FOR n = 0 TO 4
@@ -416,7 +419,7 @@ FOR n = 0 TO 4
   NEXT i
 NEXT n
 ScrollBorder(1)         ' hides the 16 pixels a soft scroll uncovers on the left
-SplitScreen(SPLIT_LINE, $C000)
+SplitScreen(SPLIT_LINE, &C000)
 wOld = 0
 p = 0
 
@@ -433,9 +436,9 @@ NEXT j
 FOR i = 0 TO NSPR - 1
   spr(i * 4) = i * 43
   spr(i * 4 + 1) = i * 71 + 20
-  spr(i * 4 + 2) = 2 + ((i * 3) BAND 3)
-  spr(i * 4 + 3) = 3 + ((i * 5) BAND 7)
-  SpriteSetImagePacked(i, @dsprite(CAST(UINTEGER, i BAND 3) * 128))
+  spr(i * 4 + 2) = 2 + ((i * 3) AND 3)
+  spr(i * 4 + 3) = 3 + ((i * 5) AND 7)
+  SpriteSetImagePacked(i, @dsprite(CAST(UINTEGER, i AND 3) * 128))
 NEXT i
 MoveSprites()
 ' sizes (magnification across, down): x1, x2 and x4 on show
@@ -461,35 +464,35 @@ DmaPrescaler(0, 63)
 n = DmaStart(0, DmaAlign(@dmaBuf(0)))
 
 ' --- main loop: all work in the blank, then wait in HALT -------------------
-frame = 0
+frame_ = 0
 DO
-  WaitVsync()
+  FRAME
 
   ' soft scroll: the whole pixels in the CRTC start word, the rest in SSCR
   p = p + SCROLL_SPEED
   w = (p + 15) >> 4
-  scrDx = (0 - p) BAND 15
+  scrDx = (0 - p) AND 15
   IF w <> wOld THEN
     LandscapeWord(CAST(UINTEGER, w * 2 + 78))
     wOld = w
   END IF
-  SplitScreen(SPLIT_LINE, $C000 + ((w * 2) BAND 2047))
+  SplitScreen(SPLIT_LINE, &C000 + ((w * 2) AND 2047))
 
   MoveSprites()
 
   ' colour cycling: the title's and the stars' pen round the rainbow, the
   ' bars' colours shift down the screen
-  n = (frame * 2) MOD 96
+  n = (frame_ * 2) MOD 96
   SetPalette12(1, Rainbow(n))
-  barPhase = (frame BAND 63)
+  barPhase = (frame_ AND 63)
 
-  frame = frame + 1
+  frame_ = frame_ + 1
   ScanKeys()
 #ifdef DEMO_FRAMES
-  IF frame = DEMO_FRAMES THEN EXIT DO
+  IF frame_ = DEMO_FRAMES THEN EXIT DO
 #endif
 #ifdef SHOT
-  IF frame = SHOT THEN EXIT DO
+  IF frame_ = SHOT THEN EXIT DO
 #endif
 LOOP UNTIL KeyDown(KEY_ESC)
 

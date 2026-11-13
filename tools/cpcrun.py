@@ -8,6 +8,7 @@ headlessly, and print whatever it sent to the (virtual) printer.
                       [--bare] [--cold]
                       [--disk-file NAME=PATH ...]                   (Caprice32 only)
     cpcrun.py --cpr FILE.cpr [--model plus] [--timeout S] [--type TEXT ...]   (Caprice32 only)
+    cpcrun.py prog.bas|prog.dsk|prog.bin --window [--model 464|664|6128|plus]  (Caprice32 window)
 
 --disk-file NAME=PATH puts PATH on the DSK as the AMSDOS file NAME (8.3, upper
 case; cpcbas's --dsk-add stores the bytes as they are, with no AMSDOS header),
@@ -73,6 +74,16 @@ The program's origin: --org ADDR (e.g. 0x40) is passed to cpcbas as --org; with
 no --org cpcbas uses its own default. cpcbas writes the AMSDOS header (load and
 exec address) and the DSK file itself; the origin it actually compiled for is
 read back from the memory map it writes (-M, `.core.__START_PROGRAM`).
+
+--window (what `make run` does) opens Caprice32 in a window instead of running
+headless, and leaves it open until you close it: no timeout, no printer capture
+(the program is compiled without -D __CPC_PRINTER_ECHO__), sound as in your
+cap32.cfg. The program may be a .bas (compiled to a disc with cpcbas), a .dsk
+(the first runnable file of its directory is typed: a .BAS, a .BIN or a name with
+no extension) or a .bin (an AMSDOS-headered one such as cpcbas -o writes, or a
+raw image loaded and started at --org, default 0x40). --cpcbas-arg, --org and
+--bare apply to a .bas; --model chooses the machine (plus needs the system
+cartridge's F1 key pressed, which the run does). --emu must be cap32.
 
 --cpcbas-arg replaces the old --zxbc-arg, which is now an error.
 
@@ -227,7 +238,7 @@ def read_origin(map_path: Path) -> int:
 
 
 def compile_program(bas_path: Path, out: Path, extra_args: list[str], env: dict[str, str],
-                    dsk_files: list[tuple[str, Path]] | None = None) -> int:
+                    dsk_files: list[tuple[str, Path]] | None = None, echo: bool = True) -> int:
     """Compile with cpcbas; returns the origin it used (see read_origin).
 
     `out` ending in .dsk makes a disc (`-f dsk`, `--dsk-add NAME=PATH` for each
@@ -243,7 +254,9 @@ def compile_program(bas_path: Path, out: Path, extra_args: list[str], env: dict[
         # letters and digits (see amsdos_stem), so build from a one-line wrapper so named.
         source = out.parent / f"{amsdos_stem(bas_path)}.bas"
         source.write_text(f'#include "{bas_path.resolve()}"\n')
-    cmd = ["node", str(cli), str(source), "-D", "__CPC_PRINTER_ECHO__", "-M", str(map_path), "-o", str(out)]
+    cmd = ["node", str(cli), str(source), "-M", str(map_path), "-o", str(out)]
+    if echo:
+        cmd += ["-D", "__CPC_PRINTER_ECHO__"]
     if out.suffix == ".dsk":
         cmd += ["-f", "dsk"]
     for name, path in dsk_files or []:
@@ -256,6 +269,74 @@ def compile_program(bas_path: Path, out: Path, extra_args: list[str], env: dict[
         raise BuildError(f"cpcbas exited {proc.returncode}")
     sys.stderr.write(proc.stderr)  # warnings
     return read_origin(map_path)
+
+
+def dsk_first_program(dsk: Path) -> str:
+    """The name to run" for a disc: the first user-0 file of its directory that is a
+    .BAS, a .BIN or has no extension (the directory is track 0's sectors with the
+    lowest IDs, four of them: 64 entries of 32 bytes)."""
+    data = dsk.read_bytes()
+    if not data.startswith((b"MV - CPC", b"EXTENDED")):
+        raise BuildError(f"{dsk}: not a DSK file")
+    track = data[0x100:0x100 + 0x100 + 0x1200 * 2]
+    nsect = track[0x15]
+    sectors = []  # (sector id, size, offset in the track block)
+    off = 0x100
+    for i in range(nsect):
+        info = track[0x18 + 8 * i:0x20 + 8 * i]
+        size = 128 << info[3]
+        sectors.append((info[2], size, off))
+        off += size
+    entries = b"".join(data[0x100 + o:0x100 + o + n] for _, n, o in sorted(sectors)[:4])
+    for i in range(0, len(entries), 32):
+        e = entries[i:i + 32]
+        name, ext = e[1:9].rstrip(b" ").decode("latin-1"), bytes(b & 0x7F for b in e[9:12]).rstrip(b" ").decode("latin-1")
+        if e[0] == 0 and e[12] == 0 and name and ext in ("", "BAS", "BIN") and not e[10] & 0x80:
+            return name
+    raise BuildError(f"{dsk}: no .BAS or .BIN file to run")
+
+
+def dsk_from_bin(bin_path: Path, dsk_path: Path, org: str | None, env: dict[str, str]) -> str:
+    """Put a .bin on a disc; returns the name to run". An AMSDOS header (a
+    checksum over its first 67 bytes) gives the load and entry addresses; a raw
+    image is loaded and started at org (default 0x40)."""
+    data = bin_path.read_bytes()
+    load = entry = int(org, 0) if org else 0x40
+    if len(data) > 128 and data[0] == 0 and sum(data[:67]) & 0xFFFF == int.from_bytes(data[67:69], "little"):
+        load = int.from_bytes(data[21:23], "little")
+        entry = int.from_bytes(data[26:28], "little")
+        data = data[128:]
+    raw = dsk_path.with_suffix(".raw")
+    raw.write_bytes(data)
+    stem = amsdos_stem(bin_path)
+    cmd = ["node", str(cpcbas_dir() / CPCBAS_CLI), "dsk", "-o", str(dsk_path), f"{stem}.BIN={raw}@{load:#x}:{entry:#x}"]
+    proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
+    if proc.returncode != 0:
+        raise BuildError(f"cpcbas dsk failed: {proc.stdout}{proc.stderr}")
+    return stem
+
+
+def run_window(dsk_path: Path, name: str, model: str, tmpdir: Path) -> int:
+    """Caprice32 in a window, running `name` from the disc until the user closes it."""
+    cap32 = cap32_bin()
+    if not cap32.exists():
+        raise BuildError(f"cap32 not found at {cap32} (set CAP32=/path/to/cap32)")
+    cfg = cap32.parent / "cap32.cfg"
+    tmpl = cap32.parent / "cap32.cfg.tmpl"
+    if not cfg.exists() and tmpl.exists():
+        cfg = tmpdir / "cap32.cfg"
+        cfg.write_text(tmpl.read_text().replace("__SHARE_PATH__", str(cap32.parent)))
+    cmd = [str(cap32)]
+    if cfg.exists():
+        cmd += ["-c", str(cfg)]
+    cmd += ["-O", f"system.model={MODELS[model]}",
+            "-O", f"system.ram_size={64 if model in ('464', '664') else 128}"]
+    if model != "plus":
+        cmd += ["-O", "rom.slot07=amsdos.rom"]
+    else:
+        cmd += ["-O", f"system.boot_time={PLUS_BOOT_TIME}", "-a", "CPC_F1", "-a", "CAP32_DELAY"]
+    cmd += ["-a", f'run"{name}', str(dsk_path)]
+    return subprocess.run(cmd, env=subprocess_env()).returncode
 
 
 class BuildError(Exception):
@@ -534,6 +615,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--disk-file", dest="disk_files", action="append", default=[], metavar="NAME=PATH",
                         help="put PATH on the DSK as AMSDOS file NAME (repeatable; Caprice32 only, chips has no disc)")
+    parser.add_argument("--window", action="store_true",
+                        help="open Caprice32 in a window and leave it to you (program: .bas, .dsk or .bin; no capture, no timeout)")
     parser.add_argument("--bare", action="store_true", help="compile with -D CPC_BAREMETAL (bare-metal runtime)")
     parser.add_argument("--cold", action="store_true",
                         help="--emu chips: cold start, no firmware (junk RAM, ROMs out, jump to the entry); implies a bare build is expected")
@@ -551,6 +634,9 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--zxbc-arg is gone (the compiler is cpcbas now): use --cpcbas-arg")
     if args.model is None:
         args.model = "plus" if args.cpr else "6128"
+    if args.window and (args.emu != "cap32" or args.cpr or args.typed or args.shot or args.shot_dir or args.shot_at is not None
+                        or args.expect or args.disk_files or args.cold or args.end_on_marker):
+        parser.error("--window opens Caprice32 for a program (.bas, .dsk or .bin): it takes no other run options")
     if args.model == "plus" and args.emu == "chips":
         parser.error("chips has no Plus: --model plus needs --emu cap32")
     if args.cpr:
@@ -610,6 +696,24 @@ def main(argv: list[str] | None = None) -> int:
         printer_out = tmpdir / "printer.dat"
         shot_tmp = tmpdir / "shots"
         stem = amsdos_stem(bas_path) if bas_path else ""
+
+        if args.window:
+            try:
+                suffix = bas_path.suffix.lower()
+                if suffix == ".dsk":
+                    dsk_path = bas_path
+                    stem = dsk_first_program(dsk_path)
+                elif suffix == ".bin":
+                    stem = dsk_from_bin(bas_path, dsk_path, args.org, env)
+                elif suffix == ".bas":
+                    compile_program(bas_path, dsk_path, args.cpcbas_args, env, echo=False)
+                else:
+                    raise BuildError(f"{bas_path}: --window takes a .bas, .dsk or .bin")
+                print(f"cpcrun.py: Caprice32 window, run\"{stem}; close the window to finish", file=sys.stderr)
+                return run_window(dsk_path, stem, args.model, tmpdir)
+            except BuildError as exc:
+                print(f"cpcrun.py: {exc}", file=sys.stderr)
+                return 1
 
         if bas_path is not None:
             try:

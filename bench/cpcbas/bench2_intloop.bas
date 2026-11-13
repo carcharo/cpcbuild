@@ -39,7 +39,7 @@ END ASM
 LET s = 0
 FOR i = 1 TO 1500
   LET s = s + i
-  LET s = s bAND 8191
+  LET s = s AND 8191
   IF s > 4096 THEN LET s = s - 1
 NEXT i
 

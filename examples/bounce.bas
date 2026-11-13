@@ -8,7 +8,7 @@
 ' Runs at 25 updates a second (every other frame): each ball is erased
 ' with one TileRestore call and drawn with one PutSpriteMasked.
 '
-'   zxbasic/tools/cpc/run.sh cpcbuild/examples/bounce.bas
+'   make run PROG=examples/bounce.bas
 '
 ' Sound (Arkos Tracker, lib/music/music.bas): a looping four-bar tune on
 ' AY channels B (melody) and C (bass), played from the frame interrupt (so
@@ -27,8 +27,8 @@
 '
 ' Benchmark: built with -D BENCH it runs 250 updates, then prints the
 ' rate, timed with Frames() (the firmware clock stops in game mode;
-' headless: tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D
-' --zxbc-arg=BENCH).
+' headless: tools/cpcrun.py examples/bounce.bas --cpcbas-arg=-D
+' --cpcbas-arg=BENCH --emu chips).
 '
 ' Screenshot test: -D SHOT=n runs n updates, takes a program-triggered
 ' screenshot (tests/screens/lib/shot.bas; tests/screens/run.py) and ENDs.
@@ -141,15 +141,15 @@ SUB TopUpMusic()
   DIM r, ch AS UBYTE
   DO WHILE SoundFree(2) > 0
     ch = 2
-    IF (mi BAND 7) = 0 THEN ch = 2 + 32
+    IF (mi AND 7) = 0 THEN ch = 2 + 32
     r = SoundQueue(ch, mel(mi), 16, 13, 2)
-    mi = (mi + 1) BAND 31
+    mi = (mi + 1) AND 31
   LOOP
   DO WHILE SoundFree(4) > 0
     ch = 4
-    IF (bi BAND 3) = 0 THEN ch = 4 + 16
+    IF (bi AND 3) = 0 THEN ch = 4 + 16
     r = SoundQueue(ch, bas(bi), 32, 14, 0)
-    bi = (bi + 1) BAND 15
+    bi = (bi + 1) AND 15
   LOOP
 END SUB
 #endif
@@ -202,14 +202,14 @@ p = @st(0)
 FOR i = 0 TO NBALLS - 1
   POKE p + BX, 6 + i * 8
   POKE p + BY, 12 + i * 20
-  IF i bAND 1 THEN POKE p + VX, 255 ELSE POKE p + VX, 1
+  IF i AND 1 THEN POKE p + VX, 255 ELSE POKE p + VX, 1
   POKE p + VY, 2 + (i MOD 3)
   POKE p + OX, 255
   POKE p + OX + 1, 255
-  POKE UINTEGER p + SPR, @balls(CAST(UINTEGER, i MOD 3) * balls_SIZE)
+  POKE UINTEGER, p + SPR, @balls(CAST(UINTEGER, i MOD 3) * balls_SIZE)
 #ifndef NOSOUND
 #ifdef FWSOUND
-  POKE UINTEGER p + PER, ballPer(i)
+  POKE UINTEGER, p + PER, ballPer(i)
 #else
   POKE p + PER, 1 + (i >> 1)
 #endif
@@ -296,7 +296,7 @@ DO
 #ifdef FWSOUND
 #ifndef NOMUSIC
   tk = tk + 1
-  IF (tk BAND 7) = 0 THEN TopUpMusic()
+  IF (tk AND 7) = 0 THEN TopUpMusic()
 #endif
 #endif
 #ifdef BENCH

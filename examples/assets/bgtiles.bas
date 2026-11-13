@@ -4,18 +4,18 @@
 ' Do not edit; regenerate it from the source image (command above).
 
 DIM bgtiles(95) AS UBYTE => { _
-    $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $84, $C0, $C0, _
-    $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, $C0, _
-    $03, $03, $03, $02, $FC, $FC, $FC, $A8, $FC, $FC, $FC, $A8, $00, $00, $00, $00, _
-    $03, $02, $03, $03, $FC, $A8, $FC, $FC, $FC, $A8, $FC, $FC, $00, $00, $00, $00, _
-    $CC, $0C, $0C, $0C, $CC, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, _
-    $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C, $0C _
+    &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &84, &C0, &C0, _
+    &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, &C0, _
+    &03, &03, &03, &02, &FC, &FC, &FC, &A8, &FC, &FC, &FC, &A8, &00, &00, &00, &00, _
+    &03, &02, &03, &03, &FC, &A8, &FC, &FC, &FC, &A8, &FC, &FC, &00, &00, &00, &00, _
+    &CC, &0C, &0C, &0C, &CC, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, _
+    &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C, &0C _
 }
 
 CONST bgtiles_COUNT AS UBYTE = 3
 
 DIM bgtiles_pal(15) AS UBYTE => { _
-    $00, $01, $02, $0B, $14, $1A, $03, $06, $0F, $18, $09, $12, $04, $08, $0D, $0A _
+    &00, &01, &02, &0B, &14, &1A, &03, &06, &0F, &18, &09, &12, &04, &08, &0D, &0A _
 }
 
 CONST bgtiles_PENS AS UBYTE = 16
