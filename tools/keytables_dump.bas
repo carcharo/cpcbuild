@@ -7,6 +7,7 @@ REM character; keypad expansion tokens become the first character of their
 REM string). The source of the tables in runtime io/keyboard/kbare.asm and of
 REM the EXPECTED data in tests/conformance/keytables.bas (255 = no character
 REM and the raw 253/254 for the CAPS LOCK key).
+#require "io/keyboard/kscan.asm"
 FUNCTION FASTCALL Raw(v AS UINTEGER) AS UINTEGER
   ASM
   ld a, l
