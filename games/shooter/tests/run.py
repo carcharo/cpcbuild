@@ -77,7 +77,7 @@ VARIANTS = ("fw", "bare", "cold")   # firmware, bare-metal, bare-metal cold star
 VFLAGS = {"fw": [], "bare": ["--bare"], "cold": ["--bare", "--cold"]}
 ORG = "0x40"
 
-# name -> extra zxbc defines
+# name -> extra cpcbas defines
 SHOTS = {
     "title": ["SHOT=60"],
     "play": ["DEMO", "SHOT=170"],
@@ -96,8 +96,11 @@ def cpcrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir:
         cmd += ["--shot-dir", str(shot_dir), "--quiet"]
     if prog.name == "main.bas":
         defines = [*defines, "NODISC"]   # chips has no disc (BankLoad would hang)
+        if model == "6128" and variant != "fw":
+            # the bare 6128 build is over &4000 at -O2 (build_cpc.sh builds it with -Os too)
+            cmd += ["--cpcbas-arg=-Os"]
     for d in defines:
-        cmd += ["--zxbc-arg=-D", f"--zxbc-arg={d}"]
+        cmd += ["--cpcbas-arg=-D", f"--cpcbas-arg={d}"]
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout * 4 + 120)
 
 
@@ -184,7 +187,7 @@ def build_cart(bas: Path, defines: list[str], tmp: Path) -> Path:
     binf = tmp / "prog.bin"
     org = cpcrun_mod.compile_program(bas, binf, args, env)
     cpr = tmp / "prog.cpr"
-    cpr.write_bytes(mkcpr.build_cpr(binf.read_bytes(), org))
+    cpr.write_bytes(mkcpr.build_cpr(binf.read_bytes()[128:], org))   # cpcbas's .bin has a 128-byte AMSDOS header
     return cpr
 
 
@@ -202,11 +205,10 @@ def plus_run(bas: Path, variant: str, defines: list[str], timeout: float, shot_d
                 cpcrun_mod.run_emulator(None, "", printer, timeout, env, "plus", None, False, cpr,
                                         shot_dir, shot_wait)
             else:
-                binf, dsk = tmp / "prog.bin", tmp / "prog.dsk"
+                dsk = tmp / "prog.dsk"
                 args = ["--org", ORG] + [x for d in [*defines, *(["SHOT_HOLD"] if shot_dir else [])] for x in ("-D", d)]
-                org = cpcrun_mod.compile_program(bas, binf, args, env)
+                cpcrun_mod.compile_program(bas, dsk, args, env)
                 stem = cpcrun_mod.amsdos_stem(bas)
-                cpcrun_mod.pack_dsk(binf, dsk, stem, env, org)
                 cpcrun_mod.run_emulator(dsk, stem, printer, timeout, env, "plus", None, False, None,
                                         shot_dir, shot_wait)
         except cpcrun_mod.TimeoutHit:
@@ -302,7 +304,7 @@ def cpcec_run(bas: Path, defines: list[str], timeout: float, shot_dir: Path | No
     if shot_dir:
         cmd += ["--shot-dir", str(shot_dir), "--quiet"]
     for d in [*PLUS_FLAGS["cart"], *defines]:
-        cmd += ["--zxbc-arg=-D", f"--zxbc-arg={d}"]
+        cmd += ["--cpcbas-arg=-D", f"--cpcbas-arg={d}"]
     return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout * 4 + 120)
 
 
