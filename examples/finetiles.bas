@@ -16,7 +16,7 @@
 '
 ' Benchmark: built with -D BENCH it runs 250 updates, then prints the
 ' rate, timed with Frames() (headless: tools/cpcrun.py
-' examples/finetiles.bas --zxbc-arg=-D --zxbc-arg=BENCH).
+' examples/finetiles.bas --cpcbas-arg=-D --cpcbas-arg=BENCH --emu chips).
 '
 ' Screenshot test: -D SHOT=n runs n updates, takes a program-triggered
 ' screenshot (tests/screens/lib/shot.bas; tests/screens/run.py) and ENDs.

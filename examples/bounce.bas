@@ -8,7 +8,7 @@
 ' Runs at 25 updates a second (every other frame): each ball is erased
 ' with one TileRestore call and drawn with one PutSpriteMasked.
 '
-'   zxbasic/tools/cpc/run.sh cpcbuild/examples/bounce.bas
+'   make run PROG=examples/bounce.bas
 '
 ' Sound (Arkos Tracker, lib/music/music.bas): a looping four-bar tune on
 ' AY channels B (melody) and C (bass), played from the frame interrupt (so
@@ -27,8 +27,8 @@
 '
 ' Benchmark: built with -D BENCH it runs 250 updates, then prints the
 ' rate, timed with Frames() (the firmware clock stops in game mode;
-' headless: tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D
-' --zxbc-arg=BENCH).
+' headless: tools/cpcrun.py examples/bounce.bas --cpcbas-arg=-D
+' --cpcbas-arg=BENCH --emu chips).
 '
 ' Screenshot test: -D SHOT=n runs n updates, takes a program-triggered
 ' screenshot (tests/screens/lib/shot.bas; tests/screens/run.py) and ENDs.
