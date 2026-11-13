@@ -1,15 +1,20 @@
-REM Screen test: mode 1 text with INK/PAPER (Spectrum colours 0-7).
+REM Screen test: mode 1 text in eight pen pairs: the pens that CPCBuild 0.1.x gave
+REM the Spectrum colours 0-7 in this mode (mapped by hand: INK c; PAPER 7 - c).
 #include <cpc.bas>
 #include "lib/shot.bas"
 
 DIM c AS UBYTE
+DIM pens(7) AS UBYTE => {0, 0, 3, 3, 2, 2, 1, 1}
 Mode 1
 BORDER 1
+PEN pens(7): PAPER pens(0)
 PRINT AT 0, 0; "MODE 1 TEXT"
 FOR c = 0 TO 7
-  PRINT AT 2 + c, 0; INK c; PAPER 7 - c; "INK "; c; " PAPER "; 7 - c; " ";
+  PEN pens(c): PAPER pens(7 - c)
+  PRINT AT 2 + c, 0; "INK "; CHR$(48 + c); " PAPER "; CHR$(55 - c); " ";
 NEXT c
-PRINT AT 11, 0; INK 7; PAPER 0; "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+PEN pens(7): PAPER pens(0)
+PRINT AT 11, 0; "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 PRINT AT 12, 0; "abcdefghijklmnopqrstuvwxyz"
 PRINT AT 13, 0; "0123456789 !#$%&'()*+,-./:;<=>?@"
 Shot("mode1text")
