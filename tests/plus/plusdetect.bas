@@ -10,7 +10,7 @@ REM (a 6128 does not survive this program: it resets without the END marker)
 DIM seen AS UBYTE
 DIM plain AS UBYTE
 
-POKE 16384, $5A
+POKE 16384, &5A
 plain = PEEK(16384)
 
 ASM
@@ -38,6 +38,6 @@ plusdetect_go:
     ei
 END ASM
 
-IF plain = $5A THEN PRINT "PASS ram_poke": ELSE PRINT "FAIL ram_poke got="; plain
-IF seen <> $5A THEN PRINT "PASS asic_paged_in": ELSE PRINT "FAIL asic_paged_in got="; seen
+IF plain = &5A THEN PRINT "PASS ram_poke": ELSE PRINT "FAIL ram_poke got="; plain
+IF seen <> &5A THEN PRINT "PASS asic_paged_in": ELSE PRINT "FAIL asic_paged_in got="; seen
 PRINT "DONE"

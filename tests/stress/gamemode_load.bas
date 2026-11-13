@@ -1,6 +1,6 @@
 REM Interrupt load in game mode (Phase 5b). Companion of sound_load.bas.
-REM   python3 tools/cpcrun.py tests/stress/gamemode_load.bas --timeout 300
-REM (and --model 464, --emu chips|cap32). Not part of the conformance suite.
+REM   make test-stress   (python3 tests/stress/run.py -k gamemode_load)
+REM (and --model 464). Not part of the conformance suite.
 REM
 REM The reference busy loop (20 x 50000 passes of 28 T = 7 s with no
 REM interrupts, nominal 350 frames) is timed with Frames(), since the
@@ -11,7 +11,7 @@ REM   game, no hook
 REM   game, trivial hook   (RET only, then one that counts)
 REM Load = 1 - 350 / frames.
 
-#include "../conformance/lib/fhlib.bas"
+#include <fhlib.bas>
 
 CONST NOMINAL AS ULONG = 350
 

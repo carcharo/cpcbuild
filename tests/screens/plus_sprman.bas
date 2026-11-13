@@ -1,5 +1,5 @@
-REM Screen test (CPC Plus): the sprite slot manager (lib/cpcplus/sprman.bas). Mode 1 with four
-REM 12-bit pens, the sprite sheet tests/conformance/assets/plus_ball.png (unpacked and packed).
+REM Screen test (CPC Plus): the sprite slot manager (cpcplus/sprman.bas). Mode 1 with four
+REM 12-bit pens, the sprite sheet plus_ball of the conformance assets (unpacked and packed).
 REM The manager owns slots 2-7; slot 0 is the program's own (SpriteSetImage). Steps: four
 REM allocations (disc, disc, diamond, packed disc) and one flush of 2 uploads (two sprites
 REM wait), the rest flushed with positions set while they waited, a free and a re-allocation of
@@ -12,12 +12,17 @@ REM nothing and the program writes NO PLUS.
 #include <cpcbuild/display.bas>
 #include <cpcbuild/fill.bas>
 #include <cpcplus/sprman.bas>
-#include "../conformance/assets/plus_ball.bas"
-#include "../conformance/assets/plus_ballpk.bas"
+#include <plus_ball.bas>
+#include <plus_ballpk.bas>
 #include "lib/shot.bas"
 
 DIM a, b, c, d, e, f, g AS UBYTE
 DIM up1, up2, up3, up4 AS UINTEGER
+
+REM A number prints with a sign position now: Num gives the digits only, as 0.1.x printed them
+FUNCTION Num(v AS LONG) AS STRING
+  RETURN MID$(STR$(v), 2)
+END FUNCTION
 
 Mode 1
 ScreenInit()
@@ -25,11 +30,11 @@ CLS
 FillRect(0, 0, 80, 100, 0)
 FillRect(0, 100, 40, 100, 2)
 FillRect(40, 100, 40, 100, 3)
-SetPalette12(0, $0126)
-SetPalette12(1, $0FE8)
-SetPalette12(2, $0A3C)
-SetPalette12(3, $04D6)
-SetBorder12($0F61)
+SetPalette12(0, &0126)
+SetPalette12(1, &0FE8)
+SetPalette12(2, &0A3C)
+SetPalette12(3, &04D6)
+SetBorder12(&0F61)
 PRINT AT 0, 1; "SPRITE MANAGER"
 IF PlusAvailable() = 0 THEN
   PRINT AT 24, 1; "NO PLUS"
@@ -70,8 +75,8 @@ g = SprAlloc(@plusball(256))
 SprMove(g, 300, 130)
 SprFlush(9)
 
-PRINT AT 2, 1; "UP "; up1; " "; up2; " "; up3; " "; up4; " "; SprUploads()
-PRINT AT 3, 1; "SLOTS "; a; " "; b; " "; c; " "; d; " "; e; " "; f; " "; g
-PRINT AT 4, 1; "FULL "; SprAlloc(@plusball(0)); " PEND "; SprPending()
+PRINT AT 2, 1; "UP "; Num(up1); " "; Num(up2); " "; Num(up3); " "; Num(up4); " "; Num(SprUploads())
+PRINT AT 3, 1; "SLOTS "; Num(a); " "; Num(b); " "; Num(c); " "; Num(d); " "; Num(e); " "; Num(f); " "; Num(g)
+PRINT AT 4, 1; "FULL "; Num(SprAlloc(@plusball(0))); " PEND "; Num(SprPending())
 WaitRetrace(60)
 Shot("plus_sprman")

@@ -19,7 +19,7 @@ Makefile's test-plus does).
 
 A test file may say, in REM lines:
   REM SOURCE: path     compile that file (relative to the test) instead
-  REM ZXBC: args       extra zxbc arguments (one REM ZXBC: line per
+  REM CPCBAS: args     extra cpcbas arguments (one REM CPCBAS: line per
                        argument group, split on spaces; repeatable)
   REM BARE: skip why   not run with --bare (needs the firmware)
 
@@ -45,6 +45,7 @@ Usage: run.py [--update] [--emu chips|cpcec] [--model 464|6128|plus] [-k PATTERN
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shlex
 import subprocess
@@ -56,13 +57,18 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 HERE = Path(__file__).resolve().parent
+# The shared test assets (plus_ball.bas ...) and helpers live in the cpcbas checkout's tests/conformance
+# (assets/, lib/): $CPCBAS, else the sibling ../cpcbas, as tools/cpcrun.py finds it. Only these two
+# folders are include paths: tests/conformance itself has programs named like the library's files.
+CPCBAS = Path(os.environ["CPCBAS"]) if os.environ.get("CPCBAS") else HERE.parent.parent.parent / "cpcbas"
+SHARED_INCLUDES = [str(CPCBAS.resolve() / "tests" / "conformance" / d) for d in ("assets", "lib")]
 CPCRUN = HERE.parent.parent / "tools" / "cpcrun.py"
 GOLDEN = HERE / "golden"
 MODELS = ("464", "6128")
 ALL_MODELS = (*MODELS, "plus")
 
 SOURCE_RE = re.compile(r"^\s*REM\s+SOURCE:\s*(\S.*?)\s*$", re.IGNORECASE)
-ZXBC_RE = re.compile(r"^\s*REM\s+ZXBC:\s*(\S.*?)\s*$", re.IGNORECASE)
+CPCBAS_RE = re.compile(r"^\s*REM\s+CPCBAS:\s*(\S.*?)\s*$", re.IGNORECASE)
 BARE_SKIP_RE = re.compile(r"^\s*REM\s+BARE:\s*skip\b", re.IGNORECASE)
 
 
@@ -72,7 +78,7 @@ def spec(bas: Path) -> tuple[Path, list[str]]:
         m = SOURCE_RE.match(line)
         if m:
             source = (bas.parent / m.group(1)).resolve()
-        m = ZXBC_RE.match(line)
+        m = CPCBAS_RE.match(line)
         if m:
             args += shlex.split(m.group(1))
     return source, args
@@ -109,8 +115,8 @@ def run_test(bas: Path, model: str, timeout: float, update: bool, org: str | Non
             cmd.append("--bare")
         if cold:
             cmd.append("--cold")
-        for a in zargs:
-            cmd.append(f"--zxbc-arg={a}")
+        for a in [*(x for d in SHARED_INCLUDES for x in ("-I", d)), *zargs]:
+            cmd.append(f"--cpcbas-arg={a}")
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout * 4 + 120)
         if proc.returncode != 0:
             return [("ERROR", label, f"cpcrun exit {proc.returncode}: {proc.stderr.strip()[-300:]}")]

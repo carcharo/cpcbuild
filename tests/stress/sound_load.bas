@@ -1,5 +1,5 @@
 REM Interrupt load of the firmware sound manager on the CPC (Phase 5 sound).
-REM   python3 tools/cpcrun.py tests/stress/sound_load.bas --timeout 120
+REM   make test-stress   (python3 tests/stress/run.py -k sound_load)
 REM (and --model 464). Not part of the conformance suite (about 40 s).
 REM
 REM The firmware's 300 Hz interrupt handler also runs the sound manager,
@@ -51,7 +51,7 @@ SUB Report(name AS STRING, t AS ULONG)
   PRINT "INFO "; name; " ticks="; t; " load="; pm / 10; "."; pm MOD 10; "%"
 END SUB
 
-DIM env(2) AS UBYTE = {100, 255, 1}
+DIM env_(2) AS UBYTE = {100, 255, 1}
 DIM r, ch, v, v0, n AS UBYTE
 DIM t AS ULONG
 
@@ -65,7 +65,7 @@ r = SoundQueue(4, 400, 1500, 12, 0)
 Report("notes", RefLoop())
 SoundStop
 
-SoundEnvelope 1, @env(0), 1
+SoundEnvelope 1, @env_(0), 1
 REM duration 65536 - 20: run the envelope (1 s) 20 times
 r = SoundQueue(1, 200, 65516, 15, 1)
 r = SoundQueue(2, 300, 65516, 15, 1)

@@ -15,11 +15,11 @@ DIM i AS UBYTE
 Mode 1
 ScreenInit()
 CLS
-SetPalette12(0, $0124)
-SetPalette12(1, $0FE6)
-SetPalette12(2, $0C3A)
-SetPalette12(3, $03DB)
-SetBorder12($0F73)
+SetPalette12(0, &0124)
+SetPalette12(1, &0FE6)
+SetPalette12(2, &0C3A)
+SetPalette12(3, &03DB)
+SetBorder12(&0F73)
 IF PlusAvailable() = 0 THEN
   PRINT AT 1, 1; "NO PLUS"
 END IF
@@ -46,7 +46,7 @@ FillRect(30, 40, 20, 24, 3)
 PRINT AT 2, 2; "PLUS SPLIT + SOFT SCROLL"
 PRINT AT 6, 2; "TOP: SCREEN AT C000"
 
-SplitScreen(96, $4000)
+SplitScreen(96, &4000)
 ScrollFine(5, 3)
 ScrollBorder(1)
 WaitRetrace(60)

@@ -5,7 +5,7 @@ REM with pen 0) shows twelve horizontal bands of a smooth colour ramp, the borde
 REM same; the frame hook restores the first colour for the next frame. The handler's
 REM two palette writes take about two scan lines, so each band starts a little after
 REM its line; the picture is the same every frame.
-REM ZXBC: -D CPC_BAREMETAL
+REM CPCBAS: -D CPC_BAREMETAL
 #include <cpc.bas>
 #include <framehook.bas>
 #include <cpcbuild/display.bas>
@@ -68,7 +68,7 @@ Mode 1
 ScreenInit()
 CLS
 FillRect(0, 0, 80, 200, 0)
-SetPalette12(1, $0FFF)
+SetPalette12(1, &0FFF)
 PRINT AT 11, 6; "CPC PLUS RASTER BARS";
 IF PlusAvailable() = 0 THEN
   PRINT AT 1, 1; "NO PLUS"

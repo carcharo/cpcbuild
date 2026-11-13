@@ -1,6 +1,6 @@
-REM Stress test: the interrupt front-end (Phase 4d, zxbasic isr.asm).
+REM Stress test: the interrupt front-end (Phase 4d).
 REM Not part of the conformance suite (it runs for minutes). Run with
-REM   python3 tools/cpcrun.py tests/stress/isr_stress.bas --timeout 900
+REM   make test-stress   (python3 tests/stress/run.py -k isr_stress)
 REM (and --model 464). Loops until MINUTES of the firmware's clock have
 REM passed, each pass mixing everything that touches interrupts:
 REM   - an alternate-register-heavy workload (SUBs with parameters, 32-bit,
@@ -12,9 +12,8 @@ REM     ClearScreen (PUSH fill in interrupt-safe chunks);
 REM   - a frame flyback event counting frames, which must match the clock.
 REM Prints "FAIL ..." on any mismatch, then a summary and DONE.
 
-#include <alloc.bas>
 #include <cpcbuild.bas>
-#include "../conformance/lib/chk.bas"
+#include <chk.bas>
 
 CONST MINUTES AS ULONG = 3
 
@@ -66,7 +65,7 @@ SUB FASTCALL PutCh(c AS UBYTE)
 END SUB
 
 FUNCTION Mix(a AS ULONG, b AS UINTEGER, c AS UBYTE) AS ULONG
-  RETURN (a * 3 + b) bXOR (CAST(ULONG, c) << 5)
+  RETURN (a * 3 + b) XOR (CAST(ULONG, c) << 5)
 END FUNCTION
 
 DIM wAcc AS ULONG
@@ -79,7 +78,7 @@ SUB Work(n AS UINTEGER)
   wF = 1.5
   wX = 0.25
   FOR i = 1 TO n
-    wAcc = Mix(wAcc, i, i bAND 255)
+    wAcc = Mix(wAcc, i, i AND 255)
     wF = wF * 0.999 + SIN(wF) / 7
     wX = wX * 0.75 + 0.5
   NEXT i
@@ -99,12 +98,13 @@ Work(20)
 refA = wAcc : refF = wF : refX = wX
 EnableInts()
 
-buf = allocate(32)
-POKE UINTEGER buf + 10, 0
-POKE buf + 12, $2A : POKE UINTEGER buf + 13, buf + 10
-POKE buf + 15, $23
-POKE buf + 16, $22 : POKE UINTEGER buf + 17, buf + 10
-POKE buf + 19, $C9
+REM a 32-byte block in the central 32K at a fixed address (the Spectrum library's allocate() is gone)
+buf = &5F00
+POKE UINTEGER, buf + 10, 0
+POKE buf + 12, &2A : POKE UINTEGER, buf + 13, buf + 10
+POKE buf + 15, &23
+POKE buf + 16, &22 : POKE UINTEGER, buf + 17, buf + 10
+POKE buf + 19, &C9
 NewFrameFly(buf, buf + 12)
 
 t0 = Ticks()
@@ -116,10 +116,10 @@ DO
     PRINT "FAIL work pass="; passes
   END IF
   ScanKeys()
-  pal(0) = passes bAND 15
+  pal(0) = passes AND 15
   SetPalette(@pal(0), 4)
-  IF (passes bAND 7) = 0 THEN ClearScreen(passes bAND 3)
-  PutCh(48 + (passes bAND 31))
+  IF (passes AND 7) = 0 THEN ClearScreen(passes AND 3)
+  PutCh(48 + (passes AND 31))
   k$ = INKEY$
   passes = passes + 1
   t = Ticks() - t0
@@ -130,6 +130,6 @@ DelFrameFly(buf)
 
 PRINT
 PRINT "INFO passes="; passes; " ticks="; t; " frames="; frames
-CHK("no_work_fails", STR$(fails), "0")
-CHK("frames_match", STR$(frames * 6 + t / 100 + 12 >= t AND frames * 6 <= t + t / 100 + 12), "1")
+CHK("no_work_fails", T$(STR$(fails)), "0")
+CHK("frames_match", N$(-(frames * 6 + t / 100 + 12 >= t AND frames * 6 <= t + t / 100 + 12)), "1")
 PRINT "DONE"

@@ -21,13 +21,13 @@ DIM i AS UBYTE
 
 REM A w x h sprite of screen bytes: a frame of the pen, a checker inside it
 REM in the pen + 1 (pen 0 is transparent).
-SUB MakeSprite(addr AS UINTEGER, w AS UBYTE, h AS UBYTE, pen AS UBYTE)
+SUB MakeSprite(addr AS UINTEGER, w AS UBYTE, h AS UBYTE, pen_ AS UBYTE)
   DIM r, c, b AS UBYTE
   FOR r = 0 TO h - 1
     FOR c = 0 TO w - 1
       b = 0
-      IF ((r + c) BAND 1) = 0 THEN b = PenByte(pen + 1)
-      IF r = 0 OR r = h - 1 OR c = 0 OR c = w - 1 THEN b = PenByte(pen)
+      IF ((r + c) AND 1) = 0 THEN b = PenByte(pen_ + 1)
+      IF r = 0 OR r = h - 1 OR c = 0 OR c = w - 1 THEN b = PenByte(pen_)
       POKE addr + CAST(UINTEGER, r) * w + c, b
     NEXT c
   NEXT r

@@ -10,16 +10,20 @@ REM fit the queue left on one screen only); then mode 1, and back to mode 0.
 #include "../../games/shooter/assets/font.bas"
 #include "lib/shot.bas"
 
-DIM ft(font_COUNT * 7 - 1) AS UBYTE
-DIM tiny(7) AS UBYTE => {$FF, $81, $81, $FF, $AA, $55, $AA, $55}
+REM font_COUNT is a UBYTE constant: font_COUNT * 7 would wrap at 256, so it is widened first
+CONST ftBytes AS UINTEGER = CAST(UINTEGER, font_COUNT) * 7
+DIM ft(ftBytes - 1) AS UBYTE
+DIM tiny(7) AS UBYTE => {&FF, &81, &81, &FF, &AA, &55, &AA, &55}
 DIM i AS UINTEGER
 
 REM the game's glyphs have bit 4 leftmost; the library wants bit 7
-FOR i = 0 TO font_COUNT * 7 - 1
+FOR i = 0 TO ftBytes - 1
   ft(i) = font(i) << 3
 NEXT i
 
 Mode 0
+REM 0.1.x cleared mode 0 to the paper pen 5, not pen 0
+PAPER 5: CLS
 ScreenInit()
 BORDER 0
 TextFont(@ft(0), font_FIRST, 7, font_FIRST + font_COUNT - 1)
@@ -52,6 +56,8 @@ Shot("text5x7_m0")
 
 REM double buffering: text drawn now on the back screen, queued for the other
 Mode 0
+REM 0.1.x cleared mode 0 to the paper pen 5, not pen 0
+PAPER 5: CLS
 ScreenInit()
 BORDER 0
 EnableDoubleBuffer()
@@ -95,7 +101,7 @@ REM mode 1: 40 x 25 cells
 DisableDoubleBuffer()
 Mode 1
 ScreenInit()
-BORDER 0
+BORDER 1
 TextFont(@ft(0), font_FIRST, 7, font_FIRST + font_COUNT - 1)
 TextPen(1, 0): TextAt(0, 0, "MODE 1 STARFALL 0123456789 ABCDEFGHIJKLM")
 TextPen(2, 0): TextAt(0, 1, "PEN 2 NOPQRSTUVWXYZ -.:;<=>?@/")
@@ -121,6 +127,8 @@ Shot("text5x7_m1")
 
 REM back to mode 0 without calling TextPen: the pens (3 on 0) come back in mode 0
 Mode 0
+REM 0.1.x cleared mode 0 to the paper pen 5, not pen 0
+PAPER 5: CLS
 ScreenInit()
 BORDER 0
 TextFont(@ft(0), font_FIRST, 7, font_FIRST + font_COUNT - 1)
