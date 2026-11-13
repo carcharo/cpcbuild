@@ -77,5 +77,15 @@ FrameHook(HookAddr())
 FOR k = 0 TO 11
   RasterIntAt(8 + k * 16, BarAddr())
 NEXT k
-WaitRetrace(60)
+REM Where each bar starts depends on the instruction the raster interrupt finds running (up to about 5 us).
+REM Waiting in HALT first puts the 60-frame poll loop in a fixed phase, whatever code came before it.
+ASM
+  halt
+  nop
+  nop
+  nop
+  nop
+  ld bc, 60
+  call .core.__CPC_WAIT_FRAMES
+END ASM
 Shot("plus_rasterbars")
