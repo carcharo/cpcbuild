@@ -27,7 +27,7 @@ run-headless: ## Run a program headless on chips and print what it sent to the p
 shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required, optional MODEL, ORG and DEFS
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
 	mkdir -p build/shots
-	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu chips --model $(MODEL) --shot build/shots/$(basename $(notdir $(PROG))).png $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
+	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu chips --model $(MODEL) --shot build/shots/$(basename $(notdir $(PROG))).png --shot-dir build/shots $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
 
 unit: ## Run the tool unit tests (img2cpc, tmx2bas)
 	$(PYTHON) -m unittest discover -s tests/tools
