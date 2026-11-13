@@ -36,11 +36,11 @@ SUB Fresh()
 END SUB
 
 ' n steps with input inp; the result of the last
-FUNCTION Steps(n AS UBYTE, inp AS UBYTE) AS UBYTE
+FUNCTION Steps(n AS UBYTE, inp_ AS UBYTE) AS UBYTE
   DIM i, r AS UBYTE
   r = 0
   FOR i = 1 TO n
-    r = GameStep(inp)
+    r = GameStep(inp_)
   NEXT i
   RETURN r
 END FUNCTION

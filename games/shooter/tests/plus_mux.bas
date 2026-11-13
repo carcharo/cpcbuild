@@ -131,7 +131,7 @@ END FUNCTION
 
 CONST HID AS UINTEGER = 65408
 
-SUB Frame()
+SUB Frame_()
   PlatFrameBegin()
   GameDraw()
   PlatFrameEnd()
@@ -142,10 +142,10 @@ END SUB
 SUB Observe()
   DIM i AS UBYTE
   FOR i = 1 TO 3
-    Frame()
+    Frame_()
   NEXT i
   LogReset()
-  WaitVsync()
+  FRAME
 END SUB
 
 ' 1 if the three handler entries show rows 1, 2, 3 in order
@@ -168,7 +168,7 @@ FUNCTION Mismatch() AS UBYTE
     IF e = 2 THEN r = 2
     s = 0
     FOR c = 0 TO 5
-      IF (PEEK(@rm(0) + r) BAND bitv(c)) <> 0 THEN
+      IF (PEEK(@rm(0) + r) AND bitv(c)) <> 0 THEN
         x = 4 * (16 + CAST(UINTEGER, FormX(c))) + 0
         IF LX(e, s) <> x THEN bad = bad + 1
         IF LY(e, s) <> CAST(UINTEGER, FormY(r)) + 16 THEN bad = bad + 1
@@ -189,8 +189,8 @@ FUNCTION HasLines(s AS UBYTE, p AS UBYTE, l0 AS UBYTE, l1 AS UBYTE) AS UBYTE
   DIM b, want AS UBYTE
   FOR i = CAST(UINTEGER, l0) * 16 TO CAST(UINTEGER, l1) * 16 + 15
     b = PEEK(@plsprites(0) + CAST(UINTEGER, p) * 128 + (i >> 1))
-    IF (i BAND 1) = 0 THEN want = b >> 4 ELSE want = b BAND 15
-    IF (PlusPeek($4000 + CAST(UINTEGER, s) * 256 + i) BAND 15) <> want THEN RETURN 0
+    IF (i AND 1) = 0 THEN want = b >> 4 ELSE want = b AND 15
+    IF (PlusPeek(&4000 + CAST(UINTEGER, s) * 256 + i) AND 15) <> want THEN RETURN 0
   NEXT i
   RETURN 1
 END FUNCTION
@@ -205,7 +205,7 @@ END FUNCTION
 
 DIM i, k, n AS UBYTE
 DIM bad, worst AS UINTEGER
-DIM inp, st, keys AS UBYTE
+DIM inp_, st, keys AS UBYTE
 
 PlatInit()
 CheckEq("a Plus", PlusAvailable(), 1)
@@ -227,10 +227,10 @@ CheckEq("row 1 y = formation y + 12 + 16", LY(0, 0), gFy + 12 + 16)
 CheckEq("row 2 y", LY(1, 3), gFy + 24 + 16)
 CheckEq("top row y", LY(2, 5), gFy + 16)
 CheckEq("no mismatch with the game's formation", Mismatch(), 0)
-CheckEq("row 1 colours: body", LCol(0, 0) * 256 + LCol(0, 1), $F403)
-CheckEq("row 1 colours: light", LCol(0, 2) * 256 + LCol(0, 3), $F909)
-CheckEq("row 2 colours: body", LCol(1, 0) * 256 + LCol(1, 1), $340E)
-CheckEq("top row colours: body", LCol(2, 0) * 256 + LCol(2, 1), $EE03)
+CheckEq("row 1 colours: body", LCol(0, 0) * 256 + LCol(0, 1), &F403)
+CheckEq("row 1 colours: light", LCol(0, 2) * 256 + LCol(0, 3), &F909)
+CheckEq("row 2 colours: body", LCol(1, 0) * 256 + LCol(1, 1), &340E)
+CheckEq("top row colours: body", LCol(2, 0) * 256 + LCol(2, 1), &EE03)
 CheckEq("raster table: four lines and the frame entry", RiCount(), 5)
 CheckEq("line of the row 1 handler: 6 below the top row", RiLine(0), gFy + 16 + 6)
 CheckEq("line of the row 2 handler", RiLine(1), gFy + 28 + 6)
@@ -277,12 +277,12 @@ Boom(40, 70)
 Boom(60, 120)
 gDive = 2: gDvX = 50: gDvY = 60: gDvPh = 0
 Observe()
-CheckEq("ship x", PlusPeek($6000) + 256 * PlusPeek($6001), 4 * (16 + CAST(UINTEGER, gShipX)))
-CheckEq("diver in slot 1", PlusPeek($6008) + 256 * PlusPeek($6009), 4 * (16 + 50))
-CheckEq("bullet in slot 2", PlusPeek($6010) + 256 * PlusPeek($6011), 4 * (16 + 20))
-CheckEq("bomb in slot 4", PlusPeek($6020) + 256 * PlusPeek($6021), 4 * (16 + 30))
-CheckEq("explosion in slot 7", PlusPeek($6038) + 256 * PlusPeek($6039), 4 * (16 + 80))
-CheckEq("explosion in slot 9", PlusPeek($6048) + 256 * PlusPeek($6049), 4 * (16 + 40))
+CheckEq("ship x", PlusPeek(&6000) + 256 * PlusPeek(&6001), 4 * (16 + CAST(UINTEGER, gShipX)))
+CheckEq("diver in slot 1", PlusPeek(&6008) + 256 * PlusPeek(&6009), 4 * (16 + 50))
+CheckEq("bullet in slot 2", PlusPeek(&6010) + 256 * PlusPeek(&6011), 4 * (16 + 20))
+CheckEq("bomb in slot 4", PlusPeek(&6020) + 256 * PlusPeek(&6021), 4 * (16 + 30))
+CheckEq("explosion in slot 7", PlusPeek(&6038) + 256 * PlusPeek(&6039), 4 * (16 + 80))
+CheckEq("explosion in slot 9", PlusPeek(&6048) + 256 * PlusPeek(&6049), 4 * (16 + 40))
 CheckEq("the 4th explosion is dropped: slot 10 is a formation sprite", Mismatch(), 0)
 Check("diver picture", HasLines(1, 1, 0, 7))
 Check("explosion picture 0 in slot 7", HasLines(7, 5, 0, 15))
@@ -363,12 +363,12 @@ bad = 0: worst = 0
 FOR n = 1 TO 250
   PlatFrameBegin()
   keys = PlatInput()
-  inp = AttractInput()
-  st = GameStep(inp)
+  inp_ = AttractInput()
+  st = GameStep(inp_)
   GameDraw()
   PlatFrameEnd()
   LogReset()
-  WaitVsync()
+  FRAME
   i = Mismatch()
   IF i <> 0 THEN
     bad = bad + 1

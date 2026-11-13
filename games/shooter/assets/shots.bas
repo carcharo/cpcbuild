@@ -4,7 +4,7 @@
 ' Do not edit; regenerate it from the source image (command above).
 
 DIM shots(7) AS UBYTE => { _
-    $80, $80, $08, $08, $20, $A0, $20, $A0 _
+    &80, &80, &08, &08, &20, &A0, &20, &A0 _
 }
 
 CONST shots_W AS UBYTE = 1

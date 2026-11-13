@@ -25,7 +25,7 @@ END SUB
 
 ' register off (0 X low, 1 X high, 2 Y low, 3 Y high, 4 magnification) of sprite s
 FUNCTION Reg(s AS UBYTE, off AS UBYTE) AS UBYTE
-  RETURN PlusPeek($6000 + CAST(UINTEGER, s) * 8 + off)
+  RETURN PlusPeek(&6000 + CAST(UINTEGER, s) * 8 + off)
 END FUNCTION
 
 ' The magnification of slot s as the layer last sent it (0 = hidden). Caprice32
@@ -55,7 +55,7 @@ FUNCTION Shown() AS UBYTE
 END FUNCTION
 
 ' a whole frame of the game's sprites
-SUB Frame()
+SUB Frame_()
   PlatFrameBegin()
   GameDraw()
   PlatFrameEnd()
@@ -68,8 +68,8 @@ FUNCTION HasPicture(s AS UBYTE, p AS UBYTE) AS UBYTE
   DIM b, want AS UBYTE
   FOR i = 0 TO 255
     b = PEEK(@plsprites(0) + CAST(UINTEGER, p) * 128 + (i >> 1))
-    IF (i BAND 1) = 0 THEN want = b >> 4 ELSE want = b BAND 15
-    IF (PlusPeek($4000 + CAST(UINTEGER, s) * 256 + i) BAND 15) <> want THEN RETURN 0
+    IF (i AND 1) = 0 THEN want = b >> 4 ELSE want = b AND 15
+    IF (PlusPeek(&4000 + CAST(UINTEGER, s) * 256 + i) AND 15) <> want THEN RETURN 0
   NEXT i
   RETURN 1
 END FUNCTION
@@ -81,16 +81,16 @@ CheckEq("a Plus", PlusAvailable(), 1)
 CheckEq("no sprite shown after PlatInit", Shown(), 0)
 
 ' --- the palette ---
-CheckEq("pen 0 black", GetPalette12(0), $000)
-CheckEq("pen 12 deep blue", GetPalette12(12), $027)
+CheckEq("pen 0 black", GetPalette12(0), &000)
+CheckEq("pen 12 deep blue", GetPalette12(12), &027)
 CheckEq("border", GetPalette12(16), PL_BORDER)
-CheckEq("sprite colour 1", GetPalette12(17), $8FF)
+CheckEq("sprite colour 1", GetPalette12(17), &8FF)
 
 ' --- a fresh game: the ship in slot 0, the formation is software ---
 GameSeed(1)
 gHi = 0
 GameInit()
-Frame()
+Frame_()
 CheckEq("one sprite shown: the ship", Shown(), 1)
 CheckEq("ship magnified 2x1", Mag(0), 9)
 CheckEq("ship x = 4 (16 + 60)", SprX(0), 304)
@@ -105,7 +105,7 @@ bm(2) = 60: bm(3) = 20
 bm(4) = 70: bm(5) = 30
 Boom(80, 80)
 Boom(100, 60)
-Frame()
+Frame_()
 CheckEq("ship, 2 bullets, 3 bombs, 2 explosions", Shown(), 8)
 CheckEq("bullet 0 in slot 2: x", SprX(2), 144)
 CheckEq("bullet 0 in slot 2: y", SprY(2), 116)
@@ -123,37 +123,37 @@ Check("explosion picture frame 0", HasPicture(7, 5))
 CheckEq("the formation is not in a slot", Mag(11) + Mag(12) + Mag(13) + Mag(14) + Mag(15), 0)
 
 ' --- a picture is loaded when its frame changes, not before ---
-PlusPoke($4000 + 256 * 7 + 40, 9)
-Frame()
-CheckEq("same picture: not loaded again", PlusPeek($4000 + 256 * 7 + 40), 9)
+PlusPoke(&4000 + 256 * 7 + 40, 9)
+Frame_()
+CheckEq("same picture: not loaded again", PlusPeek(&4000 + 256 * 7 + 40), 9)
 xp(2) = 4                            ' the explosion's timer: frame (6 - 4) >> 1 = 1
-Frame()
+Frame_()
 Check("explosion picture frame 1", HasPicture(7, 6))
 xp(2) = 2
-Frame()
+Frame_()
 Check("explosion picture frame 2", HasPicture(7, 7))
 
 ' --- gone objects are hidden ---
 ClearShots()
-Frame()
+Frame_()
 CheckEq("only the ship is left", Shown(), 1)
 CheckEq("ship still there", Mag(0), 9)
 
 ' --- the diver (slot 1): two pictures ---
 gDive = 2: gDvX = 50: gDvY = 60: gDvPh = 0
-Frame()
+Frame_()
 CheckEq("ship and diver", Shown(), 2)
 CheckEq("diver in slot 1: x", SprX(1), 4 * (16 + 50))
 CheckEq("diver in slot 1: y", SprY(1), 76)
 Check("diver picture 0", HasPicture(1, 1))
 gDvPh = 2
-Frame()
+Frame_()
 Check("diver picture 1", HasPicture(1, 2))
 gDive = 0
 
 ' --- the ship's own explosion replaces the ship ---
 gState = S_DYING: gTimer = 30
-Frame()
+Frame_()
 CheckEq("dying ship: the blast alone", Shown(), 1)
 CheckEq("ship slot empty", Mag(0), 0)
 CheckEq("blast in slot 7", Mag(7), 9)

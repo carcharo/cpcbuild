@@ -12,12 +12,19 @@
 # comes back as "Error n", n = frames - 400). Chips only.
 cd "$(dirname "$0")/../../.." || exit 1
 WHICH="${1:-all}"
+# what Locomotive's PRINT leaves of the two INFO lines (numbers padded with spaces, a line break after the
+# first number, as the printer echo wraps it), from the first INFO line on, as one:
+# "INFO steps=250 frames=501 per second=25.0"
+bench_line() {
+  l=$(sed -n '/^INFO/,$p' | tr '\n' ' ' | sed 's/INFO per/per/; s/= */=/g; s/ \. /./; s/  */ /g')
+  [ -n "$l" ] && echo "$l" || echo "(no result)"
+}
 run() {   # emulator model flag extra (chips has no disc: -D NODISC skips the bank load; cap32 gets STARFALL.DAT)
   printf "%-8s %-5s %-9s %s" "$1" "$2" "$4" "${BARE:+bare }"
   if [ -n "$BARE" ]; then
     n=$(python3 tools/cpcrun.py games/shooter/main.bas --org 0x40 --emu "$1" --model "$2" --timeout 120 --bare \
-        --zxbc-arg=-D --zxbc-arg=BENCH --zxbc-arg=-D --zxbc-arg=BENCH_ERR --zxbc-arg=-D --zxbc-arg="$3" \
-        --zxbc-arg=-D --zxbc-arg=NODISC ${4:+--zxbc-arg=-D --zxbc-arg="$4"} 2>&1 | sed -n 's/^Error \([0-9]*\).*/\1/p' | tail -1)
+        --cpcbas-arg=-D --cpcbas-arg=BENCH --cpcbas-arg=-D --cpcbas-arg=BENCH_ERR --cpcbas-arg=-D --cpcbas-arg="$3" \
+        --cpcbas-arg=-D --cpcbas-arg=NODISC ${4:+--cpcbas-arg=-D --cpcbas-arg="$4"} 2>&1 | sed -n 's/^Error \([0-9]*\).*/\1/p' | tail -1)
     if [ -z "$n" ]; then echo "(no result)"; else
       f=$((n + 400)); r=$((62500 / (f / 2)))
       echo "INFO steps=250 frames=$f per second=$((r / 10)).$((r % 10))"
@@ -25,9 +32,9 @@ run() {   # emulator model flag extra (chips has no disc: -D NODISC skips the ba
     return
   fi
   python3 tools/cpcrun.py games/shooter/main.bas --org 0x40 --emu "$1" --model "$2" --timeout 120 \
-      ${BARE:+--bare} --zxbc-arg=-D --zxbc-arg=BENCH --zxbc-arg=-D --zxbc-arg="$3" \
-      $( [ "$1" = chips ] || [ -n "$BARE" ] && echo "--zxbc-arg=-D --zxbc-arg=NODISC" || echo "--disk-file STARFALL.DAT=games/shooter/assets/starfall.dat" ) ${4:+--zxbc-arg=-D --zxbc-arg="$4"} 2>&1 \
-      | grep "^INFO" || echo "(no result)"
+      ${BARE:+--bare} --cpcbas-arg=-D --cpcbas-arg=BENCH --cpcbas-arg=-D --cpcbas-arg="$3" \
+      $( [ "$1" = chips ] || [ -n "$BARE" ] && echo "--cpcbas-arg=-D --cpcbas-arg=NODISC" || echo "--disk-file STARFALL.DAT=games/shooter/assets/starfall.dat" ) ${4:+--cpcbas-arg=-D --cpcbas-arg="$4"} 2>&1 \
+      | bench_line
 }
 if [ "$WHICH" = all ] || [ "$WHICH" = chips ]; then
   for m in 6128 464; do

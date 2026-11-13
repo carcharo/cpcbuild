@@ -20,7 +20,7 @@
 ;              build keeps everything in main RAM, and it checks for the
 ;              Plus itself.
 ;
-; Plain Z80 for the Boriel assembler (zxbasm), run by the firmware like
+; Plain Z80 for `cpcbas asm`, run by the firmware like
 ; any binary: no runtime, so it has the firmware's own state and the game
 ; starts exactly as with RUN"STARFALL". Memory plan (the program is one file
 ; loaded over &0040 upwards; the double-buffered builds are padded with zeros
@@ -45,7 +45,7 @@
 ; banks.asm, the same as BankAvailable()): write the complement of the byte
 ; at &4000 with extra bank 0 selected, and see if main RAM kept its own;
 ; every byte touched is put back. TODO(banks): this stays a stand-alone
-; copy of the test because a Boriel loader would need the runtime and a
+; copy of the test because a BASIC loader would need the runtime and a
 ; firmware hand-over; BankAvailable() is the same code.
 ; ----------------------------------------------------------------
 
