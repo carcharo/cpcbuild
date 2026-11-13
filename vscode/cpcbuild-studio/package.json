@@ -995,7 +995,7 @@
   },
   "scripts": {
     "link-cpcbas": "node scripts/link-cpcbas.mjs",
-    "gen:grammar": "node scripts/gen-grammar.mjs",
+    "gen:grammar": "node scripts/link-cpcbas.mjs && node scripts/gen-grammar.mjs",
     "build": "node scripts/link-cpcbas.mjs && node scripts/build.mjs",
     "watch": "node scripts/link-cpcbas.mjs && node scripts/build.mjs --watch",
     "build:test": "node scripts/link-cpcbas.mjs && tsc -p tsconfig.test.json",

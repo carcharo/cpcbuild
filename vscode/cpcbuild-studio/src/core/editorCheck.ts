@@ -53,6 +53,8 @@ export interface CheckOptions {
   runtime: FileTree;
   overlay?: ReadonlyMap<string, string>;
   disabledWarnings?: readonly (string | number)[];
+  /** `-Wimplicit` of `cpcbuild.compiler.args`: warn about variables used without DIM, as the build does. */
+  warnImplicit?: boolean;
   /** Stop after the parser and the preprocessor (`parseOnly`): for a file that no program includes, whose names are other files' to declare. */
   syntaxOnly?: boolean;
 }
@@ -66,7 +68,7 @@ export function checkProgram(o: CheckOptions): CheckResult {
     includePaths: o.includePaths,
     defines: o.defines,
     runtime: o.runtime,
-    options: { ...(o.syntaxOnly ? { parseOnly: true } : { dump: ['ir' as const] }), format: 'none', disabledWarnings: o.disabledWarnings, now: () => performance.now() },
+    options: { ...(o.syntaxOnly ? { parseOnly: true } : { dump: ['ir' as const] }), format: 'none', disabledWarnings: o.disabledWarnings, warnImplicit: o.warnImplicit, now: () => performance.now() },
   });
   const diags = new Map<string, DiagnosticJson[]>();
   const libraryErrors: DiagnosticJson[] = [];

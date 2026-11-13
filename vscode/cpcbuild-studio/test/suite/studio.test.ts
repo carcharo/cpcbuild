@@ -68,7 +68,7 @@ test('lists build tasks for the targets', async () => {
   for (const n of ['build cpc6128', 'build cpc464', 'build and run cpc6128']) assert.ok(names.includes(n), `${n} in ${names}`);
 });
 
-test('the doctor finds the built-in compiler and library, python and the tools; it asks for no zxbc, mkdsk or checkout', async () => {
+test('the doctor finds the built-in compiler and library, python and the tools; it asks for no external compiler, mkdsk or checkout', async () => {
   await api();
   const items = (await vscode.commands.executeCommand('cpcbuild.checkEnvironment')) as { id: string; ok: boolean; detail: string }[];
   for (const id of ['compiler', 'python', 'library', 'tools']) {
