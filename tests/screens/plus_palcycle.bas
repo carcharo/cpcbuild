@@ -12,7 +12,7 @@ REM call does nothing and the program writes NO PLUS.
 #include <cpcbuild/display.bas>
 #include <cpcbuild/fill.bas>
 #include <cpcplus/palcycle.bas>
-#include "../conformance/assets/plus_ball.bas"
+#include <plus_ball.bas>
 #include "lib/shot.bas"
 
 DIM ramp(7) AS UINTEGER => {&0F00, &0F80, &0FF0, &08F0, &00F0, &00F8, &00FF, &008F}
@@ -21,6 +21,8 @@ DIM spr(3) AS UINTEGER => {&0F0F, &0FF0, &00FF, &0F00}
 DIM p, i AS UBYTE
 
 Mode 0
+REM 0.1.x's default text pens in mode 0 (Spectrum white on black): pen 4 on pen 5
+PEN 4: PAPER 5
 ScreenInit()
 CLS
 FOR p = 1 TO 15

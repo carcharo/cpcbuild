@@ -8,11 +8,13 @@ REM Without an ASIC (the chips 464/6128 goldens) the pens keep the firmware's co
 #include <cpcbuild/display.bas>
 #include <cpcbuild/fill.bas>
 #include <cpcplus/cpcplus.bas>
-#include "../conformance/assets/plus_bars.bas"
+#include <plus_bars.bas>
 #include "lib/shot.bas"
 
 DIM p AS UBYTE
 Mode 0
+REM 0.1.x's default text pens in mode 0 (Spectrum white on black): pen 4 on pen 5
+PEN 4: PAPER 5
 ScreenInit()
 CLS
 FOR p = 0 TO 15
