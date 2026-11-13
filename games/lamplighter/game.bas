@@ -889,7 +889,7 @@ FUNCTION Touch() AS UBYTE
   RETURN hit
 END FUNCTION
 
-' One logic step with input inp. Returns the game state.
+' One logic step with input kin. Returns the game state.
 FUNCTION GameStep(kin AS UBYTE) AS UBYTE
   IF gState <> S_PLAY THEN RETURN gState
   MovePlayer(kin)

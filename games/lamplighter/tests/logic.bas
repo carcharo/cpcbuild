@@ -25,7 +25,7 @@ SUB CheckEq(name AS STRING, got AS LONG, want AS LONG)
   END IF
 END SUB
 
-' n steps with input inp; the state after the last
+' n steps with input kin; the state after the last
 FUNCTION Steps(n AS UBYTE, kin AS UBYTE) AS UBYTE
   DIM i, r AS UBYTE
   r = 0
