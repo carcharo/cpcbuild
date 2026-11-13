@@ -30,12 +30,12 @@ unit: ## Run the tool unit tests (img2cpc, tmx2bas)
 	$(PYTHON) -m unittest discover -s tests/tools
 
 test: unit ## Unit tests, then conformance on Caprice32 (6128)
-	$(PYTHON) $(CONFORMANCE)
+	$(PYTHON) $(CONFORMANCE) --emu cap32
 
 test-all: ## Run conformance tests on all models (464, 664, 6128)
-	$(PYTHON) $(CONFORMANCE) --model 464
-	$(PYTHON) $(CONFORMANCE) --model 664
-	$(PYTHON) $(CONFORMANCE) --model 6128
+	$(PYTHON) $(CONFORMANCE) --emu cap32 --model 464
+	$(PYTHON) $(CONFORMANCE) --emu cap32 --model 664
+	$(PYTHON) $(CONFORMANCE) --emu cap32 --model 6128
 
 test-chips: chips ## Build chipsrun and run conformance tests with chips emulator
 	$(PYTHON) $(CONFORMANCE) --emu chips --model 6128
@@ -74,8 +74,8 @@ reach-lamp: ## Lamplighter: the reachability model over the map (about a minute)
 
 test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conformance (firmware and --bare), screenshots (firmware and --bare)
 	$(PYTHON) tests/plus/run.py
-	$(PYTHON) $(CONFORMANCE) --model plus
-	$(PYTHON) $(CONFORMANCE) --model plus --bare
+	$(PYTHON) $(CONFORMANCE) --emu cap32 --model plus
+	$(PYTHON) $(CONFORMANCE) --emu cap32 --model plus --bare
 	$(PYTHON) tests/screens/run.py --model plus
 	$(PYTHON) tests/screens/run.py --model plus --bare
 	$(PYTHON) games/shooter/tests/run.py --plus
