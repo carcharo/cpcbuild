@@ -47,7 +47,7 @@ ORG = "0x40"
 
 
 def sibling(name: str) -> Path:
-    """The sibling checkout (../zxbasic, ../caprice32) of the main working
+    """The sibling checkout (../cpcbas, ../caprice32) of the main working
     tree: in a git worktree REPO.parent is not the right place."""
     p = REPO.parent / name
     if p.exists():
@@ -59,7 +59,7 @@ def sibling(name: str) -> Path:
 
 # the tools find the compiler and the ROMs from these when they are not
 # next to the repository (a worktree)
-os.environ.setdefault("ZXBASIC", str(sibling("zxbasic")))
+os.environ.setdefault("CPCBAS", str(sibling("cpcbas")))
 os.environ.setdefault("CPC_ROM_DIR", str(sibling("caprice32") / "rom"))
 
 
@@ -69,7 +69,7 @@ def cpcrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir:
     if shot_dir:
         cmd += ["--shot-dir", str(shot_dir), "--quiet"]
     for d in defines:
-        cmd += ["--zxbc-arg=-D", f"--zxbc-arg={d}"]
+        cmd += ["--cpcbas-arg=-D", f"--cpcbas-arg={d}"]
     return subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL,
                           timeout=timeout * 4 + 120)
 
@@ -90,7 +90,7 @@ def logic_test(model: str, timeout: float, prog: str = "logic", defines: list[st
     return [("PASS", label, f"{passes} checks")]
 
 
-# name -> zxbc defines of the other screenshots (besides room00..room11)
+# name -> compiler defines of the other screenshots (besides room00..room11)
 SCENES = {
     "lit09": ["SHOT=3", "SHOT_LIT", "START_ROOM=9"],
     "lit10": ["SHOT=3", "SHOT_LIT", "START_ROOM=10"],

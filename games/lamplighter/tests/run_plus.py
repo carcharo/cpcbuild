@@ -2,10 +2,11 @@
 """run_plus.py -- Lamplighter Plus's tests, on Caprice32 and CPCEC (chips has no Plus).
 
   Each test runs as the two Plus builds of build_plus.sh:
-    disc  the firmware build (-D PLUS), a 6128 Plus disc run
+    disc  the firmware build (-D PLUS), a 6128 Plus disc run behind the
+          RUN"PLUS loader (loader_plus.asm)
     cart  the bare cartridge (-D PLUS -D CPC_BAREMETAL -D CPC_OWNFONT) made
-          into a .cpr by mkcpr.py (Caprice32 boots it in place of the system
-          cartridge; CPCEC runs the bare program)
+          into a .cpr by cpcbas (-f cpr; Caprice32 boots it in place of the
+          system cartridge, CPCEC loads it as a cartridge)
   on both emulators (cap32, cpcec). Caprice32 draws the 12-bit colours
   differently from CPCEC, so each has its own goldens (golden/plus-cap32,
   golden/plus-cpcec); within an emulator the disc and the cartridge builds
@@ -70,16 +71,11 @@ def main_checkout() -> Path:
     return (REPO / common).resolve().parent
 
 
-os.environ.setdefault("ZXBASIC", str(sibling("zxbasic")))
+os.environ.setdefault("CPCBAS", str(sibling("cpcbas")))
 os.environ.setdefault("CPC_ROM_DIR", str(sibling("caprice32") / "rom"))
 os.environ.setdefault("CAP32", str(main_checkout() / "tools" / "caprice32" / "work" / "src" / "cap32"))
 os.environ.setdefault("CPCEC", str(main_checkout() / "tools" / "cpcec" / "work" / "cpcec"))
-# the sprite manager and palette cycling (lib/cpcplus/sprman, palcycle) are in
-# this checkout's lib/; PLUSLIB adds another include directory if wanted
-PLUSLIB = os.environ.get("PLUSLIB") or str(REPO / "lib")
-INC = ["-I", PLUSLIB]
 import cpcrun as cpcrun_mod  # noqa: E402
-import mkcpr  # noqa: E402
 
 EMUS = ("cap32", "cpcec")
 VARIANTS = ("disc", "cart")
@@ -100,53 +96,79 @@ def shot_defs(name: str) -> list[str]:
     return SCENES[name] if name in SCENES else ["SHOT=3", f"START_ROOM={int(name[4:])}"]
 
 
-def zargs(defines: list[str]) -> list[str]:
-    out = list(INC)
+# The disc build runs behind the RUN"PLUS loader (loader_plus.asm at &9E00, the 2 KB AMSDOS buffer at &9600-&9DFF
+# below it): a program that ends below the buffer is packed with it. plus_layer.bas ends at about &9686: it runs on
+# a disc of its own with a heap above the program (&96C0-&9DFF), without the loader.
+LOADER_ORG = 0x9E00
+AMSDOS_BUFFER = 0x9600
+PLUS_LAYER_HEAP = ["--heap-address", "0x96C0", "--heap", "1856"]
+
+
+def cpcbas_cli() -> Path:
+    return cpcrun_mod.cpcbas_dir() / cpcrun_mod.CPCBAS_CLI
+
+
+def cpcbas_tool(*args: str) -> None:
+    p = subprocess.run(["node", str(cpcbas_cli()), *args], capture_output=True, text=True)
+    if p.returncode != 0:
+        raise cpcrun_mod.BuildError(f"cpcbas {args[0]}: {(p.stderr + p.stdout).strip()[-300:]}")
+
+
+def pack_dsk(out: Path, files: list[tuple[str, bytes, int]], tmp: Path) -> None:
+    """An AMSDOS disc from (NAME, raw image, load address): `cpcbas dsk`."""
+    specs = []
+    for name, data, load in files:
+        f = tmp / (name.replace(".", "_") + ".raw")
+        f.write_bytes(data)
+        specs.append(f"{name}={f}@{load:#x}")
+    cpcbas_tool("dsk", "-o", str(out), *specs)
+
+
+def compile_args(defines: list[str], extra: list[str] | None) -> list[str]:
+    out = ["--org", ORG]
     for d in defines:
         out += ["-D", d]
-    return out
+    return out + (extra or [])
 
 
 def run(bas: Path, emu: str, variant: str, defines: list[str], timeout: float, shot_dir: Path | None = None,
-        steps: int = 0) -> tuple[int, str]:
+        steps: int = 0, extra: list[str] | None = None) -> tuple[int, str]:
     """Runs bas as the disc or cartridge build on emu. Returns (exit status, the
-    printer text up to the END marker)."""
+    printer text up to the END marker): 0 clean, 1 build, 2 timeout, 4 no END marker."""
     defines = ["PLUS", *defines]
     if variant == "cart":
         defines = [*BARE, *defines]
-    if emu == "cpcec":
-        cmd = [sys.executable, str(CPCRUN), str(bas), "--emu", "cpcec", "--model", "plus", "--org", ORG,
-               "--timeout", str(timeout)]
-        if variant == "cart":
-            cmd.append("--bare")
-        if shot_dir:
-            cmd += ["--shot-dir", str(shot_dir), "--quiet"]
-        for a in zargs(defines):
-            cmd.append(f"--zxbc-arg={a}")
-        p = subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=timeout * 4 + 120)
-        return p.returncode, p.stdout + (p.stderr if p.returncode else "")
-    # Caprice32: the same as Starfall's plus_run
     env = cpcrun_mod.subprocess_env()
     wait = (2 * steps) // 42 + (14 if variant == "disc" else 6)
-    if shot_dir:
+    hold = shot_dir is not None and emu == "cap32"
+    if hold:
         defines = [*defines, "SHOT_HOLD"]
     with tempfile.TemporaryDirectory(prefix="lamp-plus-") as t:
         tmp = Path(t)
         printer = tmp / "printer.dat"
         binf = tmp / "prog.bin"
+        stem = "PLUS"
         try:
-            org = cpcrun_mod.compile_program(bas, binf, ["--org", ORG, *zargs(defines)], env)
             if variant == "cart":
-                cpr = tmp / "prog.cpr"
-                cpr.write_bytes(mkcpr.build_cpr(binf.read_bytes(), org))
-                cpcrun_mod.run_emulator(None, "", printer, timeout, env, "plus", None, False, cpr,
-                                        shot_dir, wait)
+                medium = tmp / "prog.cpr"
+                cpcrun_mod.compile_program(bas, medium, compile_args(defines, extra), env)
             else:
-                dsk = tmp / "prog.dsk"
-                stem = cpcrun_mod.amsdos_stem(bas)
-                cpcrun_mod.pack_dsk(binf, dsk, stem, env, org)
-                cpcrun_mod.run_emulator(dsk, stem, printer, timeout, env, "plus", None, False, None,
-                                        shot_dir, wait)
+                org = cpcrun_mod.compile_program(bas, binf, compile_args(defines, extra), env)
+                image = binf.read_bytes()[128:]   # the AMSDOS header
+                medium = tmp / "prog.dsk"
+                if org + len(image) <= AMSDOS_BUFFER:
+                    cpcbas_tool("asm", str(GAME / "loader_plus.asm"), "-o", str(tmp / "loader_plus.bin"))
+                    pack_dsk(medium, [("PLUS.BIN", (tmp / "loader_plus.bin").read_bytes(), LOADER_ORG),
+                                      ("LAMPPLUS.BIN", image, org)], tmp)
+                else:
+                    stem = "PROG"
+                    pack_dsk(medium, [("PROG.BIN", image, org)], tmp)
+            if emu == "cpcec":
+                cpcrun_mod.run_cpcec(medium, printer, timeout, env, "plus", None, shot_dir)
+            elif variant == "cart":
+                cpcrun_mod.run_emulator(None, "", printer, timeout, env, "plus", None, False, medium, shot_dir, wait)
+            else:
+                cpcrun_mod.run_emulator(medium, stem, printer, timeout, env, "plus", None, False, None, shot_dir, wait)
         except cpcrun_mod.TimeoutHit:
             return 2, ""
         except cpcrun_mod.BuildError as e:
@@ -160,7 +182,8 @@ def run(bas: Path, emu: str, variant: str, defines: list[str], timeout: float, s
 
 def logic_test(emu: str, variant: str, src: str, timeout: float):
     label = f"{emu}/{variant}/{src.removesuffix('.bas')}"
-    code, out = run(HERE / src, emu, variant, [], timeout)
+    extra = PLUS_LAYER_HEAP if (src == "plus_layer.bas" and variant == "disc") else None
+    code, out = run(HERE / src, emu, variant, [], timeout, extra=extra)
     if code != 0:
         return [("ERROR", label, f"exit {code}: {out.strip()[-200:]}")]
     fails = re.findall(r"^FAIL.*$", out, re.M)
