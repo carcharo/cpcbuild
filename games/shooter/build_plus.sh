@@ -3,7 +3,7 @@
 # cartridge (bare metal) and the 6128 Plus disc (firmware mode), both from
 # the same source as every other Starfall build with -D PLUS.
 #
-#   games/shooter/build_plus.sh [OUTDIR] [-- extra zxbc arguments]
+#   games/shooter/build_plus.sh [OUTDIR] [-- extra cpcbas arguments]
 #
 # OUTDIR defaults to games/shooter/build (git-ignored). Writes
 #   starplus.bin   firmware build (disc): -D PLUS
@@ -15,12 +15,12 @@
 #   starplus.dsk   disc: PLUS.BIN (the loader: RUN"PLUS) and STARPLUS.BIN
 # and a .map for each. Both builds keep the songs inside the program (the
 # 464 build's way): a cartridge has no disc, a GX4000 has no extra RAM bank.
-# Needs poetry (the compiler fork's environment) in the PATH.
+# Needs cpcbas built (CPCBAS, default the sibling checkout ../cpcbas) and node.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-ZX="${ZXBASIC:-$REPO/../zxbasic}"
-export PATH="$HOME/.local/bin:$PATH"
+CPCBAS="${CPCBAS:-$REPO/../cpcbas}"
+CB="node $CPCBAS/packages/cpcbas/dist/bin/cpcbas.js"
 OUT="$HERE/build"
 if [ $# -gt 0 ] && [ "$1" != "--" ]; then OUT="$1"; shift; fi
 if [ "${1:-}" = "--" ]; then shift; fi
@@ -28,9 +28,9 @@ EXTRA="$*"
 mkdir -p "$OUT"
 
 build() {   # name, -D flags
-  (cd "$ZX" && poetry run zxbc --arch cpc --org 0x40 -I "$REPO/lib" -D PLUS $2 $EXTRA \
-      -M "$OUT/$1.map" -o "$OUT/$1.bin" "$HERE/main.bas") 2>&1 | grep -v "W150\|W170\|warning" || true
-  [ -f "$OUT/$1.bin" ] || { echo "build_plus: $1 failed" >&2; exit 1; }
+  # cpcbas writes the .bin with a 128-byte AMSDOS header; pack_dsk.py and mkcpr.py want the image
+  $CB -f bin --org 0x40 -D PLUS $2 $EXTRA -M "$OUT/$1.map" -o "$OUT/$1.hbin" "$HERE/main.bas" || { echo "build_plus: $1 failed" >&2; exit 1; }
+  tail -c +129 "$OUT/$1.hbin" > "$OUT/$1.bin"
   size=$(wc -c < "$OUT/$1.bin")
   printf "%-10s %6d bytes, &0040-&%04X\n" "$1" "$size" $((0x40 + size))
 }
@@ -44,11 +44,13 @@ sym() { awk -v n=".$1" '$2 == n { sub(":", "", $1); print $1; exit }' "$OUT/star
 chk() { v=$(sym "$1"); [ -n "$v" ] && [ $((0x$v + ${2:-0})) -le $((0x4000)) ] || { echo "build_plus: $1 (+${2:-0}) is not below &4000" >&2; exit 1; }; }
 chk MX_SPRITE
 chk HW_END
-chk _hwReg.__DATA__ 128
-chk _plpix.__DATA__ 2560
+chk _hwReg__a.__DATA__ 128
+chk _plpix__a.__DATA__ 2560
 printf "handlers and tables end at &%s (limit &4000)\n" "$(sym HW_END)"
 python3 "$REPO/tools/mkcpr.py" "$OUT/starpluc.bin" --load 0x40 -o "$OUT/starplus.cpr"
-(cd "$ZX" && poetry run zxbasm -o "$OUT/loader_plus.bin" "$HERE/loader_plus.asm")
+# cpcbas asm takes one stand-alone file (no #include): loader_plus.asm is its #define and the rest of the loader
+{ grep -v '^#include' "$HERE/loader_plus.asm"; cat "$HERE/loader.asm"; } > "$OUT/loader_plus.asm"
+$CB asm "$OUT/loader_plus.asm" -o "$OUT/loader_plus.bin"
 python3 "$HERE/pack_dsk.py" "$OUT/starplus.dsk" \
     PLUS.BIN="$OUT/loader_plus.bin"@0x8000 \
     STARPLUS.BIN="$OUT/starplus.bin"@0x40

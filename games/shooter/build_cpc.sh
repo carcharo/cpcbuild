@@ -4,7 +4,7 @@
 # twins (-D CPC_BAREMETAL: no firmware), the two disc loaders and one disc
 # image with all of it.
 #
-#   games/shooter/build_cpc.sh [OUTDIR] [-- extra zxbc arguments]
+#   games/shooter/build_cpc.sh [OUTDIR] [-- extra cpcbas arguments]
 #
 # OUTDIR defaults to games/shooter/build (git-ignored). Writes starfall.bin
 # (6128), starfa64.bin (464), loader.bin, starfall.dsk (DISC.BIN = the
@@ -12,12 +12,12 @@
 # extra RAM bank 0: RUN"DISC"; BARE.BIN = the bare loader, STARBARE.BIN,
 # STARBA64.BIN: RUN"BARE") and a .map for each build, and prints where each
 # build ends (the 6128 ones must stay below &4000, the back screen).
-# Needs poetry (the compiler fork's environment) in the PATH.
+# Needs cpcbas built (CPCBAS, default the sibling checkout ../cpcbas) and node.
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-ZX="${ZXBASIC:-$REPO/../zxbasic}"
-export PATH="$HOME/.local/bin:$PATH"
+CPCBAS="${CPCBAS:-$REPO/../cpcbas}"
+CB="node $CPCBAS/packages/cpcbas/dist/bin/cpcbas.js"
 OUT="$HERE/build"
 if [ $# -gt 0 ] && [ "$1" != "--" ]; then OUT="$1"; shift; fi
 if [ "${1:-}" = "--" ]; then shift; fi
@@ -34,9 +34,9 @@ lowend() {   # name, file end
 }
 
 build() {   # name, -D flag
-  (cd "$ZX" && poetry run zxbc --arch cpc --org 0x40 -I "$REPO/lib" -D $2 $EXTRA \
-      -M "$OUT/$1.map" -o "$OUT/$1.bin" "$HERE/main.bas") 2>&1 | grep -v "W150\|W170\|warning" || true
-  [ -f "$OUT/$1.bin" ] || { echo "build_cpc: $1 failed" >&2; exit 1; }
+  # cpcbas writes the .bin with a 128-byte AMSDOS header; the discs want the image
+  $CB -f bin --org 0x40 -D $2 $EXTRA -M "$OUT/$1.map" -o "$OUT/$1.hbin" "$HERE/main.bas" || { echo "build_cpc: $1 failed" >&2; exit 1; }
+  tail -c +129 "$OUT/$1.hbin" > "$OUT/$1.bin"
   size=$(wc -c < "$OUT/$1.bin")
   fend=$((0x40 + size))
   low=$(lowend $1 $fend)
@@ -47,13 +47,16 @@ build() {   # name, -D flag
   fi
 }
 
-rm -f "$OUT/starfall.bin" "$OUT/starfa64.bin" "$OUT/starbare.bin" "$OUT/starba64.bin"
+rm -f "$OUT"/*.hbin "$OUT/starfall.bin" "$OUT/starfa64.bin" "$OUT/starbare.bin" "$OUT/starba64.bin"
 build starfall CPC6128
 build starfa64 CPC464
-build starbare "CPC6128 -D CPC_BAREMETAL"
+# the bare 6128 build is 37 bytes over &4000 at -O2 (cpcbas's bare runtime and code are larger than the old compiler's): -Os fits
+build starbare "CPC6128 -D CPC_BAREMETAL -Os"
 build starba64 "CPC464 -D CPC_BAREMETAL"
-(cd "$ZX" && poetry run zxbasm -o "$OUT/loader.bin" "$HERE/loader.asm")
-(cd "$ZX" && poetry run zxbasm -o "$OUT/bare.bin" "$HERE/loader_bare.asm")
+# cpcbas asm takes one stand-alone file (no #include): loader_bare.asm is its #define and the rest of the loader
+$CB asm "$HERE/loader.asm" -o "$OUT/loader.bin"
+{ grep -v '^#include' "$HERE/loader_bare.asm"; cat "$HERE/loader.asm"; } > "$OUT/loader_bare.asm"
+$CB asm "$OUT/loader_bare.asm" -o "$OUT/bare.bin"
 python3 "$HERE/pack_dsk.py" "$OUT/starfall.dsk" \
     DISC.BIN="$OUT/loader.bin"@0x9E00 \
     STARFALL.BIN="$OUT/starfall.bin"@0x40 \
