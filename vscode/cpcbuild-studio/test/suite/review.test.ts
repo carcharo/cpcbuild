@@ -102,7 +102,7 @@ test('trust: in Restricted Mode Build, Regenerate, Convert, Open in Tiled and th
 test('trust: the importer does not generate in Restricted Mode, and an editor still opens', async () => {
   const a = await api();
   mkdirp(path.join(ws, 'assets'));
-  fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
+  fs.copyFileSync(path.join(REPO, 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
   const rec = argvToRecipe(['--mode', '1', '--name', 'trusty', 'assets/spr1.png', '-o', 'assets/trusty.bas']).recipe;
   const f = path.join(ws, 'assets', 'trusty.cpcimp');
   fs.writeFileSync(f, serialiseRecipe(rec));
@@ -131,7 +131,7 @@ test('trust: the importer does not generate in Restricted Mode, and an editor st
 test('containment: a recipe naming ../ or an absolute output is a recipe problem and writes nothing', async () => {
   const a = await api();
   mkdirp(path.join(ws, 'assets'));
-  fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
+  fs.copyFileSync(path.join(REPO, 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
   const f = path.join(ws, 'assets', 'escape.cpcimp');
   fs.writeFileSync(f, serialiseRecipe(argvToRecipe(['--mode', '1', '--name', 'esc', 'assets/spr1.png', '-o', 'assets/esc.bas']).recipe));
   const uri = vscode.Uri.file(f);
@@ -156,7 +156,7 @@ test('containment: a recipe naming ../ or an absolute output is a recipe problem
 test('importer: the remembered generation outcome goes when its document closes', async () => {
   const a = await api();
   mkdirp(path.join(ws, 'assets'));
-  fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
+  fs.copyFileSync(path.join(REPO, 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png'), path.join(ws, 'assets', 'spr1.png'));
   const f = path.join(ws, 'assets', 'prune.cpcimp');
   fs.writeFileSync(f, serialiseRecipe(argvToRecipe(['--mode', '1', '--name', 'prune', 'assets/spr1.png', '-o', 'assets/prune.bas']).recipe));
   const uri = vscode.Uri.file(f);
@@ -175,7 +175,7 @@ test('not in a project: Import Image does not write a recipe beside a stray imag
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-noproj-'));
   try {
     const img = path.join(dir, 'stray.png');
-    fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), img);
+    fs.copyFileSync(path.join(REPO, 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png'), img);
     const r = await vscode.commands.executeCommand('cpcbuild.importImage', { uri: vscode.Uri.file(img), open: false });
     assert.strictEqual(r, undefined);
     assert.deepStrictEqual(fs.readdirSync(dir), ['stray.png']);

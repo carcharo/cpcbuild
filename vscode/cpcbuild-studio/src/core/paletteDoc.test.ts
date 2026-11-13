@@ -19,7 +19,7 @@ import {
 } from './paletteDoc';
 
 const repo = path.resolve(__dirname, '../../../..');
-const fixtures = ['examples/assets/bounce.pal', 'tests/conformance/assets/pens16.pal', 'games/shooter/assets/starfall.pal'];
+const fixtures = ['examples/assets/bounce.pal', 'vscode/cpcbuild-studio/src/core/fixtures/art/pens16.pal', 'games/shooter/assets/starfall.pal'];
 
 function must(s: PaletteState, op: PaletteOp): PaletteState {
   const r = applyOp(s, op);

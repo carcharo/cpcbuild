@@ -23,4 +23,4 @@ export function committed(): [string, string[]][] {
 }
 
 /** The directories scanned, and every file the recipes need (images, palettes). */
-export const CORPUS_DIRS = ['examples/assets', 'tests/conformance/assets', 'games/shooter/assets'];
+export const CORPUS_DIRS = ['examples/assets', 'vscode/cpcbuild-studio/src/core/fixtures/art', 'games/shooter/assets'];
