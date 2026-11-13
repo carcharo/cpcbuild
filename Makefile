@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-games test-lamp reach-lamp lamp-plus test-lamp-plus test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
+.PHONY: help run run-headless shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-games test-lamp reach-lamp lamp-plus test-lamp-plus test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
 
 PYTHON := python3
 # the cpcbas checkout (pinned in cpcbas.json); ?= so an environment CPCBAS (CI, or a git worktree whose sibling is elsewhere) wins
@@ -7,17 +7,22 @@ export CPCBAS
 # the emsdk for `make wasm` (ignored when it has no emsdk_env.sh: emcc on PATH is then used)
 EMSDK ?= tools/cpcec/wasm/emsdk
 MODEL := 6128
-# EMU= chips|cap32|cpcec for `make run` (chips has no 664 or Plus; `shot` always uses chips)
-EMU := chips
+# EMU= window|chips|cap32|cpcec for `make run`: window (the default) opens Caprice32; the others run headless
+# and print what the program sent to the printer (chips has no 664 or Plus; `shot` always uses chips)
+EMU := window
 # ORG= (e.g. ORG=0x40) sets the program origin for run/shot; empty = compiler default
 ORG :=
 
 help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-11s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-run: ## Run a program. PROG=path/to/file.bas required, optional MODEL=464|664|6128 (default 6128), ORG=0x.... and DEFS="-D ..." passed to cpcbas
+run: ## Open a program in a Caprice32 window. PROG=file.bas, .dsk or .bin required, optional MODEL=464|664|6128|plus (default 6128), ORG=0x.... and DEFS="-D ..." passed to cpcbas; EMU=chips|cap32|cpcec runs it headless instead
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
-	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu $(EMU) --model $(MODEL) $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
+	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) $(if $(filter window,$(EMU)),--window,--emu $(EMU)) --model $(MODEL) $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
+
+run-headless: ## Run a program headless on chips and print what it sent to the printer. PROG=path/to/file.bas required, optional MODEL=464|6128, ORG=0x.... and DEFS="-D ..."
+	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=tests/conformance/arithint.bas)"; exit 1; fi
+	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu chips --model $(MODEL) $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
 
 shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required, optional MODEL, ORG and DEFS
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
@@ -124,7 +129,7 @@ assets: ## Build assets
 	sh tools/build_assets.sh
 
 bench: ## Run benchmark
-	$(PYTHON) tools/cpcrun.py examples/bounce.bas --zxbc-arg=-D --zxbc-arg=BENCH
+	$(PYTHON) tools/cpcrun.py examples/bounce.bas --cpcbas-arg=-D --cpcbas-arg=BENCH
 
 ci: unit test-chips test-bare test-games test-lamp reach-lamp ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, games, Lamplighter (no Caprice32: the Plus tests, test-plus, have their own CI job)
 
