@@ -9,7 +9,9 @@ export function test(name: string, fn: () => Promise<void>): void {
 export async function runAll(): Promise<void> {
   let pass = 0;
   const failed: string[] = [];
-  for (const c of cases) {
+  // CPCBUILD_TEST_FILTER=regex runs only the tests whose name matches (a way to run one suite while working on it)
+  const only = process.env.CPCBUILD_TEST_FILTER ? new RegExp(process.env.CPCBUILD_TEST_FILTER, 'i') : undefined;
+  for (const c of cases.filter((x) => !only || only.test(x.name))) {
     const t0 = Date.now();
     try {
       await c.fn();

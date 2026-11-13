@@ -34,6 +34,38 @@ export interface ConvertOutcome {
   report: string;
 }
 
+/** The questions and the report window; the extension-host tests replace these. */
+export const convertUi = {
+  /** "Is this a 0.1.x (Boriel BASIC) project?" `guess`: the sources read as Boriel BASIC (Yes is then the first choice). */
+  async askBoriel(guess: boolean): Promise<'boriel' | 'auto' | undefined> {
+    const yes = { label: 'Yes: a 0.1.x (Boriel BASIC) project', description: guess ? 'the sources read as Boriel BASIC' : '', v: 'boriel' as const };
+    const no = { label: 'No: it is CPC BASIC already', description: guess ? '' : 'the sources read as CPC BASIC', v: 'auto' as const };
+    const pick = await vscode.window.showQuickPick(guess ? [yes, no] : [no, yes], { title: 'Convert Project to CPC BASIC', placeHolder: 'Is this a 0.1.x (Boriel BASIC) project?' });
+    return pick?.v;
+  },
+  async confirmWrite(files: number, mustFix: number): Promise<boolean> {
+    const ans = await vscode.window.showInformationMessage(
+      `Write the converted files? ${files} file(s) change${mustFix ? `; ${mustFix} finding(s) need you` : ''}. The report is open for you to read first.`,
+      { modal: true },
+      'Write',
+    );
+    return ans === 'Write';
+  },
+  async confirmRemove(ids: string[]): Promise<boolean> {
+    const ans = await vscode.window.showInformationMessage(
+      `Remove the Spectrum target(s) ${ids.join(', ')} from ${PROJECT_FILE}? CPCBuild 0.2.0 builds for the CPC only; the 0.1.x tools still build them.`,
+      { modal: true },
+      'Remove',
+      'Keep',
+    );
+    return ans === 'Remove';
+  },
+  async showReport(text: string): Promise<void> {
+    const doc = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
+    await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true });
+  },
+};
+
 async function pickRoot(arg: unknown, args?: ConvertArgs): Promise<string | undefined> {
   if (args?.root) return args.root;
   if (arg instanceof vscode.Uri) return path.dirname(arg.fsPath);
@@ -75,18 +107,11 @@ export async function convertProjectCommand(arg?: unknown, args?: ConvertArgs): 
     return undefined;
   }
 
-  // 1. Is it Boriel BASIC? A run that reads the sources as it finds them answers; the user confirms (Yes first when the run read Boriel).
+  // 1. Is it Boriel BASIC? A run that reads the sources as it finds them guesses; the user answers (Yes first when the run read Boriel).
   let from = args?.from;
   if (!from) {
-    const guess = convertSources(files, { from: 'auto' }).dialect === 'boriel';
-    const yes = { label: 'Yes: a 0.1.x (Boriel BASIC) project', description: guess ? 'the sources read as Boriel BASIC' : '', v: 'boriel' as const };
-    const no = { label: 'No: it is CPC BASIC already', description: guess ? '' : 'the sources read as CPC BASIC', v: 'auto' as const };
-    const pick = await vscode.window.showQuickPick(guess ? [yes, no] : [no, yes], {
-      title: 'Convert Project to CPC BASIC',
-      placeHolder: 'Is this a 0.1.x (Boriel BASIC) project?',
-    });
-    if (!pick) return undefined;
-    from = pick.v;
+    from = await convertUi.askBoriel(convertSources(files, { from: 'auto' }).dialect === 'boriel');
+    if (!from) return undefined;
   }
 
   // 2. The translation and its compile check (the main file and the defines of each target, the bundled library).
@@ -107,35 +132,17 @@ export async function convertProjectCommand(arg?: unknown, args?: ConvertArgs): 
     '',
     formatReport(result.report),
   ].join('\n');
+  const outcome = (written: string[], removedTargets: string[]): ConvertOutcome => ({ root, dialect: result.dialect, written, removedTargets, mustFix: fix.length, report: reportText });
 
+  // 3. The preview, then the question: nothing is written before the yes.
+  await convertUi.showReport(reportText);
   if (!result.changed.size && !spectrum) {
     void vscode.window.showInformationMessage(fix.length ? `CPC Game Studio: nothing to rewrite; ${fix.length} finding(s) need a person (see the report).` : 'CPC Game Studio: this project is already CPC BASIC; nothing to change.');
-    if (!args) await showReport(reportText);
-    return { root, dialect: result.dialect, written: [], removedTargets: [], mustFix: fix.length, report: reportText };
+    return outcome([], []);
   }
-
-  // 3. The preview, then the question; nothing is written before the yes.
-  if (!args) await showReport(reportText);
-  let write = args?.write;
-  if (write === undefined) {
-    const ans = await vscode.window.showInformationMessage(
-      `Write the converted files? ${result.changed.size} file(s) change${fix.length ? `; ${fix.length} finding(s) need you` : ''}. The report is open for you to read first.`,
-      { modal: true },
-      'Write',
-    );
-    write = ans === 'Write';
-  }
+  const write = args?.write ?? (await convertUi.confirmWrite(result.changed.size, fix.length));
   if (!write) return undefined;
-  let removeSpectrum = args?.removeSpectrum;
-  if (spectrum && removeSpectrum === undefined) {
-    const ans = await vscode.window.showInformationMessage(
-      `Remove the Spectrum target(s) ${spectrum.removed.join(', ')} from ${PROJECT_FILE}? CPCBuild 0.2.0 builds for the CPC only; the 0.1.x tools still build them.`,
-      { modal: true },
-      'Remove',
-      'Keep',
-    );
-    removeSpectrum = ans === 'Remove';
-  }
+  const removeSpectrum = spectrum ? (args?.removeSpectrum ?? (await convertUi.confirmRemove(spectrum.removed))) : false;
 
   const written: string[] = [];
   for (const [rel, text] of result.changed) {
@@ -148,15 +155,8 @@ export async function convertProjectCommand(arg?: unknown, args?: ConvertArgs): 
     removedTargets.push(...spectrum.removed);
     written.push(PROJECT_FILE);
   }
-  if (!args) {
-    void vscode.window.showInformationMessage(
-      `CPC Game Studio: converted ${result.changed.size} file(s)${removedTargets.length ? ` and removed ${removedTargets.join(', ')}` : ''}.` + (fix.length ? ` ${fix.length} finding(s) need you: see the report.` : ' Build to check it.'),
-    );
-  }
-  return { root, dialect: result.dialect, written, removedTargets, mustFix: fix.length, report: reportText };
-}
-
-async function showReport(text: string): Promise<void> {
-  const doc = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
-  await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true });
+  void vscode.window.showInformationMessage(
+    `CPC Game Studio: converted ${result.changed.size} file(s)${removedTargets.length ? ` and removed ${removedTargets.join(', ')}` : ''}.` + (fix.length ? ` ${fix.length} finding(s) need you: see the report.` : ' Build to check it.'),
+  );
+  return outcome(written, removedTargets);
 }

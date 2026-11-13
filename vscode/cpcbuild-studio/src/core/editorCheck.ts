@@ -1,7 +1,11 @@
 /**
- * editorCheck.ts -- the compiler's own diagnostics for the editor (no VS Code here). One check is the compiler's
- * `parseOnly` over a build target's main file: the include graph is the program's, the defines are the target's, so
- * what the editor shows is what the build would report for syntax, names and types (not for code generation).
+ * editorCheck.ts -- the compiler's own diagnostics for the editor (no VS Code here). One check compiles a build target's
+ * main file as far as the IR: the include graph is the program's and the defines are the target's, so what the editor
+ * shows is what the build reports for syntax, names and types (not for code generation, assembly or layout).
+ *
+ * Not `parseOnly`: that stops after the parser and the preprocessor, before the binder, so an undeclared name or a
+ * type error is not found. Stopping at the IR (`dump: ['ir']` with no output format) finds them and costs about
+ * 40 ms for Lamplighter against about 20 ms for `parseOnly` (a full build: about 250 ms).
  */
 import * as path from 'node:path';
 import { compile, diagnosticToJson, type DiagnosticJson, type FileTree } from '@cpcbuild/cpcbas';
@@ -49,9 +53,11 @@ export interface CheckOptions {
   runtime: FileTree;
   overlay?: ReadonlyMap<string, string>;
   disabledWarnings?: readonly (string | number)[];
+  /** Stop after the parser and the preprocessor (`parseOnly`): for a file that no program includes, whose names are other files' to declare. */
+  syntaxOnly?: boolean;
 }
 
-/** Checks one program (`parseOnly`: the front end and the semantic checks, no code generation). Never throws for bad input. */
+/** Checks one program (the front end and the semantic checks, as far as the IR). Never throws for bad input. */
 export function checkProgram(o: CheckOptions): CheckResult {
   const t0 = performance.now();
   const r = compile({
@@ -60,7 +66,7 @@ export function checkProgram(o: CheckOptions): CheckResult {
     includePaths: o.includePaths,
     defines: o.defines,
     runtime: o.runtime,
-    options: { parseOnly: true, format: 'none', disabledWarnings: o.disabledWarnings, now: () => performance.now() },
+    options: { ...(o.syntaxOnly ? { parseOnly: true } : { dump: ['ir' as const] }), format: 'none', disabledWarnings: o.disabledWarnings, now: () => performance.now() },
   });
   const diags = new Map<string, DiagnosticJson[]>();
   const libraryErrors: DiagnosticJson[] = [];

@@ -74,28 +74,27 @@ export function registerEditorDiagnostics(context: vscode.ExtensionContext): Edi
     const groups: CheckGroup[] = groupsOf(info.project.project?.targets ?? []);
     const mainOf = (g: CheckGroup): string => path.resolve(root, g.main);
     const covered = (f: string): boolean => groups.some((g) => st.results.get(g.key)?.files.has(f) || mainOf(g) === f);
-    const todo: CheckGroup[] = [];
-    for (const g of groups) {
-      const prev = st.results.get(g.key);
-      if (changed === 'all' || !prev || [...changed].some((f) => prev.files.has(f) || mainOf(g) === f)) todo.push(g);
-    }
-    // a file that no target's program includes (any file, in a project with no CPC target) is checked alone
-    for (const f of [...text.keys()].filter((f) => f.startsWith(root + path.sep) && !covered(f))) {
-      const key = orphanKey(f);
-      if (changed === 'all' || changed.has(f) || !st.results.has(key)) {
-        todo.push({ key, main: path.relative(root, f).split(path.sep).join('/'), defines: {}, targets: [] });
-      }
-    }
-    for (const g of todo) {
-      const r = checkProgram({ root, main: g.main, defines: g.defines, runtime, overlay: text });
+    const run = (g: CheckGroup, syntaxOnly = false): void => {
+      const r = checkProgram({ root, main: g.main, defines: g.defines, runtime, overlay: text, syntaxOnly });
       st.results.set(g.key, r);
       for (const f of r.files) {
         const k = vscode.Uri.file(f).toString();
         runs.set(k, (runs.get(k) ?? 0) + 1);
       }
+    };
+    for (const k of [...st.results.keys()]) if (!k.startsWith('file:') && !groups.some((g) => g.key === k)) st.results.delete(k);
+    for (const g of groups) {
+      const prev = st.results.get(g.key);
+      if (changed === 'all' || !prev || [...changed].some((f) => prev.files.has(f) || mainOf(g) === f)) run(g);
     }
-    // an orphan's result goes when a target's program includes the file now
-    for (const k of [...st.results.keys()]) if (k.startsWith('file:') && covered(k.slice(5))) st.results.delete(k);
+    // a file that no target's program includes (any file, in a project with no CPC target) is checked alone, for syntax
+    // only: the names it uses are declared by whatever file includes it
+    for (const f of [...text.keys()].filter((f) => f.startsWith(root + path.sep) && !covered(f))) {
+      const key = orphanKey(f);
+      if (changed === 'all' || changed.has(f) || !st.results.has(key)) run({ key, main: path.relative(root, f).split(path.sep).join('/'), defines: {}, targets: [] }, true);
+    }
+    // an orphan's result goes when a target's program includes the file now, or the file is not open any more
+    for (const k of [...st.results.keys()]) if (k.startsWith('file:') && (covered(k.slice(5)) || !text.has(k.slice(5)))) st.results.delete(k);
     publish(st);
   }
   const orphanKey = (f: string): string => `file:${f}`;
@@ -151,7 +150,7 @@ export function registerEditorDiagnostics(context: vscode.ExtensionContext): Edi
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((d) => schedule(d, 20)),
     vscode.workspace.onDidChangeTextDocument((e) => schedule(e.document)),
-    vscode.workspace.onDidSaveTextDocument((d) => schedule(d, 20)),
+    vscode.workspace.onDidSaveTextDocument((d) => (path.basename(d.uri.fsPath) === 'cpcbuild.json' ? everything() : schedule(d, 20))),
     vscode.workspace.onDidCloseTextDocument((d) => {
       // an unsaved edit that was thrown away: the disk text is what counts again
       if (d.isDirty) schedule(d, 20, true);

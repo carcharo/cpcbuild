@@ -24,7 +24,7 @@ import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
 import { requireTrust, trustTestApi } from './trust';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
 import { registerStubs } from './stubs';
-import { convertProjectCommand } from './convertProject';
+import { convertProjectCommand, convertUi } from './convertProject';
 import { registerLintAndHover } from './lintHover';
 import { DebugApi, registerDebugFeatures } from './debugFeatures';
 import { emuMissingTestApi } from './emuMissing';
@@ -69,6 +69,8 @@ export interface StudioApi {
   checkNow(): void;
   /** Convert Project to CPC BASIC with its answers given (tests). */
   convertProject: typeof convertProjectCommand;
+  /** The questions of Convert Project: replace the functions to answer them (tests). */
+  convertUi: typeof convertUi;
   /** Workspace Trust test hooks (pretend the workspace is untrusted). */
   trust: typeof trustTestApi;
   /** runInEmulator with explicit settings (tests: no prompts, no real emulator). */
@@ -387,6 +389,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     diagRuns: (uri) => lint.compiler.runs(uri),
     checkNow: () => lint.compiler.checkNow(),
     convertProject: convertProjectCommand,
+    convertUi,
     trust: trustTestApi,
     palette,
     sfx,

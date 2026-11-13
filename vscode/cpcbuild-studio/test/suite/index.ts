@@ -1,5 +1,6 @@
 import './studio.test';
 import './lint.test';
+import './language.test';
 import './palette.test';
 import './sprite.test';
 import './sfx.test';
