@@ -1,6 +1,6 @@
 REM Screen test (CPC Plus, Phase 7 P2): hardware sprites over a 12-bit palette. Mode 1
 REM with four 12-bit pens (none is one of the CPC's 27 colours), a 12-bit border, and the
-REM two-frame sprite sheet tests/conformance/assets/plus_ball.png (img2cpc.py
+REM two-frame sprite sheet plus_ball of the conformance assets (img2cpc.py
 REM --plus-sprite) shown at all magnifications: disc 1x1, 2x2, 4x4, 4x1, 1x4, diamond 2x2,
 REM 2x4, 4x2, two 4x4 overlapping (the lower sprite number is on top), one sprite hidden,
 REM the sprite colour 1 (the outline) recoloured. A wait of 60 frames before the shot, so
@@ -12,7 +12,7 @@ REM program writes NO PLUS: the library is safe to call everywhere.
 #include <cpcbuild/display.bas>
 #include <cpcbuild/fill.bas>
 #include <cpcplus/cpcplus.bas>
-#include "../conformance/assets/plus_ball.bas"
+#include <plus_ball.bas>
 #include "lib/shot.bas"
 
 Mode 1

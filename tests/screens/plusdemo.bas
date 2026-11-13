@@ -6,5 +6,5 @@ REM On the 464 and 6128 (chips goldens) there is no ASIC and the demo prints "ne
 REM Plus". The demo is bare-mode only (raster interrupts), so the define is here for the
 REM firmware-mode runs too.
 REM SOURCE: ../../examples/plusdemo.bas
-REM ZXBC: -D CPC_BAREMETAL
-REM ZXBC: -D SHOT=40
+REM CPCBAS: -D CPC_BAREMETAL
+REM CPCBAS: -D SHOT=40

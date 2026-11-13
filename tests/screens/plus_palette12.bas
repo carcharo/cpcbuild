@@ -1,5 +1,5 @@
 REM Screen test (CPC Plus, Phase 7 P2): the sixteen pens of mode 0 as 12-bit colours from
-REM an img2cpc.py --plus-palette include (tests/conformance/assets/plus_bars.png, none of the
+REM an img2cpc.py --plus-palette include (the plus_bars sheet of the conformance assets, none of the
 REM sixteen is one of the CPC's 27 colours), loaded with SetPalette12Block, a 12-bit border,
 REM then one pen changed with SetPalette12 and one from GetPalette12's value; firmware text
 REM (PRINT) still drawn in its pens. Waits 60 frames first (see plus_sprites.bas).
