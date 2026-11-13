@@ -497,6 +497,11 @@ DO
 LOOP UNTIL KeyDown(KEY_ESC)
 
 #ifdef SHOT
+' wait in HALT first: where a raster bar starts depends on the instruction its interrupt finds running, so the
+' shot is taken with the same code running whatever the demo's own code before it
+ASM
+  halt
+END ASM
 Shot("plusdemo")
 #endif
 Quit()
