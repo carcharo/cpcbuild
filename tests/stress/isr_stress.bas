@@ -1,6 +1,6 @@
-REM Stress test: the interrupt front-end (Phase 4d, zxbasic isr.asm).
+REM Stress test: the interrupt front-end (Phase 4d).
 REM Not part of the conformance suite (it runs for minutes). Run with
-REM   python3 tools/cpcrun.py tests/stress/isr_stress.bas --timeout 900
+REM   make test-stress   (python3 tests/stress/run.py -k isr_stress)
 REM (and --model 464). Loops until MINUTES of the firmware's clock have
 REM passed, each pass mixing everything that touches interrupts:
 REM   - an alternate-register-heavy workload (SUBs with parameters, 32-bit,
@@ -12,9 +12,8 @@ REM     ClearScreen (PUSH fill in interrupt-safe chunks);
 REM   - a frame flyback event counting frames, which must match the clock.
 REM Prints "FAIL ..." on any mismatch, then a summary and DONE.
 
-#include <alloc.bas>
 #include <cpcbuild.bas>
-#include "../conformance/lib/chk.bas"
+#include <chk.bas>
 
 CONST MINUTES AS ULONG = 3
 
@@ -99,7 +98,8 @@ Work(20)
 refA = wAcc : refF = wF : refX = wX
 EnableInts()
 
-buf = allocate(32)
+REM a 32-byte block in the central 32K at a fixed address (the Spectrum library's allocate() is gone)
+buf = &5F00
 POKE UINTEGER, buf + 10, 0
 POKE buf + 12, &2A : POKE UINTEGER, buf + 13, buf + 10
 POKE buf + 15, &23
@@ -130,6 +130,6 @@ DelFrameFly(buf)
 
 PRINT
 PRINT "INFO passes="; passes; " ticks="; t; " frames="; frames
-CHK("no_work_fails", STR$(fails), "0")
-CHK("frames_match", STR$(frames * 6 + t / 100 + 12 >= t AND frames * 6 <= t + t / 100 + 12), "1")
+CHK("no_work_fails", T$(STR$(fails)), "0")
+CHK("frames_match", N$(-(frames * 6 + t / 100 + 12 >= t AND frames * 6 <= t + t / 100 + 12)), "1")
 PRINT "DONE"

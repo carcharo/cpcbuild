@@ -1,6 +1,6 @@
 REM Stress test: the frame hook and game mode (Phase 5b).
 REM Not part of the conformance suite (it runs for minutes). Run with
-REM   python3 tools/cpcrun.py tests/stress/gamemode_stress.bas --timeout 900
+REM   make test-stress   (python3 tests/stress/run.py -k gamemode_stress)
 REM (and --model 464, --emu chips|cap32). Like isr_stress.bas, but game
 REM mode is switched on and off every 2 passes while a hook that trashes
 REM every register counts the frames. It loops until MINUTES of frames
@@ -17,7 +17,7 @@ REM     8th pass a polling loop counts VSYNC edges, which must equal the
 REM     frames (+-1) in either mode; the hook never saw interrupts on.
 REM Prints "FAIL ..." on any mismatch, then a summary and DONE.
 
-#include "../conformance/lib/fhlib.bas"
+#include <fhlib.bas>
 
 CONST MINUTES AS ULONG = 3
 
@@ -78,7 +78,7 @@ DO
     nPasses = nPasses + 1
     d = CAST(LONG, dF) - CAST(LONG, dT) / 6
     IF d < -1 OR d > 1 THEN
-      Fail("frames_vs_clock frames=" + STR$(dF) + " ticks=" + STR$(dT))
+      Fail("frames_vs_clock frames=" + T$(STR$(dF)) + " ticks=" + T$(STR$(dT)))
     END IF
   ELSE
     gmPasses = gmPasses + 1
@@ -91,7 +91,7 @@ DO
     d = CAST(LONG, sF - bF) - CAST(LONG, vs)
     polls = polls + 1
     IF d < -1 OR d > 1 THEN
-      Fail("frames_vs_vsync frames=" + STR$(sF - bF) + " edges=" + STR$(vs) + " gm=" + STR$(gm))
+      Fail("frames_vs_vsync frames=" + T$(STR$(sF - bF)) + " edges=" + T$(STR$(vs)) + " gm=" + T$(STR$(gm)))
     END IF
   END IF
   IF ifon <> 0 THEN Fail("hook_saw_interrupts_on")
@@ -105,8 +105,9 @@ total = sF - startF
 
 PRINT
 PRINT "INFO passes="; passes; " normal="; nPasses; " game="; gmPasses; " vsync checks="; polls; " frames="; total; " hook="; sH
-CHK("no_fails", STR$(fails), "0")
+CHK("no_fails", T$(STR$(fails)), "0")
 DIM okh AS UBYTE
-okh = (sH = (total AND &FFFF))
-CHK("hook_total", STR$(okh), "1")
+REM a true comparison is -1 here, not 1
+okh = -(sH = (total AND &FFFF))
+CHK("hook_total", N$(okh), "1")
 PRINT "DONE"

@@ -1,7 +1,7 @@
 REM Stress/measurement: the interrupt load of a hooked song, normal mode
 REM against game mode. Not part of the conformance suite (about 40 s of CPC
 REM time); run it with
-REM   python3 tools/cpcrun.py tests/stress/music_load.bas --emu chips --timeout 200
+REM   make test-stress   (python3 tests/stress/run.py -k music_load)
 REM
 REM A busy loop of 20 x 50000 passes of DEC BC / LD A,B / OR C / JP NZ (28
 REM CPC T-states a pass: 28,000,000 T = 7.0 s = 350 frames = 2100 ticks of
@@ -12,7 +12,7 @@ REM normal mode, from the firmware clock. Load = 1 - nominal / measured.
 #include <cpc.bas>
 #include <framehook.bas>
 #include <music/music.bas>
-#include "../conformance/assets/music/softhard.bas"
+#include <softhard.bas>
 
 FUNCTION FASTCALL Ticks() AS ULONG
   ASM
