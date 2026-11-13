@@ -1,4 +1,4 @@
-.PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-games test-lamp reach-lamp lamp-plus test-lamp-plus test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
+.PHONY: help run shot unit test test-all test-chips test-stress test-bare test-bare-disc test-bare-cold test-games test-lamp reach-lamp lamp-plus test-lamp-plus test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
 
 PYTHON := python3
 # the cpcbas checkout (pinned in cpcbas.json); ?= so an environment CPCBAS (CI, or a git worktree whose sibling is elsewhere) wins
@@ -7,6 +7,8 @@ export CPCBAS
 # the emsdk for `make wasm` (ignored when it has no emsdk_env.sh: emcc on PATH is then used)
 EMSDK ?= tools/cpcec/wasm/emsdk
 MODEL := 6128
+# the conformance runner and programs are cpcbas's (tools/conformance.py, tests/conformance); --cpcbuild says where this checkout's tools/cpcrun.py and emulators are
+CONFORMANCE = $(CPCBAS)/tools/conformance.py --cpcbuild $(CURDIR)
 # EMU= chips|cap32|cpcec for `make run` (chips has no 664 or Plus; `shot` always uses chips)
 EMU := chips
 # ORG= (e.g. ORG=0x40) sets the program origin for run/shot; empty = compiler default
@@ -28,29 +30,32 @@ unit: ## Run the tool unit tests (img2cpc, tmx2bas)
 	$(PYTHON) -m unittest discover -s tests/tools
 
 test: unit ## Unit tests, then conformance on Caprice32 (6128)
-	$(PYTHON) tests/conformance/run.py
+	$(PYTHON) $(CONFORMANCE)
 
 test-all: ## Run conformance tests on all models (464, 664, 6128)
-	$(PYTHON) tests/conformance/run.py --model 464
-	$(PYTHON) tests/conformance/run.py --model 664
-	$(PYTHON) tests/conformance/run.py --model 6128
+	$(PYTHON) $(CONFORMANCE) --model 464
+	$(PYTHON) $(CONFORMANCE) --model 664
+	$(PYTHON) $(CONFORMANCE) --model 6128
 
 test-chips: chips ## Build chipsrun and run conformance tests with chips emulator
-	$(PYTHON) tests/conformance/run.py --emu chips --model 6128
-	$(PYTHON) tests/conformance/run.py --emu chips --model 464
+	$(PYTHON) $(CONFORMANCE) --emu chips --model 6128
+	$(PYTHON) $(CONFORMANCE) --emu chips --model 464
 	$(if $(wildcard tests/screens/run.py),$(PYTHON) tests/screens/run.py)
 
 test-bare: test-bare-disc test-bare-cold ## Bare-metal (-D CPC_BAREMETAL) conformance and screenshots on chips: 464/6128 disc start and cold start (no firmware)
 
 test-bare-disc: chips ## Bare-metal disc-start conformance (6128, 464) and screenshots on chips
-	$(PYTHON) tests/conformance/run.py --emu chips --model 6128 --bare
-	$(PYTHON) tests/conformance/run.py --emu chips --model 464 --bare
+	$(PYTHON) $(CONFORMANCE) --emu chips --model 6128 --bare
+	$(PYTHON) $(CONFORMANCE) --emu chips --model 464 --bare
 	$(PYTHON) tests/screens/run.py --bare
 
 test-bare-cold: chips ## Bare-metal cold-start (no firmware) conformance (6128, 464) and screenshots on chips
-	$(PYTHON) tests/conformance/run.py --emu chips --model 6128 --cold
-	$(PYTHON) tests/conformance/run.py --emu chips --model 464 --cold
+	$(PYTHON) $(CONFORMANCE) --emu chips --model 6128 --cold
+	$(PYTHON) $(CONFORMANCE) --emu chips --model 464 --cold
 	$(PYTHON) tests/screens/run.py --cold
+
+test-stress: chips ## Stress and load programs on chips (6128 and 464; about 20 s, not part of ci): interrupt front-end, game mode and frame hook, sound and music load (tests/stress/run.py)
+	$(PYTHON) tests/stress/run.py
 
 test-games: chips ## Starfall: logic tests and screenshot goldens for the CPC builds on chips
 	$(PYTHON) games/shooter/tests/run.py
@@ -69,8 +74,8 @@ reach-lamp: ## Lamplighter: the reachability model over the map (about a minute)
 
 test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conformance (firmware and --bare), screenshots (firmware and --bare)
 	$(PYTHON) tests/plus/run.py
-	$(PYTHON) tests/conformance/run.py --model plus
-	$(PYTHON) tests/conformance/run.py --model plus --bare
+	$(PYTHON) $(CONFORMANCE) --model plus
+	$(PYTHON) $(CONFORMANCE) --model plus --bare
 	$(PYTHON) tests/screens/run.py --model plus
 	$(PYTHON) tests/screens/run.py --model plus --bare
 	$(PYTHON) games/shooter/tests/run.py --plus
@@ -79,7 +84,7 @@ test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conform
 # from DmaStart/DmaStop); CPCEC, like the ASIC, clears a channel's bit when its list reaches STOP
 # and shows DCSR bit 7, so they are left out of the CPCEC runs
 CPCEC_SKIP :=
-CPCEC_TESTS := $(filter-out $(addprefix tests/conformance/,$(addsuffix .bas,$(CPCEC_SKIP))),$(wildcard tests/conformance/*.bas))
+CPCEC_TESTS := $(filter-out $(addprefix $(CPCBAS)/tests/conformance/,$(addsuffix .bas,$(CPCEC_SKIP))),$(wildcard $(CPCBAS)/tests/conformance/*.bas))
 
 cap32: ## Fetch, patch (tools/caprice32/caprice32-asic-regs.patch) and build Caprice32 into tools/caprice32/work/src/ (needs git, make, g++, SDL2, FreeType, libpng; the default cap32 for all tools)
 	sh tools/caprice32/fetch_build.sh
@@ -89,8 +94,8 @@ cpcec: ## Fetch, patch (tools/cpcec/cpcbuild.patch) and build CPCEC into tools/c
 
 test-cpcec: ## 6128 Plus on CPCEC (headless, needs `make cpcec`): smoke tests, conformance (firmware and --bare, minus CPCEC_SKIP), screens (firmware and --bare), Starfall Plus multiplexed cartridge (tests and goldens)
 	$(PYTHON) tests/plus/run.py -k cpcec
-	$(PYTHON) tests/conformance/run.py --emu cpcec --model plus $(CPCEC_TESTS)
-	$(PYTHON) tests/conformance/run.py --emu cpcec --model plus --bare $(CPCEC_TESTS)
+	$(PYTHON) $(CONFORMANCE) --emu cpcec --model plus $(CPCEC_TESTS)
+	$(PYTHON) $(CONFORMANCE) --emu cpcec --model plus --bare $(CPCEC_TESTS)
 	$(PYTHON) tests/screens/run.py --emu cpcec
 	$(PYTHON) tests/screens/run.py --emu cpcec --bare
 	$(PYTHON) games/shooter/tests/run.py --plus --emu cpcec
