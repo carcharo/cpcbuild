@@ -23,8 +23,8 @@ import { globBase, matchesAny } from '../core/glob';
 import { insideRoot, insideRootFrom, PathEscapeError } from '../core/paths';
 import { parseSprite, resolvePalette, type DocType, type SpriteState } from '../core/spriteDoc';
 import { exportAsset } from '../core/spriteExport';
-import { parseSfx, describeError as describeSfxError, type SfxTarget } from '../core/sfxDoc';
-import { sfxBankName, sfxOutputs, sfxStale, withSfxConstants } from '../core/sfxBuild';
+import { parseSfx, describeError as describeSfxError } from '../core/sfxDoc';
+import { sfxBankName, sfxOutput, sfxStale, withSfxConstants } from '../core/sfxBuild';
 import { parseSong, describeSongError } from '../core/songDoc';
 import { songBankName, songOutputs } from '../core/songBuild';
 import { sfxToVt2, songToVt2, songProblems, Vt2Error } from '../core/vt2';
@@ -370,37 +370,33 @@ export async function generateFile(root: string, recipeRel: string, s: GenSettin
 // ---------------------------------------------------------------- sound-effects banks
 
 /** A bank's generated includes are missing or older than it. */
-export function isSfxStale(root: string, bankRel: string, targets: readonly SfxTarget[]): boolean {
-  return sfxStale(mtime(path.resolve(root, bankRel)), sfxOutputs(bankRel, targets).map((o) => mtime(path.resolve(root, o.bas))));
+export function isSfxStale(root: string, bankRel: string): boolean {
+  return sfxStale(mtime(path.resolve(root, bankRel)), [mtime(path.resolve(root, sfxOutput(bankRel).bas))]);
 }
 
 /**
- * Writes the .vt2 beside a .cpcsfx for each target and converts it into the include (with the effect constants).
- * No --psg: the module carries its chip clock (ChipFreq), which sfxToVt2 sets per target.
+ * Writes the .vt2 beside a .cpcsfx and converts it into the include (with the effect constants).
+ * No --psg: the module carries its chip clock (ChipFreq), which sfxToVt2 sets.
  */
 export async function generateSfxBank(
   root: string,
   bankRel: string,
-  targets: readonly SfxTarget[],
   s: GenSettings,
   extra: { sink?: Sink; token?: CancelToken } = {},
 ): Promise<GenResult> {
   const res: GenResult = { recipe: bankRel, ok: false, written: [], doc: true };
-  const outs = sfxOutputs(bankRel, targets);
-  res.outputExists = outs.length > 0 && mtime(path.resolve(root, outs[0].bas)) >= 0;
+  const o = sfxOutput(bankRel);
+  res.outputExists = mtime(path.resolve(root, o.bas)) >= 0;
   try {
     const r = parseSfx(fs.readFileSync(path.resolve(root, bankRel), 'utf8'));
     if (!r.doc) throw new Error(r.errors.slice(0, 3).map(describeSfxError).join('; '));
     const bank = sfxBankName(bankRel);
-    for (const o of outs) {
-      const vt2 = sfxToVt2(r.doc, o.target, bank);
-      fs.writeFileSync(path.resolve(root, o.vt2), vt2, 'utf8');
-      const c = await convertMusic(root, o.vt2, { name: bank, sfx: true, output: o.bas }, { engine: s.engine, pythonPath: s.pythonPath, library: s.library, toolsDir: s.toolsDir }, extra);
-      if (!c.ok) throw new Error(c.error ?? 'conversion failed');
-      const abs = path.resolve(root, o.bas);
-      fs.writeFileSync(abs, withSfxConstants(fs.readFileSync(abs, 'utf8'), r.doc, bank), 'utf8');
-      res.written.push(o.vt2, o.bas);
-    }
+    fs.writeFileSync(path.resolve(root, o.vt2), sfxToVt2(r.doc, bank), 'utf8');
+    const c = await convertMusic(root, o.vt2, { name: bank, sfx: true, output: o.bas }, { engine: s.engine, pythonPath: s.pythonPath, library: s.library, toolsDir: s.toolsDir }, extra);
+    if (!c.ok) throw new Error(c.error ?? 'conversion failed');
+    const abs = path.resolve(root, o.bas);
+    fs.writeFileSync(abs, withSfxConstants(fs.readFileSync(abs, 'utf8'), r.doc, bank), 'utf8');
+    res.written.push(o.vt2, o.bas);
     res.ok = true;
   } catch (e) {
     res.error = e instanceof Vt2Error ? `${bankRel}: ${e.message}` : describeError(e);
@@ -446,8 +442,6 @@ export async function generateSong(
 }
 
 export interface RegenOptions {
-  /** The machines the project builds for (default: the CPC only); one include per machine is written for each bank. */
-  sfxTargets?: readonly SfxTarget[];
   /** Only recipes whose output is older than their inputs (the pre-build pass). */
   onlyStale?: boolean;
   sink?: Sink;
@@ -507,11 +501,10 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
     results.push(res);
   }
   // sound-effects banks: converted with the Arkos tools; without them a committed .bas is kept and one warning says so
-  const targets = o.sfxTargets ?? ['cpc'];
   const missing: string[] = [];
   for (const bankRel of findSfxBanks(root, globs)) {
     if (o.token?.isCancellationRequested) break;
-    if (o.onlyStale && !isSfxStale(root, bankRel, targets)) {
+    if (o.onlyStale && !isSfxStale(root, bankRel)) {
       results.push({ recipe: bankRel, ok: true, skipped: true, written: [] });
       continue;
     }
@@ -519,7 +512,7 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
       missing.push(bankRel);
       continue;
     }
-    const res = await generateSfxBank(root, bankRel, targets, s, { sink: o.sink, token: o.token });
+    const res = await generateSfxBank(root, bankRel, s, { sink: o.sink, token: o.token });
     if (res.ok) o.sink?.line(`${bankRel} -> ${res.written.join(', ')}`);
     else o.sink?.line(`${bankRel}: ${res.error}`, true);
     results.push(res);

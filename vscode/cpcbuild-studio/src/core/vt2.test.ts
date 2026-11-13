@@ -20,33 +20,29 @@ const END = '... +000_ +00_ 0_ L';
 const pad = (from: number): string => Array.from({ length: 32 - from }, (_, i) => `[Sample${from + i}]\n${END}\n\n`).join('');
 
 describe('vt2: tone offsets (periods measured with Arkos 3.7, see the S1 spec)', () => {
-  // note number, CPC period, Spectrum period
-  const table: [string, number, number, number][] = [
-    ['C-1', 24, 1911, 3389],
-    ['A-2', 45, 568, 1008],
-    ['C-3', 48, 478, 847],
-    ['F#3', 54, 338, 599],
-    ['C-4', 60, 239, 424],
-    ['A-4', 69, 142, 252],
-    ['C-5', 72, 119, 212],
-    ['G-6', 91, 40, 71],
-    ['B-7', 107, 16, 28],
+  // note name, note number, CPC period
+  const table: [string, number, number][] = [
+    ['C-1', 24, 1911],
+    ['A-2', 45, 568],
+    ['C-3', 48, 478],
+    ['F#3', 54, 338],
+    ['C-4', 60, 239],
+    ['A-4', 69, 142],
+    ['C-5', 72, 119],
+    ['G-6', 91, 40],
+    ['B-7', 107, 16],
   ];
-  for (const [name, m, cpc, zx] of table) {
-    it(`${name}: periods ${cpc} / ${zx}`, () => {
+  for (const [name, m, cpc] of table) {
+    it(`${name}: period ${cpc}`, () => {
       expect(period(m, CLOCKS.cpc)).toBe(cpc);
-      expect(period(m, CLOCKS.spectrum)).toBe(zx);
       const sign = (n: number): string => `${n < 0 ? '-' : '+'}${Math.abs(n).toString(16).toUpperCase().padStart(3, '0')}`;
       expect(frameLine(frame(m, 15), CLOCKS.cpc)).toBe(`T.. ${sign(cpc - 239)}_ +00_ F_`);
-      expect(frameLine(frame(m, 15), CLOCKS.spectrum)).toBe(`T.. ${sign(zx - 424)}_ +00_ F_`);
     });
   }
 
   it('spells the offsets out', () => {
     expect(frameLine(frame(24, 15), CLOCKS.cpc)).toBe('T.. +688_ +00_ F_');
-    expect(frameLine(frame(24, 15), CLOCKS.spectrum)).toBe('T.. +B95_ +00_ F_');
     expect(frameLine(frame(107, 1), CLOCKS.cpc)).toBe('T.. -0DF_ +00_ 1_');
-    expect(frameLine(frame(107, 1), CLOCKS.spectrum)).toBe('T.. -18C_ +00_ 1_');
   });
 
   it('mixer letters, noise period in hex and volume digit', () => {
@@ -65,28 +61,18 @@ describe('vt2: exact text of a 2-effect bank', () => {
     `[Module]\nVortexTrackerII=1\nVersion=3.7\nTitle=test\nAuthor=cpcbuild\nNoteTable=1\nChipFreq=${clock}\nSpeed=6\nNoise=HEX\nPlayOrder=L0\n\n[Ornament1]\nL0\n\n`;
   const rows = '[Pattern0]\n....|..|C-4 1F0F ....|--- .... ....|--- .... ....\n....|..|C-4 2F0F ....|--- .... ....|--- .... ....\n';
 
-  it('CPC', () => {
+  it('the CPC clock', () => {
     const expected =
       head(1000000) +
       `[Sample1]\nT.. +000_ +00_ F_\nTN. -078_ +0A_ 8_\n${END}\n\n` +
       `[Sample2]\nT.. -061_ +00_ 3_\n${END}\n\n` +
       pad(3) +
       rows;
-    expect(sfxToVt2(doc, 'cpc', 'test')).toBe(expected);
-  });
-
-  it('Spectrum', () => {
-    const expected =
-      head(1773400) +
-      `[Sample1]\nT.. +000_ +00_ F_\nTN. -0D4_ +0A_ 8_\n${END}\n\n` +
-      `[Sample2]\nT.. -0AC_ +00_ 3_\n${END}\n\n` +
-      pad(3) +
-      rows;
-    expect(sfxToVt2(doc, 'spectrum', 'test')).toBe(expected);
+    expect(sfxToVt2(doc, 'test')).toBe(expected);
   });
 
   it('defines all 31 samples and ends every effect with the silent end line, never a sounding L', () => {
-    const text = sfxToVt2(doc, 'cpc');
+    const text = sfxToVt2(doc);
     expect(text.match(/^\[Sample\d+\]$/gm)).toHaveLength(31);
     for (const line of text.split('\n').filter((l) => l.endsWith(' L'))) expect(line).toBe(END);
   });
@@ -95,25 +81,25 @@ describe('vt2: exact text of a 2-effect bank', () => {
 describe('vt2: errors', () => {
   const ok = (n: number): SfxFrame[] => [frame(60, n)];
   const msg = (doc: SfxDoc): string => {
-    expect(() => sfxToVt2(doc, 'cpc')).toThrow(Vt2Error);
-    return vt2Problems(doc, 'cpc')[0];
+    expect(() => sfxToVt2(doc)).toThrow(Vt2Error);
+    return vt2Problems(doc)[0];
   };
 
   it('too many effects', () => {
     const many = bank(...Array.from({ length: 10 }, (_, i): [string, SfxFrame[]] => [`e${i}`, ok(i + 1)]));
     expect(msg(many)).toBe('a bank has 1-9 effects, not 10');
-    expect(vt2Problems(bank(), 'cpc')[0]).toBe('a bank has 1-9 effects, not 0');
+    expect(vt2Problems(bank())[0]).toBe('a bank has 1-9 effects, not 0');
   });
 
   it('nine effects are fine', () => {
     const nine = bank(...Array.from({ length: 9 }, (_, i): [string, SfxFrame[]] => [`e${i}`, ok(i + 1)]));
-    expect(vt2Problems(nine, 'cpc')).toEqual([]);
-    expect(sfxToVt2(nine, 'cpc')).toContain('9F0F');
+    expect(vt2Problems(nine)).toEqual([]);
+    expect(sfxToVt2(nine)).toContain('9F0F');
   });
 
   it('too long (and empty)', () => {
     expect(msg(bank(['long', Array.from({ length: 251 }, () => frame(60, 5))]))).toBe('effect "long": 251 frames, but an effect has 1-250');
-    expect(vt2Problems(bank(['long', Array.from({ length: 250 }, () => frame(60, 5))]), 'cpc')).toEqual([]);
+    expect(vt2Problems(bank(['long', Array.from({ length: 250 }, () => frame(60, 5))]))).toEqual([]);
     expect(msg(bank(['none', []]))).toBe('effect "none": 0 frames, but an effect has 1-250');
   });
 
@@ -168,7 +154,7 @@ describe.skipIf(!haveTools)('vt2: golden against the real SongToSoundEffects', (
     try {
       const vt2 = path.join(dir, 'bank.vt2');
       const asm = path.join(dir, 'bank.asm');
-      fs.writeFileSync(vt2, sfxToVt2(doc, 'cpc', 'golden'));
+      fs.writeFileSync(vt2, sfxToVt2(doc, 'golden'));
       execFileSync(path.join(toolsDir, 'SongToSoundEffects'), ['--labelPrefix', 'golden_', vt2, asm], { timeout: 120000 });
       return parseAsm(fs.readFileSync(asm, 'utf8'));
     } finally {

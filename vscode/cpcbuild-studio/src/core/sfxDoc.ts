@@ -21,9 +21,8 @@ export const MAX_PITCH = 107; // B-7
 export const FRAME_MS = 20;
 export const PITCH_STEP = 0.01;
 
-/** PSG clock per build target (the AY of the CPC; the Spectrum 128K's). */
-export type SfxTarget = 'cpc' | 'spectrum';
-export const CLOCKS: Record<SfxTarget, number> = { cpc: 1000000, spectrum: 1773400 };
+/** The PSG clock (the AY of the CPC, 1 MHz). */
+export const CLOCKS = { cpc: 1000000 } as const;
 
 export const PRESET_KINDS = ['blip', 'jump', 'coin', 'laser', 'hit', 'explosion', 'door', 'alarm'] as const;
 export type PresetKind = (typeof PRESET_KINDS)[number];

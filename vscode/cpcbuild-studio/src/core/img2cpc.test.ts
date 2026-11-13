@@ -1,7 +1,7 @@
 /**
  * Byte-compares the TS port with tools/img2cpc.py: every invocation the repo
  * makes (tools/build_assets.sh, games/shooter/build_assets.sh,
- * examples/plusdemo/build.sh, tests/conformance/assets/make_plus_sources.py),
+ * examples/plusdemo/build.sh, vscode/cpcbuild-studio/src/core/fixtures/art/make_plus_sources.py),
  * the committed generated .bas files, and synthetic images covering every
  * mode and option. Shells out to python3 (with Pillow) at test time.
  */
@@ -9,9 +9,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { encodePng, newImage, setPixel } from './image';
-import { committedText } from './committedText';
 import { Img2cpcError, runCli, type CliIo } from './img2cpc';
-import { py, REPO, rng, scratchDir } from './testutil';
+import { py, REPO, rng, scratchDir, repoText } from './testutil';
 
 const io: CliIo = {
   readFile: (p) => new Uint8Array(fs.readFileSync(path.resolve(REPO, p))),
@@ -46,7 +45,7 @@ function sameError(argv: string[]): string {
 }
 
 const A = 'examples/assets';
-const C = 'tests/conformance/assets';
+const C = 'vscode/cpcbuild-studio/src/core/fixtures/art';
 const G = 'games/shooter/assets';
 const D = 'examples/plusdemo';
 
@@ -77,7 +76,7 @@ describe('img2cpc.ts vs tools/img2cpc.py: the repo invocations', () => {
       if (committed) {
         // the committed file was generated with -o <committed>; same header
         const withO = runCli([...argv, '-o', committed], io);
-        expect(withO.files[0].data).toBe(committedText(committed));
+        expect(withO.files[0].data).toBe(repoText(committed));
       }
       expect(text.length).toBeGreaterThan(0);
     });
@@ -95,26 +94,6 @@ describe('img2cpc.ts vs tools/img2cpc.py: the repo invocations', () => {
     expect(t.files[0].data).toBe(fs.readFileSync(pal, 'utf8'));
     expect(t.files[0].data).toBe(fs.readFileSync(path.join(REPO, C, 'pens16.pal'), 'utf8'));
   });
-});
-
-// ----------------------------------------------------------- Spectrum (the Python tool no longer has it)
-
-// tools/img2cpc.py dropped --spectrum and --zx-sprite; the Studio's port keeps them until its own Spectrum UI goes.
-// The expected texts were made by the last Python version that had them (the code of git 3112405^ with the data
-// hex written as `&`), from the PNGs beside them: zx_* are the old Starfall Spectrum art, the others random pixels.
-describe('img2cpc.ts --spectrum against the frozen output of the last Python version', () => {
-  const FX = 'vscode/cpcbuild-studio/src/core/fixtures/img2cpc_zx';
-  const cases: [string, boolean][] = [
-    ['zx_sprites', true], ['zx_shots', true], ['zx_icon', true], ['zx_sprites', false], ['zx_icon', false],
-    ['pic', false], ['dense', false], ['sprite', true],
-  ];
-  for (const [name, zxSprite] of cases) {
-    it(`${name}${zxSprite ? ' --zx-sprite' : ''}`, () => {
-      const argv = ['--spectrum', ...(zxSprite ? ['--zx-sprite'] : []), '--name', name, `${FX}/${name}.png`];
-      const want = fs.readFileSync(path.join(REPO, FX, `${name}${zxSprite ? '_zxsprite' : ''}.expected.bas`), 'utf8');
-      expect(runCli(argv, io).stdout).toBe(want);
-    });
-  }
 });
 
 // ----------------------------------------------------------- synthetic images
@@ -288,11 +267,8 @@ describe('img2cpc.ts vs tools/img2cpc.py: the sidecar', () => {
     same(['--dedupe', t]);
   });
 
-  it('spectrum and plus never read it', () => {
+  it('plus never reads it', () => {
     const p = withSide(16, 16, { ...hero, tags: [{ name: 'a', from: 9, to: 9 }] });
-    const zx = runCli(['--spectrum', p], io).stdout ?? '';
-    expect(zx).not.toContain('settings from');
-    expect(zx.split('\n').slice(1).join('\n')).toBe((runCli(['--spectrum', '--no-sidecar', p], io).stdout ?? '').split('\n').slice(1).join('\n'));
     same(['--plus-palette', p]);
   });
 
@@ -366,7 +342,6 @@ describe('img2cpc.ts vs tools/img2cpc.py: --check', () => {
     sameError(['--check', '--mode', '1', png(16, 16, rand(41, 12))]);
     sameError(['--check', '--mode', '0', png(9, 8, fwOnly)]);
     expect(sameError(['--check', '--mode', '1', '-o', path.join(dir, 'x.bas'), png(8, 8, fwOnly)])).toBe('--check writes nothing; leave out -o');
-    expect(() => runCli(['--check', '--spectrum', png(8, 8, fwOnly)], io)).toThrow('--check is for CPC modes, not --spectrum or --plus-*');
     sameError(['--check', '--plus-sprite', png(16, 16, fwOnly)]);
   });
 });

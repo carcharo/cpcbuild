@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """prepare_media.py -- builds the media test/golden.mjs runs, with the repo's own
-toolchain (zxbc via tools/cpcrun.py, mkdsk.py, tools/mkcpr.py), into
-test/.media/ (git-ignored), and writes test/.media/manifest.json.
+toolchain (cpcbas through tools/cpcrun.py: it packs the disc and the cartridge itself),
+into test/.media/ (git-ignored), and writes test/.media/manifest.json.
 
 Each case is a program that asks for a screenshot with Shot("name") (the printer line
 "\\x04SHOT name\\n", see tests/screens/lib/shot.bas) and the golden PNG CPCEC's native
@@ -37,37 +37,35 @@ REPO = HERE.parents[2]
 sys.path.insert(0, str(REPO / "tools"))
 sys.path.insert(0, str(REPO / "tests" / "screens"))
 import cpcrun  # noqa: E402
-import mkcpr  # noqa: E402
-import run as screens  # noqa: E402  (spec(): REM SOURCE / REM ZXBC lines)
+import run as screens  # noqa: E402  (spec(): REM SOURCE / REM CPCBAS lines)
 
-if "ZXBASIC" not in os.environ and not cpcrun.zxbasic_dir().exists():  # a git worktree: the sibling repo is next to the main checkout
-    common = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--git-common-dir"], capture_output=True, text=True).stdout.strip()
-    alt = (REPO / common).resolve().parent.parent / "zxbasic"
-    if alt.exists():
-        os.environ["ZXBASIC"] = str(alt)
 OUT = HERE / ".media"
 GOLD = REPO / "tests" / "screens" / "golden" / "cpcec-plus"
 STAR_GOLD = REPO / "games" / "shooter" / "tests" / "golden" / "cpcec-plus"
 
 
 def build_dsk(source: Path, zargs: list[str], dsk: Path, org: int | None = None) -> int:
+    """The program as a disc (<stem>.dsk, <stem>.map beside it) and as the raw image (<stem>.bin, no AMSDOS header)."""
     env = cpcrun.subprocess_env()
-    binf = dsk.with_suffix(".bin")
     args = list(zargs)
     if org is not None:
         args = ["--org", hex(org), *args]
-    o = cpcrun.compile_program(source, binf, args, env)
-    cpcrun.pack_dsk(binf, dsk, cpcrun.amsdos_stem(source), env, o)
+    o = cpcrun.compile_program(source, dsk, args, env)
+    binf = dsk.with_suffix(".bin")
+    cpcrun.compile_program(source, binf, args, env)
+    binf.write_bytes(binf.read_bytes()[128:])  # cpcbas writes the .bin with a 128-byte AMSDOS header
     return o
 
 
 def build_cpr(source: Path, zargs: list[str], cpr: Path) -> None:
+    """The program as a bare-metal cartridge with its own font. Built in a scratch folder: its .map must not replace the disc's."""
     env = cpcrun.subprocess_env()
-    binf = cpr.with_suffix(".bin")
     if "CPC_BAREMETAL" not in zargs:
         zargs = ["-D", "CPC_BAREMETAL", *zargs]
-    o = cpcrun.compile_program(source, binf, ["-D", "CPC_OWNFONT", *zargs], env)
-    cpr.write_bytes(mkcpr.build_cpr(binf.read_bytes(), o))
+    with tempfile.TemporaryDirectory() as t:
+        out = Path(t) / cpr.name
+        cpcrun.compile_program(source, out, ["-f", "cpr", "-D", "CPC_OWNFONT", *zargs], env)
+        cpr.write_bytes(out.read_bytes())
 
 
 def main() -> int:
@@ -85,7 +83,7 @@ def main() -> int:
             f(p)
         return p
 
-    # plusdemo: disc, as `make test-cpcec` builds it (REM SOURCE / REM ZXBC in the test file)
+    # plusdemo: disc, as `make test-cpcec` builds it (REM SOURCE / REM CPCBAS in the test file)
     t = REPO / "tests" / "screens" / "plusdemo.bas"
     src, zargs = screens.spec(t)
     want("plusdemo.dsk", lambda p: build_dsk(src, zargs, p))

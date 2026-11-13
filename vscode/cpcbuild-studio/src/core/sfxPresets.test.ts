@@ -26,8 +26,7 @@ describe('sfx presets', () => {
         expect(f[0].volume).toBeGreaterThanOrEqual(8);
         expect(new Set(f.map((x) => x.volume)).size).toBeGreaterThan(1);
         const doc = { format: 'cpcsfx' as const, version: 1, effects: [presetEffect(kind, kind)] };
-        expect(() => sfxToVt2(doc, 'cpc')).not.toThrow();
-        expect(() => sfxToVt2(doc, 'spectrum')).not.toThrow();
+        expect(() => sfxToVt2(doc)).not.toThrow();
       });
 
       it('rough changes pitches only, deterministically; extremes stay valid', () => {

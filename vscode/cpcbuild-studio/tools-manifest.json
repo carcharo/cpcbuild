@@ -1,22 +1,23 @@
 {
-  "zxbasic": {
-    "version": "1.19.0-cpc.2",
-    "assets": {
-      "windows-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-windows-x64.zip", "sha256": "ea97dd2c563e605af6c84dc28172d668bbd9160900212da51232fe85ff0106c4" },
-      "windows-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-windows-arm64.zip", "sha256": "c362b3329ae53f20aacd47fdd1c918884bf5df99de6e57ae1defc8b519250f05" },
-      "linux-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-linux-x64.tar.gz", "sha256": "18581c06291b1d26a42bece49de7d1824d13e6b192200c73c12b7c029fc2f278" },
-      "linux-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-linux-arm64.tar.gz", "sha256": "5680afbeee811601c7ceeb49c723ee07db2d156a52f94880df29c7acc2507b36" },
-      "macos-arm64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-macos-arm64.zip", "sha256": "b19fb1429905670c000c8ff467190b7142c118cc87c03dcb73fc0b2efb893d6d" },
-      "macos-x64": { "url": "https://github.com/carcharo/zxbasic/releases/download/v1.19.0-cpc.2/zxbasic-1.19.0-cpc.2-macos-x64.zip", "sha256": "1cd8542235346815e0813aa3d8fc02fc786af47bc25384b63e063496489aea60" }
-    }
-  },
   "arkos": {
     "version": "3.7",
     "assets": {
-      "windows-x64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/windows/ArkosTracker-windows-3.7.zip", "sha256": "15412b090f147b95abadd3cac5a57ac9dbc69163271d8f46c1d12b5f0a43236c" },
-      "linux-x64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/linux64/ArkosTracker-linux64-3.7.zip", "sha256": "7e22d5762a611a09f21e83fa07cef0aeddc37fc28e159b67e2e0a949617024cf" },
-      "linux-arm64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/linux64arm/ArkosTracker-linux64arm-3.7.zip", "sha256": "67e4374e434ff6b82610898a05edb2f4c2a1a019a9e74d061bf0de455fc7b06e" },
-      "macos-arm64": { "url": "https://www.julien-nevo.com/arkostracker/release/3.7/macosx/ArkosTracker-macosx-3.7.zip", "sha256": "cf00cdfba8d09bfaea2b46a01c6db1f9fff521f608a80d04ec99c3d4991ed217" },
+      "windows-x64": {
+        "url": "https://www.julien-nevo.com/arkostracker/release/3.7/windows/ArkosTracker-windows-3.7.zip",
+        "sha256": "15412b090f147b95abadd3cac5a57ac9dbc69163271d8f46c1d12b5f0a43236c"
+      },
+      "linux-x64": {
+        "url": "https://www.julien-nevo.com/arkostracker/release/3.7/linux64/ArkosTracker-linux64-3.7.zip",
+        "sha256": "7e22d5762a611a09f21e83fa07cef0aeddc37fc28e159b67e2e0a949617024cf"
+      },
+      "linux-arm64": {
+        "url": "https://www.julien-nevo.com/arkostracker/release/3.7/linux64arm/ArkosTracker-linux64arm-3.7.zip",
+        "sha256": "67e4374e434ff6b82610898a05edb2f4c2a1a019a9e74d061bf0de455fc7b06e"
+      },
+      "macos-arm64": {
+        "url": "https://www.julien-nevo.com/arkostracker/release/3.7/macosx/ArkosTracker-macosx-3.7.zip",
+        "sha256": "cf00cdfba8d09bfaea2b46a01c6db1f9fff521f608a80d04ec99c3d4991ed217"
+      },
       "macos-x64": "macos-arm64"
     }
   }

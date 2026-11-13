@@ -68,18 +68,22 @@ test('lists build tasks for the targets', async () => {
   for (const n of ['build cpc6128', 'build cpc464', 'build and run cpc6128']) assert.ok(names.includes(n), `${n} in ${names}`);
 });
 
-test('the doctor finds the compiler, python, library and mkdsk', async () => {
+test('the doctor finds the built-in compiler and library, python and the tools; it asks for no zxbc, mkdsk or checkout', async () => {
   await api();
   const items = (await vscode.commands.executeCommand('cpcbuild.checkEnvironment')) as { id: string; ok: boolean; detail: string }[];
-  for (const id of ['zxbc', 'python', 'library', 'tools', 'mkdsk']) {
+  for (const id of ['compiler', 'python', 'library', 'tools']) {
     const i = items.find((x) => x.id === id);
     assert.ok(i?.ok, `${id}: ${i?.detail}`);
   }
+  assert.match(items.find((x) => x.id === 'compiler')!.detail, /^\d+\.\d+\.\d+.*built in/);
+  assert.deepStrictEqual(items.filter((x) => /^(mkdsk|zx)/.test(x.id)), []);
 });
 
-test('runs the build task for the firmware template: .dsk and a report with headroom', async () => {
+test('runs the build task for the firmware template: .dsk and a report with headroom, and no child process for the compile', async () => {
   const a = await api();
+  (a.runToolLog as string[][]).length = 0;
   const code = await runTask(await findTask('build cpc6128'));
+  assert.deepStrictEqual(a.runToolLog, [], 'the compile starts no program (runTool is the only way the Studio starts one)');
   assert.strictEqual(code, 0, 'task exit code');
   const b = a.lastBuild();
   assert.ok(b?.ok, b?.message);
@@ -96,24 +100,108 @@ test('runs the build task for the firmware template: .dsk and a report with head
   assert.ok(dsk.includes(Buffer.from('TPLFW   BIN')), 'TPLFW.BIN in the directory');
 });
 
-test('the $zxbc problem matcher catches a compiler error', async () => {
-  await api();
+test('a program with an error shows it in the Problems panel at its line and column', async () => {
+  const a = await api();
   const tasks = await vscode.tasks.fetchTasks({ type: 'cpcbuild' });
   const t = tasks.find((x) => x.name === 'build bad');
   assert.ok(t, 'task build bad');
+  (a.runToolLog as string[][]).length = 0;
   const code = await runTask(t);
   assert.strictEqual(code, 1, 'a failed build exits 1');
+  assert.deepStrictEqual(a.runToolLog, []);
   const file = path.join(fs.realpathSync(ws), 'broken', 'src', 'main.bas');
-  const diags = await waitFor('problem-matcher diagnostics', () => {
+  const diags = await waitFor('the compiler diagnostics', () => {
     const all = vscode.languages.getDiagnostics().flatMap(([u, ds]) => (fs.existsSync(u.fsPath) && samePath(fs.realpathSync(u.fsPath), file) ? ds : []));
     return all.some((d) => d.severity === vscode.DiagnosticSeverity.Error) ? all : undefined;
   }, 20000);
   const err = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Error)!;
+  // `PRINT a +` is line 3, and the expression is missing at the end of the line (column 10, 1-based)
   assert.strictEqual(err.range.start.line, 2, 'line 3 (zero-based 2)');
-  assert.match(err.message, /Unexpected end of line/);
-  const warn = diags.find((d) => d.severity === vscode.DiagnosticSeverity.Warning);
-  assert.ok(warn, 'the W100 warning too');
-  assert.strictEqual(String((warn.code as { value?: string })?.value ?? warn.code), 'W100');
+  assert.strictEqual(err.range.start.character, 9, 'column 10 (zero-based 9)');
+  assert.match(err.message, /Expected an expression, found end of line/);
+  assert.strictEqual(String((err.code as { value?: string })?.value ?? err.code), 'E142');
+  assert.strictEqual(err.source, 'cpcbas');
+  const b = a.lastBuild();
+  assert.ok(b && !b.ok);
+  assert.match(b.message ?? '', /1 error.*Problems panel/);
+  assert.ok(b.diagnostics?.some((d) => d.line === 3 && d.col === 10 && d.code === 'E142'));
+});
+
+test('cpcbuild.compiler.args reaches the compiler: -Wimplicit shows a warning, and the build still succeeds', async () => {
+  const a = await api();
+  const cfg = vscode.workspace.getConfiguration('cpcbuild');
+  const root = path.join(fs.realpathSync(ws), 'warn');
+  fs.mkdirSync(path.join(root, 'src'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'cpcbuild.json'), JSON.stringify({ version: 1, name: 'warn', targets: [{ id: 'w', main: 'src/main.bas', package: 'bin' }] }));
+  fs.writeFileSync(path.join(root, 'src', 'main.bas'), 'DIM a AS UBYTE\nb = 3\nPRINT a + b\n');
+  await cfg.update('compiler.args', ['-Wimplicit', '--bogus'], vscode.ConfigurationTarget.Workspace);
+  try {
+    await new Promise((r) => setTimeout(r, 300));
+    const res = await a.build(root, 'w');
+    assert.ok(res.ok, res.message);
+    const warn = res.diagnostics?.find((d) => d.severity === 'warning');
+    assert.ok(warn, 'the implicit declaration warning of -Wimplicit');
+    assert.strictEqual(warn.code, 'W300');
+    assert.strictEqual(warn.line, 2, '`b = 3` is line 2');
+    const shown = vscode.languages.getDiagnostics(vscode.Uri.file(path.join(root, 'src', 'main.bas')));
+    assert.ok(shown.some((d) => d.severity === vscode.DiagnosticSeverity.Warning && d.source === 'cpcbas'));
+    assert.ok(res.artifacts.bin && fs.existsSync(res.artifacts.bin), 'a bin target writes the raw program');
+    assert.ok(!res.artifacts.dsk && !res.artifacts.cpr);
+    assert.strictEqual(res.run, undefined, 'a raw bin has nothing to run');
+  } finally {
+    await cfg.update('compiler.args', undefined, vscode.ConfigurationTarget.Workspace);
+    rmrf(root);
+  }
+});
+
+test('a good build clears the Problems of the project and leaves the unrelated ones', async () => {
+  const a = await api();
+  const root = fs.realpathSync(ws);
+  const bad = await a.build(path.join(root, 'broken'), 'bad');
+  assert.ok(!bad.ok);
+  const file = path.join(root, 'broken', 'src', 'main.bas');
+  const has = (): boolean => vscode.languages.getDiagnostics(vscode.Uri.file(file)).some((d) => d.source === 'cpcbas');
+  assert.ok(has(), 'the error is published');
+  fs.writeFileSync(file, 'PRINT "x"\n');
+  const ok = await a.build(path.join(root, 'broken'), 'bad');
+  assert.ok(ok.ok, ok.message);
+  assert.ok(!has(), 'a good build clears it');
+  fs.writeFileSync(file, 'DIM a AS UBYTE\nb = 3\nPRINT a +\nPRINT "x"\n');
+});
+
+test('Lamplighter builds in-process (disc, map, report), with no child process for the compile', async () => {
+  const a = await api();
+  const src = path.resolve(__dirname, '../../../../../games/lamplighter');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-lamp-'));
+  try {
+    fs.cpSync(src, dir, { recursive: true, filter: (p) => path.basename(p) !== 'build' });
+    const pj = JSON.parse(fs.readFileSync(path.join(dir, 'cpcbuild.json'), 'utf8'));
+    pj.library = null;
+    fs.writeFileSync(path.join(dir, 'cpcbuild.json'), JSON.stringify(pj, null, 2));
+    (a.runToolLog as string[][]).length = 0;
+    const t0 = Date.now();
+    const res = await a.build(dir, 'lamp6128');
+    assert.ok(res.ok, res.message);
+    assert.deepStrictEqual(a.runToolLog, [], 'no program was started');
+    assert.ok(res.artifacts.dsk && fs.statSync(res.artifacts.dsk).size > 100000, 'disc image');
+    assert.ok(res.artifacts.map && /\.core\.__START_PROGRAM/.test(fs.readFileSync(res.artifacts.map, 'utf8')));
+    assert.ok(res.report && res.reportLines.some((l) => /headroom below &8B60/.test(l)), res.reportLines.join('\n'));
+    assert.ok(res.diagnostics !== undefined);
+    const first = Date.now() - t0;
+    const warm: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const t1 = Date.now();
+      assert.ok((await a.build(dir, 'lamp6128')).ok);
+      warm.push(Date.now() - t1);
+    }
+    warm.sort((x, y) => x - y);
+    console.log(`  (Lamplighter 6128 in the extension host: first build ${first} ms, then median of five ${warm[2]} ms, the whole build step incl. files)`);
+    const cpr = await a.build(dir, 'lampplus');
+    assert.ok(cpr.ok, cpr.message);
+    assert.strictEqual(fs.readFileSync(cpr.artifacts.cpr!).subarray(0, 4).toString(), 'RIFF');
+  } finally {
+    rmrf(dir);
+  }
 });
 
 test('an invalid cpcbuild.json gets diagnostics with the fix', async () => {
@@ -182,9 +270,9 @@ for (const t of TEMPLATES) {
     for (const target of proj.targets) {
       const res = await a.build(r.dir, target.id);
       assert.ok(res.ok, `${t.id}/${target.id}: ${res.message}`);
-      const art = target.package === 'dsk' ? res.artifacts.dsk : target.package === 'cpr' ? res.artifacts.cpr : res.artifacts.tap;
+      const art = target.package === 'dsk' ? res.artifacts.dsk : target.package === 'cpr' ? res.artifacts.cpr : res.artifacts.bin;
       assert.ok(art && fs.existsSync(art) && fs.statSync(art).size > 100, `${t.id}/${target.id}: ${target.package} artifact`);
-      if (target.arch === 'cpc') assert.ok(res.report && res.reportLines.length > 1, 'report');
+      assert.ok(res.report && res.reportLines.length > 1, 'report');
       if (target.package === 'cpr') assert.strictEqual(fs.readFileSync(art).subarray(0, 4).toString(), 'RIFF');
     }
     rmrf(parent);

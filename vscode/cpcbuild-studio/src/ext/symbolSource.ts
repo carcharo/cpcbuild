@@ -1,5 +1,5 @@
 /**
- * symbolSource.ts -- the symbol table of the active target: its zxbc map from the last build, kept
+ * symbolSource.ts -- the symbol table of the active target: its map from the last build, kept
  * current when the map file, the target, the active editor or the settings change.
  */
 import * as fs from 'node:fs';
@@ -83,7 +83,6 @@ export class SymbolSource implements vscode.Disposable {
       const s = readSettings(lp.root);
       const t = selectedTarget(lp, s.targetDefault);
       if (!t) this.missing = 'The project has no target.';
-      else if (t.arch !== 'cpc') this.missing = `Target ${t.id} is not a CPC target (no zxbc memory map).`;
       else {
         const mapFile = path.join(absFrom(lp.root, s.outputDir), `${t.id}.map`);
         watch = mapFile;

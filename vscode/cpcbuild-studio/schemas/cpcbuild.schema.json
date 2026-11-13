@@ -8,7 +8,7 @@
   "properties": {
     "version": { "const": 1, "description": "Project file version." },
     "name": { "type": "string", "minLength": 1, "description": "Project name." },
-    "library": { "type": ["string", "null"], "description": "Path to the cpcbuild checkout (folder with lib/ and tools/), relative to this file. null = use the cpcbuild.library.path setting or search upwards." },
+    "library": { "type": ["string", "null"], "description": "Path to the cpcbuild checkout (the folder with tools/), relative to this file. Needed only for cpcbuild.assets.engine \"python\". The BASIC library itself is the one inside the extension. null = use the cpcbuild.library.path setting or search upwards." },
     "targets": {
       "type": "array",
       "minItems": 1,
@@ -22,15 +22,16 @@
       "required": ["id", "main"],
       "properties": {
         "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$", "description": "Unique target id; also the output file name in build/." },
-        "arch": { "enum": ["cpc", "zx48k"], "default": "cpc" },
+        "arch": { "const": "cpc", "default": "cpc", "description": "Only \"cpc\": the Spectrum targets were removed in CPCBuild 0.2.0." },
         "main": { "type": "string", "description": "The .bas file to compile, relative to this file." },
         "model": { "enum": ["464", "664", "6128", "plus"], "default": "6128", "description": "Emulated model for Run." },
-        "defines": { "type": "array", "items": { "type": "string", "pattern": "^\\S+$" }, "description": "-D NAME or NAME=VALUE. The arch macro __CPC__ is automatic." },
+        "defines": { "type": "array", "items": { "type": "string", "pattern": "^\\S+$" }, "description": "-D NAME or NAME=VALUE. The model macros (CPC464, CPC6128, PLUS) are named by the target itself." },
         "bare": { "type": "boolean", "description": "Bare metal: adds -D CPC_BAREMETAL." },
         "ownFont": { "type": "boolean", "description": "Adds -D CPC_OWNFONT (a cartridge has no firmware font)." },
-        "org": { "type": ["string", "integer", "null"], "description": "Origin (--org): 0x8000, &8000 or decimal. On the CPC at least &0040." },
-        "heap": { "type": ["integer", "null"], "minimum": 0, "description": "Heap size in bytes (zxbc -H); used by the Spectrum targets." },
-        "package": { "enum": ["dsk", "cpr", "bin", "tap"], "description": "dsk: AMSDOS disc (mkdsk.py). cpr: Plus cartridge (needs bare and ownFont). bin: raw output. tap: Spectrum tape (arch zx48k)." },
+        "org": { "type": ["string", "integer", "null"], "description": "Origin (--org): 0x8000, &8000 or decimal. At least &0040." },
+        "heap": { "type": ["integer", "null"], "minimum": 0, "description": "Heap size in bytes (--heap). Absent: the compiler's default." },
+        "optimize": { "enum": [0, 1, 2, 3, "s"], "description": "Optimisation level (-O). Absent: 2." },
+        "package": { "enum": ["dsk", "cpr", "bin"], "description": "dsk: AMSDOS disc. cpr: Plus cartridge (needs bare and ownFont). bin: raw output." },
         "disc": { "type": "string", "pattern": "^[A-Z0-9]{1,8}$", "description": "AMSDOS name of the program on the disc: 1-8 characters A-Z 0-9 (run\"NAME). Derived from the target id when absent." }
       },
       "allOf": [

@@ -4,8 +4,7 @@ import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { defaultMapName, parseTmx, parseXml, tmxToBas } from './tmx';
-import { committedText } from './committedText';
-import { py, REPO, scratchDir } from './testutil';
+import { py, REPO, scratchDir, repoText } from './testutil';
 
 /** Mini CLI for the test: tmx2bas.py's flags -> tmxToBas, argv recorded as given. */
 function ts(argv: string[]): string {
@@ -36,12 +35,12 @@ function same(argv: string[]): string {
 }
 
 describe('tmx.ts vs tools/tmx2bas.py: repo maps', () => {
-  for (const [f, name] of [['examples/assets/level.tmx', 'level'], ['tests/conformance/assets/level.tmx', 'a_map']] as const) {
+  for (const [f, name] of [['examples/assets/level.tmx', 'level'], ['vscode/cpcbuild-studio/src/core/fixtures/art/level.tmx', 'a_map']] as const) {
     it(f, () => {
       const out = same(['--name', name, f]);
       // the committed .bas was generated with the same flags plus -o <same dir>/level.bas
       const bas = f.replace('.tmx', '.bas');
-      expect(ts(['--name', name, f, '-o', bas])).toBe(committedText(bas));
+      expect(ts(['--name', name, f, '-o', bas])).toBe(repoText(bas));
       expect(out.length).toBeGreaterThan(0);
       const m = parseTmx(fs.readFileSync(path.join(REPO, f), 'utf8'));
       expect(m.layers[0].gids).not.toBeNull();

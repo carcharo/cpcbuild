@@ -6,7 +6,7 @@ import { arkosUnavailableText } from './arkos';
 import { getChannel } from './channel';
 import { manifest as shipped, toolsRoot } from './config';
 import { DownloadError, proxyFor, ChecksumError } from './download';
-import { arkosInstalled, failureText, installArkos, installZxbasic, NoToolsError, Part, partName, RELEASES_URL, zxbasicInstalled } from './toolsInstall';
+import { arkosInstalled, failureText, installArkos, NoToolsError, Part, partName, RELEASES_URL } from './toolsInstall';
 
 /** What the command takes (tests and scripts; a click passes nothing). */
 export interface DownloadToolsArgs {
@@ -27,8 +27,8 @@ export interface DownloadToolsResult {
   /** The message that was (or would have been) shown. */
   message: string;
   installed: Part[];
-  /** zxbc --version of the installed compiler. */
-  version?: string;
+  /** What the pick offered (or would have): only Arkos, the compiler is inside the extension. */
+  offered?: Part[];
   failed?: Part;
 }
 
@@ -56,29 +56,27 @@ async function run(args: DownloadToolsArgs): Promise<DownloadToolsResult> {
 
   const key = toolsPlatform(platform, arch);
   const hasArkos = !!key && !!assetForKey(m.arkos, key);
-  const hasZx = !!key && !!assetForKey(m.zxbasic, key);
   let parts = args.parts;
+  let offered: Part[] = [];
   if (!parts) {
     const items = [
-      ...(hasZx ? [{ part: 'zxbasic' as Part, label: `Boriel BASIC compiler ${m.zxbasic.version} (zxbc, zxbasm, mkdsk)`, installed: zxbasicInstalled(root, m, platform) }] : []),
       ...(hasArkos ? [{ part: 'arkos' as Part, label: `Arkos Tracker ${m.arkos.version} command-line tools (music conversion)`, installed: arkosInstalled(root, m, platform) }] : []),
     ];
-    if (!hasArkos && !quiet) void vscode.window.showWarningMessage(`CPC Game Studio: ${arkosUnavailableText(`${platform}-${arch}`)}`);
-    if (!items.length) return fail(`CPC Game Studio: there are no tools for ${platform}-${arch}. Download the SDK zip from the releases page.`, 'zxbasic', 'zxbasic');
+    offered = items.map((i) => i.part);
+    if (!items.length) return fail(`CPC Game Studio: ${arkosUnavailableText(`${platform}-${arch}`)}`, 'arkos');
     if (quiet) parts = items.filter((i) => !i.installed).map((i) => i.part);
     else {
       const picked = await vscode.window.showQuickPick(
         items.map((i) => ({ label: i.label, description: i.installed ? 'installed' : undefined, picked: !i.installed, part: i.part })),
         { canPickMany: true, title: 'CPC Game Studio: Download Tools', placeHolder: 'Choose what to download' },
       );
-      if (!picked?.length) return { ok: true, message: 'CPC Game Studio: nothing chosen, nothing downloaded.', installed: [] };
+      if (!picked?.length) return { ok: true, message: 'CPC Game Studio: nothing chosen, nothing downloaded.', installed: [], offered };
       parts = picked.map((p) => p.part);
     }
   }
-  if (!parts.length) return { ok: true, message: 'CPC Game Studio: the tools are already installed.', installed: [] };
+  if (!parts.length) return { ok: true, message: 'CPC Game Studio: the tools are already installed.', installed: [], offered };
 
   const installed: Part[] = [];
-  let version: string | undefined;
   for (const part of parts) {
     const name = partName(part, m);
     out.appendLine(`Downloading ${name}...`);
@@ -86,7 +84,7 @@ async function run(args: DownloadToolsArgs): Promise<DownloadToolsResult> {
       const url = (m[part].assets as Record<string, { url: string } | undefined>)[key ?? '']?.url ?? '';
       const proxy = url ? proxyFor(url, vscode.workspace.getConfiguration('http').get<string>('proxy')) : undefined;
       const work = (onProgress: (part: Part, r: number, t: number | undefined) => void, token?: vscode.CancellationToken) =>
-        (part === 'zxbasic' ? installZxbasic : installArkos)({ manifest: m, root, platform, arch, proxy, token, sink: { line: (t) => out.appendLine(t) }, onProgress });
+        installArkos({ manifest: m, root, platform, arch, proxy, token, sink: { line: (t) => out.appendLine(t) }, onProgress });
       const res = quiet
         ? await work(() => undefined)
         : await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `CPC Game Studio: downloading ${name}`, cancellable: true }, async (progress, token) => {
@@ -98,15 +96,7 @@ async function run(args: DownloadToolsArgs): Promise<DownloadToolsResult> {
             }, token);
           });
       installed.push(part);
-      if (part === 'zxbasic') {
-        version = res.version;
-        out.appendLine(res.version ? `Installed ${res.dir}: ${res.version}` : `Installed ${res.dir}`);
-        if (res.versionError) {
-          const msg = `CPC Game Studio: ${name} was installed, but zxbc could not be started: ${res.versionError}`;
-          out.appendLine(msg);
-          if (!quiet) void vscode.window.showWarningMessage(msg);
-        }
-      } else out.appendLine(`Installed ${res.dir}`);
+      out.appendLine(`Installed ${res.dir}`);
     } catch (e) {
       if (e instanceof DownloadError && e.cancelled) {
         const message = `CPC Game Studio: the download of ${name} was cancelled.`;
@@ -120,7 +110,7 @@ async function run(args: DownloadToolsArgs): Promise<DownloadToolsResult> {
   const message = `CPC Game Studio: tools installed: ${installed.map((p) => partName(p, m)).join(', ')}.`;
   out.appendLine(message);
   if (!quiet) void vscode.window.showInformationMessage(message);
-  return { ok: true, message, installed, version };
+  return { ok: true, message, installed, offered };
 }
 
 /** CPC Game Studio: Download Tools. One run at a time (a second click joins the first). */

@@ -9,7 +9,7 @@
  *
  * Shared by the sound-effects editor (S1) and the music tools.
  */
-import { CLOCKS, MAX_EFFECTS, MAX_FRAMES, SfxDoc, SfxEffect, SfxFrame, SfxTarget, nameProblem, period } from './sfxDoc';
+import { CLOCKS, MAX_EFFECTS, MAX_FRAMES, SfxDoc, SfxEffect, SfxFrame, nameProblem, period } from './sfxDoc';
 import { CHANNELS, MAX_SONG_INSTRUMENTS, MAX_SONG_ORNAMENTS, SongDoc, SongEvent, SongInstrument, describeSongError, songNoteName, usedInstrumentIds, validateSong } from './songDoc';
 import { instrumentOf } from './songInstruments';
 
@@ -35,9 +35,9 @@ function sampleLines(e: SfxEffect, clock: number): string[] {
 }
 
 /** Problems that stop the writer, first one first; empty when the bank can be written. */
-export function vt2Problems(doc: SfxDoc, target: SfxTarget): string[] {
+export function vt2Problems(doc: SfxDoc): string[] {
   const out: string[] = [];
-  const clock = CLOCKS[target];
+  const clock = CLOCKS.cpc;
   if (doc.effects.length < 1 || doc.effects.length > MAX_EFFECTS) out.push(`a bank has 1-${MAX_EFFECTS} effects, not ${doc.effects.length}`);
   const names = new Map<string, number>();
   const bodies: (string[] | undefined)[] = [];
@@ -74,11 +74,11 @@ function header(title: string, clock: number): string {
   return `[Module]\nVortexTrackerII=1\nVersion=3.7\nTitle=${title}\nAuthor=cpcbuild\nNoteTable=1\nChipFreq=${clock}\nSpeed=6\nNoise=HEX\nPlayOrder=L0\n\n`;
 }
 
-/** The .vt2 text of a bank for a target's PSG clock. Throws Vt2Error with the first problem. */
-export function sfxToVt2(doc: SfxDoc, target: SfxTarget, bank = 'sfx'): string {
-  const problems = vt2Problems(doc, target);
+/** The .vt2 text of a bank (at the CPC's PSG clock). Throws Vt2Error with the first problem. */
+export function sfxToVt2(doc: SfxDoc, bank = 'sfx'): string {
+  const problems = vt2Problems(doc);
   if (problems.length) throw new Vt2Error(problems[0]);
-  const clock = CLOCKS[target];
+  const clock = CLOCKS.cpc;
   let out = header(bank, clock) + '[Ornament1]\nL0\n\n';
   doc.effects.forEach((e, i) => {
     out += `[Sample${i + 1}]\n${[...sampleLines(e, clock), END_LINE].join('\n')}\n\n`;

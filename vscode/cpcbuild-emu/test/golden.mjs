@@ -146,7 +146,7 @@ if (!only.length || only.includes('debugger')) {
   const map = new Map(fs.readFileSync(path.join(media, 'plusdemo.map'), 'utf8').split('\n').filter(Boolean)
     .map((l) => { const [a, n] = l.split(': '); return [n.trim(), parseInt(a, 16)]; }));
   const bin = fs.readFileSync(path.join(media, 'plusdemo.bin')), org = map.get('.core.__START_PROGRAM');
-  const sub = map.get('._MoveSprites'), frameVar = map.get('._frame');
+  const sub = map.get('._MoveSprites'), frameVar = map.get('._frame_'); // `FRAME` is a keyword of CPC BASIC: the program's variable is frame_
   const { M, e } = await boot(3);
   M.FS.writeFile('/media.dsk', fs.readFileSync(path.join(media, 'plusdemo.dsk')));
   e.emu_load(cstr(M, '/media.dsk'), cstr(M, 'dsk'));

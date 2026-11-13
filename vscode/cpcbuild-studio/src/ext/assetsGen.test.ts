@@ -1,7 +1,7 @@
 /**
  * Regenerating recipes: both engines write the committed generated files byte for byte, the stale
  * check, header modes and the failure texts. The recipes are made from the headers of the committed
- * .bas files (examples/assets, tests/conformance/assets, games/shooter/assets) in a scratch project
+ * .bas files (examples/assets, vscode/cpcbuild-studio/src/core/fixtures/art, games/shooter/assets) in a scratch project
  * that mirrors the repo layout, so the "Source:" and command-line header lines match.
  */
 import * as fs from 'node:fs';
@@ -9,8 +9,7 @@ import * as path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { argvToRecipe, newRecipe, serialiseRecipe, type Recipe } from '../core/cpcimp';
 import { committed } from '../core/testcorpus';
-import { committedText } from '../core/committedText';
-import { PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
+import { PYTHON_SETTING, REPO, scratchDir, repoText } from '../core/testutil';
 import { newSprite, serialiseSprite } from '../core/spriteDoc';
 import { serialiseSfx } from '../core/sfxDoc';
 import { newBank, presetEffect } from '../core/sfxPresets';
@@ -37,7 +36,7 @@ beforeAll(() => {
     const rel = `assets/${n}_${path.basename(file, '.bas')}.cpcimp`;
     fs.mkdirSync(path.join(root, 'assets'), { recursive: true });
     fs.writeFileSync(path.join(root, rel), serialiseRecipe(r));
-    recipes.push({ file, rel, committed: committedText(file) });
+    recipes.push({ file, rel, committed: repoText(file) });
   });
 });
 
@@ -70,7 +69,7 @@ describe('the stale check', () => {
     // inputs (images, palettes, recipes) 60 s old, outputs 30 s old: nothing is stale until a change
     const old = new Date(Date.now() - 60000), mid = new Date(Date.now() - 30000);
     const all = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? all(path.join(dir, e.name)) : [path.join(dir, e.name)]));
-    const outputs = new Set(recipes.map((r) => path.join(root, r.file)).concat([path.join(root, 'tests/conformance/assets/pens16.pal')]));
+    const outputs = new Set(recipes.map((r) => path.join(root, r.file)).concat([path.join(root, 'vscode/cpcbuild-studio/src/core/fixtures/art/pens16.pal')]));
     for (const f of all(root)) fs.utimesSync(f, outputs.has(f) ? mid : old, outputs.has(f) ? mid : old);
     expect(await stale()).toEqual([]);
     // a newer recipe
@@ -328,8 +327,7 @@ describe('sound-effects banks', () => {
     const t = new Date(Date.now() + 5000);
     fs.writeFileSync(path.join(dir, 'assets/sfx.bas'), 'x');
     fs.utimesSync(path.join(dir, 'assets/sfx.bas'), t, t);
-    expect(isSfxStale(dir, 'assets/sfx.cpcsfx', ['cpc'])).toBe(false);
-    expect(isSfxStale(dir, 'assets/sfx.cpcsfx', ['cpc', 'spectrum'])).toBe(true); // _zx.bas missing
+    expect(isSfxStale(dir, 'assets/sfx.cpcsfx')).toBe(false);
     const res = await regenerateAll(dir, SFX_GLOBS, settings({ toolsDir: undefined }), { onlyStale: true });
     expect(res).toEqual([{ recipe: 'assets/sfx.cpcsfx', ok: true, skipped: true, written: [] }]);
   });
@@ -338,36 +336,33 @@ describe('sound-effects banks', () => {
     const f = path.join(dir, 'assets/sfx.cpcsfx');
     fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace('"blip"', '"bad name"'));
     fs.writeFileSync(path.join(dir, 'assets/sfx.bas'), "' old\n");
-    const r = await generateSfxBank(dir, 'assets/sfx.cpcsfx', ['cpc'], settings({ toolsDir: '/nonexistent' }));
+    const r = await generateSfxBank(dir, 'assets/sfx.cpcsfx', settings({ toolsDir: '/nonexistent' }));
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/name/);
     expect(assetFailure(r).fatal).toBe(false);
     fs.rmSync(path.join(dir, 'assets/sfx.bas'));
-    const r2 = await generateSfxBank(dir, 'assets/sfx.cpcsfx', ['cpc'], settings({ toolsDir: '/nonexistent' }));
+    const r2 = await generateSfxBank(dir, 'assets/sfx.cpcsfx', settings({ toolsDir: '/nonexistent' }));
     expect(assetFailure(r2).fatal).toBe(true);
   });
-  haveArkos('with the real tools: writes <stem>.vt2 and <stem>.bas (+ _zx for the Spectrum) with the constants, then is current', async () => {
+  haveArkos('with the real tools: writes <stem>.vt2 and <stem>.bas with the constants, then is current', async () => {
     const dir = sfxProject('real');
     const s = settings({ toolsDir: ARKOS });
-    const res = await regenerateAll(dir, SFX_GLOBS, s, { onlyStale: true, sfxTargets: ['cpc', 'spectrum'] });
+    const res = await regenerateAll(dir, SFX_GLOBS, s, { onlyStale: true });
     expect(res.map((r) => r.error ?? 'ok')).toEqual(['ok']);
-    expect(res[0].written).toEqual(['assets/sfx.vt2', 'assets/sfx.bas', 'assets/sfx_zx.vt2', 'assets/sfx_zx.bas']);
-    for (const f of ['sfx.bas', 'sfx_zx.bas']) {
+    expect(res[0].written).toEqual(['assets/sfx.vt2', 'assets/sfx.bas']);
+    for (const f of ['sfx.bas']) {
       const bas = fs.readFileSync(path.join(dir, 'assets', f), 'utf8');
       expect(bas).toContain("SfxInit(@sfx)");
       expect(bas).toContain('CONST SFX_BLIP AS UBYTE = 1\nCONST SFX_COIN AS UBYTE = 2\n');
       expect(bas.indexOf('CONST SFX_BLIP')).toBeLessThan(bas.indexOf('\nasm\n'));
     }
-    expect(fs.readFileSync(path.join(dir, 'assets/sfx_zx.vt2'), 'utf8')).toContain('ChipFreq=1773400');
     expect(fs.readFileSync(path.join(dir, 'assets/sfx.vt2'), 'utf8')).toContain('ChipFreq=1000000');
-    // the two chips differ in the periods, not in the structure
-    expect(fs.readFileSync(path.join(dir, 'assets/sfx.bas'), 'utf8')).not.toBe(fs.readFileSync(path.join(dir, 'assets/sfx_zx.bas'), 'utf8'));
-    const again = await regenerateAll(dir, SFX_GLOBS, s, { onlyStale: true, sfxTargets: ['cpc', 'spectrum'] });
+    const again = await regenerateAll(dir, SFX_GLOBS, s, { onlyStale: true });
     expect(again).toEqual([{ recipe: 'assets/sfx.cpcsfx', ok: true, skipped: true, written: [] }]);
     // touching the bank makes it stale again
     const t = new Date(Date.now() + 10000);
     fs.utimesSync(path.join(dir, 'assets/sfx.cpcsfx'), t, t);
-    expect(isSfxStale(dir, 'assets/sfx.cpcsfx', ['cpc'])).toBe(true);
+    expect(isSfxStale(dir, 'assets/sfx.cpcsfx')).toBe(true);
   }, 120000);
 });
 
@@ -428,12 +423,11 @@ describe('songs (.cpcsong)', () => {
   haveArkos('with the real tools: writes <stem>.vt2 and <stem>.bas (one include for every target), then is current', async () => {
     const dir = songProject('real');
     const s = settings({ toolsDir: ARKOS });
-    const res = await regenerateAll(dir, SONG_GLOBS, s, { onlyStale: true, sfxTargets: ['cpc', 'spectrum'] });
+    const res = await regenerateAll(dir, SONG_GLOBS, s, { onlyStale: true });
     expect(res.map((r) => r.error ?? 'ok')).toEqual(['ok']);
     expect(res[0].written).toEqual(['assets/tune.vt2', 'assets/tune.bas']);
     const bas = fs.readFileSync(path.join(dir, 'assets/tune.bas'), 'utf8');
     expect(bas).toContain('pass @tune to MusicInit');
-    expect(fs.existsSync(path.join(dir, 'assets/tune_zx.bas'))).toBe(false);
     expect(fs.readFileSync(path.join(dir, 'assets/tune.vt2'), 'utf8')).toContain('Title=tune');
     expect(await regenerateAll(dir, SONG_GLOBS, s, { onlyStale: true })).toEqual([{ recipe: 'assets/tune.cpcsong', ok: true, skipped: true, written: [] }]);
     const t = new Date(Date.now() + 10000);

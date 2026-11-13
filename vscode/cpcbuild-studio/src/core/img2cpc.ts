@@ -11,8 +11,6 @@
  *   mode 0|1|2   sprite (default, optionally --frame WxH, --masked) or tiles
  *                (8x8, optionally --dedupe); pens are firmware colours 0-26,
  *                fixed with `palette` or built from the image (`pen0`).
- *   spectrum     ZX Spectrum bitmap + attributes (zxSprite: 1 bit per opaque
- *                non-black pixel).
  *   plusSprite / plusPalette   CPC Plus 12-bit data; bas, asm or bin output.
  *
  * Also ported: reading NAME.cpcbuild.json beside the image (`parseSidecar`, `sidecarLoader`;
@@ -45,7 +43,7 @@ export type PlusFormat = 'bas' | 'asm' | 'bin';
 export interface Options {
   /** Array name prefix. */
   name: string;
-  /** Screen mode (not needed for spectrum or plus output). */
+  /** Screen mode (not needed for plus output). */
   mode?: Mode;
   tiles?: boolean;
   /** Tile width in pixels (--tile-width; default 8): PPB * 1, 2 or 4. */
@@ -64,8 +62,6 @@ export interface Options {
   /** Auto palette: firmware colour for pen 0. */
   pen0?: number;
   noPalette?: boolean;
-  spectrum?: boolean;
-  zxSprite?: boolean;
   plusSprite?: boolean;
   plusPalette?: boolean;
   packed?: boolean;
@@ -319,98 +315,6 @@ export function penGrid(pix: Pix, pal: number[]): PenGrid {
       return v;
     }),
   );
-}
-
-// ---------------------------------------------------------------- Spectrum
-
-// Spectrum colour index = G*4 + R*2 + B.
-function zxRgb(idx: number, bright: number): RGB {
-  const lv = bright ? 0xff : 0xd7;
-  return [idx & 2 ? lv : 0, idx & 4 ? lv : 0, idx & 1 ? lv : 0];
-}
-
-// candidates as [idx, bright]; black appears once
-const ZX_CANDS: [number, number][] = [[0, 0]];
-for (const br of [0, 1]) for (let i = 1; i < 8; i++) ZX_CANDS.push([i, br]);
-const ZX_TABLE = ZX_CANDS.map(([i, br]) => zxRgb(i, br));
-
-function zxCheck(pix: Pix): void {
-  const h = pix.length, w = h ? pix[0].length : 0;
-  if (w % 8 || h % 8) fail(`Spectrum image size ${w}x${h} must be a multiple of 8`);
-}
-
-/** Spectrum sprite data (--zx-sprite): bit = 1 for every opaque pixel that isn't black. */
-export function spectrumSpriteBits(pix: Pix): number[] {
-  zxCheck(pix);
-  const h = pix.length, w = h ? pix[0].length : 0;
-  const bitmap: number[] = [];
-  for (let cy = 0; cy < h; cy += 8)
-    for (let cx = 0; cx < w; cx += 8)
-      for (let y = cy; y < cy + 8; y++) {
-        let b = 0;
-        for (let c = 0; c < 8; c++) {
-          const p = pix[y][cx + c];
-          if (p && (p[0] || p[1] || p[2])) b |= 1 << (7 - c);
-        }
-        bitmap.push(b);
-      }
-  return bitmap;
-}
-
-/** Spectrum picture data: [bitmap (8 bytes per cell), attributes (one per cell)]. */
-export function spectrumConvert(pix: Pix): [number[], number[]] {
-  zxCheck(pix);
-  const h = pix.length, w = h ? pix[0].length : 0;
-  const bitmap: number[] = [];
-  const attrs: number[] = [];
-  for (let cy = 0; cy < h; cy += 8) {
-    for (let cx = 0; cx < w; cx += 8) {
-      const cell: number[] = []; // idx * 2 + bright
-      for (let y = cy; y < cy + 8; y++)
-        for (let x = cx; x < cx + 8; x++) {
-          const p = pix[y][x];
-          const [i, br] = p ? ZX_CANDS[nearest(p, ZX_TABLE)] : [0, 0];
-          cell.push(i * 2 + br);
-        }
-      const cnt = new Map<number, number>();
-      const first = new Map<number, number>();
-      cell.forEach((c, i) => {
-        cnt.set(c, (cnt.get(c) ?? 0) + 1);
-        if (!first.has(c)) first.set(c, i);
-      });
-      const order = [...cnt.keys()].sort((a, b) => cnt.get(b)! - cnt.get(a)! || first.get(a)! - first.get(b)!);
-      const paper = order[0];
-      let ink = order.length > 1 ? order[1] : paper;
-      if (ink >> 1 === paper >> 1) ink = paper; // same colour, differing only in brightness
-      const nonblack = [paper, ink].filter((c) => c >> 1 !== 0);
-      let bright = 0;
-      if (nonblack.length) {
-        let best = nonblack[0];
-        for (const c of nonblack) if (cnt.get(c)! > cnt.get(best)!) best = c;
-        bright = best & 1;
-      }
-      const pi = paper >> 1, ii = ink >> 1;
-      attrs.push((bright << 6) | (pi << 3) | ii);
-      const inkRgb = zxRgb(ii, bright), paperRgb = zxRgb(pi, bright);
-      for (let r = 0; r < 8; r++) {
-        let b = 0;
-        for (let c = 0; c < 8; c++) {
-          const idx = cell[r * 8 + c] >> 1;
-          let bit: number;
-          if (ii === pi) bit = 0;
-          else if (idx === ii) bit = 1;
-          else if (idx === pi) bit = 0;
-          else {
-            const p = pix[cy + r][cx + c];
-            bit = p && dist2(p, inkRgb) < dist2(p, paperRgb) ? 1 : 0;
-          }
-          b |= bit << (7 - c);
-        }
-        bitmap.push(b);
-      }
-    }
-  }
-  return [bitmap, attrs];
 }
 
 // ---------------------------------------------------------------- CPC Plus
@@ -706,15 +610,8 @@ export function convert(img: RgbaImage, o: Options, header: HeaderInfo): Result 
       ? [...arrays.map(([n, d]) => fmtAsm(n, d)), ...consts.map(([n, v]) => `${n} EQU ${v}\n`)].join('\n')
       : [...arrays.map(([n, d]) => fmtArray(n, d)), ...consts.map(([n, v]) => fmtConst(n, v))].join('\n');
     modeTxt = 'CPC Plus';
-  } else if (o.spectrum) {
-    let [bitmap, attrs] = spectrumConvert(pix);
-    if (o.zxSprite) bitmap = spectrumSpriteBits(pix);
-    body = fmtArray(o.name, bitmap) + fmtArray(o.name + '_attr', attrs)
-      + fmtConst(o.name + '_COLS', w / 8) + fmtConst(o.name + '_ROWS', h / 8);
-    desc = `spectrum ${w / 8}x${h / 8} cells, ${bitmap.length} + ${attrs.length} bytes`;
-    modeTxt = 'Spectrum';
   } else {
-    if (o.mode === undefined) fail('--mode is required (or --spectrum, --plus-sprite, --plus-palette)');
+    if (o.mode === undefined) fail('--mode is required (or --plus-sprite, --plus-palette)');
     ({ body, desc, pens, info } = convertCpc(pix, w, h, o));
     modeTxt = 'mode ' + o.mode;
   }
@@ -746,7 +643,7 @@ const VALUE_FLAGS = new Set([
 ]);
 const BOOL_FLAGS = new Set([
   '--sprite', '--tiles', '--dedupe', '--masked', '--no-palette', '--plus-sprite', '--plus-palette',
-  '--packed', '--spectrum', '--zx-sprite', '--no-sidecar', '--check',
+  '--packed', '--no-sidecar', '--check',
 ]);
 
 /** The file stem img2cpc.py names its arrays after (Path.stem, non-alphanumerics to "_"). */
@@ -810,9 +707,8 @@ export function parseArgs(argv: readonly string[], loadSidecar?: SidecarLoader):
   if (!['bas', 'asm', 'bin'].includes(plusFormat)) fail(`argument --plus-format: invalid choice: '${plusFormat}' (choose from bas, asm, bin)`);
   if (has('--sprite') && has('--tiles')) fail('argument --tiles: not allowed with argument --sprite');
   if (has('--plus-sprite') && has('--plus-palette')) fail('use --plus-sprite or --plus-palette, not both');
-  if (plus && has('--spectrum')) fail('--plus-* and --spectrum are exclusive');
   if (has('--check') && has('--output')) fail('--check writes nothing; leave out -o');
-  if (has('--check') && (plus || has('--spectrum'))) fail(has('--spectrum') ? '--check is for CPC modes, not --spectrum or --plus-*' : '--check is for CPC modes, not --plus-*');
+  if (has('--check') && plus) fail('--check is for CPC modes, not --plus-*');
   if (has('--packed') && !has('--plus-sprite')) fail('--packed needs --plus-sprite');
   if (plusFormat !== 'bas' && !plus) fail('--plus-format needs --plus-sprite or --plus-palette');
   if (plusFormat === 'bin' && !has('--output')) fail('--plus-format bin needs -o');
@@ -825,7 +721,7 @@ export function parseArgs(argv: readonly string[], loadSidecar?: SidecarLoader):
   let sideTileWidth: number | undefined;
   let tags: SidecarTag[] | undefined;
   let sidecar: string | undefined;
-  if (loadSidecar && !plus && !has('--spectrum') && !has('--no-sidecar')) {
+  if (loadSidecar && !plus && !has('--no-sidecar')) {
     const found = loadSidecar(image);
     if (found) {
       sidecar = found.path;
@@ -843,8 +739,7 @@ export function parseArgs(argv: readonly string[], loadSidecar?: SidecarLoader):
       }
     }
   }
-  if (!plus && !has('--spectrum') && mode === undefined) fail('--mode is required (or --spectrum, --plus-sprite, --plus-palette)');
-  if (has('--zx-sprite') && !has('--spectrum')) fail('--zx-sprite needs --spectrum');
+  if (!plus && mode === undefined) fail('--mode is required (or --plus-sprite, --plus-palette)');
   let pen0: number | undefined;
   if (has('--pen0')) {
     const t = str('--pen0')!;
@@ -880,8 +775,6 @@ export function parseArgs(argv: readonly string[], loadSidecar?: SidecarLoader):
     palette,
     pen0,
     noPalette: has('--no-palette'),
-    spectrum: has('--spectrum'),
-    zxSprite: has('--zx-sprite'),
     plusSprite: has('--plus-sprite'),
     plusPalette: has('--plus-palette'),
     packed: has('--packed'),

@@ -3,12 +3,11 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { posixSlashes } from '../core/pathtext';
-import { committedText } from '../core/committedText';
-import { py, PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
+import { py, PYTHON_SETTING, REPO, repoText, scratchDir } from '../core/testutil';
 import { defaultOutput, generateTmx, tmxArgv } from './tmxGen';
 
 const dir = scratchDir('tmxgen-');
-const MAPS = ['examples/assets/level.tmx', 'tests/conformance/assets/level.tmx'];
+const MAPS = ['examples/assets/level.tmx', 'vscode/cpcbuild-studio/src/core/fixtures/art/level.tmx'];
 // the project root of the conversions: the maps mirrored from the repo; outputs go under out/ (paths stay inside the root)
 for (const m of MAPS) {
   fs.mkdirSync(path.join(dir, path.dirname(m)), { recursive: true });
@@ -61,7 +60,7 @@ describe('generateTmx equals tools/tmx2bas.py', () => {
     const r = await generateTmx(dir, 'examples/assets/level.tmx', { name: 'level', output: 'out/level-committed.bas' }, TS);
     expect(r.ok).toBe(true);
     // the committed file was made with `-o examples/assets/level.bas`: only the header's -o argument differs
-    const committed = committedText('examples/assets/level.bas').split('\n').slice(1).join('\n');
+    const committed = repoText('examples/assets/level.bas').split('\n').slice(1).join('\n');
     expect(fs.readFileSync(out, 'utf8').split('\n').slice(1).join('\n')).toBe(committed);
   });
   it('a layer by name, and the tool\'s text for a missing layer', async () => {

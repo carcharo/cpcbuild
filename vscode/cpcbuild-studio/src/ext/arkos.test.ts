@@ -30,7 +30,7 @@ describe('argument construction', () => {
   it('matches the documented forms', () => {
     expect(aksArgv('a/tune.aks', 'a/tune.bas', {})).toEqual(['a/tune.aks', 'a/tune.bas', '--name', 'tune']);
     expect(aksArgv('tune.aks', 'tune.bas', { name: 'tune', subsongs: '1, 3' })).toEqual(['tune.aks', 'tune.bas', '--name', 'tune', '--subsongs', '1,3']);
-    expect(aksArgv('fx.aks', 'fx.bas', { sfx: true, name: 'fx', psg: 'spectrum' })).toEqual(['--sfx', 'fx.aks', 'fx.bas', '--name', 'fx', '--psg', 'spectrum']);
+    expect(aksArgv('fx.aks', 'fx.bas', { sfx: true, name: 'fx', psg: 'cpc' })).toEqual(['--sfx', 'fx.aks', 'fx.bas', '--name', 'fx', '--psg', 'cpc']);
     expect(aksArgv('t.aks', '/dev/null', { name: 'sf_title', at: '0x4000', bin: 'out.bin' })).toEqual(['t.aks', '/dev/null', '--name', 'sf_title', '--at', '0x4000', '--bin', 'out.bin']);
   });
   it('names and outputs', () => {
@@ -129,8 +129,8 @@ for (const engine of ['builtin', 'python'] as const) describe(`convertMusic (${e
     same(out, path.join(REPO, A, 'sfx.bas'));
   });
   have('--psg needs an .aks (the tool rewrites the song\'s clock): the tool\'s message comes through for a .vt2', async () => {
-    const r = await convertMusic(dir, `${A}/zx/sfx_zx.vt2`, { name: 'sf_sfx', sfx: true, psg: 'spectrum', output: 'out/sfx_zx.bas' }, SE(engine));
-    const direct = pySpawn(['tools/aks2bas.py', '--sfx', `${A}/zx/sfx_zx.vt2`, path.join(dir, 'out', 'd.bas'), '--name', 'sf_sfx', '--psg', 'spectrum'], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS } });
+    const r = await convertMusic(dir, `${A}/sfx.vt2`, { name: 'sf_sfx', sfx: true, psg: 'cpc', output: 'out/sfx_psg.bas' }, SE(engine));
+    const direct = pySpawn(['tools/aks2bas.py', '--sfx', `${A}/sfx.vt2`, path.join(dir, 'out', 'd.bas'), '--name', 'sf_sfx', '--psg', 'cpc'], { cwd: REPO, encoding: 'utf8', env: { ...process.env, AT3_TOOLS: TOOLS } });
     expect(r.ok).toBe(false);
     expect(r.error).toBe(direct.stderr.trim().split('\n').pop());
   });

@@ -12,7 +12,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { Aks2basError, bankInclude, hex06, PSG_HZ, pyInt0, sanitizeName, setPsgClock, toBoriel } from '../core/aks2bas';
+import { Aks2basError, bankInclude, hex06, PSG_HZ, pyInt0, sanitizeName, setPsgClock, toBasic } from '../core/aks2bas';
 import { insideRoot, PathEscapeError } from '../core/paths';
 import { assetForKey, toolsPlatform } from '../core/tools';
 import { manifest } from './toolsManifest';
@@ -85,8 +85,8 @@ export interface MusicConvertOptions {
   sfx?: boolean;
   /** `--subsongs`: 1-based, comma separated. */
   subsongs?: string;
-  /** `--psg`: the sound chip clock (effect banks bake it in). */
-  psg?: 'cpc' | 'spectrum';
+  /** `--psg`: the sound chip clock (effect banks bake it in); the CPC's is the only one. */
+  psg?: 'cpc';
   /** `--at`: a song for a 6128 RAM bank, linked for that address. */
   at?: string;
   /** `--bin`: with `at`, also write the raw bytes here (project-relative). */
@@ -114,7 +114,7 @@ export function checkMusicOptions(o: MusicConvertOptions): string | undefined {
     if (parseAddress(o.at) === undefined) return `--at takes an address such as 0x4000 (found "${o.at}").`;
   }
   if (o.bin !== undefined && o.at === undefined) return '--bin goes with --at (it writes the song image for a RAM bank).';
-  if (o.psg !== undefined && o.psg !== 'cpc' && o.psg !== 'spectrum') return `--psg is cpc or spectrum (found "${String(o.psg)}").`;
+  if (o.psg !== undefined && o.psg !== 'cpc') return `--psg is cpc (found "${String(o.psg)}").`;
   return undefined;
 }
 
@@ -250,7 +250,7 @@ async function convertBuiltin(
       : await run('SongToAkg', [...subs, '--labelPrefix', prefix, input, tmp]);
     if (err) return err;
     try {
-      fs.writeFileSync(abs(output), toBoriel(fs.readFileSync(tmp, 'utf8'), safeName, '', o.sfx ? 'sfx' : 'song'), 'utf8');
+      fs.writeFileSync(abs(output), toBasic(fs.readFileSync(tmp, 'utf8'), safeName, '', o.sfx ? 'sfx' : 'song'), 'utf8');
     } catch (e) {
       // the Python tool dies with an uncaught ValueError here; its last line is what Studio showed
       if (e instanceof Aks2basError) return `ValueError: ${e.message}`;

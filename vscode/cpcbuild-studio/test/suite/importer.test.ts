@@ -58,9 +58,9 @@ const rm = (...rels: string[]): void => rels.forEach((r) => rmrf(path.join(ws, r
 const setting = (k: string, v: unknown): Thenable<void> => vscode.workspace.getConfiguration('cpcbuild').update(k, v, vscode.ConfigurationTarget.Workspace);
 
 test('importer: Import Image writes assets/<stem>.cpcimp, opens it, renders with no webview error', async () => {
-  copyIn('tests/conformance/assets/spr1.png');
+  copyIn('vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png');
   mkdirp(path.join(ws, 'art'));
-  fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), path.join(ws, 'art/hero.png'));
+  fs.copyFileSync(path.join(REPO, 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png'), path.join(ws, 'art/hero.png'));
   const a = await api();
   const uri = (await vscode.commands.executeCommand('cpcbuild.importImage', vscode.Uri.file(path.join(ws, 'art/hero.png')))) as vscode.Uri;
   assert.ok(samePath(uri.fsPath, path.join(ws, 'assets/hero.cpcimp')), uri.fsPath);
@@ -83,7 +83,7 @@ test('importer: Import Image writes assets/<stem>.cpcimp, opens it, renders with
 test('importer: Import Image beside an image already in an assets folder puts the recipe there', async () => {
   const img = path.join(ws, 'game/assets/gfx/tiles.png');
   mkdirp(path.dirname(img));
-  fs.copyFileSync(path.join(REPO, 'tests/conformance/assets/spr1.png'), img);
+  fs.copyFileSync(path.join(REPO, 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png'), img);
   const uri = (await vscode.commands.executeCommand('cpcbuild.importImage', { uri: vscode.Uri.file(img), open: false })) as vscode.Uri;
   assert.ok(samePath(uri.fsPath, path.join(ws, 'game/assets/gfx/tiles.cpcimp')), uri.fsPath);
   const r = JSON.parse(read('game/assets/gfx/tiles.cpcimp'));
@@ -115,7 +115,7 @@ test('importer: change an option, save, the .bas equals the committed asset (bui
 });
 
 test('importer: Regenerate Assets runs every recipe; engine=python gives the same bytes', async () => {
-  const targets = ['examples/assets/balls.bas', 'examples/assets/bgtiles.bas', 'tests/conformance/assets/spr1.bas', 'tests/conformance/assets/plus_ballpk.bas'];
+  const targets = ['examples/assets/balls.bas', 'examples/assets/bgtiles.bas', 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.bas', 'vscode/cpcbuild-studio/src/core/fixtures/art/plus_ballpk.bas'];
   targets.forEach((rel, n) => writeRecipe(`assets/r${n}.cpcimp`, recipeFor(rel)));
   const generated = (): void => targets.forEach((rel) => assert.strictEqual(read(rel), committed(rel), rel));
   const run = async (): Promise<void> => {
@@ -147,9 +147,9 @@ test('importer: Regenerate Assets runs every recipe; engine=python gives the sam
 });
 
 test('importer: a failing recipe reports the tool\'s text and Regenerate keeps going', async () => {
-  const bad = recipeFor('tests/conformance/assets/spr1.bas');
+  const bad = recipeFor('vscode/cpcbuild-studio/src/core/fixtures/art/spr1.bas');
   writeRecipe('assets/bad.cpcimp', { ...bad, palette: undefined, mode: 2, output: 'assets/bad.bas' });
-  writeRecipe('assets/good.cpcimp', { ...recipeFor('tests/conformance/assets/msk1.bas'), output: 'assets/good.bas' });
+  writeRecipe('assets/good.cpcimp', { ...recipeFor('vscode/cpcbuild-studio/src/core/fixtures/art/msk1.bas'), output: 'assets/good.bas' });
   const res = (await vscode.commands.executeCommand('cpcbuild.regenerateAssets', { root: ws })) as { recipe: string; ok: boolean; error?: string }[];
   const b = res.find((x) => x.recipe === 'assets/bad.cpcimp');
   const g = res.find((x) => x.recipe === 'assets/good.cpcimp');
@@ -161,7 +161,7 @@ test('importer: a failing recipe reports the tool\'s text and Regenerate keeps g
 
 test('importer: the build regenerates a stale asset before compiling', async () => {
   const a = await api();
-  const r = recipeFor('tests/conformance/assets/spr1.bas');
+  const r = recipeFor('vscode/cpcbuild-studio/src/core/fixtures/art/spr1.bas');
   writeRecipe('assets/stale.cpcimp', { ...r, output: 'assets/stale.bas' });
   rm('assets/stale.bas');
   const res = await a.build(fs.realpathSync(ws), 'cpc6128');
@@ -184,7 +184,7 @@ test('importer: the build regenerates a stale asset before compiling', async () 
 });
 
 test('importer: requests - preview, command import, copy command, grid blocks the copy', async () => {
-  const r = recipeFor('tests/conformance/assets/spr1.bas');
+  const r = recipeFor('vscode/cpcbuild-studio/src/core/fixtures/art/spr1.bas');
   const uri = writeRecipe('assets/req.cpcimp', { ...r, output: 'assets/req.bas' });
   const { a, doc } = await openImporter(uri);
   const p = a.importer as unknown as { request(d: unknown, name: string, args: unknown): Promise<any> };
@@ -194,7 +194,7 @@ test('importer: requests - preview, command import, copy command, grid blocks th
   assert.match(pv.preview.summary, /frame\(s\)/);
   // the command box text
   const view = (a.importer as unknown as { currentView(d: unknown): any }).currentView(doc);
-  assert.strictEqual(view.command, 'python3 tools/img2cpc.py --mode 1 --name a_spr1 --palette 0,26,6,18 tests/conformance/assets/spr1.png -o assets/req.bas');
+  assert.strictEqual(view.command, 'python3 tools/img2cpc.py --mode 1 --name a_spr1 --palette 0,26,6,18 vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png -o assets/req.bas');
   // a pasted build_assets.sh line replaces the recipe (keeping the output when the line has none)
   const imp = await p.request(doc, 'importCommand', { baseVersion: doc.version, line: '$I --mode 1 --name a_msk1 --masked --palette 0,26,6,18 $C/msk1.png' });
   assert.ok(imp.ok, imp.error);
@@ -204,7 +204,7 @@ test('importer: requests - preview, command import, copy command, grid blocks th
   assert.ok(!bad.ok);
   assert.strictEqual(bad.error, "argument --mode: invalid choice: '9' (choose from 0, 1, 2)");
   // grid on: no command
-  a.importer.commit(doc, { op: 'set', patch: { source: 'tests/conformance/assets/spr1.png', grid: { cellW: 4, cellH: 4, marginX: 0, marginY: 0, spacingX: 0, spacingY: 0, exclude: [] } } });
+  a.importer.commit(doc, { op: 'set', patch: { source: 'vscode/cpcbuild-studio/src/core/fixtures/art/spr1.png', grid: { cellW: 4, cellH: 4, marginX: 0, marginY: 0, spacingX: 0, spacingY: 0, exclude: [] } } });
   const v2 = (a.importer as unknown as { currentView(d: unknown): any }).currentView(doc);
   assert.strictEqual(v2.command, undefined);
   assert.match(v2.commandReason, /grid extraction/);
@@ -239,28 +239,14 @@ test('importer: a 16-bit PNG is refused with the way out; useEngine switches to 
   rm('assets/wide.cpcimp', 'art16.png');
 });
 
-test('importer: a Spectrum recipe opens (no webview error), still previews as "no CPC preview" and generates', async () => {
-  const rel = 'games/lamplighter/assets/zx/zx_tiles.cpcimp';
-  copyIn(rel);
-  copyIn('games/lamplighter/assets/zx/zx_tiles.png');
-  const r = JSON.parse(committed(rel));
-  // the recipe's paths are relative to the project root, which here is the test workspace
-  r.source = 'games/lamplighter/assets/zx/zx_tiles.png';
-  r.output = 'games/lamplighter/assets/zx/zx_tiles.bas';
-  const uri = writeRecipe(rel, r);
-  const { a, doc } = await openImporter(uri);
-  await waitFor('the first render', () => doc.renderedCount > 0);
-  assert.strictEqual(doc.state.target, 'spectrum');
-  const p = a.importer as unknown as { request(d: unknown, name: string, args: unknown): Promise<any> };
-  const pv = await p.request(doc, 'preview', { version: doc.version });
-  assert.ok(!pv.ok && /no CPC preview of Spectrum/.test(pv.error), pv.error);
-  const gen = await p.request(doc, 'generate', {});
-  assert.ok(gen.ok, gen.error);
-  assert.ok(fs.existsSync(path.join(ws, r.output)));
-  // "Switch to CPC" is the edit op the notice sends
-  await p.request(doc, 'edit', { baseVersion: doc.version, op: { op: 'set', patch: { target: 'cpc', mode: 1 } } });
-  assert.strictEqual(doc.state.target, 'cpc');
+test('importer: a recipe that names the Spectrum opens with a message, not an exception, and is not rewritten', async () => {
+  const text = JSON.stringify({ format: 'cpcimp', version: 1, source: 'art/x.png', output: 'art/x.bas', target: 'spectrum' }, null, 2);
+  const uri = writeRecipe('assets/zx.cpcimp', JSON.parse(text));
+  const { doc } = await openImporter(uri);
+  assert.match(doc.fatal ?? '', /ZX Spectrum, which CPCBuild 0\.2\.0 no longer supports/);
+  await waitFor('the fatal state to render', () => doc.renderedCount > 0);
   assert.deepStrictEqual(doc.webviewErrors, []);
+  assert.strictEqual(JSON.parse(read('assets/zx.cpcimp')).target, 'spectrum');
   await closeClean();
-  rm('games');
+  rm('assets/zx.cpcimp');
 });

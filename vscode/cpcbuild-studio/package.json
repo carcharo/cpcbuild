@@ -2,10 +2,10 @@
   "name": "cpcbuild-studio",
   "displayName": "CPC Game Studio",
   "icon": "media/icon.png",
-  "description": "Amstrad CPC game studio for Boriel BASIC (CPCBuild): palette, sprite and tile editors, image importer, build and run.",
-  "version": "0.1.2",
+  "description": "Amstrad CPC game studio for CPC BASIC (CPCBuild): the compiler is built in; palette, sprite and tile editors, image importer, build and run.",
+  "version": "0.2.0",
   "publisher": "cpcbuild",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -20,11 +20,9 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In Restricted Mode the palette, sprite, tile and map editors, the image importer and the symbol views open, but nothing that starts a program runs: Build, Run, Regenerate Assets and generate-on-save, Convert and Play Music, Open in Tiled and the tool checks of Check Environment. Settings that name programs or paths (compiler, Python, library, emulators including the Spectrum one, Arkos, Tiled) and the \"library\" field of cpcbuild.json are ignored until the workspace is trusted.",
+      "description": "In Restricted Mode the palette, sprite, tile and map editors, the image importer and the symbol views open, but nothing that starts a program runs: Build, Run, Regenerate Assets and generate-on-save, Convert and Play Music, Open in Tiled and the tool checks of Check Environment. Settings that name programs or paths (Python, library, emulators, Arkos, Tiled) and the \"library\" field of cpcbuild.json are ignored until the workspace is trusted.",
       "restrictedConfigurations": [
-        "cpcbuild.zxbc.command",
-        "cpcbuild.zxbc.cwd",
-        "cpcbuild.zxbc.args",
+        "cpcbuild.compiler.args",
         "cpcbuild.sdk.path",
         "cpcbuild.python.path",
         "cpcbuild.library.path",
@@ -33,8 +31,6 @@
         "cpcbuild.run.cpcecPath",
         "cpcbuild.run.rvmPath",
         "cpcbuild.run.customCommand",
-        "cpcbuild.run.zxEmulator",
-        "cpcbuild.run.zxEmulatorArgs",
         "cpcbuild.run.autorunCommand",
         "cpcbuild.assets.engine",
         "cpcbuild.arkos.toolsPath",
@@ -376,7 +372,7 @@
       "explorer/context": [
         {
           "command": "cpcbuild.runFile",
-          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|bin)$/",
+          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|cpr)$/",
           "group": "navigation@90"
         },
         {
@@ -567,33 +563,16 @@
     "configuration": {
       "title": "CPC Game Studio",
       "properties": {
-        "cpcbuild.zxbc.command": {
-          "type": "array",
-          "default": [
-            "zxbc"
-          ],
-          "description": "How to start the compiler. Leave it at the default to use the SDK folder, the tools that \"CPC Game Studio: Download Tools\" installed, or zxbc on PATH. For the Boriel fork run through poetry: [\"poetry\", \"run\", \"zxbc\"].",
-          "items": {
-            "type": "string"
-          },
-          "scope": "resource"
-        },
-        "cpcbuild.zxbc.cwd": {
-          "type": "string",
-          "default": "",
-          "description": "Working directory for the compiler (the zxbasic checkout when using poetry). Empty = the project folder.",
-          "scope": "resource"
-        },
         "cpcbuild.sdk.path": {
           "type": "string",
           "default": "",
-          "description": "The CPCBuild SDK folder (the one holding bin/zxbc, lib/ and tools/). Empty = look for one at or above the project, then use the tools that \"CPC Game Studio: Download Tools\" installed.",
+          "description": "The CPCBuild SDK folder (the one holding bin/cpcbas.mjs and lib/). Empty = look for one at or above the project. The Studio does not need it to build: the compiler is inside the extension.",
           "scope": "resource"
         },
-        "cpcbuild.zxbc.args": {
+        "cpcbuild.compiler.args": {
           "type": "array",
           "default": [],
-          "description": "Extra arguments added to every zxbc call.",
+          "description": "Options for the compiler, as on the cpcbas command line: -O 0|1|2|3|s, --heap N, --heap-address N, --org N, -D NAME[=VALUE], -I DIR, -W CODE, -Werror, -Wimplicit, --opt-disable NAMES. Any other flag is reported in the build output and ignored. A target's own org, heap and optimize win.",
           "items": {
             "type": "string"
           },
@@ -602,13 +581,13 @@
         "cpcbuild.python.path": {
           "type": "string",
           "default": "python3",
-          "description": "Python 3 for mkdsk.py, mkcpr.py and the Python image engine; only needed with the python engine or a zxbasic checkout. Unset means python3 (py -3 on Windows).",
+          "description": "Python 3 for the Python image engine (cpcbuild.assets.engine \"python\"); not needed otherwise. Unset means python3 (py -3 on Windows).",
           "scope": "resource"
         },
         "cpcbuild.library.path": {
           "type": "string",
           "default": "",
-          "description": "The cpcbuild checkout: the folder containing lib/ and tools/. Empty = search upwards from the project, then the project's \"library\" field.",
+          "description": "A cpcbuild checkout (the folder containing tools/), needed only for cpcbuild.assets.engine \"python\". The BASIC library itself is always the one inside the extension. Empty = search upwards from the project, then the project's \"library\" field.",
           "scope": "resource"
         },
         "cpcbuild.build.org": {
@@ -690,23 +669,6 @@
           "description": "Command for \"custom\": words with ${dsk}, ${cpr}, ${bin}, ${model}. No shell is used.",
           "scope": "resource"
         },
-        "cpcbuild.run.zxEmulator": {
-          "type": "string",
-          "default": "",
-          "description": "External Spectrum emulator (for example Fuse or ZEsarUX) that Build and Run starts on the .tap of a zx48k target. Empty = Spectrum targets are build-only.",
-          "scope": "resource"
-        },
-        "cpcbuild.run.zxEmulatorArgs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "default": [
-            "${file}"
-          ],
-          "description": "Arguments for cpcbuild.run.zxEmulator; ${file} is the .tap path. No shell is used.",
-          "scope": "resource"
-        },
         "cpcbuild.run.autorunCommand": {
           "type": "string",
           "default": "run\"${name}",
@@ -786,15 +748,6 @@
           "default": "",
           "description": "Arkos Tracker application for \"Open in Arkos Tracker\"."
         },
-        "cpcbuild.arkos.psg": {
-          "type": "string",
-          "default": "cpc",
-          "description": "PSG clock for effect banks.",
-          "enum": [
-            "cpc",
-            "spectrum"
-          ]
-        },
         "cpcbuild.tiled.path": {
           "type": "string",
           "default": "",
@@ -814,26 +767,6 @@
         }
       }
     },
-    "problemMatchers": [
-      {
-        "name": "zxbc",
-        "owner": "cpcbuild",
-        "source": "zxbc",
-        "severity": "error",
-        "fileLocation": [
-          "autoDetect",
-          "${workspaceFolder}"
-        ],
-        "pattern": {
-          "regexp": "^(.+?):(\\d+): (error|warning): (?:\\[([EW]\\d+)\\] )?(.*)$",
-          "file": 1,
-          "line": 2,
-          "severity": 3,
-          "code": 4,
-          "message": 5
-        }
-      }
-    ],
     "taskDefinitions": [
       {
         "type": "cpcbuild",
@@ -981,20 +914,8 @@
       {
         "id": "cpcbuild.getStarted",
         "title": "Get started with CPC Game Studio",
-        "description": "Install the tools, create a project, build it and run it on an Amstrad CPC.",
+        "description": "Create a project, build it and run it on an Amstrad CPC.",
         "steps": [
-          {
-            "id": "cpcbuild.step.tools",
-            "title": "Install the tools",
-            "description": "Download the Boriel BASIC compiler and the music tools.\n[Download Tools](command:cpcbuild.downloadTools)",
-            "completionEvents": [
-              "onContext:cpcbuild.toolsInstalled",
-              "onCommand:cpcbuild.downloadTools"
-            ],
-            "media": {
-              "markdown": "media/walkthrough/tools.md"
-            }
-          },
           {
             "id": "cpcbuild.step.emulator",
             "title": "Install the emulator",
@@ -1033,10 +954,11 @@
     ]
   },
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "watch": "node scripts/build.mjs --watch",
-    "build:test": "tsc -p tsconfig.test.json",
-    "test:unit": "vitest run",
+    "link-cpcbas": "node scripts/link-cpcbas.mjs",
+    "build": "node scripts/link-cpcbas.mjs && node scripts/build.mjs",
+    "watch": "node scripts/link-cpcbas.mjs && node scripts/build.mjs --watch",
+    "build:test": "node scripts/link-cpcbas.mjs && tsc -p tsconfig.test.json",
+    "test:unit": "node scripts/link-cpcbas.mjs && vitest run",
     "test:vscode": "npm run build && npm run build:test && node out/test/runTest.js",
     "test": "npm run test:unit && npm run test:vscode",
     "package": "npm run build && vsce package",
@@ -1072,7 +994,7 @@
     "amstrad",
     "cpc",
     "z80",
-    "boriel",
+    "cpc basic",
     "basic",
     "retro"
   ]

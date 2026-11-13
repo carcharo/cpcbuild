@@ -3,18 +3,16 @@
  * the stale check, the CONST lines added to the generated include, the Insert Asset Use text and the
  * silent song the emulator preview plays (effects only sound while a song runs).
  *
- * Naming follows games/shooter/build_assets.sh: `sfx.vt2` -> `sfx.bas` for the CPC and `sfx_zx.vt2` ->
- * `sfx_zx.bas` for the Spectrum; both define the same label (the sanitised stem), so the BASIC that
- * plays the effects is the same on both machines and only the #include differs.
+ * Naming follows games/shooter/build_assets.sh: `sfx.vt2` -> `sfx.bas`, which defines the label of the
+ * bank (the sanitised stem).
  *
  * No vscode or node imports.
  */
 import { sanitizeName } from './aks2bas';
 import { matchesAny } from './glob';
-import type { SfxDoc, SfxTarget } from './sfxDoc';
+import type { SfxDoc } from './sfxDoc';
 
 export interface SfxOutput {
-  target: SfxTarget;
   /** The Vortex Tracker module written for the converter (project-relative, like the input). */
   vt2: string;
   /** The CPC BASIC include the converter writes. */
@@ -27,21 +25,10 @@ export function sfxBankName(rel: string): string {
   return sanitizeName(stem);
 }
 
-/** Where a bank's generated files go: beside it, `<stem>` for the CPC and `<stem>_zx` for the Spectrum. */
-export function sfxOutputs(rel: string, targets: readonly SfxTarget[]): SfxOutput[] {
+/** Where a bank's generated files go: beside it, with the stem of the bank. */
+export function sfxOutput(rel: string): SfxOutput {
   const stem = rel.replace(/\.[^./\\]*$/, '');
-  return [...new Set(targets)].map((target) => {
-    const base = target === 'cpc' ? stem : `${stem}_zx`;
-    return { target, vt2: `${base}.vt2`, bas: `${base}.bas` };
-  });
-}
-
-/** The PSG targets a project's build targets need: CPC targets -> cpc, Spectrum (zx48k) targets -> spectrum. */
-export function sfxTargetsOf(archs: readonly string[]): SfxTarget[] {
-  const out: SfxTarget[] = [];
-  if (archs.some((a) => a === 'cpc')) out.push('cpc');
-  if (archs.some((a) => a !== 'cpc')) out.push('spectrum');
-  return out.length ? out : ['cpc'];
+  return { vt2: `${stem}.vt2`, bas: `${stem}.bas` };
 }
 
 /** Stale: some output is missing (a negative time), or the bank is newer than the oldest output. */
@@ -158,11 +145,11 @@ export function sfxUseEdits(code: string, doc: SfxDoc, bank: string, rel: string
 }
 
 /**
- * The line a failed build adds when zxbc reports a sound call as undeclared (the program calls SfxPlay,
+ * The line a failed build adds when the compiler reports a sound call as undeclared (the program calls SfxPlay,
  * MusicInit, ... without the music library): what is missing and how Studio adds it. Undefined otherwise.
  */
 export function soundSetupHint(compilerOutput: string): string | undefined {
-  const m = /Undeclared (?:function|sub) "(Sfx(?:Play|Init|Stop)|Music(?:Init|InitBank|Frame|Stop))"/i.exec(compilerOutput);
+  const m = /'(Sfx(?:Play|Init|Stop)|Music(?:Init|InitBank|Frame|Stop))' is not a SUB or FUNCTION/i.exec(compilerOutput);
   if (!m) return undefined;
   return (
     `${m[1]} is in the sound library, which this program does not include. Open your .cpcsfx bank, put the cursor in your .bas ` +

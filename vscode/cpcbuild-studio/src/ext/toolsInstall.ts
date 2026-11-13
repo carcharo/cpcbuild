@@ -1,13 +1,13 @@
 /**
- * toolsInstall.ts -- "CPC Game Studio: Download Tools" without the UI: download the compiler bundle and the Arkos
- * command-line tools from the manifest, verify their SHA-256, extract them with Node built-ins only and move
+ * toolsInstall.ts -- "CPC Game Studio: Download Tools" without the UI: download the Arkos command-line tools from
+ * the manifest, verify their SHA-256, extract them with Node built-ins only and move
  * them into <globalStorage>/tools/ atomically (rename), deleting older versions. No vscode import (unit-testable).
  */
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ArchiveEntry, ArchiveError } from '../core/archive';
-import { arkosDirName, assetForKey, isPinned, ToolAsset, ToolPart, ToolsManifest, ToolsPlatform, toolsPlatform, zxbasicDirName } from '../core/tools';
+import { arkosDirName, assetForKey, isPinned, ToolAsset, ToolPart, ToolsManifest, ToolsPlatform, toolsPlatform } from '../core/tools';
 import { readTarGz } from '../core/tar';
 import { readZip } from '../core/zip';
 import { arkosToolPath, arkosUnavailableText } from './arkos';
@@ -15,18 +15,19 @@ import { ChecksumError, download, DownloadError } from './download';
 import { CancelToken, runTool, Sink } from './runTool';
 import { exeName } from './toolpaths';
 
-export type Part = 'zxbasic' | 'arkos';
+/** What Download Tools can fetch: Arkos only (the compiler is inside the extension). */
+export type Part = 'arkos';
 
 /** The tool's name as the messages call it. */
-export const partName = (part: Part, m: ToolsManifest): string => (part === 'zxbasic' ? `Boriel BASIC ${m.zxbasic.version}` : `Arkos ${m.arkos.version}`);
+export const partName = (_part: Part, m: ToolsManifest): string => `Arkos ${m.arkos.version}`;
 
 /** Where to send the user when the download fails. */
-export const RELEASES_URL = { zxbasic: 'https://github.com/carcharo/zxbasic/releases', arkos: 'https://www.julien-nevo.com/arkostracker/' } as const;
+export const RELEASES_URL = { arkos: 'https://www.julien-nevo.com/arkostracker/' } as const;
 
-/** The manifest has no checksum for this entry yet (scripts/pin-compiler.mjs fills them): downloading it unchecked is refused. */
+/** The manifest has no checksum for this entry: downloading it unchecked is refused. */
 export class UnpinnedError extends Error {
   constructor(readonly part: Part) {
-    super(`the checksum of the ${part === 'zxbasic' ? 'compiler' : 'Arkos'} download is not pinned in this version of Studio`);
+    super('the checksum of the Arkos download is not pinned in this version of Studio');
   }
 }
 /** No download for this platform (an unsupported OS or processor). */
@@ -50,10 +51,6 @@ export interface InstallOptions {
 
 export interface Installed {
   dir: string;
-  /** zxbc --version, first line (compiler only). */
-  version?: string;
-  /** Why zxbc --version failed, when it did. */
-  versionError?: string;
 }
 
 const isFile = (p: string): boolean => {
@@ -64,12 +61,7 @@ const isFile = (p: string): boolean => {
   }
 };
 
-export const zxbasicDir = (root: string, m: ToolsManifest): string => path.join(root, zxbasicDirName(m.zxbasic.version));
 export const arkosBinDir = (root: string, m: ToolsManifest): string => path.join(root, arkosDirName(m.arkos.version), 'bin');
-
-export function zxbasicInstalled(root: string, m: ToolsManifest, platform: NodeJS.Platform = process.platform): boolean {
-  return isFile(path.join(zxbasicDir(root, m), exeName('zxbc', platform)));
-}
 
 export function arkosInstalled(root: string, m: ToolsManifest, platform: NodeJS.Platform = process.platform): boolean {
   const d = arkosBinDir(root, m);
@@ -136,7 +128,7 @@ export function readArchive(file: string, url: string): ArchiveEntry[] {
 }
 const readTar = readTarGz;
 
-/** The one folder every entry lives in (`zxbasic/`), if there is one: how many leading segments to strip. */
+/** The one folder every entry lives in, if there is one: how many leading segments to strip. */
 export function commonTop(entries: readonly ArchiveEntry[]): number {
   const tops = new Set(entries.map((e) => e.path.split('/')[0]));
   return tops.size === 1 && entries.every((e) => e.path.includes('/') || e.kind === 'dir') ? 1 : 0;
@@ -172,31 +164,6 @@ const newStaging = (root: string): string => {
   return fs.mkdtempSync(path.join(root, '.staging-'));
 };
 
-export async function installZxbasic(o: InstallOptions): Promise<Installed> {
-  const platform = o.platform ?? process.platform;
-  const asset = assetFor('zxbasic', o.manifest, platform, o.arch ?? process.arch);
-  const staging = newStaging(o.root);
-  try {
-    const file = await fetchAsset('zxbasic', asset, o, staging);
-    const entries = readArchive(file, asset.url);
-    const out = path.join(staging, 'out');
-    extractEntries(entries, out, commonTop(entries));
-    for (const n of ['zxbc', 'zxbasm', 'zxbpp', 'mkdsk']) {
-      const exe = path.join(out, exeName(n, platform));
-      if (isFile(exe) && platform !== 'win32') fs.chmodSync(exe, 0o755);
-    }
-    if (!isFile(path.join(out, exeName('zxbc', platform)))) throw new ArchiveError(`the archive holds no ${exeName('zxbc', platform)}`);
-    const final = zxbasicDir(o.root, o.manifest);
-    swapIn(out, final);
-    dropOthers(o.root, 'zxbasic-', path.basename(final));
-    const r = await runTool([path.join(final, exeName('zxbc', platform))], ['--version'], { quiet: true, token: o.token, sink: o.sink });
-    const line = (r.stdout + r.stderr).trim().split('\n')[0];
-    return r.code === 0 && line ? { dir: final, version: line } : { dir: final, versionError: r.error ?? `exited ${r.code}: ${line}` };
-  } finally {
-    fs.rmSync(staging, { recursive: true, force: true });
-  }
-}
-
 export async function installArkos(o: InstallOptions): Promise<Installed> {
   const platform = o.platform ?? process.platform;
   const asset = assetFor('arkos', o.manifest, platform, o.arch ?? process.arch);
@@ -231,11 +198,11 @@ export async function installArkos(o: InstallOptions): Promise<Installed> {
 }
 
 /** The text for a failed download, per kind of failure (exact wording is part of the spec). */
-export function failureText(e: unknown, part: Part, m: ToolsManifest): string {
-  const name = part === 'zxbasic' ? `Boriel BASIC ${m.zxbasic.version}` : `Arkos Tracker ${m.arkos.version}`;
+export function failureText(e: unknown, _part: Part, m: ToolsManifest): string {
+  const name = `Arkos Tracker ${m.arkos.version}`;
   if (e instanceof ChecksumError) return `CPC Game Studio: the download of ${name} did not match its checksum and was deleted. Try again; if it keeps failing, report it.`;
   if (e instanceof UnpinnedError) return `CPC Game Studio: this version of Studio has no checksum for the ${name} download yet, so it will not download it. Download the SDK zip from the releases page.`;
-  if (e instanceof NoToolsError) return `CPC Game Studio: ${part === 'arkos' ? arkosUnavailableText(e.platform) : `there are no compiler tools for ${e.platform}. Download the SDK zip from the releases page.`}`;
+  if (e instanceof NoToolsError) return `CPC Game Studio: ${arkosUnavailableText(e.platform)}`;
   if (e instanceof ArchiveError) return `CPC Game Studio: the download of ${name} could not be unpacked: ${e.message}. Try again; if it keeps failing, report it.`;
   const msg = e instanceof DownloadError || e instanceof Error ? e.message : String(e);
   return `CPC Game Studio: could not download ${name}: ${msg}. Check the connection or "http.proxy", or download the SDK zip from the releases page.`;

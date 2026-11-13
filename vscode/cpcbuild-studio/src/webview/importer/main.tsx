@@ -5,7 +5,7 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { defaultGrid, gridLayout, type GridSpec } from '../../core/cpcgrid';
-import { composedSource, isLegacyTarget, mappingRows, parseHexRgb, previewResultImage, previewSourceImage, resultState, rgbHex } from '../../core/importerView';
+import { composedSource, mappingRows, parseHexRgb, previewResultImage, previewSourceImage, resultState, rgbHex } from '../../core/importerView';
 import type { Recipe, RecipeOp } from '../../core/cpcimp';
 import { FW_NAMES, FW_TABLE, parsePalList, parseRgb12List } from '../../core/palette';
 import { tileWidthsOf, type Mode } from '../../core/pixels';
@@ -233,7 +233,6 @@ function ImporterApp({ client, settings, view }: Host) {
     return m ? { w: Number(m[1]), h: Number(m[2]) } : undefined;
   })();
   const cellSize = grid && r.kind !== 'tiles' ? { w: grid.cellW, h: grid.cellH } : grid ? { w: grid.cellW, h: grid.cellH } : r.kind === 'tiles' ? { w: r.tileWidth ?? 8, h: 8 } : frame;
-  const legacy = isLegacyTarget(r.target);
   const aspMode = r.target === 'cpc' ? (r.mode ?? 1) : 'plus';
   const aw = aspectWidth(aspMode, settings.pixelAspect, 2, 1);
   const shown: Pane = narrow && pane === 'both' ? 'source' : pane;
@@ -250,8 +249,7 @@ function ImporterApp({ client, settings, view }: Host) {
   const plusT = r.target === 'plus-sprite' || r.target === 'plus-palette';
   const palMode: 'auto' | 'pens' | 'file' = r.palette?.file ? 'file' : r.palette?.list?.length ? 'pens' : (palPending ?? 'auto');
   const fixedPal = cpc && (palMode === 'pens' || palMode === 'file');
-  // Spectrum recipes still generate but have no CPC preview: that converter message is expected, not an error to show
-  const errText = legacy ? '' : err;
+  const errText = err;
   const errFrame = /frame/i.test(errText);
   const errPal = /palette|colours|pens/i.test(errText);
   const sixteen = /16-bit PNG/.test(errText);
@@ -310,7 +308,6 @@ function ImporterApp({ client, settings, view }: Host) {
   // -------- notices
   const notices: ComponentChildren[] = [];
   if (msg) notices.push(<Notice key="msg" severity={msg.severity} onDismiss={() => setMsg(null)}>{msg.text}</Notice>);
-  if (legacy) notices.push(<Notice key="legacy" severity="info" actions={[{ label: 'Switch to CPC', onClick: () => void set({ target: 'cpc', ...(r.mode === undefined ? { mode: 1 } : {}) }) }]}>Spectrum is no longer offered in the editor; Generate still works.</Notice>);
   if (src && src !== 'loading' && !src.ok && !src.empty) {
     const acts: NoticeAction[] = [{ label: 'Choose image...', onClick: pickSource }];
     if (/16-bit PNG/.test(src.error)) acts.unshift({ label: 'Use the Python engine', onClick: () => void client.request('useEngine', { engine: 'python' }).then((x) => x.changed && setRefresh((n) => n + 1)) });
@@ -514,9 +511,7 @@ function ImporterApp({ client, settings, view }: Host) {
   );
   const dimmed = !!errText || busy;
   const previewW = Math.max(160, Math.floor(wantedW) - 48);
-  const resultBody = legacy ? (
-    <p class="cb-muted">There is no CPC preview of Spectrum output.</p>
-  ) : cpc ? (
+  const resultBody = cpc ? (
     cpcImage ? (
       <div class={dimmed ? 'imp-dimwell' : undefined}>
         <CpcPreview

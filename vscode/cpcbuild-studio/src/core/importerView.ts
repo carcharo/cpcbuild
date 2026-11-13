@@ -1,6 +1,6 @@
 /**
  * importerView.ts -- the pure parts of the image importer's view (R5): the result-state pill, the images the CPC
- * preview shows, the colour-mapping rows and the legacy-target test. No DOM, no vscode, nothing that reads files
+ * preview shows, and the colour-mapping rows. No DOM, no vscode, nothing that reads files
  * (it does not import the converter, so the webview bundle stays small).
  */
 import { gridLayout, type GridSpec } from './cpcgrid';
@@ -21,9 +21,6 @@ export interface RgbaSource {
   height: number;
   rgba: Uint8ClampedArray | Uint8Array;
 }
-
-/** A recipe whose target the editor no longer offers (it still reads and generates). */
-export const isLegacyTarget = (target: string): boolean => target === 'spectrum';
 
 export interface ResultState {
   state: 'ok' | 'warn' | 'bad';

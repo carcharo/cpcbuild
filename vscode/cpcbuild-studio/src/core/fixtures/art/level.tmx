@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.10" orientation="orthogonal" width="4" height="2" tilewidth="8" tileheight="8" infinite="0">
+ <tileset firstgid="1" name="pic1" tilewidth="8" tileheight="8" tilecount="3" columns="3">
+  <image source="pic1.png" width="24" height="8"/>
+ </tileset>
+ <layer id="1" name="floor" width="4" height="2">
+  <data encoding="base64" compression="zlib">eJxjZGBgYAJiZiBmZGBogNJwMQAJrACR</data>
+ </layer>
+</map>

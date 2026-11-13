@@ -21,7 +21,6 @@ import { insideRoot } from '../core/paths';
 import { cachedDecode, decoderFor, describeError, generate, isStale, regenerateAll, rootIo, type GenResult, type GenSettings } from './assetsGen';
 import { channelSink, getChannel, tee } from './channel';
 import { readSettings, resolveArkos, resolveLibrary, type Settings } from './config';
-import { sfxTargetsOf } from '../core/sfxBuild';
 import { StudioDocument, StudioEditorProvider } from './customEditor';
 import { isTrusted, requireTrust, restrictedText } from './trust';
 import { findProjects, loadProjectFile, pickProject, PROJECT_FILE } from './projects';
@@ -408,7 +407,7 @@ export async function regenerateAssetsCommand(args?: { root?: string }): Promise
   getChannel().show(true);
   const s = readSettings(root);
   sink.line(`--- regenerate assets (${s.assetsEngine} engine) in ${root} ---`);
-  const results = await regenerateAll(root, globs, genSettings(root, s), { sink, sfxTargets: sfxTargetsOf(archs) });
+  const results = await regenerateAll(root, globs, genSettings(root, s), { sink });
   const bad = results.filter((r) => !r.ok);
   if (!results.length) void vscode.window.showInformationMessage('CPC Game Studio: no .cpcimp recipes, sprite or tile documents, or .cpcsfx banks, or .cpcsong songs match the "assets" globs of cpcbuild.json.');
   else if (bad.length) void vscode.window.showErrorMessage(`CPC Game Studio: ${bad.length} of ${results.length} asset recipes failed: ${bad[0].error}`);

@@ -217,8 +217,8 @@ export async function musicPlayCommand(arg?: vscode.Uri | MusicPlayArgs): Promis
   // 2. the program, built like a user target
   fs.writeFileSync(path.join(dir, 'preview.bas'), previewProgram(plan, includeFile));
   const project: Project = { version: 1, name: 'music preview', library: null, targets: [previewTarget()], assets: [] };
-  const bs: Settings = { ...s, libraryPath: library, zxbcCwd: s.zxbcCwd ? absFrom(root, s.zxbcCwd) : root, outputDir: '.', regenerateBeforeBuild: false };
-  const b = await buildTarget(dir, project, project.targets[0], sink, undefined, bs);
+  const bs: Settings = { ...s, libraryPath: library, outputDir: '.', regenerateBeforeBuild: false };
+  const b = await buildTarget(dir, project, project.targets[0], sink, undefined, bs, { publish: false });
   if (!b.ok || !b.run) return fail(`the preview program did not build: ${b.message ?? 'unknown error'}`);
 
   // 3. play
