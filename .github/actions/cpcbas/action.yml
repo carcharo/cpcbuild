@@ -1,0 +1,57 @@
+name: Build cpcbas at the pin
+description: >
+  Checks out the cpcbas compiler at the commit named by cpcbas.json, sets up Node 22, builds it (cached by
+  commit: node_modules, the compiled package and the one-file bundle) and exports CPCBAS (the checkout) for
+  the later steps of the job. Expects cpcbas.json at the path given by `pin-file`.
+inputs:
+  pin-file:
+    description: 'cpcbas.json of the cpcbuild checkout, relative to the workspace'
+    default: cpcbuild/cpcbas.json
+  setup-node:
+    description: 'false when the job has already set up Node 22'
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Read the cpcbas pin
+      id: pin
+      shell: bash
+      env:
+        PIN_FILE: ${{ inputs.pin-file }}
+      run: |
+        echo "repo=$(jq -r .repo "$PIN_FILE")" >> "$GITHUB_OUTPUT"
+        echo "commit=$(jq -r .commit "$PIN_FILE")" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout cpcbas at the pin
+      uses: actions/checkout@v7
+      with:
+        repository: ${{ steps.pin.outputs.repo }}
+        ref: ${{ steps.pin.outputs.commit }}
+        path: cpcbas
+
+    - name: Set up Node 22
+      if: inputs.setup-node == 'true'
+      uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: cpcbas/package-lock.json
+
+    - name: Cache the cpcbas build
+      id: cpcbas-cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          cpcbas/node_modules
+          cpcbas/packages/cpcbas/dist
+        key: cpcbas-${{ runner.os }}-${{ steps.pin.outputs.commit }}
+
+    - name: Build cpcbas
+      if: steps.cpcbas-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: cpcbas
+      run: npm ci && npm run build && npm run bundle
+
+    - name: Export CPCBAS
+      shell: bash
+      run: echo "CPCBAS=$GITHUB_WORKSPACE/cpcbas" >> "$GITHUB_ENV"

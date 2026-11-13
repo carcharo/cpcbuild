@@ -1,7 +1,8 @@
 name: Build the CPCBuild .vsix files
 description: >
   Builds both VS Code extensions (CPCBuild Studio and CPCBuild Emulator) into
-  cpcbuild/vscode/*/*.vsix without running their tests: Node 22, the pinned CPCEC
+  cpcbuild/vscode/*/*.vsix without running their tests: Node 22, cpcbas at the commit
+  pinned in cpcbas.json (the Studio compiles with it, in-process; CPCBAS is exported), the pinned CPCEC
   (ROMs and the sources for the emulator's source tarball), emsdk 6.0.12, then `make vsix`.
   The same steps as the vscode job of ci.yml, which keeps its own copy because it also
   runs the tests under xvfb. Expects cpcbuild already checked out at ./cpcbuild.
@@ -16,6 +17,10 @@ runs:
         cache-dependency-path: |
           cpcbuild/vscode/cpcbuild-studio/package-lock.json
           cpcbuild/vscode/cpcbuild-emu/package-lock.json
+    - name: Build cpcbas at the pin
+      uses: ./cpcbuild/.github/actions/cpcbas
+      with:
+        setup-node: 'false'
     - name: Install the SDL2 headers (CPCEC's make cpcec)
       shell: bash
       run: |

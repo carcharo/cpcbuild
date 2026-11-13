@@ -105,7 +105,7 @@ test-cpcec: ## 6128 Plus on CPCEC (headless, needs `make cpcec`): smoke tests, c
 	$(PYTHON) tests/screens/run.py --emu cpcec --bare
 	$(PYTHON) games/shooter/tests/run.py --plus --emu cpcec
 
-test-vscode: ## CPC Game Studio extension: vitest unit tests, then extension-host tests (zxbc from ZXBASIC; on Linux run as xvfb-run -a make test-vscode)
+test-vscode: ## CPC Game Studio extension: vitest unit tests, then extension-host tests (the compiler is the cpcbas checkout, CPCBAS; on Linux run as xvfb-run -a make test-vscode)
 	@[ -d vscode/cpcbuild-studio/node_modules ] || (cd vscode/cpcbuild-studio && npm ci)
 	cd vscode/cpcbuild-studio && npm test
 
