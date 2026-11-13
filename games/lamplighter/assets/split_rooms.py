@@ -73,7 +73,7 @@ def main():
     def arr(name, vals, typ="UBYTE"):
         lines = []
         for i in range(0, len(vals), 16):
-            lines.append("    " + ", ".join(f"${v:02X}" if typ == "UBYTE" else str(v) for v in vals[i:i + 16])
+            lines.append("    " + ", ".join(f"&{v:02X}" if typ == "UBYTE" else str(v) for v in vals[i:i + 16])
                          + (", _" if i + 16 < len(vals) else " _"))
         return f"DIM {name}({len(vals) - 1}) AS {typ} => {{ _\n" + "\n".join(lines) + "\n}\n\n"
 
