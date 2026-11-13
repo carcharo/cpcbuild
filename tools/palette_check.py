@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """palette_check.py -- checks cpcbuild's firmware-colour -> Gate Array
-table (the fork's runtime/gacolour.asm, __CPC_HWCOL) against the firmware, in
+table (the runtime's gacolour.asm, __CPC_HWCOL) against the firmware, in
 the emulator, by comparing screenshots.
 
     palette_check.py [--model 464|6128] [--emu cap32|chips] [--keep DIR]
@@ -28,8 +28,8 @@ to advance; the program waits for that q.
 
 Pass criteria: for every state the border pixel and all 16 pen cells have
 the same RGB in hw and lib as in fw, and the 27 border RGBs are distinct.
-Exit status 0 if all of that holds. Needs PIL, the zxbasic fork and
-caprice32 (see tools/cpcrun.py).
+Exit status 0 if all of that holds. Needs PIL, cpcbas (built; see
+tools/cpcrun.py) and caprice32.
 
 --emu chips runs the same programs on tools/chipsrun instead (no typed q:
 the program triggers each screenshot itself with tests/screens/lib/shot.bas
@@ -63,7 +63,7 @@ PROGRAM = r"""
 DIM pal(15) AS UBYTE
 DIM s, p AS UBYTE
 
-SUB Cell(pen AS UBYTE, col AS UBYTE, row AS UBYTE)
+SUB Cell(pen_ AS UBYTE, col AS UBYTE, row AS UBYTE)
   ASM
   ld a, (ix+5)
   call .core.__FW_CALL
@@ -79,7 +79,7 @@ SUB Cell(pen AS UBYTE, col AS UBYTE, row AS UBYTE)
 END SUB
 
 REM Firmware only.
-SUB FwInk(pen AS UBYTE, colour AS UBYTE)
+SUB FwInk(pen_ AS UBYTE, colour AS UBYTE)
   ASM
   ld a, (ix+5)
   ld b, (ix+7)
@@ -98,7 +98,7 @@ SUB FASTCALL FwBorder(colour AS UBYTE)
 END SUB
 
 REM Gate Array only (the table in palette.asm).
-SUB HwInk(pen AS UBYTE, colour AS UBYTE)
+SUB HwInk(pen_ AS UBYTE, colour AS UBYTE)
   ASM
   ld a, (ix+5)
   ld c, (ix+7)
@@ -185,7 +185,7 @@ STEP = {
   FOR p = 0 TO 15
     FwInk(p, pal(p))
   NEXT p
-  WaitVsync: WaitVsync: WaitVsync: WaitVsync
+  FRAME: FRAME: FRAME: FRAME
   DO
   LOOP UNTIL INKEY$ = "q"
 """,
@@ -223,12 +223,18 @@ CHIPS_STEP = {
 CHIPS_SHOT = 'Shot("s" + CHR$(48 + s / 10) + CHR$(48 + s MOD 10))\n'
 
 
-def run_path_chips(path: str, model: str, workdir: Path, env: dict) -> list[Path]:
-    bas = workdir / f"pal{path}.bas"
+def program_text(path: str, chips: bool, shot_lib: Path = SHOT_LIB) -> str:
+    """The CPC BASIC program for one path (fw, hw or lib); the chips one takes its own shots."""
+    if not chips:
+        return PROGRAM.replace("@@STEP@@", STEP[path])
     step = CHIPS_STEP[path].replace("CHIPS_SHOT", CHIPS_SHOT)
-    text = PROGRAM.replace("@@STEP@@", step).replace(
-        "#include <cpcbuild/keyboard.bas>", f'#include <cpcbuild/keyboard.bas>\n#include "{SHOT_LIB}"')
-    bas.write_text(text)
+    return PROGRAM.replace("@@STEP@@", step).replace(
+        "#include <cpcbuild/keyboard.bas>", f'#include <cpcbuild/keyboard.bas>\n#include "{shot_lib}"')
+
+
+def run_path_chips(path: str, model: str, workdir: Path, env: dict) -> list[Path]:
+    bas = workdir / f"palette_{path}.bas"  # a stem that differs from the AMSDOS name (case-blind file systems)
+    bas.write_text(program_text(path, True))
     shots = workdir / f"shots_{path}"
     shots.mkdir()
     code = cpcrun.main([str(bas), "--emu", "chips", "--model", model, "--shot-dir", str(shots), "--quiet",
@@ -239,13 +245,11 @@ def run_path_chips(path: str, model: str, workdir: Path, env: dict) -> list[Path
 
 
 def run_path(path: str, model: str, workdir: Path, env: dict) -> list[Path]:
-    bas = workdir / f"pal{path}.bas"
-    bas.write_text(PROGRAM.replace("@@STEP@@", STEP[path]))
-    out_bin = workdir / f"{path}.bin"
+    bas = workdir / f"palette_{path}.bas"  # a stem that differs from the AMSDOS name (case-blind file systems)
+    bas.write_text(program_text(path, False))
     dsk = workdir / f"{path}.dsk"
     stem = cpcrun.amsdos_stem(bas)
-    cpcrun.compile_program(bas, out_bin, [], env)
-    cpcrun.pack_dsk(out_bin, dsk, stem, env)
+    cpcrun.compile_program(bas, dsk, [], env)
     shots = workdir / f"shots_{path}"
     shots.mkdir()
     cmd = [str(cpcrun.cap32_bin())]

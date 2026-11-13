@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { posixSlashes } from '../core/pathtext';
+import { committedText } from '../core/committedText';
 import { py, PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { defaultOutput, generateTmx, tmxArgv } from './tmxGen';
 
@@ -60,7 +61,7 @@ describe('generateTmx equals tools/tmx2bas.py', () => {
     const r = await generateTmx(dir, 'examples/assets/level.tmx', { name: 'level', output: 'out/level-committed.bas' }, TS);
     expect(r.ok).toBe(true);
     // the committed file was made with `-o examples/assets/level.bas`: only the header's -o argument differs
-    const committed = fs.readFileSync(path.join(REPO, 'examples/assets/level.bas'), 'utf8').split('\n').slice(1).join('\n');
+    const committed = committedText('examples/assets/level.bas').split('\n').slice(1).join('\n');
     expect(fs.readFileSync(out, 'utf8').split('\n').slice(1).join('\n')).toBe(committed);
   });
   it('a layer by name, and the tool\'s text for a missing layer', async () => {

@@ -7,6 +7,8 @@ Disark region labels, and an Arkos Tracker 2 style export with a label
 followed by an instruction on one line)."""
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import re
 import sys
@@ -19,6 +21,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(ROOT / "tools" / "arkos"))
 import aks2bas  # noqa: E402
 import postprocess  # noqa: E402
+import cpcbas_check  # noqa: E402
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 
@@ -35,7 +38,7 @@ def asm_body(bas: str) -> list[str]:
 class TestAks2Bas(unittest.TestCase):
     def test_at3_export(self):
         src = (FIX / "akx_at3_head.asm").read_text()
-        out = aks2bas.to_boriel(src, "sfx", "", "sfx")
+        out = aks2bas.to_basic(src, "sfx", "", "sfx")
         body = asm_body(out)
         # Every label has a colon and sits alone on its line.
         labels = [l for l in body if l and not l.startswith(" ")]
@@ -57,7 +60,7 @@ class TestAks2Bas(unittest.TestCase):
     def test_at2_label_and_instruction_on_one_line(self):
         src = (FIX / "akg_at2_head.asm").read_text()
         self.assertIn("Newsong_EmptyInstrument_Loop\tdb 0", src)  # fixture is what we think
-        out = aks2bas.to_boriel(src, "tune", "", "song")
+        out = aks2bas.to_basic(src, "tune", "", "song")
         body = asm_body(out)
         i = body.index("Newsong_EmptyInstrument_Loop:")
         self.assertTrue(body[i + 1].startswith("    db 0"))
@@ -65,7 +68,7 @@ class TestAks2Bas(unittest.TestCase):
 
     def test_prefix_renames_labels_and_references_not_strings_or_comments(self):
         src = 'Start\n    db "Start"   ; Start here\n    dw Start\nOther\n    dw Other+2\n'
-        body = asm_body(aks2bas.to_boriel(src, "x", "p_", "song"))
+        body = asm_body(aks2bas.to_basic(src, "x", "p_", "song"))
         self.assertIn("p_Start:", body)
         self.assertIn('    db "Start"    ; Start here', body)
         self.assertIn("    dw p_Start", body)
@@ -73,24 +76,24 @@ class TestAks2Bas(unittest.TestCase):
 
     def test_hash_hex_becomes_0x(self):
         src = 'L\n    dw #1F2E\n    db "#12"  ; #34\n    ld a,#ff\n'
-        body = asm_body(aks2bas.to_boriel(src, "x", "", "song"))
+        body = asm_body(aks2bas.to_basic(src, "x", "", "song"))
         self.assertIn("    dw 0x1F2E", body)
         self.assertIn('    db "#12"    ; #34', body)
         self.assertIn("    ld a,0xff", body)
 
     def test_existing_colon_and_directives_at_column_zero(self):
         src = "Lab:\n    db 1\ndb 2\nLab2: dw Lab\n"
-        body = asm_body(aks2bas.to_boriel(src, "x", "", "song"))
+        body = asm_body(aks2bas.to_basic(src, "x", "", "song"))
         self.assertEqual(body, ["Lab:", "    db 1", "    db 2", "Lab2:", "    dw Lab"])
 
     def test_crlf_and_blank_lines(self):
         src = "A\r\n\r\n\r\n    db 1\r\n"
-        body = asm_body(aks2bas.to_boriel(src, "x", "", "song"))
+        body = asm_body(aks2bas.to_basic(src, "x", "", "song"))
         self.assertEqual(body, ["A:", "", "    db 1"])
 
     def test_no_labels_is_an_error(self):
         with self.assertRaises(ValueError):
-            aks2bas.to_boriel("    db 1\n", "x")
+            aks2bas.to_basic("    db 1\n", "x")
 
     def test_sanitize_name(self):
         self.assertEqual(aks2bas.sanitize_name("my-song 2"), "my_song_2")
@@ -105,6 +108,25 @@ class TestAks2Bas(unittest.TestCase):
             self.assertIn("\ntune:\n", text)
             self.assertIn("tune_Newsong_Start:", text)
             self.assertIn("MusicInit(@tune, subsong)", text)
+
+
+@unittest.skipUnless(cpcbas_check.available(), "cpcbas is not built")
+class TestCompilesWithCpcbas(unittest.TestCase):
+    """The generated includes are CPC BASIC: cpcbas parses them (the fixtures are heads of
+    exports, so only --parse-only: a full build would miss the labels they cut off)."""
+
+    def check(self, text):
+        rc, out = cpcbas_check.parse_only(text)
+        self.assertEqual(rc, 0, out)
+
+    def test_sfx_include(self):
+        self.check(aks2bas.to_basic((FIX / "akx_at3_head.asm").read_text(), "sfx", "", "sfx"))
+
+    def test_song_include(self):
+        self.check(aks2bas.to_basic((FIX / "akg_at2_head.asm").read_text(), "tune", "", "song"))
+
+    def test_bank_include(self):
+        self.check(aks2bas.bank_include(bytes(range(40)), "bt", 0x4000))
 
 
 AKS_XML = (b'<song><psgs><psg><type>ay</type><frequencyHz>2000000</frequencyHz>'
@@ -138,7 +160,7 @@ class TestPsgClock(unittest.TestCase):
             aks2bas.set_psg_clock(b"<song/>", 1000000)
 
     def test_clock_values(self):
-        self.assertEqual(aks2bas.PSG_HZ, {"cpc": 1000000, "spectrum": 1773400})
+        self.assertEqual(aks2bas.PSG_HZ, {"cpc": 1000000})
 
     def run_cli(self, *opts, sfx=False):
         with tempfile.TemporaryDirectory() as td:
@@ -169,10 +191,14 @@ class TestPsgClock(unittest.TestCase):
                     os.environ["AT3_TOOLS"] = old
             return rc, seen.read_text(), aks.read_bytes()
 
-    def test_cli_psg_spectrum_sfx(self):
-        rc, clock, orig = self.run_cli("--psg", "spectrum", sfx=True)
-        self.assertEqual((rc, clock), (0, "1773400"))
+    def test_cli_psg_cpc_sfx(self):
+        rc, clock, orig = self.run_cli("--psg", "cpc", sfx=True)
+        self.assertEqual((rc, clock), (0, "1000000"))
         self.assertEqual(orig, AKS_XML)       # the user's file is not modified
+
+    def test_cli_psg_spectrum_is_gone(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            self.run_cli("--psg", "spectrum")
 
     def test_cli_psg_cpc_song(self):
         rc, clock, _ = self.run_cli("--psg", "cpc")

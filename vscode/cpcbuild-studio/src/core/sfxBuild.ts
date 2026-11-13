@@ -17,7 +17,7 @@ export interface SfxOutput {
   target: SfxTarget;
   /** The Vortex Tracker module written for the converter (project-relative, like the input). */
   vt2: string;
-  /** The Boriel include the converter writes. */
+  /** The CPC BASIC include the converter writes. */
   bas: string;
 }
 

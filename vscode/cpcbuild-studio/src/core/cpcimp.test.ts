@@ -16,6 +16,7 @@ import { decodeImage } from './imageio';
 import { encodePng, newImage, setPixel } from './image';
 import type { CliIo } from './img2cpc';
 import { committed } from './testcorpus';
+import { committedText } from './committedText';
 import { py, pySpawn, REPO, scratchDir } from './testutil';
 
 const ioAt = (root: string): CliIo => ({
@@ -125,7 +126,7 @@ describe('the repo corpus: committed generated files', () => {
       expect(recipeToArgv(back)).toEqual(argv);
       const out = runRecipe(back, io);
       const f = out.files.find((x) => x.path === file);
-      expect(f?.data).toBe(fs.readFileSync(path.join(REPO, file), 'utf8'));
+      expect(f?.data).toBe(committedText(file));
     });
     it(`${file}: Python prints the same text`, () => {
       const { recipe } = argvToRecipe(argv);
@@ -143,7 +144,7 @@ describe('the repo corpus: committed generated files', () => {
     const out = runRecipe(recipe, io);
     expect(out.files.map((f) => f.path)).toEqual(['tests/conformance/assets/pens16.pal', 'tests/conformance/assets/spr0.bas']);
     expect(out.files[0].data).toBe(fs.readFileSync(path.join(REPO, 'tests/conformance/assets/pens16.pal'), 'utf8'));
-    expect(out.files[1].data).toBe(fs.readFileSync(path.join(REPO, 'tests/conformance/assets/spr0.bas'), 'utf8'));
+    expect(out.files[1].data).toBe(committedText('tests/conformance/assets/spr0.bas'));
   });
   it('a recipe using palette.file re-run gives identical bytes', () => {
     const r = newRecipe('tests/conformance/assets/msk0.png', { mode: 0, name: 'a_msk0', masked: true, palette: { file: 'tests/conformance/assets/pens16.pal' }, output: 'x.bas' });

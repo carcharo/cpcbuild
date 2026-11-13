@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """mkcpr.py -- builds an Amstrad CPC Plus / GX4000 cartridge (.cpr) from a
-bare-metal program binary (zxbc --arch cpc -D CPC_BAREMETAL -D CPC_OWNFONT).
+bare-metal program binary (cpcbas -D CPC_BAREMETAL -D CPC_OWNFONT).
 
     mkcpr.py prog.bin [--load 0x40] [--entry 0x40] -o game.cpr
 
 --load is the address the binary is compiled for (its origin); with no
---load it is read from the memory map zxbc wrote next to the binary
+--load it is read from the memory map cpcbas wrote next to the binary
 (prog.map, `.core.__START_PROGRAM`), the way cpcrun.py does. --entry
 defaults to --load. The program must lie within RAM below &C000.
 

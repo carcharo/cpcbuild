@@ -1,6 +1,6 @@
 /**
  * img2cpc.ts -- a port of tools/img2cpc.py: converts an RGBA image into a
- * Boriel BASIC include (DIM ... => {...} arrays and CONSTs) for the cpcbuild
+ * CPC BASIC include (DIM ... => {...} arrays and CONSTs) for the cpcbuild
  * library, producing the same text as the Python tool for the same inputs
  * (src/core/img2cpc.test.ts compares the two byte for byte).
  *
@@ -483,11 +483,14 @@ export function plusPaletteData(pix: Pix, fixed?: RGB[]): number[] {
 
 // ---------------------------------------------------------------- output
 
-const hex2 = (b: number): string => '$' + b.toString(16).toUpperCase().padStart(2, '0');
+/** A byte as the assembler writes it in `defb` lines (asm keeps `$`). */
+const hexAsm = (b: number): string => '$' + b.toString(16).toUpperCase().padStart(2, '0');
+/** A byte as CPC BASIC writes it in a data table. */
+const hex2 = (b: number): string => '&' + b.toString(16).toUpperCase().padStart(2, '0');
 
 export function fmtAsm(name: string, data: number[]): string {
   const lines = [`${name}:`];
-  for (let i = 0; i < data.length; i += 16) lines.push('    defb ' + data.slice(i, i + 16).map(hex2).join(', '));
+  for (let i = 0; i < data.length; i += 16) lines.push('    defb ' + data.slice(i, i + 16).map(hexAsm).join(', '));
   return lines.join('\n') + '\n';
 }
 
@@ -809,7 +812,7 @@ export function parseArgs(argv: readonly string[], loadSidecar?: SidecarLoader):
   if (has('--plus-sprite') && has('--plus-palette')) fail('use --plus-sprite or --plus-palette, not both');
   if (plus && has('--spectrum')) fail('--plus-* and --spectrum are exclusive');
   if (has('--check') && has('--output')) fail('--check writes nothing; leave out -o');
-  if (has('--check') && (plus || has('--spectrum'))) fail('--check is for CPC modes, not --spectrum or --plus-*');
+  if (has('--check') && (plus || has('--spectrum'))) fail(has('--spectrum') ? '--check is for CPC modes, not --spectrum or --plus-*' : '--check is for CPC modes, not --plus-*');
   if (has('--packed') && !has('--plus-sprite')) fail('--packed needs --plus-sprite');
   if (plusFormat !== 'bas' && !plus) fail('--plus-format needs --plus-sprite or --plus-palette');
   if (plusFormat === 'bin' && !has('--output')) fail('--plus-format bin needs -o');

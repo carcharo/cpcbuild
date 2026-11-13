@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""img2cpc.py -- converts a PNG into a Boriel BASIC include (a .bas file of
+"""img2cpc.py -- converts a PNG into a CPC BASIC include (a .bas file of
 DIM ... => {...} arrays and CONSTs) for the cpcbuild library.
 
     img2cpc.py --mode 0|1|2 [--name NAME] [-o out.bas] image.png
@@ -8,7 +8,6 @@ DIM ... => {...} arrays and CONSTs) for the cpcbuild library.
                [--transparent RRGGBB]
                [--palette 0,1,2,... | --palette-file F] [--pen0 N]
                [--no-palette] [--write-palette F] [--no-sidecar] [--check]
-    img2cpc.py --spectrum [--name NAME] [-o out.bas] image.png
     img2cpc.py --plus-sprite [--packed] [--palette RGB,RGB,...] [--plus-format bas|asm|bin]
                [--transparent RRGGBB] [--name NAME] [-o out] image.png
     img2cpc.py --plus-palette [--palette RGB,...] [--plus-format bas|asm|bin] [-o out] image.png
@@ -49,16 +48,6 @@ Palette
   --write-palette F saves the palette so other images can share it with
   --palette-file F (comma/whitespace separated, # comments).
 
---spectrum emits ZX Spectrum data (build with --arch zx48k) instead: per
-8x8 cell the two most frequent colours (nearest of the 8 Spectrum colours
-at normal 0xD7 or BRIGHT 0xFF level; transparent counts as black) become
-paper and ink (the less frequent one; the same colour if the cell has only
-one), a set bit is ink, bit 7 is the leftmost pixel. NAME is the bitmap,
-8 bytes per cell (cells row-major, rows top first: UDG order), NAME_attr
-one attribute byte (FLASH<<7 | BRIGHT<<6 | PAPER<<3 | INK) per cell, and
-NAME_COLS, NAME_ROWS the size in cells. Width and height must be
-multiples of 8.
-
 Sidecar
   If NAME.cpcbuild.json sits beside NAME.png (the Aseprite extension's
   Export for CPCBuild writes one) its settings are the defaults for a CPC
@@ -70,7 +59,7 @@ Sidecar
   and NAME_<TAG>_LEN (its frame count), TAG being the tag name in capitals
   with every character but A-Z and 0-9 turned into _. A sidecar that is not
   valid is an error; --no-sidecar ignores it. The generated file's header
-  says when a sidecar was used. --spectrum and --plus-* never read one.
+  says when a sidecar was used. --plus-* never reads one.
 
 --check does everything a conversion does (the same options, the sidecar
 too) but writes nothing: it prints what would be made (sizes, the pens
@@ -110,7 +99,6 @@ import json
 import re
 import shlex
 import sys
-from collections import Counter
 from pathlib import Path
 
 MAXPENS = {0: 16, 1: 4, 2: 2}
@@ -175,16 +163,6 @@ FW_TABLE = [fw_rgb(n) for n in range(27)]
 def nearest_fw(rgb: tuple[int, int, int]) -> int:
     return nearest(rgb, FW_TABLE)
 
-
-# Spectrum colour index = G*4 + R*2 + B.
-def zx_rgb(idx: int, bright: int) -> tuple[int, int, int]:
-    lv = 0xFF if bright else 0xD7
-    return (lv if idx & 2 else 0, lv if idx & 4 else 0, lv if idx & 1 else 0)
-
-
-# candidates: (idx, bright); black appears once
-ZX_CANDS = [(0, 0)] + [(i, br) for br in (0, 1) for i in range(1, 8)]
-ZX_TABLE = [zx_rgb(i, br) for i, br in ZX_CANDS]
 
 # ---------------------------------------------------------------- image
 
@@ -293,76 +271,6 @@ def pack_block(grid, x0: int, y0: int, wpx: int, hpx: int, mode: int, masked: bo
                 out.append(mask)
             out.append(encode_byte(mode, pens))
     return out
-
-
-# ---------------------------------------------------------------- Spectrum
-
-
-def spectrum_sprite_bits(img: Image) -> list[int]:
-    """Spectrum sprite data (--zx-sprite): bit = 1 for every opaque pixel
-    that isn't black, whatever the colour balance of its cell, in the same
-    8x8-cell order as spectrum_convert. For sprites drawn by OR-ing (or
-    through a mask) with colour set by the program's own attributes: the
-    picture rule (paper = the most frequent colour of a cell) would invert
-    cells where the sprite's pixels outnumber the background."""
-    if img.w % 8 or img.h % 8:
-        raise SystemExit(f"img2cpc: Spectrum image size {img.w}x{img.h} must be a multiple of 8")
-    bitmap: list[int] = []
-    for cy in range(0, img.h, 8):
-        for cx in range(0, img.w, 8):
-            for y in range(cy, cy + 8):
-                b = 0
-                for c in range(8):
-                    p = img.pix[y][cx + c]
-                    if p is not None and p[:3] != (0, 0, 0):
-                        b |= 1 << (7 - c)
-                bitmap.append(b)
-    return bitmap
-
-
-def spectrum_convert(img: Image) -> tuple[list[int], list[int]]:
-    if img.w % 8 or img.h % 8:
-        raise SystemExit(f"img2cpc: Spectrum image size {img.w}x{img.h} must be a multiple of 8")
-    bitmap: list[int] = []
-    attrs: list[int] = []
-    for cy in range(0, img.h, 8):
-        for cx in range(0, img.w, 8):
-            cell = []
-            for y in range(cy, cy + 8):
-                for x in range(cx, cx + 8):
-                    p = img.pix[y][x]
-                    cell.append((0, 0) if p is None else ZX_CANDS[nearest(p, ZX_TABLE)])
-            cnt = Counter(cell)
-            first = {}
-            for i, c in enumerate(cell):
-                first.setdefault(c, i)
-            order = sorted(cnt, key=lambda c: (-cnt[c], first[c]))
-            paper = order[0]
-            ink = order[1] if len(order) > 1 else paper
-            if ink[0] == paper[0]:  # same colour, differing only in brightness
-                ink = paper
-            nonblack = [c for c in (paper, ink) if c[0] != 0]
-            bright = 0
-            if nonblack:
-                bright = max(nonblack, key=lambda c: cnt[c])[1]
-            attrs.append(bright << 6 | paper[0] << 3 | ink[0])
-            ink_rgb, paper_rgb = zx_rgb(ink[0], bright), zx_rgb(paper[0], bright)
-            for r in range(8):
-                b = 0
-                for c in range(8):
-                    idx, _br = cell[r * 8 + c]
-                    if ink[0] == paper[0]:
-                        bit = 0
-                    elif idx == ink[0]:
-                        bit = 1
-                    elif idx == paper[0]:
-                        bit = 0
-                    else:
-                        p = img.pix[cy + r][cx + c]
-                        bit = 1 if p is not None and dist2(p, ink_rgb) < dist2(p, paper_rgb) else 0
-                    b |= bit << (7 - c)
-                bitmap.append(b)
-    return bitmap, attrs
 
 
 # ---------------------------------------------------------------- CPC Plus
@@ -590,7 +498,7 @@ def fmt_array(name: str, data: list[int]) -> str:
         raise SystemExit(f"img2cpc: {name} would have {len(data)} bytes (the limit is 65535)")
     lines = []
     for i in range(0, len(data), 16):
-        chunk = ", ".join(f"${b:02X}" for b in data[i : i + 16])
+        chunk = ", ".join(f"&{b:02X}" for b in data[i : i + 16])
         lines.append("    " + chunk + (", _" if i + 16 < len(data) else " _"))
     return f"DIM {name}({len(data) - 1}) AS UBYTE => {{ _\n" + "\n".join(lines) + "\n}\n"
 
@@ -626,16 +534,6 @@ def convert(args, img: Image, info: dict | None = None) -> tuple[str, str]:
     filled with the figures --check reports."""
     name = args.name
     body: list[str] = []
-    if args.spectrum:
-        bitmap, attrs = spectrum_convert(img)
-        if args.zx_sprite:
-            bitmap = spectrum_sprite_bits(img)
-        body.append(fmt_array(name, bitmap))
-        body.append(fmt_array(name + "_attr", attrs))
-        body.append(fmt_const(name + "_COLS", img.w // 8))
-        body.append(fmt_const(name + "_ROWS", img.h // 8))
-        return "".join(body), f"spectrum {img.w // 8}x{img.h // 8} cells, {len(bitmap)} + {len(attrs)} bytes"
-
     mode, ppb = args.mode, PPB[args.mode]
     if img.w % ppb:
         raise SystemExit(
@@ -772,7 +670,7 @@ def main(argv: list[str] | None = None) -> int:
     lf_stdout()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("image", type=Path, help="source PNG")
-    ap.add_argument("--mode", type=int, choices=(0, 1, 2), help="CPC screen mode (required unless --spectrum)")
+    ap.add_argument("--mode", type=int, choices=(0, 1, 2), help="CPC screen mode (required unless --plus-sprite or --plus-palette)")
     ap.add_argument("--name", help="array name prefix (default: the file stem)")
     ap.add_argument("-o", "--output", type=Path, help="output .bas (default stdout)")
     kind = ap.add_mutually_exclusive_group()
@@ -793,9 +691,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--plus-palette", action="store_true", help="CPC Plus 16 pen colours (12-bit) of the image")
     ap.add_argument("--packed", action="store_true", help="--plus-sprite: two pixels per byte")
     ap.add_argument("--plus-format", choices=("bas", "asm", "bin"), default="bas", help="--plus-*: output format")
-    ap.add_argument("--spectrum", action="store_true", help="emit ZX Spectrum bitmap + attributes")
-    ap.add_argument("--zx-sprite", action="store_true",
-                    help="with --spectrum: sprite data, bit = 1 for every opaque non-black pixel (no per-cell ink/paper choice)")
     ap.add_argument("--no-sidecar", action="store_true", help="ignore NAME.cpcbuild.json beside the image")
     ap.add_argument("--check", action="store_true", help="convert but write nothing; report what would be made")
     args = ap.parse_args(argv)
@@ -804,8 +699,6 @@ def main(argv: list[str] | None = None) -> int:
     plus = args.plus_sprite or args.plus_palette
     if args.plus_sprite and args.plus_palette:
         ap.error("use --plus-sprite or --plus-palette, not both")
-    if plus and args.spectrum:
-        ap.error("--plus-* and --spectrum are exclusive")
     if args.packed and not args.plus_sprite:
         ap.error("--packed needs --plus-sprite")
     if args.plus_format != "bas" and not plus:
@@ -814,19 +707,17 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--plus-format bin needs -o")
     if args.check and args.output:
         ap.error("--check writes nothing; leave out -o")
-    if args.check and (plus or args.spectrum):
-        ap.error("--check is for CPC modes, not --spectrum or --plus-*")
+    if args.check and plus:
+        ap.error("--check is for CPC modes, not --plus-*")
     side_file = None
-    if not plus and not args.spectrum and not args.no_sidecar:
+    if not plus and not args.no_sidecar:
         sp = sidecar_path(args.image)
         if sp.is_file():
             side_file = sp
             args.sidecar_path = sp
             apply_sidecar(args, load_sidecar(sp))
-    if not plus and not args.spectrum and args.mode is None:
-        ap.error("--mode is required (or --spectrum, --plus-sprite, --plus-palette)")
-    if args.zx_sprite and not args.spectrum:
-        ap.error("--zx-sprite needs --spectrum")
+    if not plus and args.mode is None:
+        ap.error("--mode is required (or --plus-sprite, --plus-palette)")
     if args.pen0 is not None and not 0 <= args.pen0 <= 26:
         ap.error("--pen0 must be a firmware colour 0-26")
     if args.palette is not None and args.palette_file is not None:
@@ -875,7 +766,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.check:
             sys.stdout.write(check_report(args, img, info, side_file))
             return 0
-        mode_txt = "Spectrum" if args.spectrum else "mode " + str(args.mode)
+        mode_txt = "mode " + str(args.mode)
     head = (
         f"{cmt} Generated by {cmd}\n"
         f"{cmt} Source: {args.image.as_posix()}, {img.w}x{img.h} pixels, {mode_txt}\n"

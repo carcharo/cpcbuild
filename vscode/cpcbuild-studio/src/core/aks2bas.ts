@@ -1,6 +1,6 @@
 /**
  * aks2bas.ts -- the post-processing half of tools/aks2bas.py, ported: an Arkos source export (AKG song or
- * AKX sound effects) -> a Boriel include, a binary song image -> an include of `db` lines, and the PSG
+ * AKX sound effects) -> a CPC BASIC include, a binary song image -> an include of `db` lines, and the PSG
  * clock rewrite of an .aks. The same text / bytes for the same input and options.
  *
  * Running the Arkos command-line tools is not here (src/ext/arkos.ts does it through runTool).
@@ -49,8 +49,8 @@ export function sanitizeName(name: string): string {
 /** Python's str.strip() / lstrip(): the whitespace JS's trim() also removes (the two sets agree for source text). */
 const isBlank = (s: string): boolean => s.trim() === '';
 
-/** Post-processes an Arkos source export into a Boriel include (.bas). `prefix` is added to every label (the tools already did it). */
-export function toBoriel(text: string, name: string, prefix = '', kind: 'song' | 'sfx' = 'song'): string {
+/** Post-processes an Arkos source export into a CPC BASIC include (.bas). `prefix` is added to every label (the tools already did it). */
+export function toBasic(text: string, name: string, prefix = '', kind: 'song' | 'sfx' = 'song'): string {
   const raw = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
 
   // Pass 1: every column-0 label (with or without ':').
@@ -148,6 +148,9 @@ export function bankInclude(data: Uint8Array, name: string, adr: number): string
   const tail = [`${skip}:`, 'end asm', '', '#endif', ''];
   return [...head, ...lines, ...tail].join('\n');
 }
+
+/** The old name of toBasic (src/ext/arkos.ts still imports it). */
+export const toBoriel = toBasic;
 
 export const PSG_HZ = { cpc: 1_000_000, spectrum: 1_773_400 } as const;
 

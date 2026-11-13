@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""tmx2bas.py -- converts a Tiled .tmx tile layer into a Boriel BASIC
+"""tmx2bas.py -- converts a Tiled .tmx tile layer into a CPC BASIC
 include for the cpcbuild library's TileMap.
 
     tmx2bas.py map.tmx [--layer NAME] [--name NAME] [--empty N]
@@ -131,7 +131,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     lines = []
     for i in range(0, len(tiles), 16):
-        chunk = ", ".join(f"${b:02X}" for b in tiles[i : i + 16])
+        chunk = ", ".join(f"&{b:02X}" for b in tiles[i : i + 16])
         lines.append("    " + chunk + (", _" if i + 16 < len(tiles) else " _"))
     cmd = "tmx2bas.py " + " ".join(shlex.quote(a) for a in (sys.argv[1:] if argv is None else argv))
     text = (

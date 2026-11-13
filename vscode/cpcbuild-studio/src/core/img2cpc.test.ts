@@ -9,6 +9,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { encodePng, newImage, setPixel } from './image';
+import { committedText } from './committedText';
 import { Img2cpcError, runCli, type CliIo } from './img2cpc';
 import { py, REPO, rng, scratchDir } from './testutil';
 
@@ -65,14 +66,8 @@ const repoCases: [string[], string | undefined][] = [
   [['--mode', '0', '--name', 'shots', '--sprite', '--frame', '2x4', '--palette-file', `${G}/starfall.pal`, '--no-palette', `${G}/shots.png`], `${G}/shots.bas`],
   [['--mode', '0', '--name', 'tiles', '--tiles', '--palette-file', `${G}/starfall.pal`, `${G}/tiles.png`], `${G}/tiles.bas`],
   [['--plus-sprite', '--packed', '--name', 'plsprites', `${G}/plus_sprites.png`], `${G}/plsprites.bas`],
-  [['--spectrum', '--zx-sprite', '--name', 'zx_sprites', `${G}/zx/zx_sprites.png`], `${G}/zx/zx_sprites.bas`],
-  [['--spectrum', '--zx-sprite', '--name', 'zx_shots', `${G}/zx/zx_shots.png`], `${G}/zx/zx_shots.bas`],
-  [['--spectrum', '--zx-sprite', '--name', 'zx_icon', `${G}/zx/zx_icon.png`], `${G}/zx/zx_icon.bas`],
   [['--plus-sprite', '--packed', '--name', 'dsprite', `${D}/sprites.png`], `${D}/sprites.bas`],
   [['--mode', '1', '--sprite', '--name', 'landscape', '--palette', '0,26,4,10', '--no-palette', `${D}/landscape.png`], `${D}/landscape.bas`],
-  // not in any script, but the same art through the other paths
-  [['--spectrum', '--name', 'zxpic', `${G}/zx/zx_sprites.png`], undefined],
-  [['--spectrum', '--name', 'zxpic', `${G}/zx/zx_icon.png`], undefined],
 ];
 
 describe('img2cpc.ts vs tools/img2cpc.py: the repo invocations', () => {
@@ -82,7 +77,7 @@ describe('img2cpc.ts vs tools/img2cpc.py: the repo invocations', () => {
       if (committed) {
         // the committed file was generated with -o <committed>; same header
         const withO = runCli([...argv, '-o', committed], io);
-        expect(withO.files[0].data).toBe(fs.readFileSync(path.join(REPO, committed), 'utf8'));
+        expect(withO.files[0].data).toBe(committedText(committed));
       }
       expect(text.length).toBeGreaterThan(0);
     });
@@ -100,6 +95,26 @@ describe('img2cpc.ts vs tools/img2cpc.py: the repo invocations', () => {
     expect(t.files[0].data).toBe(fs.readFileSync(pal, 'utf8'));
     expect(t.files[0].data).toBe(fs.readFileSync(path.join(REPO, C, 'pens16.pal'), 'utf8'));
   });
+});
+
+// ----------------------------------------------------------- Spectrum (the Python tool no longer has it)
+
+// tools/img2cpc.py dropped --spectrum and --zx-sprite; the Studio's port keeps them until its own Spectrum UI goes.
+// The expected texts were made by the last Python version that had them (the code of git 3112405^ with the data
+// hex written as `&`), from the PNGs beside them: zx_* are the old Starfall Spectrum art, the others random pixels.
+describe('img2cpc.ts --spectrum against the frozen output of the last Python version', () => {
+  const FX = 'vscode/cpcbuild-studio/src/core/fixtures/img2cpc_zx';
+  const cases: [string, boolean][] = [
+    ['zx_sprites', true], ['zx_shots', true], ['zx_icon', true], ['zx_sprites', false], ['zx_icon', false],
+    ['pic', false], ['dense', false], ['sprite', true],
+  ];
+  for (const [name, zxSprite] of cases) {
+    it(`${name}${zxSprite ? ' --zx-sprite' : ''}`, () => {
+      const argv = ['--spectrum', ...(zxSprite ? ['--zx-sprite'] : []), '--name', name, `${FX}/${name}.png`];
+      const want = fs.readFileSync(path.join(REPO, FX, `${name}${zxSprite ? '_zxsprite' : ''}.expected.bas`), 'utf8');
+      expect(runCli(argv, io).stdout).toBe(want);
+    });
+  }
 });
 
 // ----------------------------------------------------------- synthetic images
@@ -158,9 +173,6 @@ describe('img2cpc.ts vs tools/img2cpc.py: synthetic images', () => {
     ['tiles mode 2 width 32', () => ['--mode', '2', '--tiles', '--tile-width', '32', makePng('tw232.png', 64, 8, 65, [[0, 0, 0]], 0)]],
     ['name from stem', () => ['--mode', '0', makePng('1 weird-name.v2.png', 8, 8, 15, fwOnly)]],
     ['--no-palette', () => ['--mode', '1', '--no-palette', makePng('np.png', 8, 8, 16, fwOnly.slice(0, 3))]],
-    ['spectrum picture', () => ['--spectrum', makePng('zx.png', 24, 16, 17, [[0, 0, 0], [215, 0, 0], [0, 255, 0], [255, 255, 255], [0, 0, 215]], 0.1)]],
-    ['spectrum picture dense', () => ['--spectrum', makePng('zx2.png', 16, 16, 18, rand(19, 12), 0.3)]],
-    ['spectrum zx-sprite', () => ['--spectrum', '--zx-sprite', makePng('zx3.png', 16, 8, 20, rand(21, 4))]],
     ['plus sprite sheet', () => ['--plus-sprite', makePng('ps.png', 32, 16, 22, hex12)]],
     ['plus sprite packed asm', () => ['--plus-sprite', '--packed', '--plus-format', 'asm', makePng('pa.png', 16, 16, 23, hex12.slice(0, 7))]],
     ['plus sprite fixed palette', () => ['--plus-sprite', '--palette', 'F00,0F0,00F,FFF', makePng('pf.png', 16, 16, 24, rand(25, 20))]],
@@ -278,7 +290,9 @@ describe('img2cpc.ts vs tools/img2cpc.py: the sidecar', () => {
 
   it('spectrum and plus never read it', () => {
     const p = withSide(16, 16, { ...hero, tags: [{ name: 'a', from: 9, to: 9 }] });
-    same(['--spectrum', p]);
+    const zx = runCli(['--spectrum', p], io).stdout ?? '';
+    expect(zx).not.toContain('settings from');
+    expect(zx.split('\n').slice(1).join('\n')).toBe((runCli(['--spectrum', '--no-sidecar', p], io).stdout ?? '').split('\n').slice(1).join('\n'));
     same(['--plus-palette', p]);
   });
 
@@ -352,7 +366,7 @@ describe('img2cpc.ts vs tools/img2cpc.py: --check', () => {
     sameError(['--check', '--mode', '1', png(16, 16, rand(41, 12))]);
     sameError(['--check', '--mode', '0', png(9, 8, fwOnly)]);
     expect(sameError(['--check', '--mode', '1', '-o', path.join(dir, 'x.bas'), png(8, 8, fwOnly)])).toBe('--check writes nothing; leave out -o');
-    sameError(['--check', '--spectrum', png(8, 8, fwOnly)]);
+    expect(() => runCli(['--check', '--spectrum', png(8, 8, fwOnly)], io)).toThrow('--check is for CPC modes, not --spectrum or --plus-*');
     sameError(['--check', '--plus-sprite', png(16, 16, fwOnly)]);
   });
 });

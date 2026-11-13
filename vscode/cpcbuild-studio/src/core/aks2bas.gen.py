@@ -2,7 +2,7 @@
 the real tools (AT3_TOOLS or tools/arkos/work/bin of this or the main checkout); each expected .bas / .bin
 is what tools/aks2bas.py's own functions make of the same input.
   <case>.asm          raw SongToAkg / SongToSoundEffects --labelPrefix output   (case.name.txt: its label prefix)
-  <case>.expected.bas to_boriel(asm, name, "", kind)
+  <case>.expected.bas to_basic(asm, name, "", kind)
   <case>.akg.bin / .bank.expected.bas   the --exportAsBinary image for 0x4000 and bank_include() of it
   edge.asm / edge.expected.bas          a hand-made source covering strings, ';', directives, label forms
   psg_*.aks, psg_*.expected                set_psg_clock inputs (plain XML, zip) and outputs
@@ -35,7 +35,7 @@ for case, inp, tool, name, kind in [
     run(tool, ["--labelPrefix", name + "_", str(src / inp), str(out / f"{case}.asm")])
     (out / f"{case}.name.txt").write_text(f"{name} {kind}\n")
     text = (out / f"{case}.asm").read_text(encoding="utf-8")
-    (out / f"{case}.expected.bas").write_text(a2b.to_boriel(text, name, "", kind), encoding="utf-8")
+    (out / f"{case}.expected.bas").write_text(a2b.to_basic(text, name, "", kind), encoding="utf-8")
 
 run("SongToAkg", ["--exportAsBinary", "--encodingAddress", "0x4000", str(src / "title.vt2"), str(out / "title.akg.bin")])
 data = (out / "title.akg.bin").read_bytes()
@@ -56,8 +56,8 @@ equ_dir equ 5
 Edge_End
 '''
 (out / "edge.asm").write_text(edge)
-(out / "edge.expected.bas").write_text(a2b.to_boriel(edge, "edge", "", "song"), encoding="utf-8")
-(out / "edge_prefix.expected.bas").write_text(a2b.to_boriel(edge, "edge", "p_", "sfx"), encoding="utf-8")
+(out / "edge.expected.bas").write_text(a2b.to_basic(edge, "edge", "", "song"), encoding="utf-8")
+(out / "edge_prefix.expected.bas").write_text(a2b.to_basic(edge, "edge", "p_", "sfx"), encoding="utf-8")
 
 aks = b'<?xml version="1.0"?>\n<aks><psgs><psg><frequencyHz>1000000</frequencyHz></psg>\n<psg><frequencyHz> 1773400.5 </frequencyHz></psg></psgs><x>\xc3\xa9\xff</x></aks>\n'
 (out / "psg_plain.aks").write_bytes(aks)
@@ -72,4 +72,5 @@ with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as z:
 for n in ("plain", "zip", "stored"):
     d = (out / f"psg_{n}.aks").read_bytes()
     (out / f"psg_{n}.cpc.expected").write_bytes(a2b.set_psg_clock(d, a2b.PSG_HZ["cpc"]))
-    (out / f"psg_{n}.spectrum.expected").write_bytes(a2b.set_psg_clock(d, a2b.PSG_HZ["spectrum"]))
+    # the Spectrum clock stays in the Studio's twin (the Python tool no longer has --psg spectrum): set_psg_clock takes any rate
+    (out / f"psg_{n}.spectrum.expected").write_bytes(a2b.set_psg_clock(d, 1_773_400))

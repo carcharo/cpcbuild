@@ -28,7 +28,7 @@ const hex2 = (v: number): string => v.toString(16).toUpperCase().padStart(2, '0'
 /** A 16-bit value as little-endian bytes. */
 const w = (v: number): number[] => [v & 0xff, v >> 8];
 
-/** The origin (`.core.__START_PROGRAM`) from the text of a zxbc memory map; throws as the tool does when it is missing. */
+/** The origin (`.core.__START_PROGRAM`) from the text of a cpcbas memory map; throws as the tool does when it is missing. */
 export function readOrigin(mapText: string, mapName: string): number {
   for (const line of mapText.split(/\r\n|\r|\n/)) {
     const i = line.indexOf(':');

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { quietSongVt2, sfxBankName, sfxConstants, sfxConstName, sfxOutputs, sfxStale, sfxTargetsOf, sfxUseEdits, sfxUseSnippet, soundSetupHint, SFX_GLOB, withSfxConstants, withSfxGlob } from './sfxBuild';
 import { SfxDoc } from './sfxDoc';
 import { newBank, presetEffect } from './sfxPresets';
-import { toBoriel } from './aks2bas';
+import { toBasic } from './aks2bas';
 
 const repo = path.resolve(__dirname, '../../../..');
 const two = (): SfxDoc => {
@@ -50,7 +50,7 @@ describe('sfxBuild: constants', () => {
     expect(sfxConstants(two(), 'sfx')).toEqual(['CONST SFX_BLIP AS UBYTE = 1', 'CONST SFX_COIN AS UBYTE = 2']);
   });
   it('they sit right after the guard of the include, and nothing else changes', () => {
-    const bas = toBoriel('sfx_Effects:\n    db 1\n', 'sfx', '', 'sfx');
+    const bas = toBasic('sfx_Effects:\n    db 1\n', 'sfx', '', 'sfx');
     const out = withSfxConstants(bas, two(), 'sfx');
     expect(out).toContain('#define __AKS_SFX__\n\n\' Effect numbers for SfxPlay');
     expect(out.indexOf('CONST SFX_COIN AS UBYTE = 2')).toBeLessThan(out.indexOf('asm'));
