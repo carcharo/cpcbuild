@@ -42,8 +42,6 @@ CONST FIRST_ROOM AS UBYTE = 9
 #else
 #include "platform_cpc.bas"
 #endif
-#else
-#include "platform_zx.bas"
 #endif
 #include "game.bas"
 
@@ -85,9 +83,6 @@ SUB Tick()
   IF shotN = SHOT THEN
     PlatShot("room")
     PlatEnd()
-#ifdef __ZX48K__
-    TEND()
-#endif
     END
   END IF
 #endif
@@ -128,9 +123,6 @@ SUB Tick()
       IF t < benchLate THEN TLN("LATE step " + STR$(benchAt(t * 2)) + " frames " + STR$(benchAt(t * 2 + 1)))
 #endif
     NEXT t
-#endif
-#ifdef __ZX48K__
-    TEND()
 #endif
     END
   END IF
@@ -185,9 +177,6 @@ SUB TitleScreen()
     IF idle = 50 THEN
       PlatShot("room")
       PlatEnd()
-#ifdef __ZX48K__
-      TEND()
-#endif
       END
     END IF
 #endif

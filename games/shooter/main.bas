@@ -1,9 +1,8 @@
 ' ----------------------------------------------------------------
 ' main.bas -- Starfall: title, game loop, game ov (portable)
 '
-' One source for the CPC 6128 / 464 and the Spectrum 128K / 48K. The game
-' rules are in game.bas, everything platform-specific in platform_cpc.bas
-' or platform_zx.bas (the portable layer).
+' One source for the CPC 6128 / 464. The game rules are in game.bas,
+' everything platform-specific in platform_cpc.bas (the portable layer).
 '
 '   zxbc --arch cpc --org 0x40 -D CPC6128 main.bas      (see build_cpc.sh)
 '
@@ -44,21 +43,6 @@ CONST TX_KEYS_R AS UBYTE = 17
 CONST TX_OVER_C AS UBYTE = 5
 CONST TX_OVER_R AS UBYTE = 9
 CONST TX_NEW_C AS UBYTE = 3
-CONST TX_NEW_R AS UBYTE = 12
-#else
-#include "platform_zx.bas"
-CONST TX_TITLE_C AS UBYTE = 12
-CONST TX_TITLE_R AS UBYTE = 3
-CONST TX_LEG_C AS UBYTE = 15
-CONST LEG_X AS UBYTE = 48
-CONST LEG_Y AS UBYTE = 24             ' text row r is at y = 8 r - 32
-CONST TX_PRESS_C AS UBYTE = 11
-CONST TX_PRESS_R AS UBYTE = 15
-CONST TX_KEYS_C AS UBYTE = 7
-CONST TX_KEYS_R AS UBYTE = 17
-CONST TX_OVER_C AS UBYTE = 11
-CONST TX_OVER_R AS UBYTE = 9
-CONST TX_NEW_C AS UBYTE = 8
 CONST TX_NEW_R AS UBYTE = 12
 #endif
 

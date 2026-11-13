@@ -6,9 +6,7 @@ Tracker II text modules, imported by the Arkos command-line tools
     make_music.py [outdir]        (default: next to this script)
 
 Writes title.vt2 (the title tune), game.vt2 (the in-game loop, quieter than the effects),
-sfx.vt2 (the effect bank, CPC clock) and zx/sfx_zx.vt2 (the same effects
-for the Spectrum 128K's 1.7734 MHz AY: sound effects store AY periods, so
-the sweeps are rescaled).
+sfx.vt2 (the effect bank, CPC clock).
 
 Both songs leave AY channel A empty (melody on B, bass on C), where the
 effects play. Importer quirks: all 31
@@ -183,11 +181,9 @@ def sfx(freq):
 
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
-    (out / "zx").mkdir(exist_ok=True)
     (out / "title.vt2").write_text(title())
     (out / "game.vt2").write_text(game())
     (out / "sfx.vt2").write_text(sfx(1000000))
-    (out / "zx" / "sfx_zx.vt2").write_text(sfx(1773400))
 
 
 if __name__ == "__main__":

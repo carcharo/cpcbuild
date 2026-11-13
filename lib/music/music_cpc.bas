@@ -1,8 +1,8 @@
 ' ----------------------------------------------------------------
 ' music/music_cpc.bas -- Arkos Tracker 3 music and sound effects (--arch cpc)
 '
-' Included by music/music.bas on --arch cpc (see there for the API shared
-' with the Spectrum build); the CPC details are here.
+' Included by music/music.bas on --arch cpc (see there for the API); the CPC
+' details are here.
 '
 '   #include <music/music.bas>        (compile with -I <cpcbuild>/lib)
 '

@@ -17,7 +17,7 @@ inputs:
     description: 'branch or tag of carcharo/zxbasic to check out (the release workflow passes the pinned compiler tag)'
     default: cpc-arch
   chips:
-    description: 'true to restore the chips cache and build chipsrun/zxrun'
+    description: 'true to restore the chips cache and build chipsrun'
     default: 'false'
 runs:
   using: composite

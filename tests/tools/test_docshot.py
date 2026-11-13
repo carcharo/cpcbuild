@@ -39,9 +39,9 @@ class Docshot(unittest.TestCase):
             self.assertEqual(out.getpixel((5, 7)), (255, 0, 0))
             self.assertEqual(out.getpixel((5, 8)), (0, 0, 0))
 
-    def test_keeps_doubled_and_spectrum(self):
+    def test_keeps_doubled(self):
         with tempfile.TemporaryDirectory() as d:
-            for size in ((768, 540), (320, 256)):
+            for size in ((768, 540),):
                 src, dst = Path(d) / "a.png", Path(d) / "b.png"
                 Image.new("RGB", size).save(src)
                 self.assertEqual(docshot.docshot(src, dst), size)
