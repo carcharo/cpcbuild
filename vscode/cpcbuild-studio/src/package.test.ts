@@ -51,7 +51,9 @@ describe('package.json contributions', () => {
     // .dsk/.cdt/.cpr belong to other Amstrad extensions: Studio gives them icons through the theme only, no language claim
     for (const id of ['cpcbuild-dsk', 'cpcbuild-cdt', 'cpcbuild-cpr']) expect(ids).not.toContain(id);
     for (const l of c.languages) for (const e of l.extensions) expect(['.dsk', '.cdt', '.cpr']).not.toContain(e);
-    for (const l of c.languages) {
+    // cpcbasic is the programming language (the editor's colouring and snippets); the others are Studio's documents, with icons
+    expect(ids).toContain('cpcbasic');
+    for (const l of c.languages.filter((x: { id: string }) => x.id !== 'cpcbasic')) {
       expect(l.extensions.length).toBeGreaterThan(0);
       expect(exists(l.icon.light)).toBe(true);
       expect(exists(l.icon.dark)).toBe(true);

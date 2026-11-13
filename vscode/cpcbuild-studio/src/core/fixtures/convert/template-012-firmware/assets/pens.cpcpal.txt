@@ -1,0 +1,2 @@
+# Firmware colours of pens 0-3: black, bright white, bright red, bright green
+0, 26, 6, 18

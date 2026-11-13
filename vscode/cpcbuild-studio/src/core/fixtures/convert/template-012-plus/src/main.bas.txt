@@ -1,0 +1,56 @@
+' main.bas -- a CPC Plus program: two hardware sprites and a 12-bit palette.
+' Targets: plus-cart (a .cpr cartridge, bare metal with its own font) and
+' plus-dsk (a disc that runs under the firmware). ESC quits.
+' On a CPC without the ASIC it says so and waits for a key.
+#include <cpc.bas>
+#include <cpcbuild.bas>
+#include <cpcplus/cpcplus.bas>
+
+' The 16x16 picture and its sprite colours come from the Studio documents in
+' assets/: sprite.cpcspr (the picture, packed two pixels a byte) and
+' colours.cpcpal12 (sprite colours 1-15). sprite.bas is generated from them.
+' Edit either in Studio and build again: the program changes with them.
+#include "../assets/sprite.bas"    ' sprite(), sprite_pal()
+
+DIM x0, y0, x1, y1, d0, d1 AS INTEGER
+
+Mode 1
+ScreenInit()
+CLS
+IF PlusAvailable() = 0 THEN
+  PRINT AT 5, 5; "THIS NEEDS A CPC PLUS"
+  DO
+    ScanKeys()
+  LOOP UNTIL AnyKeyDown()
+  END
+END IF
+
+' 12-bit colours: &H0RGB, four bits a channel
+SetPalette12(0, $0008)
+SetPalette12(1, $0FFF)
+SetBorder12($0008)
+SpritesHideAll()
+SpritePalette(@sprite_pal(0))
+SpriteSetImagePacked(0, @sprite(0))
+SpriteSetImagePacked(1, @sprite(0))
+SpriteMag(0, 2, 2)                  ' sprite 0 twice the size
+SpriteMag(1, 1, 1)
+PRINT AT 1, 1; "HELLO FROM CPCBUILD (PLUS)"
+
+x0 = 20
+y0 = 40
+d0 = 2
+x1 = 300
+y1 = 120
+d1 = 0 - 3
+DO
+  WaitRetrace(1)
+  x0 = x0 + d0
+  IF x0 > 600 OR x0 < 10 THEN d0 = 0 - d0
+  x1 = x1 + d1
+  IF x1 > 600 OR x1 < 10 THEN d1 = 0 - d1
+  SpriteMove(0, x0, y0)
+  SpriteMove(1, x1, y1)
+  ScanKeys()
+LOOP UNTIL KeyDown(KEY_ESC)
+END

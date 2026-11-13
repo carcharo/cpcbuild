@@ -15,6 +15,7 @@
   ],
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onLanguage:cpcbasic",
     "workspaceContains:**/cpcbuild.json"
   ],
   "capabilities": {
@@ -220,6 +221,11 @@
         "category": "CPC Game Studio"
       },
       {
+        "command": "cpcbuild.convertProject",
+        "title": "Convert Project to CPC BASIC",
+        "category": "CPC Game Studio"
+      },
+      {
         "command": "cpcbuild.downloadTools",
         "title": "Download Tools",
         "category": "CPC Game Studio"
@@ -399,6 +405,11 @@
           "command": "cpcbuild.music.play",
           "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(aks|vt2)$/",
           "group": "navigation@92"
+        },
+        {
+          "command": "cpcbuild.convertProject",
+          "when": "cpcbuild.inProject && resourceFilename == cpcbuild.json",
+          "group": "navigation@93"
         }
       ],
       "editor/title": [
@@ -473,6 +484,10 @@
         {
           "command": "cpcbuild.debug.removeBreakpoint",
           "when": "false"
+        },
+        {
+          "command": "cpcbuild.convertProject",
+          "when": "cpcbuild.inProject"
         }
       ],
       "view/title": [
@@ -726,7 +741,7 @@
         "cpcbuild.lint.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Master switch for library lint."
+          "description": "Master switch for the library lint rules (CB001-CB009: calls the library's headers tell are wrong)."
         },
         "cpcbuild.lint.rules": {
           "type": "object",
@@ -736,7 +751,7 @@
         "cpcbuild.hover.enable": {
           "type": "boolean",
           "default": true,
-          "description": "Library hover and signature help."
+          "description": "Library hover, completion and signature help."
         },
         "cpcbuild.arkos.toolsPath": {
           "type": "string",
@@ -859,6 +874,31 @@
           "light": "./media/icons/importer.svg",
           "dark": "./media/icons/importer.svg"
         }
+      },
+      {
+        "id": "cpcbasic",
+        "aliases": [
+          "CPC BASIC",
+          "cpcbasic"
+        ],
+        "extensions": [
+          ".bas",
+          ".BAS"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cpcbasic",
+        "scopeName": "source.cpcbasic",
+        "path": "./syntaxes/cpcbasic.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "cpcbasic",
+        "path": "./snippets/cpcbasic.json"
       }
     ],
     "iconThemes": [
@@ -955,6 +995,7 @@
   },
   "scripts": {
     "link-cpcbas": "node scripts/link-cpcbas.mjs",
+    "gen:grammar": "node scripts/gen-grammar.mjs",
     "build": "node scripts/link-cpcbas.mjs && node scripts/build.mjs",
     "watch": "node scripts/link-cpcbas.mjs && node scripts/build.mjs --watch",
     "build:test": "node scripts/link-cpcbas.mjs && tsc -p tsconfig.test.json",

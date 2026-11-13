@@ -1,20 +1,17 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findZxbasic, warnNoZxbasic } from './testutil';
 import { mask } from './bastok';
 import { callAt, describeRoutine, paramRanges } from './libhover';
 import { indexDocs, sectionFor, slugify } from './libdocs';
-import { libraryFiles, loadIndex, stdlibDirOf, stdlibFiles } from './libfs';
+import { libraryFiles, loadIndex } from './libfs';
 import { buildIndex, LibIndex, parseParams } from './libindex';
 
 const REPO = path.resolve(__dirname, '../../../..');
-const ZXBASIC = findZxbasic(REPO);
-warnNoZxbasic(ZXBASIC);
-const d = ZXBASIC ? describe : describe.skip;
-const stdlib = (ZXBASIC ? stdlibDirOf(ZXBASIC) : undefined);
-const lib = loadIndex(REPO);
-const both: LibIndex = loadIndex(REPO, stdlib);
+// the library is cpcbas's lib/, linked into vendor/cpcbas by scripts/link-cpcbas.mjs (its docs are this repo's docs/library.md)
+const VENDOR = path.resolve(__dirname, '../../vendor/cpcbas');
+const lib: LibIndex = loadIndex(VENDOR);
+const d = describe;
 
 /** An independent oracle: unindented SUB/FUNCTION lines (the library declares at column 0; nested and asm `sub` lines are indented). */
 function oracle(file: string): string[] {
@@ -41,30 +38,21 @@ d('library index: counts per file', () => {
     'cpcplus/cpcplus.bas': 35,
     'cpcplus/palcycle.bas': 4,
     'cpcplus/sprman.bas': 11,
-    'zxbuild/sprites.bas': 14,
     'music/music_cpc.bas': 8,
-    'music/music_zx.bas': 6,
+    'stdlib/cpc.bas': 10,
+    'stdlib/framehook.bas': 4,
   };
   for (const [f, n] of Object.entries(expected)) {
     it(`${f}: ${n} routines, same names as a column-0 regex`, () => {
       const got = (lib.perFile.get(f) ?? []).map((r) => r.name.toLowerCase()).sort();
       expect(got.length).toBe(n);
-      expect(got).toEqual(oracle(path.join(REPO, 'lib', f)));
+      expect(got).toEqual(oracle(path.join(VENDOR, 'lib', f)));
     });
   }
   it('indexes every library file that declares routines, and no others', () => {
-    const files = libraryFiles(REPO).map((f) => f.path).filter((p) => oracle(path.join(REPO, 'lib', p)).length > 0);
+    const files = libraryFiles(VENDOR).map((f) => f.path).filter((p) => oracle(path.join(VENDOR, 'lib', p)).length > 0);
     expect([...lib.perFile.keys()].sort()).toEqual(files.sort());
     expect(lib.routines.length).toBe(Object.values(expected).reduce((a, b) => a + b, 0));
-  });
-  it.skipIf(!stdlib)('the compiler cpc stdlib: 26 routines in 8 files', () => {
-    const std = both.routines.filter((r) => !r.file.includes('/'));
-    expect(std.length).toBe(26);
-    expect(new Set(std.map((r) => r.file))).toEqual(new Set(['cpc.bas', 'font.bas', 'framehook.bas', 'input.bas', 'keys.bas', 'play.bas', 'point.bas', 'screen.bas']));
-    for (const f of stdlibFiles(stdlib!)) {
-      const got = (both.perFile.get(f.path) ?? []).map((r) => r.name.toLowerCase());
-      for (const n of oracle(path.join(stdlib!, f.path))) expect(got, `${f.path}: ${n}`).toContain(n);
-    }
   });
 });
 
@@ -76,7 +64,7 @@ d('library index: entries', () => {
       kind: 'SUB',
       returns: null,
       file: 'cpcbuild/sprites.bas',
-      line: 33,
+      line: 31,
       platform: 'cpc',
       requires: ['cpcbuild/sprput.asm'],
       signature: 'SUB PutSprite(x AS INTEGER, y AS INTEGER, w AS UBYTE, h AS UBYTE, spr AS UINTEGER)',
@@ -86,7 +74,7 @@ d('library index: entries', () => {
   });
   it('a function with a return type and FASTCALL', () => {
     const r = lib.byName.get('keydown')![0];
-    expect(r).toMatchObject({ kind: 'FUNCTION', returns: 'UBYTE', fastcall: true, signature: 'FUNCTION KeyDown(key AS UBYTE) AS UBYTE' });
+    expect(r).toMatchObject({ kind: 'FUNCTION', returns: 'UBYTE', fastcall: true, signature: 'FUNCTION KeyDown(keyNo AS UBYTE) AS UBYTE' });
     expect(r.doc).toBe('1 if that key was down at the last ScanKeys, else 0');
   });
   it('a default parameter value', () => {
@@ -104,16 +92,27 @@ d('library index: entries', () => {
     expect(lib.byName.get('plusunlock')![0].restriction).toBeUndefined();
   });
   it('firmware-only routines are found from the refusal stubs, matching the lint list', () => {
-    const fw = both.routines.filter((r) => r.restriction === 'firmware').map((r) => r.name).sort();
+    const fw = lib.routines.filter((r) => r.restriction === 'firmware').map((r) => r.name).sort();
     expect(fw).toEqual(['BankLoad', 'SoundBusy', 'SoundEnvelope', 'SoundFree', 'SoundQueue']);
-    const bare = both.routines.filter((r) => r.restriction === 'bare').map((r) => r.name).sort();
+    const bare = lib.routines.filter((r) => r.restriction === 'bare').map((r) => r.name).sort();
     expect(bare).toEqual(['RasterIntAt', 'RasterIntClear', 'RasterIntMove', 'RasterIntOff']);
   });
-  it('Spectrum routines are platform zx; MusicInit exists for both with documentation from music.bas / music_cpc.bas', () => {
-    expect(lib.byName.get('spritesinit')![0].platform).toBe('zx');
+  it('MusicInit is documented from music.bas / music_cpc.bas; there is no Spectrum variant', () => {
     const mi = lib.byName.get('musicinit')!;
-    expect(mi.map((r) => r.platform).sort()).toEqual(['cpc', 'zx']);
-    for (const r of mi) expect(r.doc.length).toBeGreaterThan(20);
+    expect(mi.map((r) => r.platform)).toEqual(['cpc']);
+    expect(mi[0].doc.length).toBeGreaterThan(20);
+    expect(lib.routines.every((r) => r.platform === 'cpc' || r.platform === 'plus')).toBe(true);
+  });
+  it('the renamed parameters: penNo, keyNo, scanLine; Mode and WaitVsync are gone', () => {
+    expect(lib.byName.get('penbyte')![0].params.map((p) => p.name)).toEqual(['penNo']);
+    expect(lib.byName.get('fillrect')![0].signature).toContain('penNo AS UBYTE');
+    expect(lib.byName.get('clearscreen')![0].params.map((p) => p.name)).toEqual(['penNo']);
+    expect(lib.byName.get('setink')![0].params.map((p) => p.name)).toEqual(['penNo', 'colour']);
+    expect(lib.byName.get('setpalette12')![0].params[0].name).toBe('penNo');
+    expect(lib.byName.get('keydown')![0].params.map((p) => p.name)).toEqual(['keyNo']);
+    for (const n of ['splitscreen', 'splitscreencrtc', 'rasterintat', 'rasterintoff']) expect(lib.byName.get(n)![0].params[0].name, n).toBe('scanLine');
+    expect(lib.byName.has('mode')).toBe(false);
+    expect(lib.byName.has('waitvsync')).toBe(false);
   });
   it('multi-name header lines document each name', () => {
     expect(lib.byName.get('pluspagein')![0].doc).toMatch(/ASIC's registers at &4000-&7FFF/);
@@ -123,20 +122,15 @@ d('library index: entries', () => {
     expect(lib.settings.map((s) => s.name).sort()).toEqual(['SPRLIST_MAX', 'TEXT_QUEUE']);
     expect(lib.settings.find((s) => s.name === 'TEXT_QUEUE')!.doc).toMatch(/default 160/);
   });
-  it.skipIf(!stdlib)('compiler stdlib: header entries and the comment above, nested subs and asm "sub" ignored', () => {
-    const ink = both.byName.get('setink')![0];
+  it('stdlib/cpc.bas: header entries and the comment above, nested subs and asm "sub" ignored', () => {
+    const ink = lib.byName.get('setink')![0];
     expect(ink.doc).toMatch(/sets a pen to firmware colour/);
     expect(ink.details).toMatch(/pens above 15 and colours above 26 are ignored/);
-    const mode = both.byName.get('mode')![0];
-    expect(mode).toMatchObject({ kind: 'SUB', fastcall: true });
-    expect(mode.doc).toMatch(/screen mode 0/);
-    expect(both.byName.get('sound' + 'queue')![0].details).toMatch(/period = 62500/);
-    expect(both.byName.has('readchar')).toBe(false); // nested in Play
-    expect(both.byName.get('play')![0].params.map((p) => p.name)).toEqual(['channel0', 'channel1', 'channel2']);
-    expect(both.byName.get('getmode')![0].params).toEqual([]);
+    expect(lib.byName.get('soundqueue')![0].details).toMatch(/period = 62500/);
+    expect(lib.byName.get('getmode')![0].params).toEqual([]);
   });
   it('hover content is produced for 10 sampled calls', () => {
-    for (const n of ['PutSprite', 'FillRect', 'TileMap', 'KeyDown', 'SetPalette', 'SprListDraw', 'TextAt', 'BankSelect', 'SpriteMove', 'MusicInit']) {
+    for (const n of ['PutSprite', 'FillRect', 'TileMap', 'KeyDown', 'SetPalette', 'SprListDraw', 'TextAt', 'BankSelect', 'SpriteMove', 'MusicInit', 'SetInk']) {
       const r = lib.byName.get(n.toLowerCase())![0];
       const h = describeRoutine(r);
       expect(h.signature, n).toContain(n);
@@ -189,6 +183,13 @@ d('parseParams / buildIndex edge cases', () => {
     expect(m.code.slice(0, 2).map((c) => c.length)).toEqual(m.raw.slice(0, 2).map((c) => c.length));
     expect(m.code[0].trimEnd()).toBe('a = 1');
     expect(m.code[1].trimEnd()).toBe('b$ = "   " :');
+    // REM after THEN / ELSE / a line number, and `""` inside a string; a name that starts with rem is code
+    expect(mask('IF a THEN REM x').code[0].trimEnd()).toBe('IF a THEN');
+    expect(mask('10 REM x').code[0].trimEnd()).toBe('10');
+    expect(mask('a$ = "he said ""hi"" \' x"').code[0].replace(/"/g, '').trim()).toBe('a$ =');
+    expect(mask('remain = 1').code[0]).toBe('remain = 1');
+    expect(mask("a = &HFF : b = &X101 ' c").code[0].trimEnd()).toBe('a = &HFF : b = &X101');
+    expect(mask("/' block\nstill '/ x = 1").code.map((l) => l.trim())).toEqual(['', 'x = 1']);
     expect(m.code[2].trim()).toBe('');
     expect(m.code[3].trim()).toBe('');
     expect(m.code[5]).toBe('c = 2');
@@ -210,16 +211,18 @@ d('docs mapping', () => {
     expect(sectionFor(docs, 'NoSuchThing', 'cpcbuild/display.bas')!.text).toMatch(/Display/);
   });
   it('every call in a library.md API table is in the index (documented calls cross-check)', () => {
-    const known = new Set(both.routines.map((r) => r.name.toLowerCase()));
+    const known = new Set(lib.routines.map((r) => r.name.toLowerCase()));
     // table rows that are not SUB/FUNCTION: variables, macros, SoundQueue's argument table, and the tools table
     const notRoutines = new Set([
-      'musicauto', 'frames', 'channels', 'period', 'duration', 'envelope', 'volume', 'build_assets', 'cpcrun', 'run', 'zxbc',
+      'musicauto', 'frames', 'channels', 'period', 'duration', 'envelope', 'volume', 'build_assets', 'cpcrun', 'run',
       'dma_load', 'dma_pause', 'dma_repeat', 'dma_nop', 'dma_loop', 'dma_int', 'dma_stop',
     ]);
     const missing = [...docs.byName.keys()].filter((k) => !known.has(k) && !notRoutines.has(k)).sort();
-    // without the compiler checkout the stdlib routines (Mode, SetInk, ...) are unknown, so only check with it
-    if (stdlib) expect(missing, 'documented but not found in any header').toEqual([]);
-    else expect(missing.length).toBeGreaterThan(0);
+    // library.md still has rows for routines the library no longer has (the Spectrum sprite module, the Boriel
+    // `Mode`, `WaitVsync`, `input`, `point`, `screen`, `SetFont`, and the old compiler's name in the tools table): the reference is rewritten separately. Any other
+    // documented name must be in a header.
+    const removed = new Set(['input', 'mode', 'point', 'screen', 'setfont', 'waitvsync', ...[...docs.byName.keys()].filter((k) => /^(sprites?(add|image|begin|done|flip|init|reset|screen|sync)|zx\w*)$/.test(k))]);
+    expect(missing.filter((k) => !removed.has(k)), 'documented but not found in any header').toEqual([]);
   });
 });
 

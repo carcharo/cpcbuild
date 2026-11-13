@@ -1,0 +1,133 @@
+{
+  "Program skeleton": {
+    "prefix": "cpcmain",
+    "description": "A mode 1 program with the library, a frame loop and ESC to quit",
+    "body": [
+      "' ${1:main}.bas -- ${2:what the program does}",
+      "#include <cpc.bas>",
+      "#include <cpcbuild.bas>",
+      "",
+      "MODE ${3:1}",
+      "ScreenInit()      ' always call ScreenInit() after MODE",
+      "CLS",
+      "PRINT AT 1, 1; \"${4:HELLO}\"",
+      "",
+      "DO",
+      "  FRAME",
+      "  ScanKeys()",
+      "  $0",
+      "LOOP UNTIL KeyDown(KEY_ESC)",
+      "END"
+    ]
+  },
+  "SUB": {
+    "prefix": "sub",
+    "description": "A SUB",
+    "body": ["SUB ${1:MyRoutine}(${2:n AS UBYTE})", "  $0", "END SUB"]
+  },
+  "FUNCTION": {
+    "prefix": "function",
+    "description": "A FUNCTION with a result",
+    "body": ["FUNCTION ${1:MyRoutine}(${2:n AS UBYTE}) AS ${3:UBYTE}", "  $0", "  RETURN ${4:n}", "END FUNCTION"]
+  },
+  "IF": {
+    "prefix": "if",
+    "description": "IF ... THEN ... END IF",
+    "body": ["IF ${1:a = 1} THEN", "  $0", "END IF"]
+  },
+  "IF ELSE": {
+    "prefix": "ifelse",
+    "description": "IF ... THEN ... ELSE ... END IF",
+    "body": ["IF ${1:a = 1} THEN", "  ${2:a = 2}", "ELSE", "  ${3:a = 3}", "END IF"]
+  },
+  "FOR": {
+    "prefix": "for",
+    "description": "FOR ... NEXT",
+    "body": ["FOR ${1:i} = ${2:0} TO ${3:9}", "  $0", "NEXT ${1:i}"]
+  },
+  "FOR STEP": {
+    "prefix": "forstep",
+    "description": "FOR ... STEP ... NEXT",
+    "body": ["FOR ${1:i} = ${2:10} TO ${3:0} STEP ${4:-1}", "  $0", "NEXT ${1:i}"]
+  },
+  "WHILE": {
+    "prefix": "while",
+    "description": "WHILE ... WEND",
+    "body": ["WHILE ${1:a < 10}", "  $0", "WEND"]
+  },
+  "DO LOOP UNTIL": {
+    "prefix": "do",
+    "description": "DO ... LOOP UNTIL",
+    "body": ["DO", "  $0", "LOOP UNTIL ${1:a > 9}"]
+  },
+  "SELECT CASE": {
+    "prefix": "select",
+    "description": "SELECT CASE",
+    "body": ["SELECT CASE ${1:a}", "  CASE ${2:1}", "    $0", "  CASE ELSE", "    ${3:a = 0}", "END SELECT"]
+  },
+  "DIM": {
+    "prefix": "dim",
+    "description": "A typed variable",
+    "body": "DIM ${1:value} AS ${2:UBYTE}"
+  },
+  "DIM array": {
+    "prefix": "dimarray",
+    "description": "An array (indexes from 0; DIM a(9) holds 10 elements)",
+    "body": "DIM ${1:table}(${2:9}) AS ${3:UBYTE}"
+  },
+  "DIM array with data": {
+    "prefix": "dimdata",
+    "description": "An array with its elements",
+    "body": "DIM ${1:table}(${2:3}) AS ${3:UBYTE} => { ${4:1, 2, 3, 4} }"
+  },
+  "CONST": {
+    "prefix": "const",
+    "description": "A constant",
+    "body": "CONST ${1:LIMIT} AS ${2:UBYTE} = ${3:1}"
+  },
+  "ASM block": {
+    "prefix": "asm",
+    "description": "Z80 assembly inside the program",
+    "body": ["ASM", "  ${1:nop}", "END ASM"]
+  },
+  "#include library": {
+    "prefix": "include",
+    "description": "Include a library file",
+    "body": "#include <${1|cpcbuild.bas,cpc.bas,cpcplus/cpcplus.bas,music/music.bas|}>"
+  },
+  "#include file": {
+    "prefix": "includefile",
+    "description": "Include one of the project's own files",
+    "body": "#include \"${1:../assets/file.bas}\""
+  },
+  "Frame loop": {
+    "prefix": "frameloop",
+    "description": "A loop that runs once a frame until ESC",
+    "body": ["DO", "  FRAME", "  ScanKeys()", "  $0", "LOOP UNTIL KeyDown(KEY_ESC)"]
+  },
+  "Draw a sprite": {
+    "prefix": "putsprite",
+    "description": "Draw a sprite made in the Sprite Editor (x in bytes, y in lines)",
+    "body": "PutSprite(${1:x}, ${2:y}, ${3:ball}_W, ${3:ball}_H, @${3:ball}(0))"
+  },
+  "DATA and READ": {
+    "prefix": "dataread",
+    "description": "Read a list of values",
+    "body": ["RESTORE ${1:table}", "READ ${2:a}, ${3:b}", "$0", "${1:table}:", "DATA ${4:1, 2}"]
+  },
+  "PRINT AT": {
+    "prefix": "printat",
+    "description": "Print at a row and column (0-based, row first)",
+    "body": "PRINT AT ${1:0}, ${2:0}; \"${3:text}\""
+  },
+  "Set an ink": {
+    "prefix": "setink",
+    "description": "Give a pen a firmware colour (0-26)",
+    "body": "SetInk ${1:1}, ${2:26}"
+  },
+  "FASTCALL SUB": {
+    "prefix": "subfastcall",
+    "description": "A SUB that takes its first argument in a register",
+    "body": ["SUB FASTCALL ${1:MyRoutine}(${2:n AS UBYTE})", "  $0", "END SUB"]
+  }
+}

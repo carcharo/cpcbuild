@@ -1,0 +1,214 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "CPC BASIC",
+  "scopeName": "source.cpcbasic",
+  "patterns": [
+    {
+      "include": "#blockComment"
+    },
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#asm"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#directive"
+    },
+    {
+      "include": "#declaration"
+    },
+    {
+      "include": "#label"
+    },
+    {
+      "include": "#lineNumber"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#constant"
+    },
+    {
+      "include": "#rsx"
+    },
+    {
+      "include": "#operator"
+    }
+  ],
+  "repository": {
+    "blockComment": {
+      "name": "comment.block.cpcbasic",
+      "begin": "/'",
+      "end": "'/"
+    },
+    "comment": {
+      "patterns": [
+        {
+          "name": "comment.line.apostrophe.cpcbasic",
+          "match": "'.*$"
+        },
+        {
+          "name": "comment.line.rem.cpcbasic",
+          "match": "(?i)(?<![A-Za-z0-9_$%!.])rem(?![A-Za-z0-9_$%!]).*$"
+        }
+      ]
+    },
+    "asm": {
+      "name": "meta.embedded.block.asm.cpcbasic",
+      "begin": "(?i)(?<![A-Za-z0-9_$%!.])(asm)(?![A-Za-z0-9_$%!])",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.cpcbasic"
+        }
+      },
+      "end": "(?i)(?<![A-Za-z0-9_$%!.])(end\\s+asm)(?![A-Za-z0-9_$%!])",
+      "endCaptures": {
+        "1": {
+          "name": "keyword.other.cpcbasic"
+        }
+      },
+      "patterns": [
+        {
+          "match": ";.*$",
+          "name": "comment.line.semicolon.asm.cpcbasic"
+        },
+        {
+          "match": "'.*$",
+          "name": "comment.line.apostrophe.cpcbasic"
+        }
+      ]
+    },
+    "string": {
+      "name": "string.quoted.double.cpcbasic",
+      "begin": "\"",
+      "end": "\"|$",
+      "patterns": [
+        {
+          "name": "constant.character.escape.cpcbasic",
+          "match": "\"\""
+        }
+      ]
+    },
+    "directive": {
+      "name": "meta.preprocessor.cpcbasic",
+      "match": "(?i)^\\s*(#\\s*(?:include|warning|require|define|ifndef|pragma|undef|ifdef|endif|error|elif|else|line|init|if))(?![A-Za-z0-9_])(?:\\s+(once)(?![A-Za-z0-9_]))?(?:\\s*(<[^>]*>))?",
+      "captures": {
+        "1": {
+          "name": "keyword.control.directive.cpcbasic"
+        },
+        "2": {
+          "name": "keyword.control.directive.cpcbasic"
+        },
+        "3": {
+          "name": "string.quoted.other.lt-gt.cpcbasic"
+        }
+      }
+    },
+    "declaration": {
+      "match": "(?i)(?<![A-Za-z0-9_$%!.])(sub|function)\\s+(?:(fastcall|stdcall)\\s+)?([A-Za-z_][A-Za-z0-9_]*[$%!]?)",
+      "captures": {
+        "1": {
+          "name": "storage.type.function.cpcbasic"
+        },
+        "2": {
+          "name": "storage.modifier.cpcbasic"
+        },
+        "3": {
+          "name": "entity.name.function.cpcbasic"
+        }
+      }
+    },
+    "label": {
+      "match": "^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:(?!=)",
+      "captures": {
+        "1": {
+          "name": "entity.name.label.cpcbasic"
+        }
+      }
+    },
+    "lineNumber": {
+      "match": "^\\s*(\\d+)\\b",
+      "captures": {
+        "1": {
+          "name": "entity.name.label.cpcbasic"
+        }
+      }
+    },
+    "number": {
+      "patterns": [
+        {
+          "name": "constant.numeric.hex.cpcbasic",
+          "match": "(?i)&h?[0-9a-f]+\\b|\\b0x[0-9a-f]+\\b"
+        },
+        {
+          "name": "constant.numeric.binary.cpcbasic",
+          "match": "(?i)&x[01]+\\b|\\b0b[01]+\\b"
+        },
+        {
+          "name": "constant.numeric.decimal.cpcbasic",
+          "match": "(?i)(?<![A-Za-z_$%!])(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?[%!]?"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "invalid.deprecated.cpcbasic",
+          "match": "(?i:(?<![A-Za-z0-9_$%!.])(?:ON\\s+BREAK\\s+GOSUB|CURSOR|CLEAR|ERASE|MERGE|ON\\s+SQ|RUN)(?![A-Za-z0-9_$%!]))"
+        },
+        {
+          "name": "keyword.control.cpcbasic",
+          "match": "(?i:(?<![A-Za-z0-9_$%!.])(?:ON\\s+ERROR\\s+GOTO|CONTINUE|ON\\s+BREAK|ELSEIF|RESUME|RETURN|SELECT|GOSUB|UNTIL|WHILE|CALL|CASE|ELSE|EXIT|GOTO|LOOP|NEXT|STEP|STOP|THEN|WEND|END|FOR|DO|IF|IS|ON|TO)(?![A-Za-z0-9_$%!]))"
+        },
+        {
+          "name": "storage.type.cpcbasic",
+          "match": "(?i:(?<![A-Za-z0-9_$%!.])(?:FUNCTION|UINTEGER|DECLARE|INTEGER|DEF\\s+FN|STRING|CONST|FIXED|FLOAT|UBYTE|ULONG|BYTE|LONG|REAL|DEF|DIM|SUB|AS|FN)(?![A-Za-z0-9_$%!]))"
+        },
+        {
+          "name": "storage.modifier.cpcbasic",
+          "match": "(?i:(?<![A-Za-z0-9_$%!.])(?:FASTCALL|STDCALL|BYREF|BYVAL)(?![A-Za-z0-9_$%!]))"
+        },
+        {
+          "name": "keyword.operator.word.cpcbasic",
+          "match": "(?i:(?<![A-Za-z0-9_$%!.])(?:AND|MOD|NOT|XOR|OR)(?![A-Za-z0-9_$%!]))"
+        },
+        {
+          "name": "support.function.builtin.cpcbasic",
+          "match": "(?i:(?<![A-Za-z0-9_$%!.])(?:COPYCHR\\$|STRING\\$|INKEY\\$|LOWER\\$|RIGHT\\$|SPACE\\$|UPPER\\$|LEFT\\$|BIN\\$|CHR\\$|DEC\\$|HEX\\$|MID\\$|STR\\$)(?![A-Za-z0-9_])|(?<![A-Za-z0-9_$%!.])(?:LBOUND|RANDOM|REMAIN|SIZEOF|UBOUND|CREAL|HIMEM|INKEY|INSTR|LOG10|POINT|ROUND|TESTR|CAST|CINT|DERR|PEEK|TEST|TIME|VPOS|XPOS|YPOS|ABS|ASC|ATN|COS|EOF|ERL|ERR|EXP|FIX|FRE|INP|INT|JOY|LEN|LOG|MAX|MIN|POS|RND|SGN|SIN|SPC|SQR|TAB|TAN|UNT|VAL|PI|SQ)(?![A-Za-z0-9_$%!]))"
+        },
+        {
+          "name": "keyword.other.cpcbasic",
+          "match": "(?i:(?<![A-Za-z0-9_$%!.])(?:GRAPHICS\\s+PAPER|GRAPHICS\\s+PEN|SYMBOL\\s+AFTER|CLEAR\\s+INPUT|SPEED\\s+WRITE|WINDOW\\s+SWAP|LINE\\s+INPUT|RANDOMIZE|SPEED\\s+INK|SPEED\\s+KEY|CLOSEOUT|GRAPHICS|CLOSEIN|DEFREAL|KEY\\s+DEF|OPENOUT|RELEASE|RESTORE|BORDER|CIRCLE|DEFINT|DEFSTR|LOCATE|MEMORY|OPENIN|OPTION|ORIGIN|SYMBOL|TAGOFF|WINDOW|AFTER|BREAK|CHAIN|DRAWR|ERROR|EVERY|FRAME|INPUT|MOVER|PAPER|PAUSE|PLOTR|PRINT|SOUND|SPEED|USING|WIDTH|WRITE|BEEP|DATA|DRAW|FILL|LINE|LOAD|MASK|MODE|MOVE|PLOT|POKE|READ|SAVE|SWAP|WAIT|ZONE|ASM|CAT|CLG|CLS|DEG|ENT|ENV|INK|KEY|LET|OUT|PEN|RAD|REM|TAG|AT|DI|EI)(?![A-Za-z0-9_$%!]))"
+        }
+      ]
+    },
+    "constant": {
+      "name": "constant.language.cpcbasic",
+      "match": "\\b__[A-Z0-9_]+__\\b"
+    },
+    "rsx": {
+      "name": "support.function.rsx.cpcbasic",
+      "match": "\\|[A-Za-z@][A-Za-z0-9_.]*"
+    },
+    "operator": {
+      "patterns": [
+        {
+          "name": "keyword.operator.address.cpcbasic",
+          "match": "@"
+        },
+        {
+          "name": "keyword.operator.cpcbasic",
+          "match": "<>|<=|>=|<<|>>|=>|[-+*/\\\\^<>=]"
+        }
+      ]
+    }
+  }
+}

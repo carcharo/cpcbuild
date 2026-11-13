@@ -1,0 +1,2 @@
+# sprite colours 1-15 (12-bit R G B hex triples)
+F80, 08F

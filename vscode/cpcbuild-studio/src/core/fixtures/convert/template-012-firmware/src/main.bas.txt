@@ -1,0 +1,39 @@
+' main.bas -- a small CPCBuild program for the firmware: mode 1, four pens,
+' one bouncing sprite. ESC quits.
+' Build and run: "CPC Game Studio: Build and Run" (target cpc6128 or cpc464).
+#include <cpc.bas>
+#include <cpcbuild.bas>
+
+' The ball and its four pens come from the Studio documents in assets/:
+' ball.cpcspr (the picture) and pens.cpcpal (firmware colours of pens 0-3:
+' black, bright white, bright red, bright green). ball.bas is generated from
+' them. Double-click ball.cpcspr to open the CPC Sprite Editor; edit it or
+' the palette and build again: the program changes with them.
+#include "../assets/ball.bas"      ' ball(), ball_W, ball_H, ball_pal(), ball_PENS
+
+DIM x, y, dx, dy AS UBYTE
+
+Mode 1
+SetPalette(@ball_pal(0), ball_PENS)
+SetBorder 0
+ScreenInit()      ' always call ScreenInit() after Mode
+CLS
+PRINT AT 1, 1; "HELLO FROM CPCBUILD - ESC QUITS"
+
+x = 10
+y = 40
+dx = 1
+dy = 2
+DO
+  WaitRetrace(1)
+  FillRect(x, y, ball_W, ball_H, 0)  ' erase the old picture (x in bytes, y in lines)
+  IF x >= 77 THEN dx = 255          ' 255 = -1 in a UBYTE: adding it wraps
+  IF x <= 1 THEN dx = 1
+  IF y >= 190 THEN dy = 254
+  IF y <= 20 THEN dy = 2
+  x = x + dx
+  y = y + dy
+  PutSprite(x, y, ball_W, ball_H, @ball(0))
+  ScanKeys()
+LOOP UNTIL KeyDown(KEY_ESC)
+END

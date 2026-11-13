@@ -17,34 +17,13 @@ function bas(dir: string, rel: string): LibFileInput[] {
   });
 }
 
-/** `lib/*.bas` and its subfolders `cpcbuild`, `cpcplus`, `zxbuild`, `music` under the cpcbuild checkout. */
+/** `lib/*.bas` and its subfolders `cpcbuild`, `cpcplus`, `stdlib`, `music` under `libraryDir` (the folder that holds `lib/`: the bundled copy of cpcbas's library). */
 export function libraryFiles(libraryDir: string): LibFileInput[] {
   const lib = path.join(libraryDir, 'lib');
-  return [...bas(lib, ''), ...bas(lib, 'cpcbuild'), ...bas(lib, 'cpcplus'), ...bas(lib, 'zxbuild'), ...bas(lib, 'music')];
+  return [...bas(lib, ''), ...bas(lib, 'cpcbuild'), ...bas(lib, 'cpcplus'), ...bas(lib, 'stdlib'), ...bas(lib, 'music')];
 }
 
-/** The compiler's cpc stdlib folder inside a zxbasic checkout, if it is there. */
-export function stdlibDirOf(zxbasicDir: string): string | undefined {
-  const d = path.join(zxbasicDir, 'src', 'lib', 'arch', 'cpc', 'stdlib');
-  return fs.existsSync(d) ? d : undefined;
-}
-
-export function stdlibFiles(stdlibDir: string): LibFileInput[] {
-  return bas(stdlibDir, '').map((f) => ({ ...f, platform: 'cpc' as const }));
-}
-
-/** Index of the library (and, when given, the compiler's cpc stdlib). Library routines come first. */
-export function loadIndex(libraryDir: string | undefined, stdlibDir?: string): LibIndex {
-  const a = libraryDir ? buildIndex(libraryFiles(libraryDir)) : buildIndex([]);
-  if (!stdlibDir) return a;
-  const b = buildIndex(stdlibFiles(stdlibDir));
-  const routines = [...a.routines, ...b.routines];
-  const byName: LibIndex['byName'] = new Map();
-  const perFile: LibIndex['perFile'] = new Map();
-  for (const r of routines) {
-    const k = r.name.toLowerCase();
-    byName.set(k, [...(byName.get(k) ?? []), r]);
-    perFile.set(r.file, [...(perFile.get(r.file) ?? []), r]);
-  }
-  return { routines, settings: [...a.settings, ...b.settings], byName, perFile };
+/** Index of the library. */
+export function loadIndex(libraryDir: string | undefined): LibIndex {
+  return buildIndex(libraryDir ? libraryFiles(libraryDir) : []);
 }

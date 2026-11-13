@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "name": "My Game",
+  "targets": [
+    {
+      "id": "plus-cart",
+      "arch": "cpc",
+      "main": "src/main.bas",
+      "model": "plus",
+      "defines": [
+        "PLUS"
+      ],
+      "bare": true,
+      "ownFont": true,
+      "package": "cpr"
+    },
+    {
+      "id": "plus-dsk",
+      "arch": "cpc",
+      "main": "src/main.bas",
+      "model": "plus",
+      "defines": [
+        "PLUS"
+      ],
+      "package": "dsk",
+      "disc": "MYGAME"
+    }
+  ],
+  "assets": [
+    "assets/**/*.cpcimp",
+    "assets/**/*.cpcspr",
+    "assets/**/*.cpcpal12"
+  ]
+}

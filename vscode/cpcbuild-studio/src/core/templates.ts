@@ -1,12 +1,12 @@
 /**
- * templates.ts -- the four project templates of spec 4.5 as plain data:
- * file name -> content. Pure TypeScript; the extension writes them to disk.
+ * templates.ts -- the project templates as plain data: file name -> content
+ * (CPC BASIC). Pure TypeScript; the extension writes them to disk.
  */
 import { deriveDiscStem } from './project';
 import { parseSprite, resolvePalette } from './spriteDoc';
 import { exportAsset } from './spriteExport';
 
-export type TemplateId = 'firmware' | 'baremetal' | 'plus' | 'shared';
+export type TemplateId = 'firmware' | 'baremetal' | 'plus';
 
 export interface TemplateInfo {
   id: TemplateId;
@@ -18,7 +18,6 @@ export const TEMPLATES: readonly TemplateInfo[] = [
   { id: 'firmware', label: 'Firmware (CPC 464/6128)', description: 'Mode 1 program using the firmware; disc image' },
   { id: 'baremetal', label: 'Bare metal (no firmware)', description: 'Same program with -D CPC_BAREMETAL; disc image' },
   { id: 'plus', label: 'Plus cartridge', description: 'CPC Plus hardware sprites and 12-bit palette; .cpr cartridge and a disc' },
-  { id: 'shared', label: 'Shared CPC + Spectrum', description: 'One game, platform layers per machine; .dsk and .tap' },
 ];
 
 export interface TemplateOptions {
@@ -48,10 +47,10 @@ const FIRMWARE_MAIN = `' main.bas -- a small CPCBuild program for the firmware: 
 
 DIM x, y, dx, dy AS UBYTE
 
-Mode 1
+MODE 1
 SetPalette(@ball_pal(0), ball_PENS)
 SetBorder 0
-ScreenInit()      ' always call ScreenInit() after Mode
+ScreenInit()      ' always call ScreenInit() after MODE
 CLS
 PRINT AT 1, 1; "HELLO FROM CPCBUILD - ESC QUITS"
 
@@ -60,7 +59,7 @@ y = 40
 dx = 1
 dy = 2
 DO
-  WaitRetrace(1)
+  FRAME                              ' wait for the next frame
   FillRect(x, y, ball_W, ball_H, 0)  ' erase the old picture (x in bytes, y in lines)
   IF x >= 77 THEN dx = 255          ' 255 = -1 in a UBYTE: adding it wraps
   IF x <= 1 THEN dx = 1
@@ -99,7 +98,7 @@ const PLUS_MAIN = `' main.bas -- a CPC Plus program: two hardware sprites and a 
 
 DIM x0, y0, x1, y1, d0, d1 AS INTEGER
 
-Mode 1
+MODE 1
 ScreenInit()
 CLS
 IF PlusAvailable() = 0 THEN
@@ -111,9 +110,9 @@ IF PlusAvailable() = 0 THEN
 END IF
 
 ' 12-bit colours: &H0RGB, four bits a channel
-SetPalette12(0, $0008)
-SetPalette12(1, $0FFF)
-SetBorder12($0008)
+SetPalette12(0, &H0008)
+SetPalette12(1, &H0FFF)
+SetBorder12(&H0008)
 SpritesHideAll()
 SpritePalette(@sprite_pal(0))
 SpriteSetImagePacked(0, @sprite(0))
@@ -129,7 +128,7 @@ x1 = 300
 y1 = 120
 d1 = 0 - 3
 DO
-  WaitRetrace(1)
+  FRAME
   x0 = x0 + d0
   IF x0 > 600 OR x0 < 10 THEN d0 = 0 - d0
   x1 = x1 + d1
@@ -138,81 +137,6 @@ DO
   SpriteMove(1, x1, y1)
   ScanKeys()
 LOOP UNTIL KeyDown(KEY_ESC)
-END
-`;
-
-const SHARED_MAIN = `' main.bas -- one game, two machines: the CPC and the ZX Spectrum.
-' game.bas is the shared logic; platform_cpc.bas and platform_zx.bas are the
-' only files that know which machine this is (__CPC__ is defined by the
-' compiler for --arch cpc). Same layout as games/shooter.
-#ifdef __CPC__
-#include "platform_cpc.bas"
-#else
-#include "platform_zx.bas"
-#endif
-#include "game.bas"
-`;
-
-const SHARED_CPC = `' platform_cpc.bas -- the CPC side: firmware text screen, ESC quits.
-#include <cpc.bas>
-#include <cpcbuild.bas>
-
-SUB PlatInit()
-  Mode 1
-  ScreenInit()
-  CLS
-END SUB
-
-SUB PlatWait()
-  WaitRetrace(1)
-END SUB
-
-FUNCTION PlatQuit() AS UBYTE
-  ScanKeys()
-  RETURN KeyDown(KEY_ESC)
-END FUNCTION
-`;
-
-const SHARED_ZX = `' platform_zx.bas -- the Spectrum side: SPACE quits.
-SUB PlatInit()
-  BORDER 0
-  PAPER 0
-  INK 7
-  CLS
-END SUB
-
-SUB PlatWait()
-  PAUSE 1
-END SUB
-
-FUNCTION PlatQuit() AS UBYTE
-  IF INKEY$ = " " THEN RETURN 1
-  RETURN 0
-END FUNCTION
-`;
-
-const SHARED_GAME = `' game.bas -- the shared logic. Integers and text only, so it behaves the
-' same on both machines. The platform layer supplies PlatInit(), PlatWait()
-' and PlatQuit().
-DIM x, y, dx, dy AS UBYTE
-
-PlatInit()
-PRINT AT 0, 0; "HELLO FROM CPCBUILD"
-x = 5
-y = 5
-dx = 1
-dy = 1
-DO
-  PlatWait()
-  PRINT AT y, x; " "
-  IF x >= 28 THEN dx = 255
-  IF x <= 1 THEN dx = 1
-  IF y >= 20 THEN dy = 255
-  IF y <= 2 THEN dy = 1
-  x = x + dx
-  y = y + dy
-  PRINT AT y, x; "O"
-LOOP UNTIL PlatQuit()
 END
 `;
 
@@ -251,7 +175,7 @@ export function plusSpriteBas(): string {
 function readme(title: string, lines: string[]): string {
   return `# ${title}\n\nA CPC Game Studio project. Three things to try:\n\n${lines.map((l, i) => `${i + 1}. ${l}`).join('\n')}\n\n` +
     'Targets and packaging are in `cpcbuild.json`; the build puts its output in `build/`.\n' +
-    'Set `cpcbuild.library.path` (and `cpcbuild.zxbc.command`) in the settings if "CPC Game Studio: Check Environment" reports something missing.\n';
+    'If something does not build or run, "CPC Game Studio: Check Environment" says what is missing.\n';
 }
 
 export function generateTemplate(id: TemplateId, opts: TemplateOptions): TemplateResult {
@@ -316,34 +240,6 @@ export function generateTemplate(id: TemplateId, opts: TemplateOptions): Templat
         'Build target `plus-cart` and run the `.cpr` in an emulator set to the Plus model.',
         `Build target \`plus-dsk\` for the disc version (\`run"${disc}\`).`,
         'Compare the two in the build report: the cartridge has no firmware and brings its own font.',
-      ]);
-      break;
-    }
-    case 'shared': {
-      files['cpcbuild.json'] = json({
-        version: 1, name,
-        targets: [
-          { id: 'cpc6128', arch: 'cpc', main: 'src/main.bas', model: '6128', defines: ['CPC6128'], package: 'dsk', disc },
-          { id: 'cpc464', arch: 'cpc', main: 'src/main.bas', model: '464', defines: ['CPC464'], package: 'dsk', disc },
-          { id: 'zx128', arch: 'zx48k', main: 'src/main.bas', defines: ['ZX128'], org: 31744, heap: 256, package: 'tap' },
-          { id: 'zx48', arch: 'zx48k', main: 'src/main.bas', defines: ['ZX48'], org: 32768, heap: 256, package: 'tap' },
-        ],
-        assets: ['assets/**/*.cpcimp', 'assets/**/*.cpcpal'],
-      });
-      files['src/main.bas'] = SHARED_MAIN;
-      files['src/game.bas'] = SHARED_GAME;
-      files['src/platform_cpc.bas'] = SHARED_CPC;
-      files['src/platform_zx.bas'] = SHARED_ZX;
-      files['assets/cpc/pens.cpcpal'] = CPC_PAL;
-      files['assets/zx/.gitkeep'] = '';
-      files['assets/README.md'] =
-        'Put one source PNG here and use "CPC Game Studio: Import Image" twice: once with target CPC (mode 0) writing into\n' +
-        '`assets/cpc/`, once with target Spectrum writing into `assets/zx/`. The .cpcimp recipes are regenerated before\n' +
-        'each build. This template draws text only, so nothing is generated yet.\n';
-      common(name, [
-        'Build `cpc6128` and run it; build `zx128` for a `.tap` (Spectrum targets are build-only: load the tape in your own Spectrum emulator).',
-        'Open `src/game.bas`: the shared logic. Only `platform_cpc.bas` and `platform_zx.bas` know the machine.',
-        'Add a graphic: see `assets/README.md`.',
       ]);
       break;
     }

@@ -15,9 +15,9 @@ async function api(): Promise<StudioApi> {
 const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
 
 const SOURCE = [
-  '#if defined(FOO)', // CB011
-  '#endif',
-  'Mode 1', // CB001: drawing before ScreenInit()
+  '#include <cpc.bas>',
+  '#include <cpcbuild.bas>',
+  'MODE 1', // CB001: drawing before ScreenInit()
   'FillRect(0, 0, 4, 4, 1)',
   'PutSprite(0, 0, 0, 8, 0)', // CB009: w = 0
   'SetInk 1, 2',
@@ -36,33 +36,37 @@ async function openSource(file: string): Promise<vscode.TextDocument> {
 }
 
 const ownDiagnostics = (uri: vscode.Uri): vscode.Diagnostic[] => vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'cpcbuild');
+const compilerDiagnostics = (uri: vscode.Uri): vscode.Diagnostic[] => vscode.languages.getDiagnostics(uri).filter((d) => d.source === 'cpcbas');
 
 test('lint: a .bas in a cpcbuild project gets CB diagnostics (warnings/info only)', async () => {
   const doc = await openSource(path.join(ws, 'src', 'lintme.bas'));
   const ds = await waitFor('lint diagnostics', () => {
     const d = ownDiagnostics(doc.uri);
-    return d.length >= 3 ? d : undefined;
+    return d.length >= 2 ? d : undefined;
   });
   const codes = ds.map((d) => String(d.code)).sort();
-  assert.deepStrictEqual(codes, ['CB001', 'CB009', 'CB011']);
+  assert.deepStrictEqual(codes, ['CB001', 'CB009']);
   for (const d of ds) assert.ok(d.severity === vscode.DiagnosticSeverity.Warning || d.severity === vscode.DiagnosticSeverity.Information, `${d.code} severity`);
-  const cb11 = ds.find((d) => d.code === 'CB011')!;
-  assert.ok(/zxbpp has no defined\(\) operator/.test(cb11.message));
-  assert.strictEqual(cb11.range.start.line, 0);
+  const cb1 = ds.find((d) => d.code === 'CB001')!;
+  assert.strictEqual(cb1.range.start.line, 2);
+  assert.ok(/MODE is followed by FillRect/.test(cb1.message), cb1.message);
+  // the program is valid CPC BASIC: the compiler has nothing to say
+  const a = await api();
+  await waitFor('the compiler check to run', () => a.diagRuns(doc.uri) > 0);
+  assert.deepStrictEqual(compilerDiagnostics(doc.uri), []);
 });
 
 test('lint: editing updates the diagnostics (debounced), and lint.rules can switch a rule off', async () => {
   const doc = await openSource(path.join(ws, 'src', 'lintme.bas'));
   const ed = vscode.window.activeTextEditor!;
-  await ed.edit((b) => b.replace(new vscode.Range(0, 0, 0, 16), '#ifdef FOO'));
-  await waitFor('CB011 gone after the edit', () => ownDiagnostics(doc.uri).every((d) => d.code !== 'CB011'));
+  await ed.edit((b) => b.replace(new vscode.Range(2, 0, 2, 6), 'MODE 1 : ScreenInit()'));
+  await waitFor('CB001 gone after the edit', () => ownDiagnostics(doc.uri).every((d) => d.code !== 'CB001'));
   const cfg = vscode.workspace.getConfiguration('cpcbuild');
-  await cfg.update('lint.rules', { CB009: 'off', CB001: 'error' }, vscode.ConfigurationTarget.Workspace);
   try {
-    await waitFor('CB009 off, CB001 an error', () => {
-      const d = ownDiagnostics(doc.uri);
-      return d.every((x) => x.code !== 'CB009') && d.some((x) => x.code === 'CB001' && x.severity === vscode.DiagnosticSeverity.Error);
-    });
+    await cfg.update('lint.rules', { CB009: 'error' }, vscode.ConfigurationTarget.Workspace);
+    await waitFor('CB009 an error', () => ownDiagnostics(doc.uri).some((x) => x.code === 'CB009' && x.severity === vscode.DiagnosticSeverity.Error));
+    await cfg.update('lint.rules', { CB009: 'off' }, vscode.ConfigurationTarget.Workspace);
+    await waitFor('CB009 off', () => ownDiagnostics(doc.uri).every((x) => x.code !== 'CB009'));
   } finally {
     await cfg.update('lint.rules', undefined, vscode.ConfigurationTarget.Workspace);
   }
@@ -79,7 +83,7 @@ test('lint: the toggle command and cpcbuild.lint.enable switch it off and on', a
   await waitFor('diagnostics back', () => ownDiagnostics(doc.uri).length > 0);
 });
 
-test('hover: a library routine shows its signature, header text and a docs link; a compiler stdlib routine too', async () => {
+test('hover: a library routine shows its signature, header text and a docs link; a stdlib routine too, with the renamed parameter', async () => {
   const doc = await openSource(path.join(ws, 'src', 'lintme.bas'));
   const hovers = (await vscode.commands.executeCommand('vscode.executeHoverProvider', doc.uri, new vscode.Position(4, 3))) as vscode.Hover[];
   const text = hovers.map(textOf).join('\n').replace(/&nbsp;/g, ' ').replace(/\\/g, '');
@@ -88,7 +92,9 @@ test('hover: a library routine shows its signature, header text and a docs link;
   assert.ok(text.includes('cpcbuild/sprites.bas'), text);
   assert.ok(text.includes('command:cpcbuild.docs.open'), 'link to library.md');
   const ink = (await vscode.commands.executeCommand('vscode.executeHoverProvider', doc.uri, new vscode.Position(5, 2))) as vscode.Hover[];
-  assert.ok(ink.map(textOf).join('\n').includes('SUB SetInk(pen AS UBYTE, colour AS UBYTE)'), 'stdlib hover');
+  assert.ok(ink.map(textOf).join('\n').includes('SUB SetInk(penNo AS UBYTE, colour AS UBYTE)'), 'stdlib hover');
+  const fill = (await vscode.commands.executeCommand('vscode.executeHoverProvider', doc.uri, new vscode.Position(3, 2))) as vscode.Hover[];
+  assert.ok(fill.map(textOf).join('\n').includes('penNo AS UBYTE'), 'FillRect hover names penNo');
 });
 
 test('hover: nothing on a comment, a string, or a name the program defines itself', async () => {
@@ -109,6 +115,9 @@ test('completion and signature help come from the same index', async () => {
   const items = (await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', doc.uri, new vscode.Position(0, 4))) as vscode.CompletionList;
   const labels = items.items.map((i) => (typeof i.label === 'string' ? i.label : i.label.label));
   assert.ok(labels.includes('PutSprite') && labels.includes('PutSpriteMasked'), labels.slice(0, 10).join(','));
+  const fill = items.items.find((i) => (typeof i.label === 'string' ? i.label : i.label.label) === 'FillRect');
+  assert.ok(fill && /penNo AS UBYTE/.test(fill.detail ?? ''), `FillRect completion detail: ${fill?.detail}`);
+  assert.ok(!labels.includes('Mode') && !labels.includes('WaitVsync'), 'the removed routines are not offered');
   const help = (await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', doc.uri, new vscode.Position(1, 20), ',')) as vscode.SignatureHelp;
   assert.ok(help.signatures[0].label.startsWith('SUB PutSprite('));
   assert.strictEqual(help.activeParameter, 2);
@@ -128,6 +137,7 @@ test('outside a cpcbuild project: no diagnostics and no hover or completion from
     const a = await api();
     await waitFor('the lint pass to run (and find nothing to report)', () => a.lintRuns(doc.uri) > 0);
     assert.deepStrictEqual(ownDiagnostics(doc.uri), []);
+    assert.deepStrictEqual(compilerDiagnostics(doc.uri), []);
     const hs = (await vscode.commands.executeCommand('vscode.executeHoverProvider', doc.uri, new vscode.Position(4, 3))) as vscode.Hover[];
     assert.ok(!hs.map(textOf).join('\n').includes('PutSprite'), 'no Studio hover');
     const items = (await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', doc.uri, new vscode.Position(4, 3))) as vscode.CompletionList;

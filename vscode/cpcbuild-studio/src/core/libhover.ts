@@ -15,7 +15,7 @@ export interface HoverParts {
   section?: { text: string; slug: string; line: number };
 }
 
-const PLATFORM_NOTE = { cpc: '', plus: 'CPC Plus / GX4000 only (cpcplus.bas); does nothing on other models.', zx: 'ZX Spectrum (--arch zx48k) only.' };
+const PLATFORM_NOTE = { cpc: '', plus: 'CPC Plus / GX4000 only (cpcplus.bas); does nothing on other models.' };
 
 export function describeRoutine(r: LibRoutine, section?: DocHeading): HoverParts {
   const notes: string[] = [];
