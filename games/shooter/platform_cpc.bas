@@ -676,9 +676,25 @@ END SUB
 #endif
 
 #ifdef SHOT
-' Asks the test runner for a screenshot called name.
-SUB PlatShot(name AS STRING)
-  Shot(name)
+' Asks the test runner for a screenshot: 0 = "title", 1 = "play". Shot() takes
+' its name as a string and walks it with ASC(MID$(...)), which brings the string
+' runtime in (about 600 bytes): the bare 6128 build would not fit below &4000, so
+' the same printer line goes out one ShotChar at a time. SHOT_HOLD builds (the
+' Plus, no such limit) call Shot() for the hold-the-picture loop.
+SUB PlatShot(which AS UBYTE)
+#ifdef SHOT_HOLD
+  IF which = 0 THEN Shot("title") ELSE Shot("play")
+#else
+  ShotChar(4)
+  ShotChar(83): ShotChar(72): ShotChar(79): ShotChar(84): ShotChar(32)
+  IF which = 0 THEN
+    ShotChar(116): ShotChar(105): ShotChar(116): ShotChar(108): ShotChar(101)
+  ELSE
+    ShotChar(112): ShotChar(108): ShotChar(97): ShotChar(121)
+  END IF
+  ShotChar(10)
+  ShotWait(6)
+#endif
 END SUB
 #endif
 

@@ -11,7 +11,7 @@
 ' without DEMO it is of the title screen), -D BENCH (250 logic steps of an
 ' attract-style game with the in-game music, then the step rate).
 ' Platform extras used by those: PlatEnd() (back to the machine's own
-' world before printing) and PlatShot(name).
+' world before printing) and PlatShot(which: 0 title, 1 play).
 ' ----------------------------------------------------------------
 
 ' Either test switch: Tick and PlatEnd exist only then.
@@ -71,7 +71,7 @@ SUB Tick(w AS UBYTE)
 #ifdef SHOT
   shotN = shotN + 1
   IF shotN = SHOT THEN
-    IF w = 0 THEN PlatShot("title") ELSE PlatShot("play")
+    PlatShot(w)
     PlatEnd()
     END
   END IF
