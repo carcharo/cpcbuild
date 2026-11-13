@@ -1,26 +1,23 @@
 name: CI
 
 # Job layout (all run in parallel after the tiny `gate` job; wall time ~ slowest job):
-#   zxbasic-tests  zxbasic pytest (compiler suite)
+#   gate           the public-text guard (.github/scripts/public-text.sh)
 #   chips          make unit test-chips   (firmware conformance 6128/464 + screens)
 #   bare-disc      make test-bare-disc    (bare-metal disc start + screens)
 #   bare-cold      make test-bare-cold    (cold start, no firmware + screens)
-#   zx-games       make test-games test-lamp reach-lamp
+#   games          make test-games test-lamp reach-lamp
 #   plus           build patched Caprice32 (tools/caprice32) at the pinned commit, make test-plus
 #                  (6128 Plus: smoke tests, conformance firmware + bare, screens), then
-#                  build CPCEC (tools/cpcec: pinned commit + our patch) and make test-cpcec
+#                  build CPCEC (tools/cpcec: pinned commit + our patch), make test-cpcec and test-lamp-plus
 #   studio-os      CPCBuild Studio unit tests on Windows and macOS (npm run test:unit), then the
 #                  extension-host tests there too (non-blocking while they settle)
 #   vscode         Node 22 under xvfb: make test-vscode (CPCBuild Studio), make test-wasm vsix
 #                  (CPCBuild Emulator on the wasm core, emsdk 6.0.12, then both .vsix uploaded)
 # `make ci` runs the same targets serially (local all-in-one); `make ci-vscode` runs the
 # vscode job's targets (it needs Node and an emsdk, so it is not in `make ci`). Shared setup
-# lives in .github/actions/setup. Each failing job uploads its own screen-diff artifact.
-#
-# Nightly: cpcbuild CI uses zxbasic's cpc-arch HEAD, but a zxbasic-only push does not
-# trigger it. A daily `schedule` run (default branch) goes through `gate`
-# (.github/scripts/gate.sh), which lets the test jobs run only if cpc-arch has a
-# commit from the last 25 hours. push / pull_request / workflow_dispatch always run.
+# lives in .github/actions/setup, which builds the cpcbas compiler at the commit pinned in
+# cpcbas.json (.github/actions/cpcbas) and exports CPCBAS for every step of the job.
+# Each failing job uploads its own screen-diff artifact.
 # Docs-only changes (**.md, docs/**) skip push/PR runs; superseded runs are cancelled.
 
 on:
@@ -30,8 +27,6 @@ on:
   pull_request:
     branches: [main, 'phase-*', 'pre-*', 'release-*']
     paths-ignore: ['**.md', 'docs/**']
-  schedule:
-    - cron: '23 3 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -42,38 +37,13 @@ jobs:
   gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    outputs:
-      run: ${{ steps.gate.outputs.run }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          sparse-checkout: .github
-      - id: gate
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          GH_TOKEN: ${{ github.token }}
-        run: .github/scripts/gate.sh
-
-  zxbasic-tests:
-    needs: gate
-    if: needs.gate.outputs.run == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - name: Checkout cpcbuild
-        uses: actions/checkout@v7
-        with:
-          path: cpcbuild
-      - uses: ./cpcbuild/.github/actions/setup
-        with:
-          chips: 'false'
-      - name: zxbasic tests
-        working-directory: zxbasic
-        run: poetry run pytest -q --no-cov
+      - name: Public text
+        run: .github/scripts/public-text.sh
 
   chips:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -87,7 +57,6 @@ jobs:
       - name: make unit test-chips
         working-directory: cpcbuild
         env:
-          ZXBASIC: ${{ github.workspace }}/zxbasic
           CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
         run: make unit test-chips
       - name: Upload screen-test diffs
@@ -104,7 +73,6 @@ jobs:
 
   bare-disc:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -118,7 +86,6 @@ jobs:
       - name: make test-bare-disc
         working-directory: cpcbuild
         env:
-          ZXBASIC: ${{ github.workspace }}/zxbasic
           CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
         run: make test-bare-disc
       - name: Upload screen-test diffs
@@ -135,7 +102,6 @@ jobs:
 
   bare-cold:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -149,7 +115,6 @@ jobs:
       - name: make test-bare-cold
         working-directory: cpcbuild
         env:
-          ZXBASIC: ${{ github.workspace }}/zxbasic
           CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
         run: make test-bare-cold
       - name: Upload screen-test diffs
@@ -164,9 +129,8 @@ jobs:
             cpcbuild/games/**/*.diff.png
           if-no-files-found: ignore
 
-  zx-games:
+  games:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -180,7 +144,6 @@ jobs:
       - name: make test-games test-lamp reach-lamp
         working-directory: cpcbuild
         env:
-          ZXBASIC: ${{ github.workspace }}/zxbasic
           CPC_ROM_DIR: ${{ github.workspace }}/caprice32/rom
         run: make test-games test-lamp reach-lamp
       - name: Upload screen-test diffs
@@ -197,7 +160,6 @@ jobs:
 
   plus:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -231,7 +193,6 @@ jobs:
       - name: make test-plus
         working-directory: cpcbuild
         env:
-          ZXBASIC: ${{ github.workspace }}/zxbasic
           SDL_AUDIODRIVER: dummy
         run: make test-plus
       - name: Cache the CPCEC build
@@ -254,9 +215,12 @@ jobs:
       - name: make test-cpcec
         # CPCEC runs with its own --headless (SDL dummy video and audio, no window)
         working-directory: cpcbuild
-        env:
-          ZXBASIC: ${{ github.workspace }}/zxbasic
         run: make test-cpcec
+      - name: make test-lamp-plus (Lamplighter Plus on Caprice32 and CPCEC)
+        working-directory: cpcbuild
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: make test-lamp-plus
       - name: Upload screen-test diffs
         if: failure()
         uses: actions/upload-artifact@v7
@@ -265,19 +229,18 @@ jobs:
           path: |
             cpcbuild/tests/**/*.actual.png
             cpcbuild/tests/**/*.diff.png
+            cpcbuild/games/**/*.actual.png
+            cpcbuild/games/**/*.diff.png
           if-no-files-found: ignore
 
   studio-os:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
-    env:
-      ZXBASIC: ${{ github.workspace }}/zxbasic
     defaults:
       run:
         shell: bash
@@ -286,8 +249,8 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: cpcbuild
-      # Python + Pillow first: some unit tests compare with the Python tools. The extension-host tests also
-      # need the compiler checkout (poetry), as on Linux.
+      # Python + Pillow first (some unit tests compare with the Python tools), and cpcbas at the pin:
+      # the Studio compiles with it.
       - uses: ./cpcbuild/.github/actions/setup
         with:
           chips: 'false'
@@ -310,12 +273,8 @@ jobs:
 
   vscode:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
-    env:
-      # the zxbc checkout (poetry) for both extensions' extension-host tests and the media build
-      ZXBASIC: ${{ github.workspace }}/zxbasic
     steps:
       - name: Checkout cpcbuild
         uses: actions/checkout@v7
