@@ -12,12 +12,12 @@ const tmp = scratchDir('archive-');
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 const files: FixEntry[] = [
-  { name: 'zxbasic/' },
-  { name: 'zxbasic/zxbc', data: '#!/bin/sh\necho 1.19\n', mode: 0o755 },
-  { name: 'zxbasic/_internal/', },
-  { name: 'zxbasic/_internal/lib.dylib', data: Buffer.alloc(70000, 7), mode: 0o644 },
-  { name: 'zxbasic/_internal/empty.txt', data: '' },
-  { name: 'zxbasic/stored.txt', data: 'kept as is', stored: true },
+  { name: 'bundle/' },
+  { name: 'bundle/tool', data: '#!/bin/sh\necho 1.19\n', mode: 0o755 },
+  { name: 'bundle/_internal/', },
+  { name: 'bundle/_internal/lib.dylib', data: Buffer.alloc(70000, 7), mode: 0o644 },
+  { name: 'bundle/_internal/empty.txt', data: '' },
+  { name: 'bundle/stored.txt', data: 'kept as is', stored: true },
 ];
 
 describe('safeEntryPath', () => {
@@ -34,16 +34,16 @@ describe('zip reader', () => {
   const by = (n: string) => entries.find((e) => e.path === n);
   it('lists files and directories with their unix modes', () => {
     expect(entries.map((e) => `${e.kind}:${e.path}`)).toEqual([
-      'dir:zxbasic', 'file:zxbasic/zxbc', 'dir:zxbasic/_internal', 'file:zxbasic/_internal/lib.dylib', 'file:zxbasic/_internal/empty.txt', 'file:zxbasic/stored.txt',
+      'dir:bundle', 'file:bundle/tool', 'dir:bundle/_internal', 'file:bundle/_internal/lib.dylib', 'file:bundle/_internal/empty.txt', 'file:bundle/stored.txt',
     ]);
-    expect(by('zxbasic/zxbc')?.mode).toBe(0o755);
-    expect(by('zxbasic/_internal/lib.dylib')?.mode).toBe(0o644);
+    expect(by('bundle/tool')?.mode).toBe(0o755);
+    expect(by('bundle/_internal/lib.dylib')?.mode).toBe(0o644);
   });
   it('inflates deflated and stored entries', () => {
-    expect(by('zxbasic/zxbc')?.data().toString()).toBe('#!/bin/sh\necho 1.19\n');
-    expect(by('zxbasic/_internal/lib.dylib')?.data().equals(Buffer.alloc(70000, 7))).toBe(true);
-    expect(by('zxbasic/_internal/empty.txt')?.data().length).toBe(0);
-    expect(by('zxbasic/stored.txt')?.data().toString()).toBe('kept as is');
+    expect(by('bundle/tool')?.data().toString()).toBe('#!/bin/sh\necho 1.19\n');
+    expect(by('bundle/_internal/lib.dylib')?.data().equals(Buffer.alloc(70000, 7))).toBe(true);
+    expect(by('bundle/_internal/empty.txt')?.data().length).toBe(0);
+    expect(by('bundle/stored.txt')?.data().toString()).toBe('kept as is');
   });
   it('returns symlinks with their target and gives no mode when the zip is not from unix', () => {
     const z = readZip(makeZip([{ name: 'a/l', link: '../../etc/passwd' }]));
@@ -53,8 +53,8 @@ describe('zip reader', () => {
     expect(readZip(makeZip([{ name: 'x.txt', data: 'x', mode: 0o755 }], { unix: false }))[0].mode).toBe(0);
   });
   it('reads zips with Windows separators (Compress-Archive): folders are folders', () => {
-    const z = readZip(makeZip([{ name: 'zxbasic\\' }, { name: 'zxbasic\\_internal\\src\\' }, { name: 'zxbasic\\_internal\\src\\a.txt', data: 'a' }], { unix: false }));
-    expect(z.map((e) => [e.path, e.kind])).toEqual([['zxbasic', 'dir'], ['zxbasic/_internal/src', 'dir'], ['zxbasic/_internal/src/a.txt', 'file']]);
+    const z = readZip(makeZip([{ name: 'bundle\\' }, { name: 'bundle\\_internal\\src\\' }, { name: 'bundle\\_internal\\src\\a.txt', data: 'a' }], { unix: false }));
+    expect(z.map((e) => [e.path, e.kind])).toEqual([['bundle', 'dir'], ['bundle/_internal/src', 'dir'], ['bundle/_internal/src/a.txt', 'file']]);
   });
   it('refuses traversal and absolute names while reading', () => {
     for (const name of ['../evil.txt', 'a/../../evil.txt', '/abs.txt', 'C:\\win.txt']) {
@@ -71,16 +71,16 @@ describe('zip reader', () => {
   });
   const ditto = process.platform === 'darwin' && spawnSync('ditto', ['-h']).error === undefined;
   (ditto ? it : it.skip)('reads a real `ditto -c -k --keepParent` zip (how the macOS bundles are made), modes included', () => {
-    const src = path.join(tmp, 'ditto', 'zxbasic');
+    const src = path.join(tmp, 'ditto', 'bundle');
     fs.mkdirSync(path.join(src, '_internal'), { recursive: true });
-    fs.writeFileSync(path.join(src, 'zxbc'), 'x');
-    fs.chmodSync(path.join(src, 'zxbc'), 0o755);
+    fs.writeFileSync(path.join(src, 'tool'), 'x');
+    fs.chmodSync(path.join(src, 'tool'), 0o755);
     fs.writeFileSync(path.join(src, '_internal', 'data.txt'), 'y'.repeat(5000));
     const out = path.join(tmp, 'ditto.zip');
     expect(spawnSync('ditto', ['-c', '-k', '--keepParent', src, out]).status).toBe(0);
     const e = readZip(fs.readFileSync(out));
-    expect(e.find((x) => x.path === 'zxbasic/zxbc')?.mode).toBe(0o755);
-    expect(e.find((x) => x.path === 'zxbasic/_internal/data.txt')?.data().length).toBe(5000);
+    expect(e.find((x) => x.path === 'bundle/tool')?.mode).toBe(0o755);
+    expect(e.find((x) => x.path === 'bundle/_internal/data.txt')?.data().length).toBe(5000);
     expect(e.some((x) => x.path.startsWith('__MACOSX'))).toBe(false);
   });
 });
@@ -88,13 +88,13 @@ describe('zip reader', () => {
 describe('tar.gz reader', () => {
   it('lists files with modes and returns their bytes', () => {
     const e = readTarGz(makeTarGz(files.filter((f) => !f.stored)));
-    expect(e.map((x) => `${x.kind}:${x.path}`)).toEqual(['dir:zxbasic', 'file:zxbasic/zxbc', 'dir:zxbasic/_internal', 'file:zxbasic/_internal/lib.dylib', 'file:zxbasic/_internal/empty.txt']);
+    expect(e.map((x) => `${x.kind}:${x.path}`)).toEqual(['dir:bundle', 'file:bundle/tool', 'dir:bundle/_internal', 'file:bundle/_internal/lib.dylib', 'file:bundle/_internal/empty.txt']);
     expect(e[1].mode).toBe(0o755);
     expect(e[1].data().toString()).toBe('#!/bin/sh\necho 1.19\n');
     expect(e[3].data().equals(Buffer.alloc(70000, 7))).toBe(true);
   });
   it('reads GNU long names', () => {
-    const name = 'zxbasic/' + 'deep/'.repeat(30) + 'file.txt';
+    const name = 'bundle/' + 'deep/'.repeat(30) + 'file.txt';
     const e = readTarGz(makeTarGz([{ name, data: 'hi' }]));
     expect(e[0].path).toBe(name);
   });
@@ -108,18 +108,18 @@ describe('tar.gz reader', () => {
   });
   const tar = spawnSync('tar', ['--version']).error === undefined;
   (tar ? it : it.skip)('reads a real `tar czf` archive', () => {
-    const src = path.join(tmp, 'tar', 'zxbasic');
+    const src = path.join(tmp, 'tar', 'bundle');
     fs.mkdirSync(path.join(src, '_internal'), { recursive: true });
-    fs.writeFileSync(path.join(src, 'zxbc'), 'x');
-    fs.chmodSync(path.join(src, 'zxbc'), 0o755);
+    fs.writeFileSync(path.join(src, 'tool'), 'x');
+    fs.chmodSync(path.join(src, 'tool'), 0o755);
     fs.writeFileSync(path.join(src, '_internal', 'a.so'), 'z'.repeat(3000));
     // relative names from inside tmp: GNU tar reads "C:\\..." as host:file
-    const t = spawnSync('tar', ['czf', 'real.tar.gz', '-C', 'tar', 'zxbasic'], { cwd: tmp, encoding: 'utf8' });
+    const t = spawnSync('tar', ['czf', 'real.tar.gz', '-C', 'tar', 'bundle'], { cwd: tmp, encoding: 'utf8' });
     expect(t.status, t.stderr).toBe(0);
     const e = readTarGz(fs.readFileSync(path.join(tmp, 'real.tar.gz')));
     // unix modes do not exist on a Windows file system
-    if (process.platform !== 'win32') expect(e.find((x) => x.path === 'zxbasic/zxbc')?.mode).toBe(0o755);
-    else expect(e.find((x) => x.path === 'zxbasic/zxbc')).toBeDefined();
-    expect(e.find((x) => x.path === 'zxbasic/_internal/a.so')?.data().length).toBe(3000);
+    if (process.platform !== 'win32') expect(e.find((x) => x.path === 'bundle/tool')?.mode).toBe(0o755);
+    else expect(e.find((x) => x.path === 'bundle/tool')).toBeDefined();
+    expect(e.find((x) => x.path === 'bundle/_internal/a.so')?.data().length).toBe(3000);
   });
 });

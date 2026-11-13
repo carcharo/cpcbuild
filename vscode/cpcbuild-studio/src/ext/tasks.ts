@@ -7,10 +7,7 @@ import { readSettings } from './config';
 import { findProjects, LoadedProject, pickProject, selectedTarget } from './projects';
 import { runInEmulator } from './run';
 import { Sink } from './runTool';
-import { notifyBuildFailure } from './setupPrompts';
 import { state } from './state';
-import { isTrusted, notifyUntrusted, restrictedText } from './trust';
-import { runInZxEmulator } from './zxRun';
 
 export const TASK_TYPE = 'cpcbuild';
 
@@ -54,10 +51,7 @@ export async function executeBuild(def: CpcbuildTaskDefinition, sink: Sink, toke
   for (const n of lp.notes) sink.line(`note: ${n.message}`);
   const res = await buildTarget(lp.root, lp.project, target, sink, token, s);
   state.lastBuild = res;
-  if (!res.ok) {
-    void notifyBuildFailure(res);
-    return 1;
-  }
+  if (!res.ok) return 1;
   if (def.run) return (await runLast(sink, lp.project.library)) ? 0 : 1;
   return 0;
 }
@@ -69,22 +63,8 @@ export async function runLast(sink: Sink, library?: string | null): Promise<bool
     sink.line('Nothing to run: build a target first ("CPC Game Studio: Build").', true);
     return false;
   }
-  if (!b.run && b.artifacts.tap) {
-    if (!isTrusted()) {
-      notifyUntrusted('Run in a Spectrum emulator');
-      sink.line(`Run failed: ${restrictedText('Running in a Spectrum emulator')}`, true);
-      return false;
-    }
-    const out = await runInZxEmulator(readSettings(b.root), b.artifacts.tap, sink);
-    if (!out.ok) {
-      sink.line(`Target ${b.targetId} built ${path.basename(b.artifacts.tap)}, but ${out.message}`, true);
-      return false;
-    }
-    sink.line(`Started ${path.basename(b.artifacts.tap)} in ${readSettings(b.root).zxEmulator}`);
-    return true;
-  }
   if (!b.run) {
-    sink.line(`Target ${b.targetId} has no disc or cartridge to run (Spectrum and raw .bin targets are build-only).`, true);
+    sink.line(`Target ${b.targetId} has no disc or cartridge to run (a raw .bin target is build-only).`, true);
     return false;
   }
   const out = await runInEmulator(b.root, b.run, sink, undefined, library);
@@ -123,7 +103,7 @@ class BuildTerminal implements vscode.Pseudoterminal {
 
 export function createTask(def: CpcbuildTaskDefinition, scope: vscode.WorkspaceFolder | vscode.TaskScope.Workspace, label: string): vscode.Task {
   const folder = typeof scope === 'object' ? scope.uri.fsPath : undefined;
-  const task = new vscode.Task(def, scope, label, TASK_TYPE, new vscode.CustomExecution(async () => new BuildTerminal(def, folder)), '$zxbc');
+  const task = new vscode.Task(def, scope, label, TASK_TYPE, new vscode.CustomExecution(async () => new BuildTerminal(def, folder)));
   task.group = vscode.TaskGroup.Build;
   task.presentationOptions = { reveal: vscode.TaskRevealKind.Always, clear: true, showReuseMessage: false };
   return task;
@@ -140,7 +120,7 @@ export class CpcbuildTaskProvider implements vscode.TaskProvider {
       for (const t of lp.project.targets) {
         const proj = rel === '' ? '.' : rel;
         tasks.push(createTask({ type: TASK_TYPE, target: t.id, ...(proj ? { project: proj } : {}) }, scope, `build ${t.id}`));
-        if (t.package === 'dsk' || t.package === 'cpr' || t.package === 'tap') {
+        if (t.package === 'dsk' || t.package === 'cpr') {
           tasks.push(createTask({ type: TASK_TYPE, target: t.id, run: true, ...(proj ? { project: proj } : {}) }, scope, `build and run ${t.id}`));
         }
       }

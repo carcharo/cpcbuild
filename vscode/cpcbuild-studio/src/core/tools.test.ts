@@ -5,8 +5,7 @@ import { assetForKey, isPinned, ManifestError, parseManifest, toolsPlatform } fr
 
 const sha = 'a'.repeat(64);
 const good = (): any => ({
-  zxbasic: { version: '1.19.0-cpc.1', assets: { 'windows-x64': { url: 'https://h/z.zip', sha256: 'PIN' }, 'macos-arm64': { url: 'https://h/m.zip', sha256: sha } } },
-  arkos: { version: '3.7', assets: { 'macos-arm64': { url: 'https://h/a.zip', sha256: sha }, 'macos-x64': 'macos-arm64' } },
+  arkos: { version: '3.7', assets: { 'windows-x64': { url: 'https://h/z.zip', sha256: 'PIN' }, 'macos-arm64': { url: 'https://h/a.zip', sha256: sha }, 'macos-x64': 'macos-arm64' } },
 });
 
 describe('platform keys', () => {
@@ -34,9 +33,9 @@ describe('tools manifest', () => {
   it('accepts a good manifest and resolves aliases', () => {
     const m = parseManifest(good());
     expect(m.arkos.assets['macos-x64']).toEqual(m.arkos.assets['macos-arm64']);
-    expect(m.zxbasic.version).toBe('1.19.0-cpc.1');
-    expect(isPinned(m.zxbasic.assets['windows-x64']!)).toBe(false);
-    expect(isPinned(m.zxbasic.assets['macos-arm64']!)).toBe(true);
+    expect(m.arkos.version).toBe('3.7');
+    expect(isPinned(m.arkos.assets['windows-x64']!)).toBe(false);
+    expect(isPinned(m.arkos.assets['macos-arm64']!)).toBe(true);
   });
   it('rejects bad shapes with a message naming the field', () => {
     const bad = (f: (m: any) => void, re: RegExp): void => {
@@ -46,22 +45,18 @@ describe('tools manifest', () => {
       expect(() => parseManifest(m)).toThrow(re);
     };
     bad((m) => delete m.arkos, /"arkos" is missing/);
-    bad((m) => (m.zxbasic.version = ''), /zxbasic\.version/);
-    bad((m) => (m.zxbasic.assets['linux-x64'] = { url: 'http://h/x', sha256: sha }), /https/);
-    bad((m) => (m.zxbasic.assets['linux-x64'] = { url: 'https://h/x', sha256: 'abc' }), /sha256/);
-    bad((m) => (m.zxbasic.assets['linux-x64'] = { url: 'https://h/x', sha256: 'A'.repeat(64) }), /lowercase/);
-    bad((m) => (m.zxbasic.assets['beos-x64'] = { url: 'https://h/x', sha256: sha }), /unknown platform/);
+    bad((m) => (m.arkos.version = ''), /arkos\.version/);
+    bad((m) => (m.arkos.assets['linux-x64'] = { url: 'http://h/x', sha256: sha }), /https/);
+    bad((m) => (m.arkos.assets['linux-x64'] = { url: 'https://h/x', sha256: 'abc' }), /sha256/);
+    bad((m) => (m.arkos.assets['linux-x64'] = { url: 'https://h/x', sha256: 'A'.repeat(64) }), /lowercase/);
+    bad((m) => (m.arkos.assets['beos-x64'] = { url: 'https://h/x', sha256: sha }), /unknown platform/);
     bad((m) => (m.arkos.assets['macos-x64'] = 'linux-x64'), /not an entry/);
     bad((m) => (m.arkos.assets['macos-x64'] = 'macos-x64'), /not an entry/);
     expect(() => parseManifest(null)).toThrow(ManifestError);
   });
   it('the manifest that ships is valid, covers every platform for the compiler and for Arkos', () => {
     const m = parseManifest(JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'tools-manifest.json'), 'utf8')));
-    expect(Object.keys(m.zxbasic.assets).sort()).toEqual(['linux-arm64', 'linux-x64', 'macos-arm64', 'macos-x64', 'windows-arm64', 'windows-x64']);
     expect(Object.keys(m.arkos.assets).sort()).toEqual(['linux-arm64', 'linux-x64', 'macos-arm64', 'macos-x64', 'windows-x64']);
-    for (const [k, a] of Object.entries(m.zxbasic.assets)) {
-      expect(a?.url).toBe(`https://github.com/carcharo/zxbasic/releases/download/v${m.zxbasic.version}/zxbasic-${m.zxbasic.version}-${k}.${k.startsWith('linux') ? 'tar.gz' : 'zip'}`);
-    }
     for (const a of Object.values(m.arkos.assets)) expect(isPinned(a!)).toBe(true);
   });
   it('the manifest is listed in .vscodeignore (so it ships in the vsix)', () => {

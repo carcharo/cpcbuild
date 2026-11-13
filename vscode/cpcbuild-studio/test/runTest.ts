@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { generateTemplate } from '../src/core/templates';
-import { findZxbasic, PYTHON_ABS } from '../src/core/testutil';
+import { PYTHON_ABS } from '../src/core/testutil';
 
 /** `s` as it goes inside a JSON string (a Windows path has backslashes). */
 const jsonText = (s: string): string => JSON.stringify(s).slice(1, -1);
@@ -11,8 +11,6 @@ const jsonText = (s: string): string => JSON.stringify(s).slice(1, -1);
 /** The temp workspace the tests open: a firmware-template project plus a deliberately broken one and an invalid one. */
 function makeWorkspace(extRoot: string): string {
   const repo = path.resolve(extRoot, '..', '..');
-  const zxbasic = findZxbasic(extRoot);
-  if (!zxbasic) throw new Error('the zxbasic checkout was not found: set ZXBASIC, or put it next to the cpcbuild checkout (../zxbasic)');
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-ws-'));
   const put = (rel: string, text: string): void => {
     const f = path.join(ws, rel);
@@ -20,11 +18,10 @@ function makeWorkspace(extRoot: string): string {
     fs.writeFileSync(f, text);
   };
   for (const [rel, text] of Object.entries(generateTemplate('firmware', { name: 'tplfw' }).files)) put(rel, text);
-  // the dev settings: how to start the compiler on this machine (a test settings file, never hardcoded in the extension)
+  // the dev settings: where the Python tools and the test emulator are on this machine (a test settings file, never hardcoded in the extension)
   const settings = fs
     .readFileSync(path.join(extRoot, 'test', 'fixtures', 'dev-settings.json'), 'utf8')
     .replace(/\$\{repo\}/g, () => jsonText(repo))
-    .replace(/\$\{zxbasic\}/g, () => jsonText(zxbasic))
     .replace(/\$\{python\}/g, () => jsonText(PYTHON_ABS))
     .replace(/\$\{node\}/g, () => jsonText(process.execPath))
     .replace(/\$\{touch\}/g, () => jsonText(path.join(extRoot, 'test', 'fixtures', 'touch.js')));

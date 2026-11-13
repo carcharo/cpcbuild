@@ -30,25 +30,14 @@ describe('package.json contributions', () => {
   });
   it('has every setting of spec 6 under cpcbuild.', () => {
     const keys = Object.keys(c.configuration.properties);
-    for (const k of ['zxbc.command', 'zxbc.cwd', 'zxbc.args', 'python.path', 'library.path', 'build.org', 'build.outputDir', 'build.memoryLimits', 'target.default', 'model', 'run.emulator', 'run.caprice32Path', 'run.cpcecPath', 'run.rvmPath', 'run.customCommand', 'run.autorunCommand', 'assets.engine', 'assets.generateOnSave', 'assets.regenerateBeforeBuild', 'assets.header', 'editor.defaultZoom', 'editor.showByteGrid', 'editor.pixelAspect', 'lint.enable', 'lint.rules', 'hover.enable', 'arkos.toolsPath', 'arkos.trackerPath', 'arkos.psg', 'tiled.path', 'emu.pollRateHz', 'keybindings.enable']) {
+    for (const k of ['compiler.args', 'python.path', 'library.path', 'build.org', 'build.outputDir', 'build.memoryLimits', 'target.default', 'model', 'run.emulator', 'run.caprice32Path', 'run.cpcecPath', 'run.rvmPath', 'run.customCommand', 'run.autorunCommand', 'assets.engine', 'assets.generateOnSave', 'assets.regenerateBeforeBuild', 'assets.header', 'editor.defaultZoom', 'editor.showByteGrid', 'editor.pixelAspect', 'lint.enable', 'lint.rules', 'hover.enable', 'arkos.toolsPath', 'arkos.trackerPath', 'tiled.path', 'emu.pollRateHz', 'keybindings.enable']) {
       expect(keys).toContain('cpcbuild.' + k);
     }
-    expect(c.configuration.properties['cpcbuild.zxbc.command'].default).toEqual(['zxbc']);
+    expect(c.configuration.properties['cpcbuild.compiler.args'].default).toEqual([]);
+    // the settings of the old external compiler and of the Spectrum emulator are gone
+    for (const k of keys) expect(k, k).not.toMatch(/^cpcbuild\.(zx|run\.zx|arkos\.psg)/);
+    expect(c.problemMatchers).toBeUndefined();
     expect(c.configuration.properties['cpcbuild.run.emulator'].default).toBe('emu');
-  });
-  it('the $zxbc matcher matches real zxbc output (spec 4.6)', () => {
-    const m = c.problemMatchers.find((x: { name: string }) => x.name === 'zxbc');
-    const re = new RegExp(m.pattern.regexp);
-    const w = re.exec("bad.bas:3: warning: [W100] Using default implicit type 'float' for 'b'")!;
-    expect([w[1], w[2], w[3], w[4], w[5]]).toEqual(['bad.bas', '3', 'warning', 'W100', "Using default implicit type 'float' for 'b'"]);
-    const e = re.exec('/p/x/bad.bas:5: error: Unexpected end of line')!;
-    expect([e[1], e[2], e[3], e[4], e[5]]).toEqual(['/p/x/bad.bas', '5', 'error', undefined, 'Unexpected end of line']);
-    // Windows: a drive-letter colon and backslashes in the path
-    const wl = re.exec("C:\\Users\\runner\\ws\\broken\\src\\main.bas:3: error: [E123] Unexpected end of line")!;
-    expect([wl[1], wl[2], wl[3], wl[4], wl[5]]).toEqual(['C:\\Users\\runner\\ws\\broken\\src\\main.bas', '3', 'error', 'E123', 'Unexpected end of line']);
-    expect(re.exec('D:/a/x/bad.bas:7: warning: w')?.[1]).toBe('D:/a/x/bad.bas');
-    expect(re.test('Build failed: something')).toBe(false);
-    expect(m.pattern).toMatchObject({ file: 1, line: 2, severity: 3, code: 4, message: 5 });
   });
   it('declares the cpcbuild task type and the schema', () => {
     expect(c.taskDefinitions[0].type).toBe('cpcbuild');

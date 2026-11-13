@@ -1,6 +1,6 @@
 /**
- * runTool.ts -- the one way Studio starts external programs (zxbc, mkdsk.py,
- * mkcpr.py, emulators): spawn with an argument array and no shell, cancel
+ * runTool.ts -- the one way Studio starts external programs (Python converters,
+ * Arkos tools, emulators; never the compiler, which runs in-process): spawn with an argument array and no shell, cancel
  * through a token, and report every line to a sink (the "CPC Game Studio" output
  * channel and/or a task terminal). No vscode import: unit-testable in node.
  */
@@ -38,7 +38,7 @@ export interface ToolResult {
   cancelled: boolean;
   /** The signal that ended the program (macOS Gatekeeper's SIGKILL, a crash), when it did not exit by itself. */
   signal?: NodeJS.Signals;
-  /** True when `error` is "program not found" (ENOENT); the zxbc fallback keys on this, not on the text. */
+  /** True when `error` is "program not found" (ENOENT); callers key on this, not on the text. */
   notFound?: boolean;
   /** Set when the program could not be started (not found, bad cwd, ...). */
   error?: string;
@@ -113,9 +113,17 @@ export function isMacPythonStub(
   return !d || !exists(d);
 }
 
+/**
+ * Every program runTool was asked to start, newest last (test hook: the extension-host tests check that a build starts
+ * none, because the compiler runs inside the extension). Reached through the extension's exported API.
+ */
+export const runToolLog: string[][] = [];
+
 export function runTool(command: readonly string[], args: readonly string[], opts: ToolOptions = {}): Promise<ToolResult> {
   const [exe, ...pre] = command;
   const all = [...pre, ...args];
+  runToolLog.push([...command, ...args]);
+  if (runToolLog.length > 500) runToolLog.shift();
   const sink = opts.sink;
   if (!exe) return Promise.resolve({ code: null, stdout: '', stderr: '', cancelled: false, error: 'empty command' });
   if (!opts.quiet) sink?.line(`$ ${[exe, ...all].map(displayArg).join(' ')}${opts.cwd ? `   (in ${opts.cwd})` : ''}`);

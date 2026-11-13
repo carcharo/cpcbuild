@@ -12,6 +12,8 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+// the compiler library, copied from the pinned cpcbas checkout by scripts/link-cpcbas.mjs
+const vendor = join(root, 'vendor', 'cpcbas', 'dist', 'src');
 const watch = process.argv.includes('--watch');
 execFileSync(process.execPath, [join(root, 'scripts/bundle.mjs')], { stdio: 'inherit' });
 const out = join(root, 'dist', 'webview');
@@ -26,6 +28,10 @@ const host = {
   platform: 'node',
   format: 'cjs',
   external: ['vscode'],
+  alias: { '@cpcbuild/cpcbas/node': join(vendor, 'node', 'index.js'), '@cpcbuild/cpcbas': join(vendor, 'index.js') },
+  // the library's Node helper reads import.meta.url (to find its own lib/, which the Studio never asks for)
+  define: { 'import.meta.url': '__importMetaUrl' },
+  banner: { js: 'var __importMetaUrl = require("node:url").pathToFileURL(__filename).href;' },
   outfile: join(root, 'dist/extension.js'),
   logLevel: 'warning',
   sourcemap: watch,

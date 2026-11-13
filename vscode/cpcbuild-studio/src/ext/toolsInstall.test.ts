@@ -11,20 +11,11 @@ import { readZip } from '../core/zip';
 import { ToolsManifest } from '../core/tools';
 import { scratchDir } from '../core/testutil';
 import { ChecksumError, DownloadError } from './download';
-import { arkosBinDir, arkosInstalled, extractEntries, failureText, partName, installArkos, installZxbasic, NoToolsError, UnpinnedError, zxbasicDir, zxbasicInstalled } from './toolsInstall';
+import { arkosBinDir, arkosInstalled, extractEntries, failureText, partName, installArkos, NoToolsError, UnpinnedError } from './toolsInstall';
 
 const unix = process.platform !== 'win32';
 const sha = (b: Buffer): string => crypto.createHash('sha256').update(b).digest('hex');
 const script = (out: string): string => `#!/bin/sh\necho "${out}"\n`;
-const compilerFiles = (v: string): FixEntry[] => [
-  { name: 'zxbasic/' },
-  { name: 'zxbasic/zxbc', data: script(`zxbc ${v}`), mode: 0o755 },
-  { name: 'zxbasic/zxbasm', data: script('zxbasm'), mode: 0o644 }, // a zip without modes still gets chmod 755 on unix
-  { name: 'zxbasic/zxbpp', data: script('zxbpp'), mode: 0o755 },
-  { name: 'zxbasic/mkdsk', data: script('mkdsk'), mode: 0o755 },
-  { name: 'zxbasic/_internal/' },
-  { name: 'zxbasic/_internal/base.zip', data: Buffer.alloc(40000, 3) },
-];
 const arkosFiles: FixEntry[] = [
   { name: 'ArkosTracker3/' },
   { name: 'ArkosTracker3/ArkosTracker3', data: 'gui', mode: 0o755 },
@@ -60,85 +51,14 @@ afterAll(() => {
   server.close();
 });
 
-/** A manifest whose assets are served by the local server; `tweak` can unpin or corrupt entries. */
-function manifestOf(v: string, o: { zx?: Buffer; ar?: Buffer; zxName?: string; arName?: string; zxSha?: string; arSha?: string }): ToolsManifest {
-  const zx = o.zx ?? makeTarGz(compilerFiles(v));
+/** A manifest whose Arkos asset is served by the local server; `o` can unpin or corrupt the entry. */
+function manifestOf(v: string, o: { ar?: Buffer; arName?: string; arSha?: string }): ToolsManifest {
   const ar = o.ar ?? makeZip(arkosFiles);
-  const zxUrl = serve(o.zxName ?? `zxbasic-${v}.tar.gz`, zx);
   const arUrl = serve(o.arName ?? `arkos-${v}.zip`, ar);
-  return {
-    zxbasic: { version: v, assets: { 'linux-x64': { url: zxUrl, sha256: o.zxSha ?? sha(zx) }, 'windows-x64': { url: zxUrl, sha256: o.zxSha ?? sha(zx) } } },
-    arkos: { version: v, assets: { 'linux-x64': { url: arUrl, sha256: o.arSha ?? sha(ar) }, 'windows-x64': { url: arUrl, sha256: o.arSha ?? sha(ar) } } },
-  };
+  return { arkos: { version: v, assets: { 'linux-x64': { url: arUrl, sha256: o.arSha ?? sha(ar) }, 'windows-x64': { url: arUrl, sha256: o.arSha ?? sha(ar) } } } };
 }
 const fresh = (): string => fs.mkdtempSync(path.join(root0, 'r-'));
 const left = (root: string): string[] => fs.readdirSync(root).sort();
-
-describe('install the compiler', () => {
-  (unix ? it : it.skip)('downloads, verifies, unpacks into tools/zxbasic-<version>, keeps modes and runs zxbc --version', async () => {
-    const root = fresh();
-    const m = manifestOf('1.2.3', {});
-    const r = await installZxbasic({ manifest: m, root, platform: 'linux', arch: 'x64' });
-    const dir = zxbasicDir(root, m);
-    expect(r.dir).toBe(dir);
-    expect(r.version).toBe('zxbc 1.2.3');
-    expect(path.basename(dir)).toBe('zxbasic-1.2.3');
-    expect(zxbasicInstalled(root, m, 'linux')).toBe(true);
-    for (const n of ['zxbc', 'zxbasm', 'zxbpp', 'mkdsk']) expect(fs.statSync(path.join(dir, n)).mode & 0o777, n).toBe(0o755);
-    expect(fs.statSync(path.join(dir, '_internal', 'base.zip')).size).toBe(40000);
-    expect(left(root)).toEqual(['zxbasic-1.2.3']); // no staging left behind
-  });
-  (unix ? it : it.skip)('replaces an older version and the same version again', async () => {
-    const root = fresh();
-    await installZxbasic({ manifest: manifestOf('1.0.0', {}), root, platform: 'linux', arch: 'x64' });
-    fs.mkdirSync(path.join(root, 'arkos-3.7')); // not ours to delete
-    const m2 = manifestOf('1.1.0', {});
-    await installZxbasic({ manifest: m2, root, platform: 'linux', arch: 'x64' });
-    expect(left(root)).toEqual(['arkos-3.7', 'zxbasic-1.1.0']);
-    fs.writeFileSync(path.join(zxbasicDir(root, m2), 'stale.txt'), 'x');
-    await installZxbasic({ manifest: m2, root, platform: 'linux', arch: 'x64' });
-    expect(fs.existsSync(path.join(zxbasicDir(root, m2), 'stale.txt'))).toBe(false);
-    expect(left(root)).toEqual(['arkos-3.7', 'zxbasic-1.1.0']);
-  });
-  it('unpacks a .zip bundle too and runs its zxbc.exe', async () => {
-    const root = fresh();
-    const files = compilerFiles('2.0.0').map((f) => ({ ...f, name: f.name.replace(/(zxbc|zxbasm|zxbpp|mkdsk)$/, '$1.exe') }));
-    const m = manifestOf('2.0.0', { zx: makeZip(files), zxName: 'zx.zip' });
-    const r = await installZxbasic({ manifest: m, root, platform: 'win32', arch: 'x64' });
-    expect(zxbasicInstalled(root, m, 'win32')).toBe(true);
-    expect(fs.existsSync(path.join(r.dir, 'mkdsk.exe'))).toBe(true);
-    expect(r.version ?? r.versionError).toBeTruthy(); // a script named zxbc.exe runs on unix; on Windows it would be reported, not thrown
-  });
-  it('refuses a download that does not match its checksum: deleted, nothing installed, no staging left', async () => {
-    const root = fresh();
-    const m = manifestOf('3.0.0', { zxSha: '0'.repeat(64) });
-    const e = await installZxbasic({ manifest: m, root, platform: 'linux', arch: 'x64' }).catch((x) => x);
-    expect(e).toBeInstanceOf(ChecksumError);
-    expect(left(root)).toEqual([]);
-  });
-  it('refuses an unpinned entry (sha256 "PIN") before downloading anything', async () => {
-    const root = fresh();
-    const m = manifestOf('3.1.0', { zxSha: 'PIN' });
-    const hits = blobs.size;
-    await expect(installZxbasic({ manifest: m, root, platform: 'linux', arch: 'x64' })).rejects.toBeInstanceOf(UnpinnedError);
-    expect(fs.existsSync(root) ? left(root) : []).toEqual([]);
-    expect(blobs.size).toBe(hits);
-  });
-  it('says so when the platform has no tools', async () => {
-    const e = await installZxbasic({ manifest: manifestOf('3.2.0', {}), root: fresh(), platform: 'linux', arch: 'arm64' }).catch((x) => x);
-    expect(e).toBeInstanceOf(NoToolsError);
-    expect(e.platform).toBe('linux-arm64');
-  });
-  it('refuses an archive without zxbc, and one that tries to escape', async () => {
-    const root = fresh();
-    const noZxbc = manifestOf('3.3.0', { zx: makeTarGz([{ name: 'zxbasic/readme.txt', data: 'x' }]), zxName: 'nozx.tar.gz' });
-    await expect(installZxbasic({ manifest: noZxbc, root, platform: 'linux', arch: 'x64' })).rejects.toThrow(/holds no zxbc/);
-    const evil = manifestOf('3.4.0', { zx: makeZip([{ name: 'zxbasic/../../evil.txt', data: 'x' }]), zxName: 'evil.zip' });
-    await expect(installZxbasic({ manifest: { ...evil, zxbasic: { ...evil.zxbasic, assets: { 'linux-x64': evil.zxbasic.assets['windows-x64']! } } }, root, platform: 'linux', arch: 'x64' })).rejects.toBeInstanceOf(ArchiveError);
-    expect(left(root)).toEqual([]);
-    expect(fs.existsSync(path.join(root, '..', 'evil.txt'))).toBe(false);
-  });
-});
 
 describe('install Arkos', () => {
   (unix ? it : it.skip)('copies only SongToAkg and SongToSoundEffects into tools/arkos-<version>/bin, executable', async () => {
@@ -168,6 +88,19 @@ describe('install Arkos', () => {
     await expect(installArkos({ manifest: bad, root, platform: 'linux', arch: 'x64' })).rejects.toBeInstanceOf(ChecksumError);
     expect(left(root)).toEqual([]);
   });
+  it('refuses an unpinned entry (sha256 "PIN") before downloading anything', async () => {
+    const root = fresh();
+    const m = manifestOf('3.11', { arSha: 'PIN' });
+    await expect(installArkos({ manifest: m, root, platform: 'linux', arch: 'x64' })).rejects.toBeInstanceOf(UnpinnedError);
+    expect(fs.existsSync(root) ? left(root) : []).toEqual([]);
+  });
+  it('refuses an archive that tries to escape the folder', async () => {
+    const root = fresh();
+    const evil = manifestOf('3.12', { ar: makeZip([{ name: 'ArkosTracker3/tools/../../../evil.txt', data: 'x' }]), arName: 'evil.zip' });
+    await expect(installArkos({ manifest: evil, root, platform: 'linux', arch: 'x64' })).rejects.toThrow();
+    expect(left(root)).toEqual([]);
+    expect(fs.existsSync(path.join(root, '..', 'evil.txt'))).toBe(false);
+  });
   it('is not offered where its manifest has no entry', async () => {
     const m = manifestOf('3.10', {});
     await expect(installArkos({ manifest: m, root: fresh(), platform: 'linux', arch: 'arm64' })).rejects.toBeInstanceOf(NoToolsError);
@@ -186,10 +119,10 @@ describe('extractEntries', () => {
   });
   it('makes the links of a macOS PyInstaller bundle (_internal/Python -> Python.framework/...)', () => {
     const files: FixEntry[] = [
-      { name: 'zxbasic/_internal/Python.framework/Versions/3.14/Python', data: 'lib', mode: 0o755 },
-      { name: 'zxbasic/_internal/Python.framework/Versions/Current', link: '3.14' },
-      { name: 'zxbasic/_internal/Python.framework/Python', link: 'Versions/Current/Python' },
-      { name: 'zxbasic/_internal/Python', link: 'Python.framework/Versions/3.14/Python' },
+      { name: 'bundle/_internal/Python.framework/Versions/3.14/Python', data: 'lib', mode: 0o755 },
+      { name: 'bundle/_internal/Python.framework/Versions/Current', link: '3.14' },
+      { name: 'bundle/_internal/Python.framework/Python', link: 'Versions/Current/Python' },
+      { name: 'bundle/_internal/Python', link: 'Python.framework/Versions/3.14/Python' },
     ];
     for (const read of [entries, (f: FixEntry[]) => readTarGz(makeTarGz(f))]) {
       const d = fresh();
@@ -219,16 +152,14 @@ describe('extractEntries', () => {
 });
 
 describe('the messages (exact text)', () => {
-  const m = manifestOf('1.19.0-cpc.1', {});
-  const arkosM = { ...m, arkos: { ...m.arkos, version: '3.7' } };
+  const m = manifestOf('3.7', {});
   it('checksum, network, unpinned and no-Arkos', () => {
-    expect(failureText(new ChecksumError('a', 'b'), 'zxbasic', arkosM)).toBe('CPC Game Studio: the download of Boriel BASIC 1.19.0-cpc.1 did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
-    expect(failureText(new DownloadError('getaddrinfo ENOTFOUND github.com'), 'arkos', arkosM)).toBe('CPC Game Studio: could not download Arkos Tracker 3.7: getaddrinfo ENOTFOUND github.com. Check the connection or "http.proxy", or download the SDK zip from the releases page.');
-    expect(failureText(new UnpinnedError('zxbasic'), 'zxbasic', arkosM)).toMatch(/no checksum for the Boriel BASIC 1.19.0-cpc.1 download yet/);
-    expect(failureText(new NoToolsError('arkos', 'linux-arm64'), 'arkos', arkosM)).toBe('CPC Game Studio: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
+    expect(failureText(new ChecksumError('a', 'b'), 'arkos', m)).toBe('CPC Game Studio: the download of Arkos Tracker 3.7 did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
+    expect(failureText(new DownloadError('getaddrinfo ENOTFOUND github.com'), 'arkos', m)).toBe('CPC Game Studio: could not download Arkos Tracker 3.7: getaddrinfo ENOTFOUND github.com. Check the connection or "http.proxy", or download the SDK zip from the releases page.');
+    expect(failureText(new UnpinnedError('arkos'), 'arkos', m)).toMatch(/no checksum for the Arkos Tracker 3.7 download yet/);
+    expect(failureText(new NoToolsError('arkos', 'linux-arm64'), 'arkos', m)).toBe('CPC Game Studio: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
   });
-  it('the Done text lists what was installed', () => {
-    expect(partName('zxbasic', arkosM)).toBe('Boriel BASIC 1.19.0-cpc.1');
-    expect(partName('arkos', arkosM)).toBe('Arkos 3.7');
+  it('the Done text names what was installed', () => {
+    expect(partName('arkos', m)).toBe('Arkos 3.7');
   });
 });

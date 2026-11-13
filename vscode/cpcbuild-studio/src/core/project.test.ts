@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveDiscStem, parseAddress, parseProject, zxbcArgs } from './project';
+import { compileInput, deriveDiscStem, parseAddress, parseCompilerArgs, parseProject } from './project';
 
 const base = (t: object, extra: object = {}): string =>
   JSON.stringify({ version: 1, name: 'mygame', targets: [{ id: 'cpc6128', main: 'src/main.bas', ...t }], ...extra });
@@ -14,14 +14,15 @@ describe('parseProject', () => {
         targets: [
           { id: 'cpc6128', arch: 'cpc', main: 'src/main.bas', model: '6128', defines: ['CPC6128'], bare: false, ownFont: false, org: null, package: 'dsk', disc: 'MYGAME' },
           { id: 'plus-cart', arch: 'cpc', main: 'src/main.bas', model: 'plus', defines: ['PLUS'], bare: true, ownFont: true, package: 'cpr' },
-          { id: 'zx128', arch: 'zx48k', main: 'src/main.bas', defines: ['ZX128'], package: 'tap' },
+          { id: 'fast', main: 'src/main.bas', defines: ['CPC464'], model: '464', optimize: 's', heap: 2048, package: 'bin' },
         ],
         assets: ['assets/**/*.cpcimp'],
       }),
     );
     expect(r.errors).toEqual([]);
-    expect(r.project!.targets.map((t) => t.package)).toEqual(['dsk', 'cpr', 'tap']);
+    expect(r.project!.targets.map((t) => t.package)).toEqual(['dsk', 'cpr', 'bin']);
     expect(r.project!.targets[0].disc).toBe('MYGAME');
+    expect(r.project!.targets[2]).toMatchObject({ optimize: 's', heap: 2048 });
   });
   it('defaults: arch cpc, dsk, model 6128, derived disc with a note', () => {
     const r = parseProject(base({ id: 'my_game' }));
@@ -49,11 +50,18 @@ describe('parseProject', () => {
     expect(parseProject(base({ org: '0x8000' })).errors).toEqual([]);
     expect(parseProject(base({ org: 'banana' })).errors[0].message).toMatch(/address/);
   });
-  it('spectrum targets: tap default, no bare', () => {
+  it('spectrum targets and tapes are refused with the way out', () => {
     const r = parseProject(base({ arch: 'zx48k' }));
-    expect(r.project!.targets[0].package).toBe('tap');
-    expect(parseProject(base({ arch: 'zx48k', bare: true })).errors[0].message).toMatch(/only apply to arch "cpc"/);
-    expect(parseProject(base({ arch: 'zx48k', package: 'dsk' })).errors[0].path).toBe('targets[0].package');
+    expect(r.project).toBeUndefined();
+    expect(r.errors[0].path).toBe('targets[0].arch');
+    expect(r.errors[0].message).toMatch(/removed in CPCBuild 0\.2\.0.*CPCBuild 0\.1\.x.*Convert Project to CPC BASIC/);
+    expect(parseProject(base({ package: 'tap' })).errors[0].message).toMatch(/Spectrum targets were removed/);
+    expect(parseProject(base({ arch: 'mips' })).errors[0].message).toMatch(/must be "cpc"/);
+  });
+  it('optimize takes 0-3 or s', () => {
+    for (const o of [0, 1, 2, 3, 's', '2']) expect(parseProject(base({ optimize: o })).errors).toEqual([]);
+    expect(parseProject(base({ optimize: 4 })).errors[0].path).toBe('targets[0].optimize');
+    expect(parseProject(base({ optimize: 'fast' })).errors[0].path).toBe('targets[0].optimize');
   });
   it('reports bad structure with a fix', () => {
     expect(parseProject('{').errors[0].message).toMatch(/not valid JSON/);
@@ -83,31 +91,61 @@ describe('helpers', () => {
   });
 });
 
-describe('zxbcArgs (golden)', () => {
-  const o = { libraryDir: '/repo', main: '/p/src/main.bas', out: '/p/build/t.bin', map: '/p/build/t.map' };
+describe('compileInput (golden)', () => {
   const tgt = (t: object) => parseProject(base(t)).project!.targets[0];
-  it('keeps a Windows library folder in backslashes', () => {
-    const args = zxbcArgs(tgt({ defines: ['CPC6128'] }), { ...o, libraryDir: 'c:\\cpcbuild-sdk\\' });
-    expect(args[args.indexOf('-I') + 1]).toBe('c:\\cpcbuild-sdk\\lib');
+  const proj = parseProject(base({})).project!;
+  it('a firmware disc', () => {
+    expect(compileInput(tgt({ defines: ['CPC6128'], org: '0x40' }), proj)).toEqual({
+      main: 'src/main.bas',
+      includePaths: [],
+      defines: { CPC6128: '' },
+      options: { format: 'dsk', dskName: 'CPC6128.BIN', org: 0x40, map: true },
+      warnings: [],
+    });
   });
-  it('firmware', () => {
-    expect(zxbcArgs(tgt({ defines: ['CPC6128'], org: '0x40' }), o)).toEqual([
-      '--arch', 'cpc', '--org', '0x40', '-I', '/repo/lib', '-D', 'CPC6128', '-M', '/p/build/t.map', '-o', '/p/build/t.bin', '/p/src/main.bas',
-    ]);
+  it('bare + ownFont, a define with a value, compiler args, the default org', () => {
+    const i = compileInput(tgt({ defines: ['PLUS', 'FRAMES=100'], bare: true, ownFont: true, package: 'cpr' }), proj, {
+      buildOrg: 0x40,
+      compilerArgs: ['-O3', '-D', 'EXTRA=2', '-DFRAMES=200', '-I', 'inc', '--heap', '&1000', '-Werror', '-W', '301,W302', '-Wimplicit', '--opt-disable=peephole,strip'],
+    });
+    expect(i).toEqual({
+      main: 'src/main.bas',
+      includePaths: ['inc'],
+      defines: { PLUS: '', FRAMES: '200', CPC_BAREMETAL: '', CPC_OWNFONT: '', EXTRA: '2' },
+      options: { format: 'cpr', org: 0x40, heapSize: 0x1000, optimize: 3, optDisable: ['peephole', 'strip'], map: true, disabledWarnings: [301, 'W302'], warningsAsErrors: true, warnImplicit: true },
+      warnings: [],
+    });
   });
-  it('bare + ownFont, define with a value, extra args, default org', () => {
-    expect(zxbcArgs(tgt({ defines: ['PLUS', 'FRAMES=100'], bare: true, ownFont: true }), { ...o, extra: ['-O2'], defaultOrg: 0x40 })).toEqual([
-      '--arch', 'cpc', '--org', '0x40', '-I', '/repo/lib', '-D', 'PLUS', '-D', 'FRAMES=100', '-D', 'CPC_BAREMETAL', '-D', 'CPC_OWNFONT',
-      '-M', '/p/build/t.map', '-O2', '-o', '/p/build/t.bin', '/p/src/main.bas',
-    ]);
+  it('the target beats the compiler args beats the setting: org, heap, optimize', () => {
+    const i = compileInput(tgt({ org: 0x8000, heap: 100, optimize: 0 }), proj, { buildOrg: 0x40, compilerArgs: ['--org', '0x4000', '--heap', '5', '-O1'] });
+    expect([i.options.org, i.options.heapSize, i.options.optimize]).toEqual([0x8000, 100, 0]);
+    const j = compileInput(tgt({}), proj, { buildOrg: 0x40, compilerArgs: ['--org', '0x4000'] });
+    expect(j.options.org).toBe(0x4000);
+    expect(compileInput(tgt({}), proj).options.org).toBeUndefined();
   });
-  it('target org beats the default; no org when neither', () => {
-    expect(zxbcArgs(tgt({ org: 0x8000 }), { ...o, defaultOrg: 0x40 }).slice(0, 4)).toEqual(['--arch', 'cpc', '--org', '0x8000']);
-    expect(zxbcArgs(tgt({}), o).includes('--org')).toBe(false);
+  it('a bin target has no disc name; Windows paths become POSIX', () => {
+    const i = compileInput(tgt({ main: 'src\\main.bas', package: 'bin' }), proj, { compilerArgs: ['-I', 'a\\b'] });
+    expect(i.main).toBe('src/main.bas');
+    expect(i.includePaths).toEqual(['a/b']);
+    expect(i.options.dskName).toBeUndefined();
   });
-  it('spectrum tape as build_zx.sh', () => {
-    expect(zxbcArgs(tgt({ arch: 'zx48k', defines: ['ZX128'], org: 31744, heap: 256 }), { ...o, out: '/p/build/t.tap', map: undefined })).toEqual([
-      '--arch', 'zx48k', '-f', 'tap', '-B', '-a', '--org', '31744', '-H', '256', '-I', '/repo/lib', '-D', 'ZX128', '-o', '/p/build/t.tap', '/p/src/main.bas',
+});
+
+describe('parseCompilerArgs', () => {
+  it('honours the CLI spellings', () => {
+    const a = parseCompilerArgs(['-O', 's', '--heap=4096', '--heap-address', '$9000', '--org', '&4000', '-Isrc', '-DA', '-D', 'B=1']);
+    expect(a).toMatchObject({ optimize: 's', heap: 4096, heapAddress: 0x9000, org: 0x4000, includes: ['src'], defines: { A: '', B: '1' }, warnings: [] });
+  });
+  it('names every flag it does not honour', () => {
+    const a = parseCompilerArgs(['-f', 'cpr', '-o', 'x', '--stage=asm', 'main.bas', '-O9', '--org', 'zzz', '-W', 'E300']);
+    expect(a.warnings.map((w) => w.replace(/^"cpcbuild.compiler.args": /, ''))).toEqual([
+      expect.stringContaining('-f is not used'),
+      expect.stringContaining('-o is not used'),
+      expect.stringContaining('--stage is not used'),
+      expect.stringContaining('"main.bas" is not a flag'),
+      expect.stringContaining('-O 9: not 0, 1, 2, 3 or s'),
+      expect.stringContaining('--org zzz: not an address'),
+      expect.stringContaining('"E300" is not a warning code'),
     ]);
   });
 });

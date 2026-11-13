@@ -27,7 +27,7 @@ describe('runTool', () => {
     expect(r.error).toBeUndefined();
   });
   it('explains a stopped tool, with the Gatekeeper way out on macOS', () => {
-    expect(stoppedText('zxbc', 'SIGKILL', 'darwin')).toMatch(/^zxbc was stopped by the system \(SIGKILL\) before it finished\. If macOS showed "Not Opened".*choose Done \(not Move to Bin\).*xattr -dr com\.apple\.quarantine/);
+    expect(stoppedText('SongToAkg', 'SIGKILL', 'darwin')).toMatch(/^SongToAkg was stopped by the system \(SIGKILL\) before it finished\. If macOS showed "Not Opened".*choose Done \(not Move to Bin\).*xattr -dr com\.apple\.quarantine/);
     expect(stoppedText('mkdsk', 'SIGSEGV', 'linux')).toBe('mkdsk was stopped by the system (SIGSEGV) before it finished. Build again; if it keeps happening, run "CPC Game Studio: Check Environment".');
   });
   it('spots macOS\'s placeholder python3 without running it', () => {

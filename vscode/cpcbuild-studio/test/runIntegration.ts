@@ -9,21 +9,18 @@ import * as os from 'os';
 import * as path from 'path';
 import { runTests } from '@vscode/test-electron';
 import { generateTemplate } from '../src/core/templates';
-import { findZxbasic } from '../src/core/testutil';
 
 function makeWorkspace(extRoot: string): string {
   const repo = path.resolve(extRoot, '..', '..');
-  const zxbasic = findZxbasic(extRoot);
-  if (!zxbasic) throw new Error('the zxbasic checkout was not found: set ZXBASIC, or put it next to the cpcbuild checkout (../zxbasic)');
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-int-'));
   for (const [rel, text] of Object.entries(generateTemplate('firmware', { name: 'tplfw' }).files)) {
     const f = path.join(ws, rel);
     fs.mkdirSync(path.dirname(f), { recursive: true });
     fs.writeFileSync(f, text);
   }
-  // the dev settings (how to start the compiler here), minus the studio-only "custom emulator" run: this run uses cpcbuild-emu
+  // the dev settings (where the Python tools are), minus the studio-only "custom emulator" run: this run uses cpcbuild-emu
   const dev = JSON.parse(
-    fs.readFileSync(path.join(extRoot, 'test', 'fixtures', 'dev-settings.json'), 'utf8').replace(/\$\{repo\}/g, repo).replace(/\$\{zxbasic\}/g, zxbasic),
+    fs.readFileSync(path.join(extRoot, 'test', 'fixtures', 'dev-settings.json'), 'utf8').replace(/\$\{repo\}/g, repo),
   ) as Record<string, unknown>;
   delete dev['cpcbuild.run.emulator'];
   delete dev['cpcbuild.run.customCommand'];

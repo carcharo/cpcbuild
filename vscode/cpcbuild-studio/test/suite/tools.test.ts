@@ -5,7 +5,7 @@ import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { makeTarGz, makeZip, FixEntry } from '../../src/core/archiveFixture';
+import { makeZip, FixEntry } from '../../src/core/archiveFixture';
 import { toolsPlatform, ToolsManifest, ToolsPlatform } from '../../src/core/tools';
 import { rmrf, test } from './harness';
 
@@ -14,18 +14,11 @@ const x = (n: string): string => (win ? `${n}.exe` : n);
 const script = (out: string): string => `#!/bin/sh\necho "${out}"\n`;
 const sha = (b: Buffer): string => crypto.createHash('sha256').update(b).digest('hex');
 
-/** A tiny stand-in for the compiler bundle and the Arkos zip, in the format the real ones have on this platform. */
-function archives(): { zx: Buffer; ar: Buffer; zxExt: string } {
+/** A tiny stand-in for the Arkos zip, in the format the real one has on this platform. */
+function archives(): { ar: Buffer } {
   const exec = 0o755;
-  const zxFiles: FixEntry[] = [
-    { name: 'zxbasic/' },
-    ...['zxbc', 'zxbasm', 'zxbpp', 'mkdsk'].map((n) => ({ name: `zxbasic/${x(n)}`, data: script(`${n} 9.9.9-test`), mode: exec })),
-    { name: 'zxbasic/_internal/' },
-    { name: 'zxbasic/_internal/base_library.zip', data: 'stub' },
-  ];
   const arFiles: FixEntry[] = ['SongToAkg', 'SongToSoundEffects', 'SongToAkm'].map((n) => ({ name: `ArkosTracker3/tools/${x(n)}`, data: script(n), mode: exec }));
-  const tar = process.platform === 'linux';
-  return { zx: tar ? makeTarGz(zxFiles) : makeZip(zxFiles), ar: makeZip(arFiles), zxExt: tar ? 'tar.gz' : 'zip' };
+  return { ar: makeZip(arFiles) };
 }
 
 async function withServer<T>(blobs: Record<string, Buffer>, fn: (base: string) => Promise<T>): Promise<T> {
@@ -52,12 +45,9 @@ const key = (): ToolsPlatform => {
   return k;
 };
 
-function manifest(base: string, a: { zx: Buffer; ar: Buffer; zxExt: string }, over: { zxSha?: string; arSha?: string } = {}): ToolsManifest {
+function manifest(base: string, a: { ar: Buffer }, over: { arSha?: string } = {}): ToolsManifest {
   const k = key();
-  return {
-    zxbasic: { version: '9.9.9-test', assets: { [k]: { url: `${base}/zxbasic.${a.zxExt}`, sha256: over.zxSha ?? sha(a.zx) } } },
-    arkos: { version: '9.9', assets: { [k]: { url: `${base}/arkos.zip`, sha256: over.arSha ?? sha(a.ar) } } },
-  };
+  return { arkos: { version: '9.9', assets: { [k]: { url: `${base}/arkos.zip`, sha256: over.arSha ?? sha(a.ar) } } } };
 }
 
 const tmpRoot = (): string => fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-tools-'));
@@ -73,24 +63,31 @@ test('download tools: the command is contributed and registered', async () => {
   assert.ok((ext.packageJSON.contributes.configuration.properties as Record<string, unknown>)['cpcbuild.sdk.path']);
 });
 
-test('download tools: fetches both from a local server (redirect, checksum, unpack), then everything is installed', async () => {
+test('download tools offers Arkos only: the compiler is inside the extension', async () => {
   const a = archives();
   const root = tmpRoot();
   try {
-    await withServer({ [`/zxbasic.${a.zxExt}`]: a.zx, '/arkos.zip': a.ar }, async (base) => {
+    await withServer({ '/arkos.zip': a.ar }, async (base) => {
+      const r = await download({ manifest: manifest(base, a), root, quiet: true });
+      assert.deepStrictEqual(r.offered, ['arkos']);
+      assert.strictEqual(r.ok, true, r.message);
+      assert.strictEqual(r.message, 'CPC Game Studio: tools installed: Arkos 9.9.');
+      assert.deepStrictEqual(r.installed, ['arkos']);
+    });
+  } finally {
+    rmrf(root);
+  }
+});
+
+test('download tools: fetches Arkos from a local server (redirect, checksum, unpack), then everything is installed', async () => {
+  const a = archives();
+  const root = tmpRoot();
+  try {
+    await withServer({ '/arkos.zip': a.ar }, async (base) => {
       const r = await download({ manifest: manifest(base, a), root, quiet: true });
       assert.strictEqual(r.ok, true, r.message);
-      assert.strictEqual(r.message, 'CPC Game Studio: tools installed: Boriel BASIC 9.9.9-test, Arkos 9.9.');
-      assert.deepStrictEqual(r.installed, ['zxbasic', 'arkos']);
-      const zx = path.join(root, 'zxbasic-9.9.9-test');
-      for (const n of ['zxbc', 'zxbasm', 'zxbpp', 'mkdsk']) assert.ok(fs.existsSync(path.join(zx, x(n))), n);
-      assert.ok(fs.existsSync(path.join(zx, '_internal', 'base_library.zip')));
-      if (!win) {
-        assert.strictEqual(fs.statSync(path.join(zx, 'zxbc')).mode & 0o777, 0o755);
-        assert.strictEqual(r.version, 'zxbc 9.9.9-test');
-      }
       assert.deepStrictEqual(fs.readdirSync(path.join(root, 'arkos-9.9', 'bin')).sort(), [x('SongToAkg'), x('SongToSoundEffects')]);
-      assert.deepStrictEqual(fs.readdirSync(root).sort(), ['arkos-9.9', 'zxbasic-9.9.9-test']);
+      assert.deepStrictEqual(fs.readdirSync(root).sort(), ['arkos-9.9']);
       // a second run has nothing to do
       const again = await download({ manifest: manifest(base, a), root, quiet: true });
       assert.strictEqual(again.ok, true);
@@ -105,10 +102,10 @@ test('download tools: a wrong checksum is refused with the exact text and instal
   const a = archives();
   const root = tmpRoot();
   try {
-    await withServer({ [`/zxbasic.${a.zxExt}`]: a.zx, '/arkos.zip': a.ar }, async (base) => {
-      const r = await download({ manifest: manifest(base, a, { zxSha: '0'.repeat(64) }), root, quiet: true, parts: ['zxbasic'] });
+    await withServer({ '/arkos.zip': a.ar }, async (base) => {
+      const r = await download({ manifest: manifest(base, a, { arSha: '0'.repeat(64) }), root, quiet: true, parts: ['arkos'] });
       assert.strictEqual(r.ok, false);
-      assert.strictEqual(r.message, 'CPC Game Studio: the download of Boriel BASIC 9.9.9-test did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
+      assert.strictEqual(r.message, 'CPC Game Studio: the download of Arkos Tracker 9.9 did not match its checksum and was deleted. Try again; if it keeps failing, report it.');
       assert.deepStrictEqual(fs.readdirSync(root), []);
     });
   } finally {
@@ -120,10 +117,10 @@ test('download tools: an unpinned entry is refused, and a dead server gives the 
   const a = archives();
   const root = tmpRoot();
   try {
-    const unpinned = manifest('http://127.0.0.1:9', a, { zxSha: 'PIN' });
-    const r = await download({ manifest: unpinned, root, quiet: true, parts: ['zxbasic'] });
+    const unpinned = manifest('http://127.0.0.1:9', a, { arSha: 'PIN' });
+    const r = await download({ manifest: unpinned, root, quiet: true, parts: ['arkos'] });
     assert.strictEqual(r.ok, false);
-    assert.match(r.message, /has no checksum for the Boriel BASIC 9\.9\.9-test download yet/);
+    assert.match(r.message, /has no checksum for the Arkos Tracker 9\.9 download yet/);
     const dead = await download({ manifest: manifest('http://127.0.0.1:9', a), root, quiet: true, parts: ['arkos'] });
     assert.strictEqual(dead.ok, false);
     assert.match(dead.message, /^CPC Game Studio: could not download Arkos Tracker 9\.9: .*\. Check the connection or "http\.proxy", or download the SDK zip from the releases page\.$/);
@@ -141,6 +138,10 @@ test('download tools: no Arkos tools for linux-arm64 is said plainly', async () 
     const r = await download({ manifest: m, root, quiet: true, parts: ['arkos'], platform: 'linux', arch: 'arm64' });
     assert.strictEqual(r.ok, false);
     assert.strictEqual(r.message, 'CPC Game Studio: Arkos Tracker has no command-line tools for linux-arm64, so music conversion is not available here. Convert songs on another computer, or set "cpcbuild.arkos.toolsPath".');
+    // and with nothing else to offer, the pick says it at once
+    const all = await download({ manifest: m, root, quiet: true, platform: 'linux', arch: 'arm64' });
+    assert.strictEqual(all.ok, false);
+    assert.match(all.message, /no command-line tools for linux-arm64/);
   } finally {
     rmrf(root);
   }
@@ -151,42 +152,13 @@ test('download tools: Windows on ARM is offered the x64 tools (they run under em
   const root = tmpRoot();
   try {
     const x64 = { url: 'http://127.0.0.1:9/arkos.zip', sha256: sha(a.ar) };
-    const m: ToolsManifest = { zxbasic: { version: '9.9.9-test', assets: { 'windows-x64': x64 } }, arkos: { version: '9.9', assets: { 'windows-x64': x64 } } };
-    // quiet and no parts: what the walkthrough runs. Both parts are chosen, so both downloads are tried (and the dead server fails them).
+    const m: ToolsManifest = { arkos: { version: '9.9', assets: { 'windows-x64': x64 } } };
+    // quiet and no parts: what the walkthrough runs. Arkos is offered, so the download is tried (and the dead server fails it).
     const r = await download({ manifest: m, root, quiet: true, platform: 'win32', arch: 'arm64' });
     assert.strictEqual(r.ok, false);
     assert.doesNotMatch(r.message, /no command-line tools/);
     assert.match(r.message, /could not download/);
   } finally {
     rmrf(root);
-  }
-});
-
-// Runs only when CPCBUILD_SDK_BUNDLE names an unpacked compiler bundle (the `zxbasic/` folder of a release zip):
-// the whole path of a user who has no Python and no checkout, through an SDK folder (bin/ = the bundle, lib/ = the library).
-const bundle = process.env.CPCBUILD_SDK_BUNDLE;
-(bundle ? test : (n: string, _f: () => Promise<void>) => console.log(`  skip ${n} (set CPCBUILD_SDK_BUNDLE)`))('sdk folder: a project builds with the bundled compiler and mkdsk, no Python, no checkout', async () => {
-  const ws = process.env.CPCBUILD_TEST_WORKSPACE as string;
-  const REPO = path.resolve(__dirname, '../../../../..');
-  const sdk = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-sdk-'));
-  const cfg = vscode.workspace.getConfiguration('cpcbuild');
-  const keys = ['zxbc.command', 'zxbc.cwd', 'library.path', 'sdk.path', 'python.path', 'assets.engine'];
-  const saved = keys.map((k) => [k, cfg.inspect(k)?.workspaceValue] as const);
-  try {
-    fs.cpSync(bundle as string, path.join(sdk, 'bin'), { recursive: true });
-    fs.cpSync(path.join(REPO, 'lib'), path.join(sdk, 'lib'), { recursive: true });
-    for (const k of keys) await cfg.update(k, undefined, vscode.ConfigurationTarget.Workspace); // back to the defaults
-    await cfg.update('sdk.path', sdk, vscode.ConfigurationTarget.Workspace);
-    await cfg.update('python.path', path.join(sdk, 'no-python-here'), vscode.ConfigurationTarget.Workspace); // any use of Python would fail
-    const ext = vscode.extensions.getExtension<import('../../src/ext/activate').StudioApi>('cpcbuild.cpcbuild-studio');
-    assert.ok(ext);
-    const api = ext.isActive ? ext.exports : await ext.activate();
-    const r = await api.build(fs.realpathSync(ws), 'cpc6128');
-    assert.ok(r.ok, r.message);
-    assert.ok(r.artifacts.dsk && fs.statSync(r.artifacts.dsk).size > 1000, 'a disc image was written by the bundled mkdsk');
-    assert.ok(r.reportLines.length > 0);
-  } finally {
-    for (const [k, v] of saved) await cfg.update(k, v, vscode.ConfigurationTarget.Workspace);
-    rmrf(sdk);
   }
 });

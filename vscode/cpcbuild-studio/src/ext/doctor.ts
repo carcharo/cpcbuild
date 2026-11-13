@@ -1,15 +1,17 @@
 /** doctor.ts -- "CPC Game Studio: Check Environment" (spec 2.5). */
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { absFrom, compilerCommand, manifest, readSettings, resolveArkos, resolveCompilerFor, resolveLibrary, resolveMkcpr, resolveMkdsk, Settings } from './config';
+import { VERSION } from '@cpcbuild/cpcbas';
+import { bundledLibrary, manifest, readSettings, resolveArkos, resolveLibrary, Settings } from './config';
 import { findCap32, findCpcec, findRvm } from './run';
 import { isMacPythonStub, pythonCmd, runTool, Sink } from './runTool';
-import { describeCompiler } from './toolpaths';
-import { compilerHint, DOWNLOAD_HINT, poetryAdvice, runZxbc } from './zxbcCommand';
 import { arkosUnavailableText } from './arkos';
 import { assetForKey, toolsPlatform } from '../core/tools';
 import { findTiled } from './tmxViewer';
 import { isTrusted, restrictedText } from './trust';
+
+const DOWNLOAD_HINT = 'Run "CPC Game Studio: Download Tools".';
 
 export interface DoctorItem {
   id: string;
@@ -39,22 +41,19 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   const items: DoctorItem[] = [];
   const add = (i: DoctorItem): void => void items.push(i);
 
-  // compiler and Python: running them starts programs named by settings, so not in Restricted Mode
+  // the compiler is part of the extension: it needs nothing installed
+  const bundled = bundledLibrary();
+  const libOk = !!bundled && fs.existsSync(path.join(bundled, 'lib', 'runtime'));
+  add({ id: 'compiler', label: 'cpcbas (CPC BASIC compiler)', ok: true, detail: `${VERSION}, built in (it runs inside the extension)` });
+  add({
+    id: 'library', label: 'BASIC library (lib/)', ok: libOk, detail: libOk ? path.join(bundled as string, 'lib') : 'not found',
+    fix: 'The extension is damaged: install CPC Game Studio again.',
+  });
+
+  // Python runs only the python image engine: not in Restricted Mode
   const trusted = isTrusted();
-  const cwd = s.zxbcCwd ? absFrom(base, s.zxbcCwd) : base;
-  const comp = resolveCompilerFor(base, s);
-  // Python is optional now: the compiler tools bring their own mkdsk, cartridges and music are built in. It is
-  // needed with the python engine, or with a zxbasic checkout (zxbc.cwd, or `poetry run zxbc`).
-  const pyNeeded = s.assetsEngine === 'python' || !!s.zxbcCwd || comp.kind === 'poetry';
+  const pyNeeded = s.assetsEngine === 'python';
   if (trusted) {
-    const z = await runZxbc(compilerCommand(comp, s), ['--version'], { cwd, quiet: true });
-    const zOut = (z.stdout + z.stderr).trim().split('\n')[0];
-    const where = comp.kind === 'none' ? '' : `${describeCompiler(comp)}; `;
-    add({
-      id: 'zxbc', label: 'zxbc (Boriel BASIC compiler, cpc arch)', ok: z.code === 0,
-      detail: z.code === 0 ? `${where}${z.used.join(' ')}${z.fellBack ? ' (fallback: the default "zxbc" was not found)' : ''}: ${zOut}` : comp.kind === 'none' && comp.problem ? comp.problem : z.error ?? `exited ${z.code}: ${zOut}`,
-      fix: s.zxbcCwd ? `${DOWNLOAD_HINT} Or, with a zxbasic checkout: ${poetryAdvice(s.zxbcCommand, cwd)}` : compilerHint('zxbc could not be run', s.zxbcCommand),
-    });
     // never run macOS's placeholder python3: it pops Apple's "install the developer tools" dialog at a newcomer
     const stub = isMacPythonStub(s.pythonPath);
     const py = stub ? { code: null, stdout: '', stderr: '', error: 'not installed (macOS offers to install its developer tools for it; CPC Game Studio does not need them)' } : await runTool(pythonCmd(s.pythonPath), ['--version'], { quiet: true });
@@ -62,29 +61,18 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
     add({
       id: 'python', label: 'Python 3', ok: py.code === 0 && /Python 3/.test(pyOut), optional: !pyNeeded,
       detail: py.code === 0 ? `${s.pythonPath}: ${pyOut}` : py.error ?? `exited ${py.code}`,
-      fix: pyNeeded ? 'Install Python 3 or set "cpcbuild.python.path".' : 'Only needed with the python engine or a zxbasic checkout.',
+      fix: pyNeeded ? 'Install Python 3 or set "cpcbuild.python.path".' : 'Only needed with the python image engine.',
     });
   } else {
-    for (const [id, label] of [['zxbc', 'zxbc (Boriel BASIC compiler, cpc arch)'], ['python', 'Python 3']] as const) {
-      add({ id, label, ok: false, optional: true, detail: `not run: ${restrictedText('Checking it')}`, fix: 'Trust the workspace ("Manage Workspace Trust"), then run the check again.' });
-    }
+    add({ id: 'python', label: 'Python 3', ok: false, optional: true, detail: `not run: ${restrictedText('Checking it')}`, fix: 'Trust the workspace ("Manage Workspace Trust"), then run the check again.' });
   }
   const lib = resolveLibrary(base, s);
-  add({
-    id: 'library', label: 'cpcbuild library (lib/)', ok: !!lib, detail: lib ? path.join(lib, 'lib') : 'not found',
-    fix: 'Set "cpcbuild.library.path" to your cpcbuild checkout (the folder holding lib/ and tools/).',
-  });
   add(s.assetsEngine === 'python'
     ? {
-      id: 'tools', label: 'cpcbuild tools/ (mkcpr.py)', ok: !!resolveMkcpr(lib), detail: resolveMkcpr(lib) ?? 'not found',
+      id: 'tools', label: 'cpcbuild tools/ (img2cpc.py)', ok: !!lib, detail: lib ? path.join(lib, 'tools') : 'not found',
       fix: 'Point "cpcbuild.library.path" at a full cpcbuild checkout, or set "cpcbuild.assets.engine" to "builtin".',
     }
-    : { id: 'tools', label: 'Cartridge packaging (mkcpr)', ok: true, detail: 'built in' });
-  const mkdsk = resolveMkdsk(s, base, lib, comp);
-  add({
-    id: 'mkdsk', label: 'mkdsk (disc images)', ok: !!mkdsk, detail: mkdsk?.join(' ') ?? 'not found',
-    fix: `${DOWNLOAD_HINT} Or set "cpcbuild.zxbc.cwd" to your zxbasic checkout (it holds tools/cpc/mkdsk.py).`,
-  });
+    : { id: 'tools', label: 'Image and cartridge tools', ok: true, detail: 'built in' });
 
   // emulator
   const emu = s.emulator;

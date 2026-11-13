@@ -2,11 +2,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { MODELS, deriveDiscStem } from '../core/project';
+import { MODELS } from '../core/project';
 import type { EmuEvent } from '../emuApi';
 import { buildTarget, BuildResult, RunInfo } from './build';
 import { channelSink, getChannel, tee } from './channel';
-import { readSettings, resolveLibrary, resolveMkdsk, setBundledLibrary, setToolsStorage } from './config';
+import { readSettings, resolveLibrary, setBundledLibrary, setToolsStorage } from './config';
 import { checkEnvironment, doctorCommand } from './doctor';
 import { downloadToolsCommand } from './toolsCommand';
 import { newProjectCommand } from './newProject';
@@ -19,7 +19,7 @@ import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetComman
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
 import { runFromCatalogue, targetForDsk } from './dskRun';
 import { runInEmulator, setStorageDir } from './run';
-import { runTool } from './runTool';
+import { runToolLog } from './runTool';
 import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
 import { requireTrust, trustTestApi } from './trust';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
@@ -28,7 +28,9 @@ import { registerLintAndHover } from './lintHover';
 import { DebugApi, registerDebugFeatures } from './debugFeatures';
 import { emuMissingTestApi } from './emuMissing';
 import { emuInstallTestApi, installEmulator, setEmuInstallContext } from './emuInstall';
-import { offerToolsAtActivation, setStudioExtensionId, setupTestApi, updateSetupContext } from './setupPrompts';
+import { setStudioExtensionId, setupTestApi, updateSetupContext } from './setupPrompts';
+import { offerArgsMigration, settingsMigrationTestApi } from './settingsMigration';
+import { buildProblems } from './buildProblems';
 import { musicConvertCommand, musicPlayCommand, musicStopCommand } from './music';
 import { generateTmxAsset, openInTiledCommand, TmxViewerProvider, tmxGenerateCommand } from './tmxViewer';
 import { webviewHtml, webviewRoot } from './webviewHtml';
@@ -57,8 +59,12 @@ export interface StudioApi {
   debug: DebugApi;
   /** The missing-emulator warning: test hooks. */
   emuMissing: typeof emuMissingTestApi;
-  /** The setup notifications (activation, build failure, Arkos): test hooks. */
+  /** The setup notifications (Arkos): test hooks. */
   setup: typeof setupTestApi;
+  /** The one-time message about the old compiler-arguments setting of 0.1.x: test hooks. */
+  settingsMigration: typeof settingsMigrationTestApi;
+  /** Every program the Studio started through runTool (the compiler is none of them): extension-host tests read this. */
+  runToolLog: readonly (readonly string[])[];
   /** The emulator install from the release: test hooks. */
   emuInstall: typeof emuInstallTestApi;
   /** How many lint passes ran for a document (tests wait on this). */
@@ -134,11 +140,11 @@ async function discToRun(file: string, s: ReturnType<typeof readSettings>): Prom
   return undefined;
 }
 
-/** Explorer "Run in emulator" on a .dsk, .cpr or .bin. */
+/** Explorer "Run in emulator" on a .dsk or .cpr. */
 async function runFile(uri?: vscode.Uri): Promise<void> {
   const file = uri?.fsPath ?? vscode.window.activeTextEditor?.document.uri.fsPath;
   if (!file) {
-    void vscode.window.showInformationMessage('CPC Game Studio: choose a .dsk, .cpr or .bin file to run.');
+    void vscode.window.showInformationMessage('CPC Game Studio: choose a .dsk or .cpr file to run.');
     return;
   }
   const s = readSettings(path.dirname(file));
@@ -153,31 +159,10 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
   }
   else if (ext === '.cpr') run = { file, kind: 'cpr', model: 'plus' };
   else if (ext === '.bin') {
-    // package first (the emulator never gets a raw .bin): origin from the map beside it, else &0040
-    const mapFile = file.replace(/\.bin$/i, '.map');
-    let load = 0x40;
-    if (fs.existsSync(mapFile)) {
-      const { parseMap, programStart } = await import('../core/map');
-      load = programStart(parseMap(fs.readFileSync(mapFile, 'utf8'))) ?? 0x40;
-    }
-    if (!requireTrust('Run in Emulator for a .bin file (it is packaged with mkdsk first)')) return;
-    const lib = resolveLibrary(path.dirname(file), s);
-    const mkdsk = resolveMkdsk(s, path.dirname(file), lib);
-    if (!mkdsk) {
-      void vscode.window.showErrorMessage('CPC Game Studio: mkdsk was not found. Run "CPC Game Studio: Download Tools", or set "cpcbuild.zxbc.cwd" to your zxbasic checkout.');
-      return;
-    }
-    const stem = deriveDiscStem(path.basename(file, ext));
-    const dsk = file.replace(/\.bin$/i, '.dsk');
-    const hex = '0x' + load.toString(16).toUpperCase();
-    const r = await runTool(mkdsk, ['-o', dsk, '--load', hex, '--exec', hex, '--name', `${stem}.BIN`, file], { sink });
-    if (r.code !== 0) {
-      void vscode.window.showErrorMessage(`CPC Game Studio: packaging failed${r.error ? `: ${r.error}` : ` (mkdsk exited ${r.code})`}.`);
-      return;
-    }
-    run = { file: dsk, kind: 'dsk', name: stem, model: s.model };
+    void vscode.window.showInformationMessage('CPC Game Studio: a raw .bin has no disc to start from. Run the .dsk or .cpr of the target (set its "package" to "dsk" in cpcbuild.json).');
+    return;
   } else {
-    void vscode.window.showInformationMessage(`CPC Game Studio: cannot run a ${ext || 'file without extension'}; use .dsk, .cpr or .bin.`);
+    void vscode.window.showInformationMessage(`CPC Game Studio: cannot run a ${ext || 'file without extension'}; use .dsk or .cpr.`);
     return;
   }
   const out = await runInEmulator(path.dirname(file), run, sink);
@@ -207,7 +192,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-project');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.command = 'cpcbuild.selectTarget';
-  context.subscriptions.push(diag, status, getChannel());
+  context.subscriptions.push(diag, status, getChannel(), buildProblems());
 
   async function refresh(): Promise<void> {
     const projects = await findProjects();
@@ -239,14 +224,14 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     vscode.tasks.registerTaskProvider(TASK_TYPE, new CpcbuildTaskProvider()),
   );
   void refresh();
-  // walkthrough completion (cpcbuild.toolsInstalled, cpcbuild.emuInstalled) and the one-per-session "no compiler" notice
+  // walkthrough completion (cpcbuild.emuInstalled)
   void updateSetupContext();
   context.subscriptions.push(
     vscode.extensions.onDidChange(() => void updateSetupContext()),
     vscode.workspace.onDidChangeConfiguration((e) => e.affectsConfiguration('cpcbuild') && void updateSetupContext()),
   );
-  // the extension-host tests start with no tools on purpose: they ask for the notice through setupTestApi
-  if (context.extensionMode !== vscode.ExtensionMode.Test) void offerToolsAtActivation();
+  // the compiler-arguments setting of 0.1.x: one message per workspace (the extension-host tests ask for it through the API)
+  if (context.extensionMode !== vscode.ExtensionMode.Test) void offerArgsMigration(context.workspaceState);
 
   const reg = (id: string, fn: (...a: any[]) => unknown): void => void context.subscriptions.push(vscode.commands.registerCommand(id, fn));
   if (context.extensionMode !== vscode.ExtensionMode.Production) {
@@ -373,6 +358,8 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     debug: debugApi,
     emuMissing: emuMissingTestApi,
     setup: setupTestApi,
+    settingsMigration: settingsMigrationTestApi,
+    runToolLog,
     emuInstall: emuInstallTestApi,
     runIn: runInEmulator,
     disc: discTestApi,

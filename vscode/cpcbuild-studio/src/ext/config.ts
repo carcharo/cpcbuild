@@ -2,15 +2,14 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { MODELS, Model, parseAddress } from '../core/project';
-import { arkosDirName, ToolsManifest, zxbasicDirName } from '../core/tools';
+import { arkosDirName, ToolsManifest } from '../core/tools';
 import { manifest } from './toolsManifest';
 
 export type EmulatorChoice = 'emu' | 'caprice32' | 'cpcec' | 'rvm' | 'custom';
 
 export interface Settings {
-  zxbcCommand: string[];
-  zxbcCwd: string;
-  zxbcArgs: string[];
+  /** "cpcbuild.compiler.args": the command line's own flags (-O, --heap, -D, ...), see parseCompilerArgs. */
+  compilerArgs: string[];
   /** "cpcbuild.sdk.path" (empty = look for an SDK folder above the project). */
   sdkPath: string;
   /** The Python program ("py -3" = the Windows launcher, when the setting is unset there). */
@@ -28,9 +27,6 @@ export interface Settings {
   cpcecPath: string;
   rvmPath: string;
   customCommand: string;
-  /** External Spectrum emulator for .tap targets (empty = none) and its arguments (${file} = the .tap). */
-  zxEmulator: string;
-  zxEmulatorArgs: string[];
   autorunCommand: string;
   /** Image importer engine (spec 4.4) and the header of generated files. */
   assetsEngine: 'builtin' | 'python';
@@ -40,7 +36,6 @@ export interface Settings {
   /** Arkos command-line tools folder (empty = $AT3_TOOLS, then tools/arkos/work/bin). */
   arkosToolsPath: string;
   arkosTrackerPath: string;
-  arkosPsg: 'cpc' | 'spectrum';
   tiledPath: string;
 }
 
@@ -71,9 +66,7 @@ export function readSettings(projectDir?: string): Settings {
   const model = c.get<string>('model', '6128');
   const orgText = (c.get<string>('build.org') ?? '').trim();
   return {
-    zxbcCommand: c.get<string[]>('zxbc.command') ?? ['zxbc'],
-    zxbcCwd: c.get<string>('zxbc.cwd') ?? '',
-    zxbcArgs: c.get<string[]>('zxbc.args') ?? [],
+    compilerArgs: (c.get<unknown[]>('compiler.args') ?? []).filter((a): a is string => typeof a === 'string'),
     sdkPath: c.get<string>('sdk.path') ?? '',
     pythonPath: pythonSetting(c),
     libraryPath: c.get<string>('library.path') ?? '',
@@ -88,8 +81,6 @@ export function readSettings(projectDir?: string): Settings {
     cpcecPath: c.get<string>('run.cpcecPath') ?? '',
     rvmPath: c.get<string>('run.rvmPath') ?? '',
     customCommand: c.get<string>('run.customCommand') ?? '',
-    zxEmulator: c.get<string>('run.zxEmulator') ?? '',
-    zxEmulatorArgs: c.get<string[]>('run.zxEmulatorArgs') ?? ['${file}'],
     autorunCommand: c.get<string>('run.autorunCommand') || 'run"${name}',
     assetsEngine: c.get<string>('assets.engine') === 'python' ? 'python' : 'builtin',
     assetsHeader: ((h) => (h === 'studio' || h === 'none' ? h : 'img2cpc'))(c.get<string>('assets.header')),
@@ -97,17 +88,16 @@ export function readSettings(projectDir?: string): Settings {
     regenerateBeforeBuild: c.get<boolean>('assets.regenerateBeforeBuild', true),
     arkosToolsPath: c.get<string>('arkos.toolsPath') ?? '',
     arkosTrackerPath: c.get<string>('arkos.trackerPath') ?? '',
-    arkosPsg: c.get<string>('arkos.psg') === 'spectrum' ? 'spectrum' : 'cpc',
     tiledPath: c.get<string>('tiled.path') ?? '',
   };
 }
 
 import { findArkosTools } from './arkos';
-import { PY_LAUNCHER, pythonCmd, toolEnv } from './runTool';
-import { absFrom, CompilerResolution, fileExists, findSdk, isLibraryDir, mkdskCommand, NoCompiler, pathDirs, resolveCompiler, resolveLibraryPure, resolveMkcpr } from './toolpaths';
+import { PY_LAUNCHER, toolEnv } from './runTool';
+import { absFrom, fileExists, findSdk, isLibraryDir, pathDirs, resolveLibraryPure } from './toolpaths';
 import { isTrusted } from './trust';
 
-export { absFrom, fileExists, isLibraryDir, resolveMkcpr };
+export { absFrom, fileExists, isLibraryDir };
 
 export { manifest };
 
@@ -118,16 +108,12 @@ export function setToolsStorage(dir: string | undefined): void {
 }
 /** <globalStorage>/tools: the managed tools live under it, one folder per version. */
 export const toolsRoot = (): string | undefined => (storageRoot ? path.join(storageRoot, 'tools') : undefined);
-export const managedZxbasicDir = (m: ToolsManifest = manifest): string | undefined => {
-  const r = toolsRoot();
-  return r ? path.join(r, zxbasicDirName(m.zxbasic.version)) : undefined;
-};
 export const managedArkosDir = (m: ToolsManifest = manifest): string | undefined => {
   const r = toolsRoot();
   return r ? path.join(r, arkosDirName(m.arkos.version), 'bin') : undefined;
 };
 
-/** The copy of lib/ and tools/ shipped inside the extension (set at activation); the last place the library is looked for. */
+/** The copy of lib/ and tools/ shipped inside the extension (set at activation): the compiler's BASIC library, and the last place tools/ is looked for. */
 let bundledDir: string | undefined;
 export function setBundledLibrary(dir: string | undefined): void {
   bundledDir = dir;
@@ -136,27 +122,14 @@ export function bundledLibrary(): string | undefined {
   return bundledDir;
 }
 
-/** The SDK folder for a project (the setting, else bin/zxbc at or above it). */
+/** The SDK folder for a project (the setting, else bin/cpcbas.mjs at or above it). */
 export function sdkFolder(projectDir: string, s: Settings): string | undefined {
   return findSdk(projectDir, s.sdkPath);
 }
 
-/** The cpcbuild folder: setting, then the project's "library" (ignored in Restricted Mode), then upwards from the project, then the SDK's lib/, then the bundled copy. */
+/** The cpcbuild folder (the one with tools/): setting, then the project's "library" (ignored in Restricted Mode), then upwards from the project, then the SDK folder, then the bundled copy. */
 export function resolveLibrary(projectDir: string, s: Settings, projectLibrary?: string | null): string | undefined {
   return resolveLibraryPure(projectDir, s, isTrusted() ? projectLibrary : null, bundledDir, sdkFolder(projectDir, s));
-}
-
-/** Where the compiler comes from (explicit setting, SDK, managed tools, PATH, Poetry checkout). */
-export function resolveCompilerFor(projectDir: string, s: Settings): CompilerResolution | NoCompiler {
-  return resolveCompiler(s, projectDir, managedZxbasicDir(), process.platform, { env: toolEnv() });
-}
-
-/** The command that starts the compiler: the resolved one, else the setting (whose "not found" error is then reported). */
-export const compilerCommand = (r: CompilerResolution | NoCompiler, s: Settings): string[] => (r.kind === 'none' ? s.zxbcCommand : r.zxbc);
-
-/** The command that creates a .dsk (mkdsk next to the compiler, or mkdsk.py through Python); undefined when neither exists. */
-export function resolveMkdsk(s: Settings, projectDir: string, library?: string, res: CompilerResolution | NoCompiler = resolveCompilerFor(projectDir, s)): string[] | undefined {
-  return mkdskCommand(res, s, projectDir, library, pythonCmd(s.pythonPath));
 }
 
 /** The Arkos command-line tools: setting, SDK, managed, $AT3_TOOLS, PATH, then a checkout's tools/arkos/work/bin. */

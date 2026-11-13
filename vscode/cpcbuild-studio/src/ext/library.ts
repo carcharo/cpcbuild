@@ -3,10 +3,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { includesOf, mask, userDefinedNames } from '../core/bastok';
 import { DocsIndex, indexDocs } from '../core/libdocs';
-import { loadIndex, stdlibDirOf } from '../core/libfs';
+import { loadIndex } from '../core/libfs';
 import type { LibIndex } from '../core/libindex';
 import { LoadedProject, loadProjectFile, PROJECT_FILE } from './projects';
-import { readSettings, resolveLibrary } from './config';
+import { bundledLibrary, readSettings, resolveLibrary } from './config';
 
 export interface LibraryInfo {
   projectRoot: string;
@@ -68,12 +68,9 @@ export function libraryFor(file: string): LibraryInfo | undefined {
   if (!root) return undefined;
   const project = projectAt(root);
   const s = readSettings(root);
-  const libDir = resolveLibrary(root, s, project.project?.library);
-  let stdlibDir: string | undefined;
-  const sibling = libDir ? path.resolve(libDir, '..', 'zxbasic') : undefined;
-  for (const z of [s.zxbcCwd ? path.resolve(root, s.zxbcCwd) : undefined, sibling]) {
-    if (z && (stdlibDir = stdlibDirOf(z))) break;
-  }
+  // the library the compiler really uses: the one inside the extension (it matches the bundled compiler)
+  const libDir = bundledLibrary() ?? resolveLibrary(root, s, project.project?.library);
+  const stdlibDir: string | undefined = undefined;
   const key = `${libDir ?? ''}|${stdlibDir ?? ''}`;
   let c = libCache.get(key);
   if (!c) {

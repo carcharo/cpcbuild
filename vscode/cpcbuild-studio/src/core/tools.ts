@@ -1,6 +1,5 @@
 /**
- * tools.ts -- the tools manifest (tools-manifest.json: where Download Tools gets the compiler and the Arkos
- * command-line tools, and the SHA-256 each download must have) and the platform names it uses. No vscode import.
+ * tools.ts -- the tools manifest (tools-manifest.json: where Download Tools gets the Arkos command-line tools, and the SHA-256 each download must have) and the platform names it uses. No vscode import.
  */
 
 export type ToolsPlatform = 'windows-x64' | 'windows-arm64' | 'linux-x64' | 'linux-arm64' | 'macos-arm64' | 'macos-x64';
@@ -16,7 +15,7 @@ export function toolsPlatform(platform: NodeJS.Platform, arch: string): ToolsPla
 
 /**
  * The part's asset for a platform key: its own entry, else (Windows on ARM) the x64 one, which runs under
- * emulation (about 3.5 times slower for the compiler; Arkos has no ARM build at all).
+ * emulation (Arkos has no ARM build at all).
  */
 export function assetForKey(p: ToolPart, key: ToolsPlatform): ToolAsset | undefined {
   return p.assets[key] ?? (key === 'windows-arm64' ? p.assets['windows-x64'] : undefined);
@@ -24,7 +23,7 @@ export function assetForKey(p: ToolPart, key: ToolsPlatform): ToolAsset | undefi
 
 export interface ToolAsset {
   url: string;
-  /** 64 lowercase hex digits, or "PIN" before scripts/pin-compiler.mjs has filled it in. */
+  /** 64 lowercase hex digits, or "PIN" until the checksum is pinned. */
   sha256: string;
 }
 
@@ -34,7 +33,6 @@ export interface ToolPart {
 }
 
 export interface ToolsManifest {
-  zxbasic: ToolPart;
   arkos: ToolPart;
 }
 
@@ -73,9 +71,8 @@ function parsePart(name: string, v: unknown): ToolPart {
 /** Checks the manifest (parsed JSON) and resolves platform aliases. Throws ManifestError. */
 export function parseManifest(json: unknown): ToolsManifest {
   if (!isObj(json)) throw new ManifestError('tools manifest: not an object');
-  return { zxbasic: parsePart('zxbasic', json.zxbasic), arkos: parsePart('arkos', json.arkos) };
+  return { arkos: parsePart('arkos', json.arkos) };
 }
 
-/** Folder names under <globalStorage>/tools/ for a version of each part. */
-export const zxbasicDirName = (version: string): string => `zxbasic-${version}`;
+/** Folder name under <globalStorage>/tools/ for a version of Arkos. */
 export const arkosDirName = (version: string): string => `arkos-${version}`;
