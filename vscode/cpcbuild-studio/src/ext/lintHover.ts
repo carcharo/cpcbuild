@@ -1,8 +1,9 @@
 /**
  * lintHover.ts -- library hover, completion, signature help and lint for
- * Boriel BASIC files inside cpcbuild projects (spec 5.4). Studio claims no
- * `.bas` language (spec 3.3): the providers attach by file pattern, and every
- * one of them returns nothing for a file that has no cpcbuild.json above it.
+ * CPC BASIC files inside cpcbuild projects, and the compiler's own
+ * diagnostics (editorDiagnostics.ts). The `cpcbasic` language is Studio's; the
+ * providers attach to it and to the `.bas` file pattern, and every one of them
+ * returns nothing for a file that has no cpcbuild.json above it.
  */
 import * as vscode from 'vscode';
 import { Masked, mask, userDefinedNames } from '../core/bastok';
@@ -11,17 +12,18 @@ import { callAt, describeRoutine, describeSetting, HoverParts, paramRanges } fro
 import { LibIndex, LibRoutine } from '../core/libindex';
 import { Finding, lint, RULES, RuleId, Severity } from '../core/lint';
 import { readSettings } from './config';
+import { EditorDiagnostics, registerEditorDiagnostics } from './editorDiagnostics';
 import { includedUserNames, invalidateLibraries, LibraryInfo, libraryFor, targetFacts } from './library';
 
-/** Language ids the Boriel BASIC extensions use for .bas files; the file pattern covers the rest. */
-const LANGUAGES = ['zxbasic', 'boriel', 'boriel-basic', 'cpcbuild-basic'];
+/** The language Studio contributes for `.bas`; the file pattern still covers a file that another extension's language claimed. */
+export const LANGUAGE_ID = 'cpcbasic';
 export const SELECTOR: vscode.DocumentSelector = [
+  { scheme: 'file', language: LANGUAGE_ID },
   { scheme: 'file', pattern: '**/*.bas' },
   { scheme: 'file', pattern: '**/*.BAS' },
-  ...LANGUAGES.map((language) => ({ scheme: 'file', language })),
 ];
 
-const isBasic = (d: vscode.TextDocument): boolean => d.uri.scheme === 'file' && (/\.bas$/i.test(d.uri.fsPath) || LANGUAGES.includes(d.languageId));
+const isBasic = (d: vscode.TextDocument): boolean => d.uri.scheme === 'file' && (/\.bas$/i.test(d.uri.fsPath) || d.languageId === LANGUAGE_ID);
 
 interface MaskEntry {
   version: number;
@@ -51,17 +53,14 @@ function markdown(p: HoverParts, docsLink?: { name: string; label: string }): vs
   return md;
 }
 
-/** Picks the routine for a name: the Spectrum variant only for Spectrum targets. */
-function pick(index: LibIndex, name: string, arch?: string): LibRoutine | undefined {
+/** The routine a name stands for. */
+function pick(index: LibIndex, name: string): LibRoutine | undefined {
   const l = index.byName.get(name.toLowerCase());
-  if (!l) return undefined;
-  const want = arch === 'zx48k' ? 'zx' : undefined;
-  return (want && l.find((r) => r.platform === want)) || l.find((r) => r.platform !== 'zx') || l[0];
+  return l?.find((r) => r.platform !== 'plus') ?? l?.[0];
 }
 
 interface Ctx {
   info: LibraryInfo;
-  arch?: 'cpc' | 'zx48k';
   own: Set<string>;
 }
 
@@ -72,7 +71,7 @@ function ctxFor(doc: vscode.TextDocument): Ctx | undefined {
   const text = doc.getText();
   const own = userDefinedNames(maskOf(doc).code);
   for (const n of includedUserNames(doc.uri.fsPath, text)) own.add(n);
-  return { info, arch: targetFacts(info, doc.uri.fsPath).arch, own };
+  return { info, own };
 }
 
 const SEVERITY: Record<string, vscode.DiagnosticSeverity | undefined> = {
@@ -94,8 +93,9 @@ export function severityFor(rule: RuleId, overrides: Record<string, unknown>): v
   return SEVERITY[RULES[rule].severity as Severity];
 }
 
-export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id: string, fn: (...a: any[]) => unknown) => void): { runs(uri: vscode.Uri): number } {
+export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id: string, fn: (...a: any[]) => unknown) => void): { runs(uri: vscode.Uri): number; compiler: EditorDiagnostics } {
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-lint');
+  const compiler = registerEditorDiagnostics(context);
   const timers = new Map<string, NodeJS.Timeout>();
   context.subscriptions.push(diag, { dispose: () => timers.forEach((t) => clearTimeout(t)) });
 
@@ -113,7 +113,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     }
     const facts = targetFacts(ctx.info, doc.uri.fsPath);
     const overrides = cfg.get<Record<string, unknown>>('lint.rules') ?? {};
-    const findings: Finding[] = lint(doc.getText(), { index: ctx.info.index, arch: facts.arch, bare: facts.bare, userNames: ctx.own });
+    const findings: Finding[] = lint(doc.getText(), { index: ctx.info.index, bare: facts.bare, userNames: ctx.own });
     const ds: vscode.Diagnostic[] = [];
     for (const f of findings) {
       const sev = severityFor(f.rule, overrides);
@@ -144,7 +144,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
   // library files change: rebuild the indexes (watch the library folders that are in use)
   const watched = new Set<string>();
   function watch(info?: LibraryInfo): void {
-    for (const dir of [info?.libDir, info?.stdlibDir]) {
+    for (const dir of [info?.libDir]) {
       if (!dir || watched.has(dir)) continue;
       watched.add(dir);
       const w = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(dir), '**/*.{bas,md}'));
@@ -193,7 +193,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
         const word = doc.getText(range);
         const lower = word.toLowerCase();
         if (ctx.own.has(lower)) return undefined; // the program's own routine shadows the library's
-        const r = inCode ? pick(ctx.info.index, word, ctx.arch) : undefined;
+        const r = inCode ? pick(ctx.info.index, word) : undefined;
         if (r) {
           const sec = ctx.info.docs && sectionFor(ctx.info.docs, r.name, r.file);
           return new vscode.Hover(markdown(describeRoutine(r, sec), sec ? { name: r.name, label: sec.text.replace(/`/g, '') } : undefined), range);
@@ -220,8 +220,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
         for (const r of ctx.info.index.routines) {
           const k = r.name.toLowerCase();
           if (seen.has(k) || ctx.own.has(k)) continue;
-          if (!r.doc && /^(_|Cb[A-Z]|Zxs[A-Z])/.test(r.name)) continue; // library internals
-          if (r.platform === 'zx' && ctx.arch !== 'zx48k') continue;
+          if (!r.doc && /^(_|Cb[A-Z])/.test(r.name)) continue; // library internals
           seen.add(k);
           const it = new vscode.CompletionItem({ label: r.name, description: r.file }, vscode.CompletionItemKind.Function);
           it.detail = r.signature;
@@ -244,7 +243,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
           const code = (maskOf(doc).code[pos.line] ?? '').slice(0, pos.character);
           const call = callAt(code);
           if (!call || ctx.own.has(call.name.toLowerCase())) return undefined;
-          const r = pick(ctx.info.index, call.name, ctx.arch);
+          const r = pick(ctx.info.index, call.name);
           if (!r) return undefined;
           const sig = new vscode.SignatureInformation(r.signature, r.doc ? new vscode.MarkdownString().appendText(r.doc) : undefined);
           sig.parameters = paramRanges(r.signature, r.params).map(([a, b]) => new vscode.ParameterInformation([a, b]));
@@ -273,7 +272,7 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     const file = ed && isBasic(ed.document) ? ed.document.uri.fsPath : undefined;
     const info = file ? libraryFor(file) : undefined;
     if (!info?.index || !info.docs || !info.docsFile) {
-      void vscode.window.showInformationMessage('CPC Game Studio: library docs not found. Open a .bas file in a cpcbuild project, or set "cpcbuild.library.path".');
+      void vscode.window.showInformationMessage('CPC Game Studio: library docs not found. Open a .bas file in a cpcbuild project.');
       return undefined;
     }
     let target = typeof name === 'string' ? name : undefined;
@@ -300,5 +299,5 @@ export function registerLintAndHover(context: vscode.ExtensionContext, reg: (id:
     await vscode.window.showTextDocument(vscode.Uri.file(info.docsFile), { selection: new vscode.Range(pos, pos), preview: true });
     return { file: info.docsFile, line: sec.line, heading: sec.text };
   });
-  return { runs: (uri) => runs.get(uri.toString()) ?? 0 };
+  return { runs: (uri) => runs.get(uri.toString()) ?? 0, compiler };
 }

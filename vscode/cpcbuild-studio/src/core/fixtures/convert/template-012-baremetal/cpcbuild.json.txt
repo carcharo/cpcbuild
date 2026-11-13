@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "name": "My Game",
+  "targets": [
+    {
+      "id": "bare6128",
+      "arch": "cpc",
+      "main": "src/main.bas",
+      "model": "6128",
+      "defines": [
+        "CPC6128"
+      ],
+      "bare": true,
+      "package": "dsk",
+      "disc": "MYGAME"
+    }
+  ],
+  "assets": [
+    "assets/**/*.cpcimp",
+    "assets/**/*.cpcspr",
+    "assets/**/*.cpcpal"
+  ]
+}

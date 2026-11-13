@@ -1,0 +1,29 @@
+{
+  "format": "cpcspr",
+  "version": 1,
+  "kind": "cpc",
+  "mode": 1,
+  "name": "ball",
+  "frame": {
+    "w": 8,
+    "h": 8
+  },
+  "masked": false,
+  "palette": {
+    "file": "pens.cpcpal"
+  },
+  "frames": [
+    [
+      "33333333",
+      "32222223",
+      "32222223",
+      "32222223",
+      "32222223",
+      "32222223",
+      "32222223",
+      "33333333"
+    ]
+  ],
+  "output": "ball.bas",
+  "emitPalette": true
+}

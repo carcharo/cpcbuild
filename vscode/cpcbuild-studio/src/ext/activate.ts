@@ -24,6 +24,7 @@ import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
 import { requireTrust, trustTestApi } from './trust';
 import { CpcbuildTaskProvider, createTask, runLast, TASK_TYPE } from './tasks';
 import { registerStubs } from './stubs';
+import { convertProjectCommand } from './convertProject';
 import { registerLintAndHover } from './lintHover';
 import { DebugApi, registerDebugFeatures } from './debugFeatures';
 import { emuMissingTestApi } from './emuMissing';
@@ -63,6 +64,11 @@ export interface StudioApi {
   emuInstall: typeof emuInstallTestApi;
   /** How many lint passes ran for a document (tests wait on this). */
   lintRuns(uri: vscode.Uri): number;
+  /** How many compiler checks covered a document, and a check of every open one now (tests). */
+  diagRuns(uri: vscode.Uri): number;
+  checkNow(): void;
+  /** Convert Project to CPC BASIC with its answers given (tests). */
+  convertProject: typeof convertProjectCommand;
   /** Workspace Trust test hooks (pretend the workspace is untrusted). */
   trust: typeof trustTestApi;
   /** runInEmulator with explicit settings (tests: no prompts, no real emulator). */
@@ -365,6 +371,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   reg('cpcbuild.music.stop', () => musicStopCommand());
   registerStubs(reg);
   const lint = registerLintAndHover(context, reg);
+  reg('cpcbuild.convertProject', (arg) => convertProjectCommand(arg));
 
   return {
     apiVersion: 1,
@@ -377,6 +384,9 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     runIn: runInEmulator,
     disc: discTestApi,
     lintRuns: (uri) => lint.runs(uri),
+    diagRuns: (uri) => lint.compiler.runs(uri),
+    checkNow: () => lint.compiler.checkNow(),
+    convertProject: convertProjectCommand,
     trust: trustTestApi,
     palette,
     sfx,

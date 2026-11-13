@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const watch = process.argv.includes('--watch');
+execFileSync(process.execPath, [join(root, 'scripts/link-cpcbas.mjs')], { stdio: 'inherit' });
 execFileSync(process.execPath, [join(root, 'scripts/bundle.mjs')], { stdio: 'inherit' });
 const out = join(root, 'dist', 'webview');
 mkdirSync(out, { recursive: true });
@@ -20,12 +21,19 @@ mkdirSync(out, { recursive: true });
 const names = readdirSync(join(root, 'src', 'webview'))
   .filter((d) => existsSync(join(root, 'src', 'webview', d, 'main.tsx')));
 
+// the compiler comes from vendor/cpcbas (scripts/link-cpcbas.mjs)
+const cpcbasAlias = {
+  '@cpcbuild/cpcbas/node': join(root, 'vendor/cpcbas/dist/src/node/index.js'),
+  '@cpcbuild/cpcbas': join(root, 'vendor/cpcbas/dist/src/index.js'),
+};
+
 const host = {
   entryPoints: [join(root, 'src/extension.ts')],
   bundle: true,
   platform: 'node',
   format: 'cjs',
   external: ['vscode'],
+  alias: cpcbasAlias,
   outfile: join(root, 'dist/extension.js'),
   logLevel: 'warning',
   sourcemap: watch,

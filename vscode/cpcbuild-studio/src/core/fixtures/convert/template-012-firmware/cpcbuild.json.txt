@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "name": "My Game",
+  "targets": [
+    {
+      "id": "cpc6128",
+      "arch": "cpc",
+      "main": "src/main.bas",
+      "model": "6128",
+      "defines": [
+        "CPC6128"
+      ],
+      "package": "dsk",
+      "disc": "MYGAME"
+    },
+    {
+      "id": "cpc464",
+      "arch": "cpc",
+      "main": "src/main.bas",
+      "model": "464",
+      "defines": [
+        "CPC464"
+      ],
+      "package": "dsk",
+      "disc": "MYGAME"
+    }
+  ],
+  "assets": [
+    "assets/**/*.cpcimp",
+    "assets/**/*.cpcspr",
+    "assets/**/*.cpcpal"
+  ]
+}

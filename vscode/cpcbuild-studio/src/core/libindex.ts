@@ -4,16 +4,16 @@
  *
  * Documentation comes from the file header (entries such as
  * `'   PutSprite(x, y, w, h, spr)   copy w*h bytes ...` with deeper-indented
- * continuation lines) and, for files without a header entry (the compiler's
- * cpc stdlib), from the comment block directly above the declaration.
+ * continuation lines) and, for files without a header entry (stdlib/), from
+ * the comment block directly above the declaration.
  */
 import { DECL_RE, END_ROUTINE_RE, mask } from './bastok';
 
-export type Platform = 'cpc' | 'plus' | 'zx';
+export type Platform = 'cpc' | 'plus';
 
 export interface LibParam {
   name: string;
-  /** Upper-case Boriel type, or null when none was written. */
+  /** Upper-case type name, or null when none was written. */
   type: string | null;
   default?: string;
 }
@@ -24,7 +24,7 @@ export interface LibRoutine {
   params: LibParam[];
   returns: string | null;
   fastcall: boolean;
-  /** `PutSprite(x AS INTEGER, ...)` ready for display. */
+  /** `SUB PutSprite(x AS INTEGER, ...)` ready for display. */
   signature: string;
   /** What the header (or the comment above) says; soft-wrapped lines joined. */
   doc: string;
@@ -253,7 +253,7 @@ function settingsOf(file: string, raw: string[]): LibSetting[] {
   return out;
 }
 
-/** Builds the index from file texts. Pass the files of one library root (the cpcbuild lib/ folder, or the compiler's cpc stdlib folder). */
+/** Builds the index from file texts. Pass the files of one library root (the bundled lib/ folder). */
 export function buildIndex(files: LibFileInput[]): LibIndex {
   const masked = files.map((f) => mask(f.text));
   const decls = files.map((f, i) => parseDecls(f.path, masked[i].raw, masked[i].code));
@@ -285,9 +285,7 @@ export function buildIndex(files: LibFileInput[]): LibIndex {
       const own = entries[fi].filter((e) => e.names.some((n) => n.toLowerCase() === k)).map((e) => e.doc).filter(Boolean);
       const sibling = own.length
         ? []
-        : files.flatMap((g, gi) =>
-            gi !== fi && dirOf(g.path) === dirOf(f.path) && (!/_(cpc|zx)\.bas$/.test(g.path) || platformOfPath(g.path) === f.platform) ? entries[gi] : [],
-          )
+        : files.flatMap((g, gi) => (gi !== fi && dirOf(g.path) === dirOf(f.path) ? entries[gi] : []))
             .filter((e) => e.names.some((n) => n.toLowerCase() === k))
             .map((e) => e.doc)
             .filter(Boolean);
@@ -299,8 +297,8 @@ export function buildIndex(files: LibFileInput[]): LibIndex {
           .map((c) => ({ indent: c.indent, text: c.text })),
       );
       if (!docs.length && aboveText) docs = [aboveText];
-      // the compiler's top-level stdlib files document their routines above the declaration too: keep that as details
-      else if (aboveText && !f.path.includes('/')) docs = [...docs, aboveText];
+      // the stdlib files document their routines above the declaration too: keep that as details
+      else if (aboveText && f.path.startsWith('stdlib/')) docs = [...docs, aboveText];
       const rt: LibRoutine = {
         name: primary.name,
         kind: primary.kind,
@@ -336,9 +334,7 @@ export function lookup(idx: LibIndex, name: string, prefer?: Platform): LibRouti
   return (prefer && l.find((r) => r.platform === prefer)) || l[0];
 }
 
-/** Platform of a library file from its path (`cpcplus/` is the Plus, `zxbuild/` and `*_zx.bas` the Spectrum). */
+/** Platform of a library file from its path (`cpcplus/` is the Plus). */
 export function platformOfPath(p: string): Platform {
-  if (/(^|\/)cpcplus\//.test(p)) return 'plus';
-  if (/(^|\/)zxbuild\//.test(p) || /_zx\.bas$/.test(p)) return 'zx';
-  return 'cpc';
+  return /(^|\/)cpcplus\//.test(p) ? 'plus' : 'cpc';
 }

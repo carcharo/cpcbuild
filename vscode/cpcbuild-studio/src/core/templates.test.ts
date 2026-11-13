@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseProject } from './project';
 import { generateTemplate, TEMPLATES } from './templates';
+import { compileFiles, errorsOf } from './cpcbasTestUtil';
 import { parseSprite, resolvePalette } from './spriteDoc';
 import { exportAsset } from './spriteExport';
 
@@ -22,11 +23,17 @@ describe('templates', () => {
   it('firmware template points at the Sprite Editor', () => {
     expect(generateTemplate('firmware', { name: 'x' }).files['src/main.bas'] ?? '').toContain('CPC Sprite Editor');
   });
-  it('plus has a cartridge and a disc; shared has both machines', () => {
+  it('plus has a cartridge and a disc', () => {
     const plus = parseProject(generateTemplate('plus', { name: 'x' }).files['cpcbuild.json']).project!;
     expect(plus.targets.map((t) => t.package)).toEqual(['cpr', 'dsk']);
-    const sh = parseProject(generateTemplate('shared', { name: 'x' }).files['cpcbuild.json']).project!;
-    expect(sh.targets.map((t) => t.arch)).toEqual(['cpc', 'cpc', 'zx48k', 'zx48k']);
+  });
+  it('there is no Spectrum template, and nothing the user receives names the Boriel compiler or the Spectrum', () => {
+    expect(TEMPLATES.map((t) => t.id)).toEqual(['firmware', 'baremetal', 'plus']);
+    for (const id of TEMPLATES.map((t) => t.id)) {
+      for (const [f, text] of Object.entries(generateTemplate(id, { name: 'x' }).files)) {
+        expect(text, f).not.toMatch(/zxbc|zxbasic|Boriel|Spectrum|zx48k|\.tap\b/i);
+      }
+    }
   });
   it('non-ASCII names give PROG', () => {
     expect(generateTemplate('firmware', { name: '名前' }).disc).toBe('PROG');
@@ -66,5 +73,26 @@ describe('template asset globs', () => {
       const cfg = JSON.parse(r.files['cpcbuild.json']);
       for (const g of cfg.assets) expect(g).toMatch(/\.(cpcimp|cpcspr|cpcpal|cpcpal12|cpcsfx|cpcsong)$/);
     }
+  });
+});
+
+describe('every template builds', () => {
+  // each target of each template, as the build compiles it: the target's defines, CPC_BAREMETAL for bare, CPC_OWNFONT for ownFont
+  const cases = TEMPLATES.flatMap(({ id }) => {
+    const r = generateTemplate(id, { name: 'demo' });
+    const p = parseProject(r.files['cpcbuild.json']).project!;
+    return p.targets.map((tg) => ({ id, tg, files: r.files }));
+  });
+  it.each(cases.map((c) => [`${c.id}/${c.tg.id}`, c] as const))('%s compiles to a %s', (_name, c) => {
+    const defines: Record<string, string> = {};
+    for (const d of c.tg.defines) defines[d] = '';
+    if (c.tg.bare) defines.CPC_BAREMETAL = '';
+    if (c.tg.ownFont) defines.CPC_OWNFONT = '';
+    const r = compileFiles(new Map(Object.entries(c.files)), c.tg.main, defines, c.tg.package as 'dsk' | 'cpr');
+    expect(errorsOf(r)).toEqual([]);
+    expect(r.ok).toBe(true);
+    expect(r.output?.length).toBeGreaterThan(1000);
+    // the template's own code raises no warning
+    expect(r.diagnostics.filter((d) => d.severity === 'warning').length).toBe(0);
   });
 });

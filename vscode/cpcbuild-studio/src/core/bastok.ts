@@ -1,7 +1,13 @@
 /**
- * bastok.ts -- just enough Boriel BASIC lexing for the library index and the
- * lint rules (spec 5.4). Pure TypeScript. Not a parser: it blanks out what is
- * not code (comments, string contents, asm blocks) and finds calls by name.
+ * bastok.ts -- just enough CPC BASIC lexing for the library index and the
+ * lint rules. Pure TypeScript. Not a parser (the compiler's `parseOnly` is
+ * the editor's parser): it blanks out what is not code (comments, string
+ * contents, asm blocks) and finds calls by name.
+ *
+ * What is masked: `'` and `REM` comments (REM as a word, after `:`, THEN, ELSE
+ * or a line number, or at the start of a line), `/' ... '/` block comments, the
+ * inside of strings (`""` inside a string is a quote), and `ASM ... END ASM`.
+ * Hex and binary literals (`&FF`, `&X101`) need no masking: they are not words.
  */
 
 export interface Masked {
@@ -57,7 +63,7 @@ export function mask(text: string): Masked {
         out += ' '.repeat(line.length - i);
         break;
       }
-      if ((ch === 'r' || ch === 'R') && /^rem\b/i.test(line.slice(i)) && /(^|:)\s*$/.test(out)) {
+      if ((ch === 'r' || ch === 'R') && /^rem(?![A-Za-z0-9_$%!])/i.test(line.slice(i)) && /(^|:|\bthen|\belse|^\s*\d+)\s*$/i.test(out)) {
         out += ' '.repeat(line.length - i);
         break;
       }

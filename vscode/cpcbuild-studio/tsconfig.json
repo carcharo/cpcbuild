@@ -13,6 +13,10 @@
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "outDir": "out",
+    "paths": {
+      "@cpcbuild/cpcbas": ["./vendor/cpcbas/dist/src/index.d.ts"],
+      "@cpcbuild/cpcbas/node": ["./vendor/cpcbas/dist/src/node/index.d.ts"]
+    },
     "rootDir": ".",
     "types": [
       "node",

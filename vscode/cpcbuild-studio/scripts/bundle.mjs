@@ -12,16 +12,18 @@ import { fileURLToPath } from 'node:url';
 const here = join(dirname(fileURLToPath(import.meta.url)), '..');
 const repo = join(here, '..', '..');
 const out = join(here, 'bundled');
+// the library is cpcbas's lib/, linked into vendor/cpcbas by scripts/link-cpcbas.mjs
+const lib = join(here, 'vendor', 'cpcbas', 'lib');
 const TOOLS = ['img2cpc.py', 'tmx2bas.py', 'aks2bas.py', 'mkcpr.py'];
 
-if (!existsSync(join(repo, 'lib', 'cpcbuild.bas'))) {
-  console.error(`bundle: ${join(repo, 'lib')} not found: build from the cpcbuild repository`);
+if (!existsSync(join(lib, 'cpcbuild.bas'))) {
+  console.error(`bundle: ${lib} not found: run scripts/link-cpcbas.mjs first`);
   process.exit(1);
 }
 rmSync(out, { recursive: true, force: true });
 mkdirSync(join(out, 'tools'), { recursive: true });
 mkdirSync(join(out, 'docs'), { recursive: true });
-cpSync(join(repo, 'lib'), join(out, 'lib'), { recursive: true });
+cpSync(lib, join(out, 'lib'), { recursive: true });
 for (const t of TOOLS) copyFileSync(join(repo, 'tools', t), join(out, 'tools', t));
 copyFileSync(join(repo, 'docs', 'library.md'), join(out, 'docs', 'library.md'));
 copyFileSync(join(repo, 'LICENSE'), join(out, 'LICENSE'));

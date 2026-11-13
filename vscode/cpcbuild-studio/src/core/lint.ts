@@ -1,30 +1,32 @@
 /**
- * lint.ts -- the advisory rules CB001-CB011 (spec 5.4). Token-level and
- * conservative: a rule only fires on what it can see in one source file, and
- * stays quiet when a name is the program's own (a user SUB that shadows a
- * library name) or when the call sits inside conditional compilation.
+ * lint.ts -- the advisory rules about the library, CB001-CB007 and CB009.
+ * Token-level and conservative: a rule only fires on what it can see in one
+ * source file, and stays quiet when a name is the program's own (a user SUB
+ * that shadows a library name) or when the call sits inside conditional
+ * compilation.
  *
+ * Dropped with the compiler: CB008 (a Spectrum-only module: the include does
+ * not exist now, and the compiler says so), CB011 (zxbpp's `defined()`).
  * Not implemented: CB010 (needs the last build's memory report; the compiler
  * already stops with an error when code reaches &4000 under double buffering
- * or banks, so a static rule would only duplicate it).
+ * or banks). What the compiler's own `parseOnly` finds (syntax, types, names,
+ * includes) is shown by the editor as diagnostics from `cpcbas`, not by this file.
  */
 import { Call, findCalls, includesOf, mask, ppDepths, scopesOf, userDefinedNames } from './bastok';
 import type { LibIndex } from './libindex';
 
-export type RuleId = 'CB001' | 'CB002' | 'CB003' | 'CB004' | 'CB005' | 'CB006' | 'CB007' | 'CB008' | 'CB009' | 'CB011';
+export type RuleId = 'CB001' | 'CB002' | 'CB003' | 'CB004' | 'CB005' | 'CB006' | 'CB007' | 'CB009';
 export type Severity = 'hint' | 'information' | 'warning' | 'error';
 
 export const RULES: Record<RuleId, { severity: Severity; summary: string }> = {
-  CB001: { severity: 'warning', summary: 'Mode without ScreenInit() before drawing' },
+  CB001: { severity: 'warning', summary: 'MODE without ScreenInit() before drawing' },
   CB002: { severity: 'warning', summary: 'SPRLIST_MAX / TEXT_QUEUE defined after the include that reaches the module' },
   CB003: { severity: 'warning', summary: 'firmware-only call in a bare target, or bare-only call in a firmware target' },
-  CB004: { severity: 'information', summary: '12-bit palette set before a Mode and not set again after it' },
+  CB004: { severity: 'information', summary: '12-bit palette set before a MODE and not set again after it' },
   CB005: { severity: 'information', summary: 'Plus program with sprites ends without SpritesHideAll()' },
   CB006: { severity: 'warning', summary: 'AY owners mixed (Play, AyWrite, MusicInit)' },
   CB007: { severity: 'warning', summary: 'literal argument outside the parameter type or pen range' },
-  CB008: { severity: 'warning', summary: 'Spectrum-only module included under a CPC target' },
   CB009: { severity: 'warning', summary: 'sprite size outside 1-255 (SprListDraw: width above 8)' },
-  CB011: { severity: 'warning', summary: '#if defined() is not understood by zxbpp' },
 };
 
 export interface Finding {
@@ -39,8 +41,7 @@ export interface Finding {
 export interface LintContext {
   /** The library index (for CB007 parameter types); without it CB007 only checks the built-in pen rules. */
   index?: LibIndex;
-  /** Target facts, when known (undefined = unknown or the targets disagree: the rules that need them stay quiet). */
-  arch?: 'cpc' | 'zx48k';
+  /** Target fact, when known (undefined = unknown or the targets disagree: the rules that need it stay quiet). */
   bare?: boolean;
   /** Names defined by files this one includes (lower case). */
   userNames?: ReadonlySet<string>;
@@ -58,7 +59,6 @@ const PAL12 = low(['SetPalette12', 'SetBorder12', 'SetPalette12Block']);
 const PLUS_SPRITE = low([
   'SpriteMove', 'SpriteMoveBlock', 'SpriteMag', 'SpriteSetImage', 'SpriteSetImagePacked', 'SpriteColour', 'SpritePalette',
 ]);
-const SPECTRUM_ONLY = ['print42.bas', 'print64.bas', 'attr.bas', 'sinclair.bas'];
 const SIZED = low(['PutSprite', 'PutSpriteMasked', 'GetBlock']);
 const PEN_CALLS = low(['PenByte', 'FillRect', 'ClearScreen', 'TextPen']);
 const MODE_PENS = [15, 3, 1];
@@ -70,7 +70,7 @@ const RANGES: Record<string, [number, number]> = {
   INTEGER: [-32768, 32767],
 };
 
-/** An integer literal's value (decimal, 0x, $, &H, &, %binary), or undefined for anything else. */
+/** An integer literal's value (decimal, 0x, &H, &, &X binary), or undefined for anything else. */
 export function literalValue(text: string): number | undefined {
   let t = text.trim();
   let neg = false;
@@ -82,9 +82,8 @@ export function literalValue(text: string): number | undefined {
   let m: RegExpExecArray | null;
   if (/^\d+$/.test(t)) v = parseInt(t, 10);
   else if ((m = /^0x([0-9a-f]+)$/i.exec(t))) v = parseInt(m[1], 16);
-  else if ((m = /^\$([0-9a-f]+)$/i.exec(t))) v = parseInt(m[1], 16);
+  else if ((m = /^&x([01]+)$/i.exec(t))) v = parseInt(m[1], 2);
   else if ((m = /^&h?([0-9a-f]+)$/i.exec(t))) v = parseInt(m[1], 16);
-  else if ((m = /^%([01]+)$/.exec(t))) v = parseInt(m[1], 2);
   if (v === undefined || !Number.isFinite(v)) return undefined;
   return neg ? -v : v;
 }
@@ -107,7 +106,7 @@ export function lint(text: string, ctx: LintContext = {}): Finding[] {
   const add = (rule: RuleId, line: number, col: number, endCol: number, message: string): void => void out.push({ rule, line, col, endCol, message });
   const at = (c: Call, message: string, rule: RuleId): void => add(rule, c.line, c.col, c.col + c.name.length, message);
 
-  // CB001: Mode, then drawing, with no ScreenInit() in between (same SUB/FUNCTION or the same top-level stretch)
+  // CB001: MODE, then drawing, with no ScreenInit() in between (same SUB/FUNCTION or the same top-level stretch)
   {
     let pending: Call | undefined;
     let scope = -1;
@@ -119,7 +118,7 @@ export function lint(text: string, ctx: LintContext = {}): Finding[] {
       if (c.lower === 'mode') pending = c;
       else if (c.lower === 'screeninit') pending = undefined;
       else if (pending && DRAW.has(c.lower)) {
-        at(pending, `Mode is followed by ${c.name} (line ${c.line + 1}) with no ScreenInit() in between. The library reads the screen state in ScreenInit(): call it after every Mode.`, 'CB001');
+        at(pending, `MODE is followed by ${c.name} (line ${c.line + 1}) with no ScreenInit() in between. The library reads the screen state in ScreenInit(): call it after every MODE.`, 'CB001');
         pending = undefined;
       }
     }
@@ -145,12 +144,12 @@ export function lint(text: string, ctx: LintContext = {}): Finding[] {
   }
 
   // CB003: firmware-only / bare-only calls against the target's mode
-  if (ctx.bare !== undefined && (ctx.arch === undefined || ctx.arch === 'cpc')) {
+  if (ctx.bare !== undefined) {
     const bad = low(ctx.bare ? FIRMWARE_ONLY : BARE_ONLY);
     for (const c of calls) {
       if (!bad.has(c.lower) || depths[c.line] > 0) continue;
       at(c, ctx.bare
-        ? `${c.name} needs the firmware, and this target is bare-metal (-D CPC_BAREMETAL): the build will fail with an "Undefined GLOBAL label". Use the music library, Play or AyWrite for sound; there is no disc in a bare target.`
+        ? `${c.name} needs the firmware, and this target is bare-metal (-D CPC_BAREMETAL): the build will fail with an "Undefined label" error. Use the music library, Play or AyWrite for sound; there is no disc in a bare target.`
         : `${c.name} works only in bare-metal builds (-D CPC_BAREMETAL; set "bare": true on the target), and this target uses the firmware.`, 'CB003');
     }
   }
@@ -163,7 +162,7 @@ export function lint(text: string, ctx: LintContext = {}): Finding[] {
     let sawPal = false;
     let pending: Call | undefined;
     const flush = (): void => {
-      if (pending) at(pending, 'Mode resets the inks, undoing the 12-bit palette set before it. Call SetPalette12 / SetBorder12 again after Mode.', 'CB004');
+      if (pending) at(pending, 'MODE resets the inks, undoing the 12-bit palette set before it. Call SetPalette12 / SetBorder12 again after MODE.', 'CB004');
       pending = undefined;
     };
     for (const c of ev) {
@@ -250,7 +249,7 @@ export function lint(text: string, ctx: LintContext = {}): Finding[] {
       } else if (modeLit !== undefined && PEN_CALLS.has(c.lower)) {
         const rt2 = ctx.index?.byName.get(c.lower)?.[0];
         rt2?.params.forEach((p, i) => {
-          if (!/pen$/i.test(p.name) || !c.args![i]) return;
+          if (!/pen(No)?$/i.test(p.name) || !c.args![i]) return;
           const v = literalValue(c.args![i].text);
           if (v !== undefined && v >= 0 && v <= 255 && v > MODE_PENS[modeLit!]) {
             const a = c.args![i];
@@ -258,14 +257,6 @@ export function lint(text: string, ctx: LintContext = {}): Finding[] {
           }
         });
       }
-    }
-  }
-
-  // CB008: Spectrum-only modules under a CPC target
-  if (ctx.arch === 'cpc') {
-    for (const i of incs) {
-      if (i.depth > 0 || !SPECTRUM_ONLY.includes(i.path)) continue;
-      add('CB008', i.line, i.col, i.col + i.path.length, `${i.path} is Spectrum-only: on --arch cpc it stops the build with #error. Use Mode 2 for 80 columns, INK/PAPER for colour, and POINT() from point.bas to read a pixel.`);
     }
   }
 
@@ -283,16 +274,6 @@ export function lint(text: string, ctx: LintContext = {}): Finding[] {
       }
     }
   }
-
-  // CB011: #if defined(...)
-  m.code.forEach((l, line) => {
-    const pm = /^\s*#\s*(?:el)?if\b(.*)$/i.exec(l);
-    if (!pm) return;
-    const d = /\bdefined\s*\(/i.exec(pm[1]);
-    if (!d) return;
-    const col = l.indexOf(pm[1]) + d.index;
-    add('CB011', line, col, col + 7, 'zxbpp has no defined() operator: "#if defined(X)" is always false on its own and always true inside || or &&. Use #ifdef / #ifndef (nest them for AND / OR).');
-  });
 
   return out.sort((a, b) => a.line - b.line || a.col - b.col);
 }

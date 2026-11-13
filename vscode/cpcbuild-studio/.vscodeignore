@@ -6,5 +6,8 @@
 !dist/webview/!(gallery.*)
 !media/**
 !schemas/**
+!language-configuration.json
+!syntaxes/**
+!snippets/**
 !bundled/**
 !tools-manifest.json
