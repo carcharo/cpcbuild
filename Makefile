@@ -129,7 +129,7 @@ assets: ## Build assets
 	sh tools/build_assets.sh
 
 bench: ## Run benchmark
-	$(PYTHON) tools/cpcrun.py examples/bounce.bas --cpcbas-arg=-D --cpcbas-arg=BENCH
+	$(PYTHON) tools/cpcrun.py examples/bounce.bas --emu chips --cpcbas-arg=-D --cpcbas-arg=BENCH
 
 ci: unit test-chips test-bare test-games test-lamp reach-lamp ## Everything CI runs, serially (CI itself runs these targets as parallel jobs) - unit, chips, bare-metal, games, Lamplighter (no Caprice32: the Plus tests, test-plus, have their own CI job)
 
