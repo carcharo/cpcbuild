@@ -1,7 +1,7 @@
 /**
  * songBuild.ts -- the pure parts of building a .cpcsong: the names of the files written beside it.
  *
- * `assets/tune.cpcsong` -> `assets/tune.vt2` (the module for the converter) -> `assets/tune.bas` (the Boriel
+ * `assets/tune.cpcsong` -> `assets/tune.vt2` (the module for the converter) -> `assets/tune.bas` (the CPC BASIC
  * include with the label `tune`, played with MusicInit(@tune, 1)). A song's data does not depend on the
  * machine (the chip clock is not stored in an AKG song), so there is one include for every target.
  *
@@ -15,7 +15,7 @@ export const SONG_GLOB = 'assets/**/*.cpcsong';
 export interface SongOutput {
   /** The Vortex Tracker module written for the converter (project-relative). */
   vt2: string;
-  /** The Boriel include the converter writes. */
+  /** The CPC BASIC include the converter writes. */
   bas: string;
 }
 

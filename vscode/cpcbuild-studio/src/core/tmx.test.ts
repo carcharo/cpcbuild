@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { defaultMapName, parseTmx, parseXml, tmxToBas } from './tmx';
+import { committedText } from './committedText';
 import { py, REPO, scratchDir } from './testutil';
 
 /** Mini CLI for the test: tmx2bas.py's flags -> tmxToBas, argv recorded as given. */
@@ -40,7 +41,7 @@ describe('tmx.ts vs tools/tmx2bas.py: repo maps', () => {
       const out = same(['--name', name, f]);
       // the committed .bas was generated with the same flags plus -o <same dir>/level.bas
       const bas = f.replace('.tmx', '.bas');
-      expect(ts(['--name', name, f, '-o', bas])).toBe(fs.readFileSync(path.join(REPO, bas), 'utf8'));
+      expect(ts(['--name', name, f, '-o', bas])).toBe(committedText(bas));
       expect(out.length).toBeGreaterThan(0);
       const m = parseTmx(fs.readFileSync(path.join(REPO, f), 'utf8'));
       expect(m.layers[0].gids).not.toBeNull();

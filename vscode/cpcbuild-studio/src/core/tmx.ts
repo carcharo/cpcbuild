@@ -353,7 +353,7 @@ export function tmxToBas(map: TmxMap, name: string, o: TmxToBasOptions, argv: re
   const { tiles, width: w, height: h, layerName } = layerTiles(map, o);
   const lines: string[] = [];
   for (let i = 0; i < tiles.length; i += 16) {
-    const chunk = tiles.slice(i, i + 16).map((b) => '$' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ');
+    const chunk = tiles.slice(i, i + 16).map((b) => '&' + b.toString(16).toUpperCase().padStart(2, '0')).join(', ');
     lines.push('    ' + chunk + (i + 16 < tiles.length ? ', _' : ' _'));
   }
   return (

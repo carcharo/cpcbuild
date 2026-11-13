@@ -6,29 +6,29 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { Aks2basError, bankInclude, hex06, PSG_HZ, pyInt0, sanitizeName, setPsgClock, toBoriel } from './aks2bas';
+import { Aks2basError, bankInclude, hex06, PSG_HZ, pyInt0, sanitizeName, setPsgClock, toBasic } from './aks2bas';
 
 const FX = path.join(__dirname, 'fixtures', 'aks2bas');
 const txt = (n: string): string => fs.readFileSync(path.join(FX, n), 'utf8');
 const bin = (n: string): Buffer => fs.readFileSync(path.join(FX, n));
 
-describe('toBoriel on captured Arkos exports', () => {
+describe('toBasic on captured Arkos exports', () => {
   for (const c of ['title', 'game', 'sfx']) {
     it(`${c}: the include is the Python tool's`, () => {
       const [name, kind] = txt(`${c}.name.txt`).trim().split(' ');
-      expect(toBoriel(txt(`${c}.asm`), name, '', kind as 'song' | 'sfx')).toBe(txt(`${c}.expected.bas`));
+      expect(toBasic(txt(`${c}.asm`), name, '', kind as 'song' | 'sfx')).toBe(txt(`${c}.expected.bas`));
     });
   }
   it('a hand-made source: strings, semicolons, directives, label forms, a prefix', () => {
-    expect(toBoriel(txt('edge.asm'), 'edge', '', 'song')).toBe(txt('edge.expected.bas'));
-    expect(toBoriel(txt('edge.asm'), 'edge', 'p_', 'sfx')).toBe(txt('edge_prefix.expected.bas'));
+    expect(toBasic(txt('edge.asm'), 'edge', '', 'song')).toBe(txt('edge.expected.bas'));
+    expect(toBasic(txt('edge.asm'), 'edge', 'p_', 'sfx')).toBe(txt('edge_prefix.expected.bas'));
   });
   it('CRLF input gives the same include', () => {
-    expect(toBoriel(txt('edge.asm').replace(/\n/g, '\r\n'), 'edge', '', 'song')).toBe(txt('edge.expected.bas'));
+    expect(toBasic(txt('edge.asm').replace(/\n/g, '\r\n'), 'edge', '', 'song')).toBe(txt('edge.expected.bas'));
   });
   it('a source without labels is refused', () => {
-    expect(() => toBoriel('  ld a,1\n', 'x')).toThrow(Aks2basError);
-    expect(() => toBoriel('  ld a,1\n', 'x')).toThrow('no labels found: not an Arkos source export?');
+    expect(() => toBasic('  ld a,1\n', 'x')).toThrow(Aks2basError);
+    expect(() => toBasic('  ld a,1\n', 'x')).toThrow('no labels found: not an Arkos source export?');
   });
 });
 

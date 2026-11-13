@@ -68,7 +68,7 @@ describe('export equals img2cpc.py (CPC modes)', () => {
     const b = newSprite('spr', { name: 'half', mode: 1, masked: true, w: 4, h: 1, palette: { pens: [0, 26, 6, 18] } });
     b.items = [[[2, -1, 3, 1]]];
     const text = compare(b, 'edge-half');
-    expect(text).toContain('$'); // there is data
+    expect(text).toContain('&'); // there is data
     const c = newSprite('spr', { name: 'mono', mode: 2, masked: false, w: 8, h: 2, palette: { pens: [0, 26] } });
     c.items = [[[0, 1, 0, 1, 1, 0, 0, 1], [1, 1, 1, 1, 0, 0, 0, 0]]];
     compare(c, 'edge-mono');

@@ -9,6 +9,7 @@ import * as path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { argvToRecipe, newRecipe, serialiseRecipe, type Recipe } from '../core/cpcimp';
 import { committed } from '../core/testcorpus';
+import { committedText } from '../core/committedText';
 import { PYTHON_SETTING, REPO, scratchDir } from '../core/testutil';
 import { newSprite, serialiseSprite } from '../core/spriteDoc';
 import { serialiseSfx } from '../core/sfxDoc';
@@ -36,7 +37,7 @@ beforeAll(() => {
     const rel = `assets/${n}_${path.basename(file, '.bas')}.cpcimp`;
     fs.mkdirSync(path.join(root, 'assets'), { recursive: true });
     fs.writeFileSync(path.join(root, rel), serialiseRecipe(r));
-    recipes.push({ file, rel, committed: fs.readFileSync(path.join(REPO, file), 'utf8') });
+    recipes.push({ file, rel, committed: committedText(file) });
   });
 });
 
