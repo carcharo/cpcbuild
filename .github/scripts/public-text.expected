@@ -38,7 +38,6 @@ boriel vscode/cpcbuild-studio/src/webview/sprite/main.tsx
 boriel vscode/cpcbuild-studio/test/suite/setup.test.ts
 boriel vscode/cpcbuild-studio/test/suite/tools.test.ts
 nextbuild vscode/cpcbuild-studio/test/suite/lint.test.ts
-private .gitignore
 private vscode/cpcbuild-studio/src/core/vt2.ts
 zxb README.md
 zxb bench/README.md
