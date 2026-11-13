@@ -110,18 +110,10 @@ SUB Tick()
     t = PlatFrames() - benchT
     PlatEnd()
     r = 62500 / (t >> 1)
-#ifdef __CPC__
     PRINT "INFO steps="; benchN - 1; " frames="; t; " per second="; r / 10; "."; r - (r / 10) * 10; " late="; benchLate; " longest="; benchMax
-#else
-    TLN("INFO steps=" + STR$(benchN - 1) + " frames=" + STR$(t) + " per second=" + STR$(r / 10) + "." + STR$(r - (r / 10) * 10) + " late=" + STR$(benchLate) + " longest=" + STR$(benchMax))
-#endif
 #ifdef BENCHLOG
     FOR t = 0 TO 7
-#ifdef __CPC__
       IF t < benchLate THEN PRINT "LATE step "; benchAt(t * 2); " frames "; benchAt(t * 2 + 1)
-#else
-      IF t < benchLate THEN TLN("LATE step " + STR$(benchAt(t * 2)) + " frames " + STR$(benchAt(t * 2 + 1)))
-#endif
     NEXT t
 #endif
     END
