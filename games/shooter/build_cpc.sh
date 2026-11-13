@@ -68,7 +68,7 @@ python3 "$HERE/pack_dsk.py" "$OUT/starfall.dsk" \
 # the double-buffered builds: the low segment must stay below &4000 (the back
 # screen); their high data must end below &9600, where the loaders' AMSDOS
 # buffer (&9600-&9DFF) and the loaders (&9E00) are, and below the heap (&8B60
-# in a firmware build, &A560 in a bare one: zxbc checks that too, this prints
+# in a firmware build, &A560 in a bare one: cpcbas checks that too, this prints
 # the room left)
 for b in starfall starbare; do
   fend=$((0x40 + $(wc -c < "$OUT/$b.bin")))

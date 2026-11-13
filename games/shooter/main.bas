@@ -4,7 +4,7 @@
 ' One source for the CPC 6128 / 464. The game rules are in game.bas,
 ' everything platform-specific in platform_cpc.bas (the portable layer).
 '
-'   zxbc --arch cpc --org 0x40 -D CPC6128 main.bas      (see build_cpc.sh)
+'   cpcbas --org 0x40 -D CPC6128 main.bas      (see build_cpc.sh)
 '
 ' Test switches (every build): -D DEMO (attract mode from the start, fixed
 ' random seed), -D SHOT=n (a screenshot after n logic steps, then END;
