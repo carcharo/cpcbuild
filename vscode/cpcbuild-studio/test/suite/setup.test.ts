@@ -6,7 +6,7 @@ import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { StudioApi } from '../../src/ext/activate';
-import { rmrf, samePath, test } from './harness';
+import { rmrf, samePath, test, waitFor } from './harness';
 
 async function api(): Promise<StudioApi> {
   const ext = vscode.extensions.getExtension<StudioApi>('cpcbuild.cpcbuild-studio');
@@ -49,7 +49,8 @@ test('the old zxbc.args setting: one message per workspace with the translation,
     // nothing set: nothing shown
     assert.strictEqual(await a.settingsMigration.offer(store), false);
     fs.writeFileSync(settingsFile, JSON.stringify({ ...JSON.parse(before), 'cpcbuild.zxbc.args': ['-O', '4', '--heap-size', '2048', '--enable-break', '--strict', '-D', 'DEMO=1'] }, null, 2));
-    await new Promise((r) => setTimeout(r, 1500)); // the settings watcher
+    // the settings watcher: wait until VS Code has read the file (a fixed sleep was too short on a busy machine)
+    await waitFor('the old setting to be read', () => vscode.workspace.getConfiguration('cpcbuild').inspect('zxbc.args')?.workspaceValue !== undefined, 20000);
     a.settingsMigration.setUi({ show: async (_m: string, ...b: string[]) => (calls.push(b), undefined) });
     assert.strictEqual(await a.settingsMigration.offer(store), true);
     assert.strictEqual(await a.settingsMigration.offer(store), false, 'only once per workspace');
