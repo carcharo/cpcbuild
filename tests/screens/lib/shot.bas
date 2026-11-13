@@ -57,7 +57,7 @@ SUB Shot(name AS STRING)
   ShotChar(4)
   ShotChar(83): ShotChar(72): ShotChar(79): ShotChar(84): ShotChar(32)
   FOR i = 0 TO LEN(name) - 1
-    ShotChar(CODE(name(i TO i)))
+    ShotChar(ASC(MID$(name, i + 1, 1)))
   NEXT i
   ShotChar(10)
   ShotWait(6)

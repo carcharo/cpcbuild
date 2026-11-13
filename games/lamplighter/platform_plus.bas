@@ -60,7 +60,7 @@
 #include "assets/plus/lpsprites.bas"
 #include "assets/plus/pl_pens.bas"
 
-CONST PL_BORDER AS UINTEGER = $000
+CONST PL_BORDER AS UINTEGER = &000
 
 DIM pBlack(31) AS UBYTE               ' 16 black pens: the screen while a room is drawn
 DIM pHs(4) AS UBYTE                   ' the manager's slot of each object (255: none)
@@ -134,7 +134,7 @@ SUB PlatSprite(s AS UBYTE, f AS UBYTE, x AS UBYTE, y AS UBYTE)
   pWant(s) = f
   pWx(s) = x
   pWy(s) = y
-  IF f <> pAf(s) OR x <> pAx(s) OR y <> pAy(s) THEN pDirty = pDirty BOR bitOf(s)
+  IF f <> pAf(s) OR x <> pAx(s) OR y <> pAy(s) THEN pDirty = pDirty OR bitOf(s)
 END SUB
 
 ' Hands the changes to the sprite manager and steps the flame (called by
@@ -144,7 +144,7 @@ SUB PlatFlushPlus()
   DIM img AS UINTEGER
   IF pDirty <> 0 THEN
     FOR s = 0 TO NSLOT - 1
-      IF (pDirty BAND bitOf(s)) <> 0 THEN
+      IF (pDirty AND bitOf(s)) <> 0 THEN
         f = pWant(s)
         h = pHs(s)
         IF f = 255 THEN

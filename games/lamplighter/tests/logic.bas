@@ -26,23 +26,23 @@ SUB CheckEq(name AS STRING, got AS LONG, want AS LONG)
 END SUB
 
 ' n steps with input inp; the state after the last
-FUNCTION Steps(n AS UBYTE, inp AS UBYTE) AS UBYTE
+FUNCTION Steps(n AS UBYTE, kin AS UBYTE) AS UBYTE
   DIM i, r AS UBYTE
   r = 0
   FOR i = 1 TO n
-    r = GameStep(inp)
+    r = GameStep(kin)
   NEXT i
   RETURN r
 END FUNCTION
 
 ' n steps with the room's enemies removed at every step (they are loaded
 ' again by each room change)
-FUNCTION StepsAlone(n AS UBYTE, inp AS UBYTE) AS UBYTE
+FUNCTION StepsAlone(n AS UBYTE, kin AS UBYTE) AS UBYTE
   DIM i, r AS UBYTE
   r = 0
   FOR i = 1 TO n
     nEn = 0
-    r = GameStep(inp)
+    r = GameStep(kin)
   NEXT i
   RETURN r
 END FUNCTION
@@ -115,7 +115,7 @@ CheckEq("jump sound", sfxLast, 1)
 
 ' --- jumping onto a platform (row 19, columns 6-11) ---
 Put(9, 5, 20)
-st = GameStep(I_FIRE BOR I_RIGHT)
+st = GameStep(I_FIRE OR I_RIGHT)
 n = 0
 FOR i = 1 TO 30
   st = GameStep(I_RIGHT)

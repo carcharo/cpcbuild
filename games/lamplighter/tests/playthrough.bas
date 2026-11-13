@@ -8,7 +8,7 @@ REM light and the game must be won.
 #include "../game.bas"
 #include "playseq.bas"
 
-DIM i, st, inp AS UBYTE
+DIM i, st, kin AS UBYTE
 DIM k AS UINTEGER
 DIM n AS UINTEGER
 DIM cnt AS UINTEGER
@@ -19,11 +19,11 @@ n = 0
 st = S_PLAY
 roomsDone = 0
 FOR k = 0 TO PLAY_PAIRS - 1
-  inp = playSeq(k * 2)
+  kin = playSeq(k * 2)
   cnt = playSeq(k * 2 + 1)
   FOR i = 1 TO cnt
     nEn = 0
-    st = GameStep(inp)
+    st = GameStep(kin)
     n = n + 1
   NEXT i
 NEXT k

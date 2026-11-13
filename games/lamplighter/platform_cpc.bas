@@ -172,8 +172,8 @@ SUB PlatSprite(s AS UBYTE, f AS UBYTE, x AS UBYTE, y AS UBYTE)
   sNF(s) = f
   sNX(s) = x
   sNY(s) = y
-  IF f = 255 THEN vMask = vMask BAND (255 - bit) ELSE vMask = vMask BOR bit
-  IF f <> sOF(s) OR x <> sOX(s) OR y <> sOY(s) THEN dMask = dMask BOR bit
+  IF f = 255 THEN vMask = vMask AND (255 - bit) ELSE vMask = vMask OR bit
+  IF f <> sOF(s) OR x <> sOX(s) OR y <> sOY(s) THEN dMask = dMask OR bit
 END SUB
 
 ' x/y rectangles (8 x 16) of two sprites overlap?
@@ -190,35 +190,35 @@ SUB PlatFlush()
   IF sForce <> 0 THEN
     dMask = vMask
     FOR s = 0 TO NSLOT - 1
-      IF sOF(s) <> 255 THEN dMask = dMask BOR bitOf(s)
+      IF sOF(s) <> 255 THEN dMask = dMask OR bitOf(s)
     NEXT s
     sForce = 0
   END IF
-  IF dMask = 0 THEN RETURN
+  IF dMask = 0 THEN EXIT SUB
   ' The player standing still, with a moved enemy over it: redraw it. (An enemy
   ' standing still under another one that moves is only chewed for a step: it
   ' moves on the next. Checking every pair costs ~30,000 T-states a step.)
-  IF (dMask BAND 1) = 0 AND (vMask BAND 1) <> 0 THEN
+  IF (dMask AND 1) = 0 AND (vMask AND 1) <> 0 THEN
     FOR t = 1 TO NSLOT - 1
-      IF (dMask BAND bitOf(t)) <> 0 THEN
+      IF (dMask AND bitOf(t)) <> 0 THEN
         IF Overlap(sNX(0), sNY(0), sNX(t), sNY(t)) <> 0 THEN
-          dMask = dMask BOR 1
+          dMask = dMask OR 1
         ELSEIF sOF(t) <> 255 THEN
-          IF Overlap(sNX(0), sNY(0), sOX(t), sOY(t)) <> 0 THEN dMask = dMask BOR 1
+          IF Overlap(sNX(0), sNY(0), sOX(t), sOY(t)) <> 0 THEN dMask = dMask OR 1
         END IF
       END IF
     NEXT t
   END IF
   bit = 1
   FOR s = 0 TO NSLOT - 1
-    IF (dMask BAND bit) <> 0 THEN
+    IF (dMask AND bit) <> 0 THEN
       IF sOF(s) <> 255 THEN TileRestore(roomAddr, 20, sOX(s) >> 1, sOY(s), 4, 16)
     END IF
     bit = bit + bit
   NEXT s
   bit = 1
   FOR s = 0 TO NSLOT - 1
-    IF (dMask BAND bit) <> 0 THEN
+    IF (dMask AND bit) <> 0 THEN
       IF sNF(s) <> 255 THEN
         PutSpriteMasked(sNX(s) >> 1, sNY(s), 4, 16, @sprites(CAST(UINTEGER, sNF(s)) << 7))
       END IF
@@ -298,11 +298,11 @@ FUNCTION PlatInput() AS UBYTE
   ScanKeys()
   r = 0
   IF KeyDown(KEY_O) <> 0 OR KeyDown(KEY_LEFT) <> 0 OR KeyDown(JOY_LEFT) <> 0 THEN r = 1
-  IF KeyDown(KEY_P) <> 0 OR KeyDown(KEY_RIGHT) <> 0 OR KeyDown(JOY_RIGHT) <> 0 THEN r = r BOR 2
-  IF KeyDown(KEY_SPACE) <> 0 OR KeyDown(JOY_FIRE1) <> 0 THEN r = r BOR 4
-  IF KeyDown(KEY_Q) <> 0 OR KeyDown(KEY_UP) <> 0 OR KeyDown(JOY_UP) <> 0 THEN r = r BOR 16
-  IF KeyDown(KEY_A) <> 0 OR KeyDown(KEY_DOWN) <> 0 OR KeyDown(JOY_DOWN) <> 0 THEN r = r BOR 32
-  IF AnyKeyDown() <> 0 THEN r = r BOR 8
+  IF KeyDown(KEY_P) <> 0 OR KeyDown(KEY_RIGHT) <> 0 OR KeyDown(JOY_RIGHT) <> 0 THEN r = r OR 2
+  IF KeyDown(KEY_SPACE) <> 0 OR KeyDown(JOY_FIRE1) <> 0 THEN r = r OR 4
+  IF KeyDown(KEY_Q) <> 0 OR KeyDown(KEY_UP) <> 0 OR KeyDown(JOY_UP) <> 0 THEN r = r OR 16
+  IF KeyDown(KEY_A) <> 0 OR KeyDown(KEY_DOWN) <> 0 OR KeyDown(JOY_DOWN) <> 0 THEN r = r OR 32
+  IF AnyKeyDown() <> 0 THEN r = r OR 8
   RETURN r
 END FUNCTION
 
@@ -339,7 +339,7 @@ END SUB
 ' 0 off, 1 the title's tune, 2 the game's.
 SUB PlatMusic(tune AS UBYTE)
 #ifndef NOSOUND
-  IF tune = curTune THEN RETURN
+  IF tune = curTune THEN EXIT SUB
   curTune = tune
   IF tune = 0 THEN
     MusicStop()

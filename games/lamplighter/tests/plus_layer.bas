@@ -30,7 +30,7 @@ END SUB
 ' not read the magnification back, so it is not tested here (the picture on
 ' screen is, in the goldens)
 FUNCTION Reg(s AS UBYTE, off AS UBYTE) AS UBYTE
-  RETURN PlusPeek($6000 + CAST(UINTEGER, s) * 8 + off)
+  RETURN PlusPeek(&6000 + CAST(UINTEGER, s) * 8 + off)
 END FUNCTION
 
 FUNCTION SprX(s AS UBYTE) AS UINTEGER
@@ -55,7 +55,7 @@ END FUNCTION
 FUNCTION HasFrame(s AS UBYTE, f AS UBYTE) AS UBYTE
   DIM i AS UINTEGER
   FOR i = 0 TO 255
-    IF PlusPeek($4000 + CAST(UINTEGER, s) * 256 + i) <> PEEK(@lpsprites(0) + (CAST(UINTEGER, f) << 8) + i) THEN RETURN 0
+    IF PlusPeek(&4000 + CAST(UINTEGER, s) * 256 + i) <> PEEK(@lpsprites(0) + (CAST(UINTEGER, f) << 8) + i) THEN RETURN 0
   NEXT i
   RETURN 1
 END FUNCTION
@@ -74,10 +74,10 @@ CheckEq("a Plus", PlusAvailable(), 1)
 CheckEq("no object has a slot after PlatInit", Held(), 0)
 
 ' --- the palette ---
-CheckEq("pen 0 black", GetPalette12(0), $000)
-CheckEq("pen 7 white", GetPalette12(7), $FFF)
+CheckEq("pen 0 black", GetPalette12(0), &000)
+CheckEq("pen 7 white", GetPalette12(7), &FFF)
 CheckEq("border", GetPalette12(16), PL_BORDER)
-CheckEq("sprite colour 1", GetPalette12(17), $80F)
+CheckEq("sprite colour 1", GetPalette12(17), &80F)
 CheckEq("flame pen 11", GetPalette12(11), pl_flame(0))
 CheckEq("flame pen 12", GetPalette12(12), pl_flame(1))
 CheckEq("flame pen 13", GetPalette12(13), pl_flame(2))
@@ -107,7 +107,7 @@ FOR k = 1 TO 4
   OneStep()
 NEXT k
 CheckEq("player moved right, x", SprX(pHs(0)), 4 * CAST(UINTEGER, pX))
-Check("player picture follows the walk frame", HasFrame(pHs(0), 1 + ((pAnim >> 1) BAND 1)))
+Check("player picture follows the walk frame", HasFrame(pHs(0), 1 + ((pAnim >> 1) AND 1)))
 Check("walking uploaded pictures", SprUploads() > up)
 up = SprUploads()
 PlatSprite(0, 1, pX, pY)
@@ -168,7 +168,7 @@ FOR k = 1 TO 6
   PlatFrameEnd()
 NEXT k
 CheckEq("after 8 steps: round again", GetPalette12(11), pl_flame(0))
-CheckEq("other pens untouched: pen 3", GetPalette12(3), $F00)
-CheckEq("sprite colour 1 untouched", GetPalette12(17), $80F)
+CheckEq("other pens untouched: pen 3", GetPalette12(3), &F00)
+CheckEq("sprite colour 1 untouched", GetPalette12(17), &80F)
 
 PRINT "DONE"
