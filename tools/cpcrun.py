@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""cpcrun.py -- compile, package and run a Boriel BASIC program for
---arch cpc, headlessly, and print whatever it sent to the (virtual)
-printer.
+"""cpcrun.py -- compile, package and run a CPC BASIC program with cpcbas,
+headlessly, and print whatever it sent to the (virtual) printer.
 
-    cpcrun.py prog.bas [--org ADDR] [--timeout SECONDS] [--zxbc-arg ARG] [--expect FILE]
+    cpcrun.py prog.bas [--org ADDR] [--timeout SECONDS] [--cpcbas-arg ARG] [--expect FILE]
                        [--emu cap32|chips|cpcec] [--model 464|664|6128|plus]
                       [--shot F.png [--shot-at N]] [--shot-dir D]   (chips only)
                       [--bare] [--cold]
@@ -11,8 +10,8 @@ printer.
     cpcrun.py --cpr FILE.cpr [--model plus] [--timeout S] [--type TEXT ...]   (Caprice32 only)
 
 --disk-file NAME=PATH puts PATH on the DSK as the AMSDOS file NAME (8.3, upper
-case; an AMSDOS header is added: binary, load address &4000, no entry), next
-to the program, so the program can read it (e.g. with BankLoad). Repeatable.
+case; cpcbas's --dsk-add stores the bytes as they are, with no AMSDOS header),
+next to the program, so the program can read it (e.g. with BankLoad). Repeatable.
 chips has no disc, so --emu chips refuses it.
 
 --model plus (Caprice32 only, Phase 7): a 6128 Plus (Caprice32 model 3) with the
@@ -70,23 +69,25 @@ polled), for debugging a runtime whose reset misbehaves. The "\x04STATE" lines o
 tests/conformance/lib/bareout.bas BState() are removed from cap32 transcripts
 too (chipsrun consumes them itself).
 
-The program's origin: --org ADDR (e.g. 0x40) is passed to zxbc as --org; with
-no --org zxbc uses its own default. Either way the AMSDOS header (load and
-exec address) and the DSK file use the origin zxbc actually compiled for,
-read back from the memory map it writes (-M, `.core.__START_PROGRAM`), so the
-two can never disagree -- even with `--zxbc-arg=--org=...`.
+The program's origin: --org ADDR (e.g. 0x40) is passed to cpcbas as --org; with
+no --org cpcbas uses its own default. cpcbas writes the AMSDOS header (load and
+exec address) and the DSK file itself; the origin it actually compiled for is
+read back from the memory map it writes (-M, `.core.__START_PROGRAM`).
+
+--cpcbas-arg replaces the old --zxbc-arg, which is now an error.
 
 --emu chips runs the same program in the floooh/chips-based tools/chipsrun
 (built on demand; AMSDOS-headered .bin quickloaded, no DSK).
 
 Pipeline:
-  1. Compile prog.bas with the zxbasic fork's zxbc (`poetry run zxbc` in
-     the zxbasic checkout, or $ZXBASIC/... if that env var is set),
-     always with `--arch cpc -D __CPC_PRINTER_ECHO__ -I <repo>/lib` (so
-     `#include <music/music.bas>` works) plus any extra
-     `--zxbc-arg` values.
-  2. Pack the resulting .bin into an AMSDOS .dsk with the fork's
-     tools/cpc/mkdsk.py.
+  1. Compile prog.bas with cpcbas (`node $CPCBAS/packages/cpcbas/dist/bin/cpcbas.js`;
+     $CPCBAS defaults to the sibling checkout ../cpcbas), always with
+     `-D __CPC_PRINTER_ECHO__` plus any extra `--cpcbas-arg` values. The
+     library comes from cpcbas's own lib/ (no -I for it). chips gets the
+     AMSDOS-headered .bin; Caprice32 and CPCEC get the .dsk cpcbas writes
+     (`-f dsk`, `--dsk-add` for --disk-file).
+  2. (the disc emulators only) the .dsk holds the program under the
+     name the run" command types.
   3. Run Caprice32 headlessly (SDL_VIDEODRIVER=dummy; $CAP32, default
      tools/caprice32/work/src/cap32 (`make cap32`), else the unpatched
      ../caprice32/cap32 relative to this repo) with the virtual printer
@@ -108,7 +109,7 @@ collide.
 
 The END marker: reaching address 0 is not proof the program reached
 END -- a crash that happens to reset the machine, or an uncaught
-runtime error, lands there too. zxbasic's .core.__CPC_END (bootstrap.asm,
+runtime error, lands there too. cpcbas's runtime .core.__CPC_END (lib/runtime/bootstrap.asm,
 forced into every build) sends a line containing only "\x04END" to the
 printer, through the firmware gate, immediately before its own `rst 0`
 -- but only under -D __CPC_PRINTER_ECHO__, the flag this script always
@@ -118,7 +119,7 @@ just that address 0 was reached.
 Exit status:
   0  cap32 hit the address-0 breakpoint before the timeout *and* the
      END marker was seen in the printer transcript -- a clean END.
-  1  zxbc failed to compile prog.bas (its stderr is forwarded).
+  1  cpcbas failed to compile prog.bas (its stderr is forwarded).
   2  timeout: cap32 was killed without ever hitting the breakpoint --
      a hang, e.g. an unimplemented stub (stub.asm's __CPC_NOT_IMPLEMENTED).
   5  only with --model plus --shot: no screenshot was produced.
@@ -146,13 +147,14 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent  # cpcbuild/
-DEFAULT_ZXBASIC = REPO_ROOT.parent / "zxbasic"
+DEFAULT_CPCBAS = REPO_ROOT.parent / "cpcbas"
+CPCBAS_CLI = Path("packages") / "cpcbas" / "dist" / "bin" / "cpcbas.js"
 # patched build (tools/caprice32, `make cap32`), else the unpatched sibling checkout
 PATCHED_CAP32 = REPO_ROOT / "tools" / "caprice32" / "work" / "src" / "cap32"
 DEFAULT_CAP32 = REPO_ROOT.parent / "caprice32" / "cap32"
 DEFAULT_CPCEC = REPO_ROOT / "tools" / "cpcec" / "work" / "cpcec"
 
-# Sent by .core.__CPC_END (zxbasic's src/lib/arch/cpc/runtime/bootstrap.asm)
+# Sent by .core.__CPC_END (cpcbas's lib/runtime/bootstrap.asm)
 # right before its `rst 0`, under -D __CPC_PRINTER_ECHO__ only -- see the
 # module docstring. \x04 (ASCII EOT) as the first byte keeps this line from
 # ever colliding with ordinary PRINT output or with the "NOT IMPLEMENTED" /
@@ -166,9 +168,10 @@ END_MARKER = "\x04END\n"
 ERROR_LINE_RE = re.compile(r"^Error \d+$", re.MULTILINE)
 
 
-def zxbasic_dir() -> Path:
-    env = os.environ.get("ZXBASIC")
-    return Path(env).resolve() if env else DEFAULT_ZXBASIC
+def cpcbas_dir() -> Path:
+    """The cpcbas checkout: $CPCBAS, else the sibling ../cpcbas."""
+    env = os.environ.get("CPCBAS")
+    return Path(env).resolve() if env else DEFAULT_CPCBAS
 
 
 def cap32_bin() -> Path:
@@ -189,21 +192,12 @@ def cpcec_bin() -> Path:
 
 
 def subprocess_env() -> dict[str, str]:
-    """Environment for subprocesses: make sure poetry (~/.local/bin) is on
-    PATH even if the caller's shell profile wasn't sourced (`export
-    PATH=$HOME/.local/bin:$PATH`)."""
-    env = os.environ.copy()
-    local_bin = str(Path.home() / ".local" / "bin")
-    parts = env.get("PATH", "").split(os.pathsep)
-    if local_bin not in parts:
-        env["PATH"] = os.pathsep.join([local_bin, *parts])
-    return env
+    """Environment for the compiler and emulator subprocesses."""
+    return os.environ.copy()
 
 
 def amsdos_stem(bas_path: Path) -> str:
-    """8.3-safe, upper-case AMSDOS stem for the compiled binary -- matches
-    tools/cpc/run.sh's own truncation, and the run" command must name the
-    same file mkdsk.py wrote.
+    """8.3-safe, upper-case AMSDOS stem for the compiled binary -- the run" command must name the same file the .dsk holds.
 
     Restricted to [A-Z0-9]: Caprice32's autocmd keystroke injection
     (InputMapper::StringToEvents / SDLkeysFromChars, src/keyboard.cpp)
@@ -223,7 +217,7 @@ def amsdos_stem(bas_path: Path) -> str:
 
 
 def read_origin(map_path: Path) -> int:
-    """The origin zxbc compiled for: the address of .core.__START_PROGRAM
+    """The origin cpcbas compiled for: the address of .core.__START_PROGRAM
     in its memory map (-M), the first byte of the .bin and its entry point."""
     for line in map_path.read_text().splitlines():
         addr, _, label = line.partition(":")
@@ -232,71 +226,36 @@ def read_origin(map_path: Path) -> int:
     raise BuildError(f"no .core.__START_PROGRAM in {map_path}; cannot tell the program's origin")
 
 
-def compile_program(bas_path: Path, out_bin: Path, extra_zxbc_args: list[str], env: dict[str, str]) -> int:
-    """Compile; returns the origin zxbc used (see read_origin)."""
-    zxdir = zxbasic_dir()
-    map_path = out_bin.with_suffix(".map")
-    cmd = [
-        "poetry",
-        "run",
-        "zxbc",
-        "--arch",
-        "cpc",
-        "-D",
-        "__CPC_PRINTER_ECHO__",
-        "-I",
-        str(REPO_ROOT / "lib"),
-        "-M",
-        str(map_path),
-        "-o",
-        str(out_bin),
-        str(bas_path),
-        *extra_zxbc_args,
-    ]
-    proc = subprocess.run(cmd, cwd=zxdir, env=env, capture_output=True, text=True)
-    if proc.returncode != 0:
-        sys.stderr.write(proc.stdout)
-        sys.stderr.write(proc.stderr)
-        raise BuildError(f"zxbc exited {proc.returncode}")
-    return read_origin(map_path)
+def compile_program(bas_path: Path, out: Path, extra_args: list[str], env: dict[str, str],
+                    dsk_files: list[tuple[str, Path]] | None = None) -> int:
+    """Compile with cpcbas; returns the origin it used (see read_origin).
 
-
-def pack_dsk(bin_path: Path, dsk_path: Path, stem: str, env: dict[str, str], org: int,
-             extra_files: list[tuple[str, Path]] | None = None) -> None:
-    if extra_files:
-        # mkdsk.py's command line gives every input the same name rules and
-        # load address, so use its DiskImage directly: the program first,
-        # then each data file under its own name.
-        sys.path.insert(0, str(zxbasic_dir() / "tools" / "cpc"))
-        try:
-            import mkdsk  # type: ignore
-        finally:
-            sys.path.pop(0)
-        disk = mkdsk.DiskImage()
-        disk.add_file(f"{stem}.BIN", bin_path.read_bytes(), load_addr=org, exec_addr=org)
-        for name, path in extra_files:
-            disk.add_file(name, path.read_bytes(), load_addr=0x4000, exec_addr=0)
-        dsk_path.write_bytes(disk.to_dsk_bytes())
-        return
-    mkdsk = zxbasic_dir() / "tools" / "cpc" / "mkdsk.py"
-    cmd = [
-        sys.executable,
-        str(mkdsk),
-        "-o",
-        str(dsk_path),
-        "--load",
-        f"0x{org:04X}",
-        "--exec",
-        f"0x{org:04X}",
-        "--name",
-        f"{stem}.BIN",
-        str(bin_path),
-    ]
+    `out` ending in .dsk makes a disc (`-f dsk`, `--dsk-add NAME=PATH` for each
+    of dsk_files) holding the program as <amsdos_stem>.BIN; any other suffix
+    makes the AMSDOS-headered .bin."""
+    cli = cpcbas_dir() / CPCBAS_CLI
+    if not cli.is_file():
+        raise BuildError(f"cpcbas not built at {cli} (set CPCBAS, or run npm ci && npm run build in the cpcbas checkout)")
+    map_path = out.with_suffix(".map")
+    source = bas_path
+    if out.suffix == ".dsk":
+        # cpcbas names the disc file after the source; the run" command can only type
+        # letters and digits (see amsdos_stem), so build from a one-line wrapper so named.
+        source = out.parent / f"{amsdos_stem(bas_path)}.bas"
+        source.write_text(f'#include "{bas_path.resolve()}"\n')
+    cmd = ["node", str(cli), str(source), "-D", "__CPC_PRINTER_ECHO__", "-M", str(map_path), "-o", str(out)]
+    if out.suffix == ".dsk":
+        cmd += ["-f", "dsk"]
+    for name, path in dsk_files or []:
+        cmd += ["--dsk-add", f"{name}={path}"]
+    cmd += extra_args
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if proc.returncode != 0:
         sys.stderr.write(proc.stdout)
         sys.stderr.write(proc.stderr)
-        raise BuildError(f"mkdsk.py exited {proc.returncode}")
+        raise BuildError(f"cpcbas exited {proc.returncode}")
+    sys.stderr.write(proc.stderr)  # warnings
+    return read_origin(map_path)
 
 
 class BuildError(Exception):
@@ -316,18 +275,6 @@ def chipsrun_bin() -> Path:
             sys.stderr.write(proc.stdout + proc.stderr)
             raise BuildError(f"chipsrun not built; run {build} (needs a C compiler and network for fetch_chips.sh)")
     return CHIPSRUN_BIN
-
-
-def amsdos_bin(bin_path: Path, stem: str, org: int) -> bytes:
-    """The compiled .bin with its 128-byte AMSDOS header (load/exec = org),
-    built with the fork's mkdsk.py."""
-    sys.path.insert(0, str(zxbasic_dir() / "tools" / "cpc"))
-    try:
-        import mkdsk  # type: ignore
-    finally:
-        sys.path.pop(0)
-    data = bin_path.read_bytes()
-    return mkdsk.build_amsdos_header(f"{stem}.BIN", data, load_addr=org, exec_addr=org) + data
 
 
 class TimeoutHit(Exception):
@@ -557,15 +504,16 @@ def main(argv: list[str] | None = None) -> int:
                         help="--model plus --shot: CAP32_DELAYs (42 frames each) to wait before the screenshot (default 8)")
     parser.add_argument("--timeout", type=float, default=15.0, help="seconds before giving up (default 15)")
     parser.add_argument(
-        "--zxbc-arg",
-        dest="zxbc_args",
+        "--cpcbas-arg",
+        dest="cpcbas_args",
         action="append",
         default=[],
         metavar="ARG",
-        help="extra argument to pass to zxbc (repeatable, e.g. --zxbc-arg --enable-break)",
+        help="extra argument to pass to cpcbas (repeatable, e.g. --cpcbas-arg=-O1)",
     )
+    parser.add_argument("--zxbc-arg", dest="zxbc_old", action="append", default=[], help=argparse.SUPPRESS)
     parser.add_argument("--org", default=None, metavar="ADDR",
-                        help="program origin passed to zxbc (e.g. 0x40); the AMSDOS header and DSK follow what zxbc used")
+                        help="program origin passed to cpcbas (e.g. 0x40)")
     parser.add_argument("--expect", type=Path, default=None, help="diff captured printer text against this file")
     parser.add_argument("--quiet", action="store_true", help="don't print the captured printer text to stdout")
     parser.add_argument("--model", choices=sorted(MODELS), default=None,
@@ -599,6 +547,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--shot-dir", type=Path, default=None, metavar="DIR",
                         help="--emu chips: directory for shots the program triggers itself (see tests/screens/lib/shot.bas)")
     args = parser.parse_args(argv)
+    if args.zxbc_old:
+        parser.error("--zxbc-arg is gone (the compiler is cpcbas now): use --cpcbas-arg")
     if args.model is None:
         args.model = "plus" if args.cpr else "6128"
     if args.model == "plus" and args.emu == "chips":
@@ -610,7 +560,7 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--cpr needs --model plus and --emu cap32 or cpcec")
         if not args.cpr.is_file():
             parser.error(f"{args.cpr}: not found")
-        if args.bare or args.zxbc_args or args.org or args.disk_files:
+        if args.bare or args.cpcbas_args or args.org or args.disk_files:
             parser.error("--cpr takes no compile options or disk files")
     elif not args.program:
         parser.error("a program (or --cpr FILE.cpr) is required")
@@ -628,11 +578,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.cold and not args.bare:
         parser.error("--cold needs --bare (a firmware-mode program cannot start without the firmware)")
     if args.bare:
-        args.zxbc_args = ["-D", "CPC_BAREMETAL", *args.zxbc_args]
+        args.cpcbas_args = ["-D", "CPC_BAREMETAL", *args.cpcbas_args]
         if args.cold and args.model == "464":
             # a cold start can't see the 464 firmware's jumpblock; the 464 draws
             # its lines a little differently from the 6128 (gfxbare.asm)
-            args.zxbc_args = ["-D", "CPC_LINE_464", *args.zxbc_args]
+            args.cpcbas_args = ["-D", "CPC_LINE_464", *args.cpcbas_args]
 
     extra_files: list[tuple[str, Path]] = []
     for spec in args.disk_files:
@@ -647,10 +597,10 @@ def main(argv: list[str] | None = None) -> int:
     if bas_path is not None and not bas_path.exists():
         parser.error(f"{bas_path}: not found")
     if plus_shot:
-        args.zxbc_args = ["-D", "SHOT_HOLD", *args.zxbc_args]
+        args.cpcbas_args = ["-D", "SHOT_HOLD", *args.cpcbas_args]
 
     if args.org is not None:
-        args.zxbc_args = ["--org", args.org, *args.zxbc_args]
+        args.cpcbas_args = ["--org", args.org, *args.cpcbas_args]
 
     env = subprocess_env()
     tmpdir = Path(tempfile.mkdtemp(prefix="cpcrun-"))
@@ -661,10 +611,11 @@ def main(argv: list[str] | None = None) -> int:
         shot_tmp = tmpdir / "shots"
         stem = amsdos_stem(bas_path) if bas_path else ""
 
-        org = 0
         if bas_path is not None:
             try:
-                org = compile_program(bas_path, bin_path, args.zxbc_args, env)
+                # chips runs the AMSDOS-headered .bin; the disc emulators get the .dsk
+                compile_program(bas_path, bin_path if args.emu == "chips" else dsk_path, args.cpcbas_args, env,
+                                extra_files)
             except BuildError as exc:
                 print(f"cpcrun.py: build error: {exc}", file=sys.stderr)
                 return 1
@@ -674,10 +625,8 @@ def main(argv: list[str] | None = None) -> int:
             if args.model == "664":
                 print("cpcrun.py: chips has no 664", file=sys.stderr)
                 return 1
-            amsdos_path = tmpdir / "prog.amsdos"
-            amsdos_path.write_bytes(amsdos_bin(bin_path, stem, org))
             try:
-                code, text = run_chips(amsdos_path, args.timeout, args.model, args.typed,
+                code, text = run_chips(bin_path, args.timeout, args.model, args.typed,
                                        args.shot, args.shot_dir, args.shot_at, args.cold,
                                        args.end_on_marker)
             except BuildError as exc:
@@ -721,8 +670,6 @@ def main(argv: list[str] | None = None) -> int:
                     return 3
             return exit_code
 
-        if bas_path is not None:
-            pack_dsk(bin_path, dsk_path, stem, env, org, extra_files)
         if plus_shot:
             shot_tmp.mkdir()
         if args.emu == "cpcec" and args.shot_dir:
