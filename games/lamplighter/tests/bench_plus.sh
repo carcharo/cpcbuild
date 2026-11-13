@@ -7,14 +7,17 @@
 #   games/lamplighter/tests/bench_plus.sh
 cd "$(dirname "$0")/../../.." || exit 1
 . games/lamplighter/tests/env.sh
-PLUSLIB="${PLUSLIB:-$PWD/lib}"
+info() {   # the INFO line of a run, whatever the PRINT spacing and the 40-column wrap
+  tr -d ' \r\n' | grep -o 'INFOsteps=[0-9]*frames=[0-9]*persecond=[0-9.]*late=[0-9]*longest=[0-9]*' |
+    sed 's/INFO/INFO /; s/frames/ frames/; s/persecond/ per second/; s/late/ late/; s/longest/ longest/' | grep .
+}
 run() {   # emu variant extra
   printf "%-6s %-5s %-8s " "$1" "$2" "$3"
   bare=""; own=""
-  [ "$2" = cart ] && bare="--bare" && own="--zxbc-arg=-D --zxbc-arg=CPC_OWNFONT"
+  [ "$2" = cart ] && bare="--bare" && own="--cpcbas-arg=-D --cpcbas-arg=CPC_OWNFONT"
   python3 tools/cpcrun.py games/lamplighter/main.bas --org 0x40 --emu "$1" --model plus --timeout 120 $bare $own \
-      --zxbc-arg=-I --zxbc-arg="$PLUSLIB" --zxbc-arg=-D --zxbc-arg=PLUS --zxbc-arg=-D --zxbc-arg=BENCH \
-      ${3:+--zxbc-arg=-D --zxbc-arg="$3"} < /dev/null 2>&1 | grep "^INFO" || echo "(no result)"
+      --cpcbas-arg=-D --cpcbas-arg=PLUS --cpcbas-arg=-D --cpcbas-arg=BENCH \
+      ${3:+--cpcbas-arg=-D --cpcbas-arg="$3"} < /dev/null 2>/dev/null | info || echo "(no result)"
 }
 for e in cap32 cpcec; do
   for v in disc cart; do

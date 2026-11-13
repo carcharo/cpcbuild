@@ -96,7 +96,7 @@ DIM eR(3) AS UBYTE
 DIM taTab(15) AS UBYTE => {0, 1, 2, 4, 8, 16, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0}
 
 FUNCTION TileAttr(cx AS UBYTE, cy AS UBYTE) AS UBYTE
-  RETURN taTab(cur(CAST(UINTEGER, cy) * ROOM_W + cx) BAND 15)
+  RETURN taTab(cur(CAST(UINTEGER, cy) * ROOM_W + cx) AND 15)
 END FUNCTION
 #else
 FUNCTION TileAttr(cx AS UBYTE, cy AS UBYTE) AS UBYTE
@@ -118,7 +118,7 @@ CELL_ATTR:                ; B = column, C = row -> A = the cell's attributes (ke
   ld e, b
   ld d, 0
   add hl, de
-  ld de, _cur.__DATA__
+  ld de, _cur__a.__DATA__
   add hl, de
   ld a, (hl)
   and 15
@@ -142,7 +142,7 @@ TA_GO:
   ld a, (ix+5)            ; cx
   ld e, a
   add hl, de
-  ld de, _cur.__DATA__
+  ld de, _cur__a.__DATA__
   add hl, de
   ld a, (hl)              ; the tile
   and 15
@@ -168,17 +168,17 @@ FUNCTION TouchRow(l AS UBYTE, r AS UBYTE, row AS UBYTE) AS UBYTE
   DIM c, a AS UBYTE
   a = 0
   FOR c = l TO r
-    a = a BOR TileAttr(c, row)
+    a = a OR TileAttr(c, row)
   NEXT c
   RETURN a
 END FUNCTION
 
 FUNCTION TouchAttr(l AS UBYTE, r AS UBYTE, y AS UBYTE) AS UBYTE
   DIM a AS UBYTE
-  a = TouchRow(l, r, y >> 3) BAND 16          ' the top row: lamps only
-  a = a BOR TouchRow(l, r, (y + 8) >> 3)
-  a = a BOR TouchRow(l, r, (y + 15) >> 3)
-  RETURN a BAND 24
+  a = TouchRow(l, r, y >> 3) AND 16          ' the top row: lamps only
+  a = a OR TouchRow(l, r, (y + 8) >> 3)
+  a = a OR TouchRow(l, r, (y + 15) >> 3)
+  RETURN a AND 24
 END FUNCTION
 #else
 FUNCTION TouchAttr(l AS UBYTE, r AS UBYTE, y AS UBYTE) AS UBYTE
@@ -194,7 +194,7 @@ TOUCH_ROW:                ; A = row; returns A = the attributes of cells l..r OR
   add hl, de
   add hl, hl
   add hl, hl              ; 20 row
-  ld de, _cur.__DATA__
+  ld de, _cur__a.__DATA__
   add hl, de
   ld e, (ix+5)            ; l
   ld d, 0
@@ -269,7 +269,7 @@ SUB CopyRoom(src AS UINTEGER)
   ASM
   ld l, (ix+4)
   ld h, (ix+5)            ; src
-  ld de, _cur.__DATA__
+  ld de, _cur__a.__DATA__
   ld bc, 460              ; ROOM_SIZE
   ldir
   END ASM
@@ -303,9 +303,9 @@ SUB ScanRoom()
   xor a
   ld (_nLamp), a
   ld (_nDoor), a
-  ld hl, _cur.__DATA__
+  ld hl, _cur__a.__DATA__
   ld bc, 460
-  ld de, _lampCell.__DATA__
+  ld de, _lampCell__a.__DATA__
   ld a, 5                 ; T_LAMP
 SR_LAMP:
   cpir
@@ -319,9 +319,9 @@ SR_LAMP:
   ld a, 5
   jr nz, SR_LAMP
 SR_LAMPS_DONE:
-  ld hl, _cur.__DATA__
+  ld hl, _cur__a.__DATA__
   ld bc, 460
-  ld de, _doorCell.__DATA__
+  ld de, _doorCell__a.__DATA__
   ld a, 7                 ; T_DOOR
 SR_DOOR:
   cpir
@@ -339,7 +339,7 @@ SR_STORE:                 ; HL just past a match, DE the list's next entry
   push hl
   push bc
   dec hl
-  ld bc, _cur.__DATA__
+  ld bc, _cur__a.__DATA__
   or a
   sbc hl, bc              ; the cell index
   ex de, hl
@@ -367,7 +367,7 @@ SUB LoadRoom(id AS UBYTE)
   gRoomLit = 0
   n = 0
   DO WHILE n < nLamp
-    IF (litMask(id) BAND bitTab(n)) <> 0 THEN
+    IF (litMask(id) AND bitTab(n)) <> 0 THEN
       cur(lampCell(n)) = T_LIT
       gRoomLit = gRoomLit + 1
     END IF
@@ -463,7 +463,7 @@ SUB LightLamp(cx AS UBYTE, cy AS UBYTE)
     n = n + 1
   LOOP
   cur(idx) = T_LIT
-  litMask(pRoom) = litMask(pRoom) BOR bitTab(n)
+  litMask(pRoom) = litMask(pRoom) OR bitTab(n)
   gRoomLit = gRoomLit + 1
   gLit = gLit + 1
   PlatTile(cx, cy, T_LIT)
@@ -486,7 +486,7 @@ SUB Die()
   PlatSfx(3)
   IF gLives = 0 THEN
     gState = S_OVER
-    RETURN
+    EXIT SUB
   END IF
   pX = entX
   pY = entY
@@ -501,9 +501,9 @@ END SUB
 ' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 8,800
 ' T-states a call against 1,100.
 FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
-  IF (TileAttr(c, y >> 3) BAND 1) <> 0 THEN RETURN 1
-  IF (TileAttr(c, (y + 8) >> 3) BAND 1) <> 0 THEN RETURN 1
-  RETURN TileAttr(c, (y + 15) >> 3) BAND 1
+  IF (TileAttr(c, y >> 3) AND 1) <> 0 THEN RETURN 1
+  IF (TileAttr(c, (y + 8) >> 3) AND 1) <> 0 THEN RETURN 1
+  RETURN TileAttr(c, (y + 15) >> 3) AND 1
 END FUNCTION
 #else
 FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
@@ -546,7 +546,7 @@ END FUNCTION
 FUNCTION RowAttr(y AS UBYTE) AS UBYTE
   DIM r AS UBYTE
   r = y >> 3
-  RETURN TileAttr((pX + 1) >> 3, r) BOR TileAttr((pX + 6) >> 3, r)
+  RETURN TileAttr((pX + 1) >> 3, r) OR TileAttr((pX + 6) >> 3, r)
 END FUNCTION
 
 ' Standing on something (or on the floor of the tower's bottom edge)?
@@ -555,8 +555,8 @@ FUNCTION Ground() AS UBYTE
     IF pRoom < 9 THEN RETURN 0
     RETURN 1
   END IF
-  IF ((pY + 16) BAND 7) <> 0 THEN RETURN 0
-  IF (RowAttr(pY + 16) BAND 3) <> 0 THEN RETURN 1
+  IF ((pY + 16) AND 7) <> 0 THEN RETURN 0
+  IF (RowAttr(pY + 16) AND 3) <> 0 THEN RETURN 1
   RETURN 0
 END FUNCTION
 
@@ -567,17 +567,17 @@ SUB MoveX(dir AS UBYTE)
   IF dir = 1 THEN
     IF pX < 2 THEN
       IF (pRoom MOD 3) > 0 THEN EnterRoom(pRoom - 1, 152, pY)
-      RETURN
+      EXIT SUB
     END IF
     nx = pX - 2
-    IF ColSolid((nx + 1) >> 3, pY) <> 0 THEN RETURN
+    IF ColSolid((nx + 1) >> 3, pY) <> 0 THEN EXIT SUB
   ELSE
     IF pX >= 152 THEN
       IF (pRoom MOD 3) < 2 THEN EnterRoom(pRoom + 1, 0, pY)
-      RETURN
+      EXIT SUB
     END IF
     nx = pX + 2
-    IF ColSolid((nx + 6) >> 3, pY) <> 0 THEN RETURN
+    IF ColSolid((nx + 6) >> 3, pY) <> 0 THEN EXIT SUB
   END IF
   pX = nx
 END SUB
@@ -598,10 +598,10 @@ SUB MoveY()
         pY = 0
         pJt = 10
       END IF
-      RETURN
+      EXIT SUB
     END IF
     a = RowAttr(CAST(UBYTE, ny))
-    IF (a BAND 1) <> 0 THEN
+    IF (a AND 1) <> 0 THEN
       pY = ((CAST(UBYTE, ny) >> 3) + 1) << 3
       pJt = 10
     ELSE
@@ -617,11 +617,11 @@ SUB MoveY()
         pAir = 0
         pJt = 0
       END IF
-      RETURN
+      EXIT SUB
     END IF
     a = RowAttr(nb)
     row = nb >> 3
-    IF (a BAND 1) <> 0 OR ((a BAND 2) <> 0 AND ((pY + 15) >> 3) < row) THEN
+    IF (a AND 1) <> 0 OR ((a AND 2) <> 0 AND ((pY + 15) >> 3) < row) THEN
       pY = (row << 3) - 16
       pAir = 0
       pJt = 0
@@ -639,44 +639,44 @@ SUB StartClimb(cx AS UBYTE)
 END SUB
 
 ' On a ladder: up and down two lines a step; fire jumps off.
-SUB ClimbStep(inp AS UBYTE)
+SUB ClimbStep(kin AS UBYTE)
   DIM cx, ny, a AS UBYTE
   cx = (pX + 4) >> 3
-  IF (inp BAND I_FIRE) <> 0 THEN
+  IF (kin AND I_FIRE) <> 0 THEN
     pClimb = 0
     pAir = 1
     pJt = 0
     PlatSfx(1)
-    RETURN
+    EXIT SUB
   END IF
-  IF (inp BAND I_UP) <> 0 THEN
+  IF (kin AND I_UP) <> 0 THEN
     IF pY < 2 THEN
       IF pRoom >= 3 THEN EnterRoom(pRoom - 3, pX, 168)
-      RETURN
+      EXIT SUB
     END IF
     ny = pY - 2
     pAnim = pAnim + 1
     pY = ny
-    IF ((TileAttr(cx, (ny + 8) >> 3) BOR TileAttr(cx, (ny + 15) >> 3)) BAND 4) = 0 THEN
+    IF ((TileAttr(cx, (ny + 8) >> 3) OR TileAttr(cx, (ny + 15) >> 3)) AND 4) = 0 THEN
       pClimb = 0
       pAir = 1
       pJt = 10
     END IF
-  ELSEIF (inp BAND I_DOWN) <> 0 THEN
+  ELSEIF (kin AND I_DOWN) <> 0 THEN
     ny = pY + 2
     IF ny + 16 > 184 THEN
       IF pRoom < 9 THEN EnterRoom(pRoom + 3, pX, 0)
-      RETURN
+      EXIT SUB
     END IF
     pAnim = pAnim + 1
     a = TileAttr(cx, (ny + 15) >> 3)
-    IF (a BAND 1) <> 0 OR ((a BAND 2) <> 0 AND (a BAND 4) = 0) THEN
+    IF (a AND 1) <> 0 OR ((a AND 2) <> 0 AND (a AND 4) = 0) THEN
       pY = (((ny + 15) >> 3) << 3) - 16
       pClimb = 0
-      RETURN
+      EXIT SUB
     END IF
     pY = ny
-    IF ((TileAttr(cx, (ny + 8) >> 3) BOR TileAttr(cx, (ny + 15) >> 3)) BAND 4) = 0 THEN
+    IF ((TileAttr(cx, (ny + 8) >> 3) OR TileAttr(cx, (ny + 15) >> 3)) AND 4) = 0 THEN
       pClimb = 0
       pAir = 1
       pJt = 10
@@ -684,38 +684,38 @@ SUB ClimbStep(inp AS UBYTE)
   END IF
 END SUB
 
-SUB MovePlayer(inp AS UBYTE)
+SUB MovePlayer(kin AS UBYTE)
   DIM cx AS UBYTE
   IF pClimb <> 0 THEN
-    ClimbStep(inp)
-    RETURN
+    ClimbStep(kin)
+    EXIT SUB
   END IF
   cx = (pX + 4) >> 3
-  IF (inp BAND I_UP) <> 0 THEN
-    IF ((TileAttr(cx, (pY + 8) >> 3) BOR TileAttr(cx, (pY + 15) >> 3)) BAND 4) <> 0 THEN
+  IF (kin AND I_UP) <> 0 THEN
+    IF ((TileAttr(cx, (pY + 8) >> 3) OR TileAttr(cx, (pY + 15) >> 3)) AND 4) <> 0 THEN
       StartClimb(cx)
-      RETURN
+      EXIT SUB
     END IF
   END IF
-  IF (inp BAND I_DOWN) <> 0 AND pAir = 0 AND pY < 168 THEN
-    IF (TileAttr(cx, (pY + 16) >> 3) BAND 4) <> 0 THEN
+  IF (kin AND I_DOWN) <> 0 AND pAir = 0 AND pY < 168 THEN
+    IF (TileAttr(cx, (pY + 16) >> 3) AND 4) <> 0 THEN
       StartClimb(cx)
-      RETURN
+      EXIT SUB
     END IF
   END IF
   pMove = 0
-  IF (inp BAND I_LEFT) <> 0 THEN
+  IF (kin AND I_LEFT) <> 0 THEN
     pFace = 1
     pMove = 1
     MoveX(1)
-  ELSEIF (inp BAND I_RIGHT) <> 0 THEN
+  ELSEIF (kin AND I_RIGHT) <> 0 THEN
     pFace = 0
     pMove = 1
     MoveX(0)
   END IF
   IF pMove <> 0 THEN pAnim = pAnim + 1
   IF pAir = 0 THEN
-    IF (inp BAND I_FIRE) <> 0 THEN
+    IF (kin AND I_FIRE) <> 0 THEN
       pAir = 1
       pJt = 0
       PlatSfx(1)
@@ -737,8 +737,8 @@ FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
   DIM c AS UBYTE
   IF dir = 1 THEN c = (x + 7) >> 3 ELSE c = x >> 3
   IF ColSolid(c, y) <> 0 THEN RETURN 0
-  IF (TileAttr(c, (y + 15) >> 3) BAND 8) <> 0 THEN RETURN 0
-  IF (TileAttr(c, (y + 16) >> 3) BAND 3) = 0 THEN RETURN 0
+  IF (TileAttr(c, (y + 15) >> 3) AND 8) <> 0 THEN RETURN 0
+  IF (TileAttr(c, (y + 16) >> 3) AND 3) = 0 THEN RETURN 0
   RETURN 1
 END FUNCTION
 #else
@@ -807,9 +807,9 @@ END FUNCTION
 ' steps a second). Only those are visited: the others cost nothing.
 SUB MoveEnemies()
   DIM i, k, x, y, d AS UBYTE
-  IF nEn = 0 THEN RETURN
+  IF nEn = 0 THEN EXIT SUB
   eTick = eTick + 1
-  i = eTick BAND 1
+  i = eTick AND 1
   DO WHILE i < nEn
     eM(i) = 1
     k = eK(i)
@@ -852,7 +852,7 @@ SUB MoveEnemies()
         eX(i) = x
         IF x <= eX0(i) THEN eD(i) = 1
       END IF
-      eY(i) = eY0(i) + batTab((eTick >> 1) BAND 31) - 8
+      eY(i) = eY0(i) + batTab((eTick >> 1) AND 31) - 8
     END IF
     i = i + 2
   LOOP
@@ -865,8 +865,8 @@ FUNCTION Touch() AS UBYTE
   r = (pX + 6) >> 3
   hit = 0
   a = TouchAttr(l, r, pY)
-  IF (a BAND 8) <> 0 THEN hit = 1
-  IF (a BAND 16) <> 0 THEN
+  IF (a AND 8) <> 0 THEN hit = 1
+  IF (a AND 16) <> 0 THEN
     FOR k = 0 TO 2
       IF k = 0 THEN
         row = pY >> 3
@@ -876,7 +876,7 @@ FUNCTION Touch() AS UBYTE
         row = (pY + 15) >> 3
       END IF
       FOR c = l TO r
-        IF (TileAttr(c, row) BAND 16) <> 0 THEN LightLamp(c, row)
+        IF (TileAttr(c, row) AND 16) <> 0 THEN LightLamp(c, row)
       NEXT c
     NEXT k
   END IF
@@ -889,10 +889,10 @@ FUNCTION Touch() AS UBYTE
   RETURN hit
 END FUNCTION
 
-' One logic step with input inp. Returns the game state.
-FUNCTION GameStep(inp AS UBYTE) AS UBYTE
+' One logic step with input kin. Returns the game state.
+FUNCTION GameStep(kin AS UBYTE) AS UBYTE
   IF gState <> S_PLAY THEN RETURN gState
-  MovePlayer(inp)
+  MovePlayer(kin)
   MoveEnemies()
   IF Touch() <> 0 THEN Die()
   RETURN gState
@@ -902,22 +902,22 @@ END FUNCTION
 SUB GameDraw()
   DIM f, i AS UBYTE
   IF pClimb <> 0 THEN
-    f = F_CLIMB + ((pAnim >> 1) BAND 1)
+    f = F_CLIMB + ((pAnim >> 1) AND 1)
   ELSEIF pAir <> 0 THEN
     f = 3 + (pFace << 2)
   ELSEIF pMove <> 0 THEN
-    f = 1 + ((pAnim >> 1) BAND 1) + (pFace << 2)
+    f = 1 + ((pAnim >> 1) AND 1) + (pFace << 2)
   ELSE
     f = pFace << 2
   END IF
   PlatSprite(0, f, pX, pY)
   IF nEn = 0 THEN
     PlatHud(gLit, gTotal, gLives, pRoom)
-    RETURN
+    EXIT SUB
   END IF
   FOR i = 0 TO nEn - 1
     IF eM(i) <> 0 THEN
-      PlatSprite(i + 1, F_ENEMY + ((eTick >> 2) BAND 1), eX(i), eY(i))
+      PlatSprite(i + 1, F_ENEMY + ((eTick >> 2) AND 1), eX(i), eY(i))
       eM(i) = 0
     END IF
   NEXT i

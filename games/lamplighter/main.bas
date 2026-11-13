@@ -110,18 +110,10 @@ SUB Tick()
     t = PlatFrames() - benchT
     PlatEnd()
     r = 62500 / (t >> 1)
-#ifdef __CPC__
     PRINT "INFO steps="; benchN - 1; " frames="; t; " per second="; r / 10; "."; r - (r / 10) * 10; " late="; benchLate; " longest="; benchMax
-#else
-    TLN("INFO steps=" + STR$(benchN - 1) + " frames=" + STR$(t) + " per second=" + STR$(r / 10) + "." + STR$(r - (r / 10) * 10) + " late=" + STR$(benchLate) + " longest=" + STR$(benchMax))
-#endif
 #ifdef BENCHLOG
     FOR t = 0 TO 7
-#ifdef __CPC__
       IF t < benchLate THEN PRINT "LATE step "; benchAt(t * 2); " frames "; benchAt(t * 2 + 1)
-#else
-      IF t < benchLate THEN TLN("LATE step " + STR$(benchAt(t * 2)) + " frames " + STR$(benchAt(t * 2 + 1)))
-#endif
     NEXT t
 #endif
     END
@@ -139,12 +131,12 @@ FUNCTION BenchInput(n AS UINTEGER) AS UBYTE
   IF pX <= 104 THEN benchDir = 0
   IF pX >= 136 THEN benchDir = 1
   IF benchDir = 1 THEN r = I_LEFT ELSE r = I_RIGHT
-  IF CAST(UBYTE, n) MOD 25 = 24 THEN r = r BOR I_FIRE
+  IF CAST(UBYTE, n) MOD 25 = 24 THEN r = r OR I_FIRE
   RETURN r
 END FUNCTION
 #endif
 
-DIM inp, st AS UBYTE
+DIM kin, st AS UBYTE
 
 ' The title screen. Returns when fire (or any key) is pressed.
 SUB TitleScreen()
@@ -167,8 +159,8 @@ SUB TitleScreen()
   released = 0
   idle = 0
   DO
-    inp = PlatInput()
-    f = (idle >> 3) BAND 1
+    kin = PlatInput()
+    f = (idle >> 3) AND 1
     PlatSprite(0, f + 1, 36, 96)
     PlatSprite(1, F_ENEMY + f, 108, 96)
     PlatFrameEnd()
@@ -180,8 +172,8 @@ SUB TitleScreen()
       END
     END IF
 #endif
-    IF (inp BAND 8) = 0 THEN released = 1
-  LOOP UNTIL released = 1 AND (inp BAND 8) <> 0
+    IF (kin AND 8) = 0 THEN released = 1
+  LOOP UNTIL released = 1 AND (kin AND 8) <> 0
 END SUB
 
 ' A game: from the cellar until the lives or the tower's dark run out.
@@ -210,17 +202,17 @@ SUB RunGame()
 #endif
   ov = 0
   DO
-    inp = PlatInput()
+    kin = PlatInput()
 #ifdef SHOT_WALK
     ' walking right from the start, a jump after 8 steps
-    inp = I_RIGHT
-    IF shotN = 8 THEN inp = I_RIGHT BOR I_FIRE
+    kin = I_RIGHT
+    IF shotN = 8 THEN kin = I_RIGHT OR I_FIRE
 #endif
 #ifdef BENCH
-    inp = BenchInput(benchN)
+    kin = BenchInput(benchN)
     gLives = 3
 #endif
-    st = GameStep(inp)
+    st = GameStep(kin)
     GameDraw()
     PlatFrameEnd()
 #ifdef TESTSW
@@ -236,7 +228,7 @@ SUB RunGame()
       END IF
       ov = ov + 1
       IF ov > 100 THEN EXIT DO
-      IF ov > 30 AND (inp BAND I_FIRE) <> 0 THEN EXIT DO
+      IF ov > 30 AND (kin AND I_FIRE) <> 0 THEN EXIT DO
     END IF
   LOOP
   PlatPlaying(0)

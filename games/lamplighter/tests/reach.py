@@ -52,11 +52,11 @@ INPUTS = sorted(set(a | b | c for a in (0, L, R) for b in (0, F) for c in (0, U,
 def load():
     txt = ROOMS_BAS.read_text()
     m = re.search(r"DIM rooms\(\d+\) AS UBYTE => \{(.*?)\}", txt, re.S)
-    vals = [int(v, 16) for v in re.findall(r"\$([0-9A-Fa-f]{2})", m.group(1))]
+    vals = [int(v, 16) for v in re.findall(r"&([0-9A-Fa-f]{2})", m.group(1))]
     assert len(vals) == 12 * RW * RH
     rooms = [vals[i * RW * RH:(i + 1) * RW * RH] for i in range(12)]
     m = re.search(r"DIM robj\(\d+\) AS UBYTE => \{(.*?)\}", txt, re.S)
-    robj = [int(v, 16) for v in re.findall(r"\$([0-9A-Fa-f]{2})", m.group(1))]
+    robj = [int(v, 16) for v in re.findall(r"&([0-9A-Fa-f]{2})", m.group(1))]
     m = re.search(r"DIM roff\(\d+\) AS UINTEGER => \{(.*?)\}", txt, re.S)
     roff = [int(v) for v in re.findall(r"\d+", m.group(1))]
     start = {}
@@ -417,7 +417,7 @@ BATTAB = [8, 10, 11, 12, 14, 15, 15, 16, 16, 16, 15, 15, 14, 12, 11, 10,
 def load_enemies():
     txt = ROOMS_BAS.read_text()
     m = re.search(r"DIM robj\(\d+\) AS UBYTE => \{(.*?)\}", txt, re.S)
-    robj = [int(v, 16) for v in re.findall(r"\$([0-9A-Fa-f]{2})", m.group(1))]
+    robj = [int(v, 16) for v in re.findall(r"&([0-9A-Fa-f]{2})", m.group(1))]
     m = re.search(r"DIM roff\(\d+\) AS UINTEGER => \{(.*?)\}", txt, re.S)
     roff = [int(v) for v in re.findall(r"\d+", m.group(1))]
     en = {}
