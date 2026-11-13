@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""bench.py -- speed comparison between Boriel BASIC (--arch cpc) and
+"""bench.py -- speed comparison between cpcbas (compiled CPC BASIC) and
 Locomotive BASIC 1.1, both running on a real-speed, headless Caprice32
 CPC 6128.
 
@@ -7,7 +7,7 @@ See README.md for the full method. In short:
 
   - Caprice32 runs at real (emulated) speed even headless, and fflushes
     its printer-capture file after every byte it receives (cap32.cpp,
-    around line 770). So both the Boriel and the Locomotive program
+    around line 770). So both the cpcbas and the Locomotive program
     send a bare "S" then a bare "E" line to the printer around the
     section being timed, and this script polls the capture file every
     ~2ms, recording the host wall-clock time each marker line first
@@ -15,17 +15,18 @@ See README.md for the full method. In short:
     cap32's own overhead (compiling, disk access, keystroke injection,
     booting) polluting the measurement.
 
-  - Boriel programs send their markers through a tiny inline ASM
+  - cpcbas programs send their markers through a tiny inline ASM
     snippet that calls MC_PRINT_CHAR (&BD2B) directly through the
     firmware gate (fwcall.asm), bypassing PRINT/__PRINTCHAR (and so
-    the -D __CPC_PRINTER_ECHO__ echo) entirely -- see bench/boriel/*.bas
+    the -D __CPC_PRINTER_ECHO__ echo) entirely -- see bench/cpcbas/*.bas
     and README.md. Locomotive programs use PRINT#8 (stream 8 = printer).
 
   - Each measurement is repeated 3 times; the median and the min..max
     spread are reported.
 
 Run: python3 bench.py   (from anywhere; paths below are relative to
-this file). Requires this environment:
+this file). Needs a built cpcbas ($CPCBAS, default the sibling ../cpcbas) and
+a Caprice32 (make cap32). Requires this environment:
     export PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:$HOME/.local/bin:$PATH
 Generated files (bench/_work, bench/micro) are not committed.
 """
@@ -42,14 +43,14 @@ from pathlib import Path
 
 BENCH_DIR = Path(__file__).resolve().parent
 CPCBUILD_ROOT = BENCH_DIR.parent
-ZXBASIC_DIR = CPCBUILD_ROOT.parent / "zxbasic"
+CPCBAS_DIR = Path(os.environ.get("CPCBAS") or CPCBUILD_ROOT.parent / "cpcbas").resolve()
+CPCBAS_CLI = ["node", str(CPCBAS_DIR / "packages" / "cpcbas" / "dist" / "bin" / "cpcbas.js")]
 CAP32_BIN = CPCBUILD_ROOT / "tools" / "caprice32" / "work" / "src" / "cap32"  # make cap32
 if not CAP32_BIN.exists():
     CAP32_BIN = CPCBUILD_ROOT.parent / "caprice32" / "cap32"  # unpatched
 CAP32_CFG = CAP32_BIN.parent / "cap32.cfg"
-MKDSK = ZXBASIC_DIR / "tools" / "cpc" / "mkdsk.py"
 
-BORIEL_DIR = BENCH_DIR / "boriel"
+CPCBAS_SRC_DIR = BENCH_DIR / "cpcbas"
 LOCO_DIR = BENCH_DIR / "locomotive"
 WORK_DIR = BENCH_DIR / "_work"
 
@@ -68,43 +69,36 @@ def env_with_path() -> dict[str, str]:
     return env
 
 
-def kill_stray_cap32() -> None:
-    subprocess.run(["pkill", "-9", "-x", "cap32"], capture_output=True)
-    time.sleep(0.2)
-
-
 # ---------------------------------------------------------------------
-# Boriel side: compile, pack, run
+# cpcbas side: compile, pack, run
 # ---------------------------------------------------------------------
 
 
-def compile_boriel(bas_path: Path, out_bin: Path, echo: bool, env: dict[str, str]) -> None:
-    cmd = ["poetry", "run", "zxbc", "--arch", "cpc"]
+def compile_cpcbas(bas_path: Path, out_bin: Path, echo: bool, env: dict[str, str]) -> None:
+    cmd = [*CPCBAS_CLI, str(bas_path)]
     if echo:
         cmd += ["-D", "__CPC_PRINTER_ECHO__"]
-    cmd += ["-o", str(out_bin), str(bas_path)]
-    proc = subprocess.run(cmd, cwd=ZXBASIC_DIR, env=env, capture_output=True, text=True)
+    cmd += ["-M", str(out_bin.with_suffix(".map")), "-o", str(out_bin)]
+    proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if proc.returncode != 0:
-        raise RuntimeError(f"zxbc failed on {bas_path.name}:\n{proc.stdout}\n{proc.stderr}")
+        raise RuntimeError(f"cpcbas failed on {bas_path.name}:\n{proc.stdout}\n{proc.stderr}")
 
 
 def pack_dsk(bin_path: Path, dsk_path: Path, stem: str, env: dict[str, str]) -> None:
-    cmd = [
-        sys.executable,
-        str(MKDSK),
-        "-o",
-        str(dsk_path),
-        "--load",
-        "0x40",
-        "--exec",
-        "0x40",
-        "--name",
-        f"{stem}.BIN",
-        str(bin_path),
-    ]
+    # cpcbas writes the .bin with its AMSDOS header; `cpcbas dsk` adds its own, so pack the bare image
+    origin = None
+    for line in bin_path.with_suffix(".map").read_text().splitlines():
+        addr, _, label = line.partition(":")
+        if label.strip() == ".core.__START_PROGRAM":
+            origin = int(addr, 16)
+    if origin is None:
+        raise RuntimeError(f"no .core.__START_PROGRAM in {bin_path.with_suffix('.map').name}")
+    raw = bin_path.with_suffix(".raw")
+    raw.write_bytes(bin_path.read_bytes()[128:])
+    cmd = [*CPCBAS_CLI, "dsk", "-o", str(dsk_path), f"{stem}.BIN={raw}@{origin:#x}"]
     proc = subprocess.run(cmd, env=env, capture_output=True, text=True)
     if proc.returncode != 0:
-        raise RuntimeError(f"mkdsk.py failed for {dsk_path.name}:\n{proc.stdout}\n{proc.stderr}")
+        raise RuntimeError(f"cpcbas dsk failed for {dsk_path.name}:\n{proc.stdout}\n{proc.stderr}")
 
 
 # ---------------------------------------------------------------------
@@ -141,11 +135,11 @@ class RunResult:
         if e_idx == -1:
             return []
         tail = head[e_idx + 2 :]
-        return [ln for ln in tail.split("\n") if ln]
+        # cpcbas PRINTs a number with its sign space and a trailing space: strip them
+        return [ln.strip() for ln in tail.split("\n") if ln.strip()]
 
 
 def run_cap32(autocmd: list[str], dsk_path: Path | None, timeout: float, printer_path: Path) -> RunResult:
-    kill_stray_cap32()
     if printer_path.exists():
         printer_path.unlink()
 
@@ -209,7 +203,6 @@ def run_cap32(autocmd: list[str], dsk_path: Path | None, timeout: float, printer
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait(timeout=3)
-        kill_stray_cap32()
 
     if result.t_start is not None and result.t_end is not None:
         result.elapsed = result.t_end - result.t_start
@@ -227,31 +220,31 @@ def run_locomotive(lines: list[str], timeout: float, printer_path: Path) -> RunR
 
 
 # ---------------------------------------------------------------------
-# Boriel: compile once per (file, echo) pair, then run
+# cpcbas: compile once per (file, echo) pair, then run
 # ---------------------------------------------------------------------
 
 
-def build_boriel(bas_name: str, stem: str, echo: bool, env: dict[str, str]) -> Path:
+def build_cpcbas(bas_name: str, stem: str, echo: bool, env: dict[str, str]) -> Path:
     """Compile + pack once; returns the .dsk path to run (possibly several times)."""
     WORK_DIR.mkdir(exist_ok=True)
-    bas_path = BORIEL_DIR / bas_name
+    bas_path = CPCBAS_SRC_DIR / bas_name
     bin_path = WORK_DIR / f"{stem}.bin"
     dsk_path = WORK_DIR / f"{stem}.dsk"
 
-    compile_boriel(bas_path, bin_path, echo, env)
+    compile_cpcbas(bas_path, bin_path, echo, env)
     pack_dsk(bin_path, dsk_path, stem, env)
     return dsk_path
 
 
-def run_boriel_dsk(dsk_path: Path, stem: str, timeout: float) -> RunResult:
+def run_cpcbas_dsk(dsk_path: Path, stem: str, timeout: float) -> RunResult:
     printer_path = WORK_DIR / f"{stem}_printer.dat"
     return run_cap32([f'run"{stem}', "CAP32_WAITBREAK", "CAP32_EXIT"], dsk_path, timeout, printer_path)
 
 
-def run_boriel(bas_name: str, stem: str, echo: bool, timeout: float, env: dict[str, str]) -> RunResult:
+def run_cpcbas(bas_name: str, stem: str, echo: bool, timeout: float, env: dict[str, str]) -> RunResult:
     """Compile + pack + run once (used for ad hoc/manual testing)."""
-    dsk_path = build_boriel(bas_name, stem, echo, env)
-    return run_boriel_dsk(dsk_path, stem, timeout)
+    dsk_path = build_cpcbas(bas_name, stem, echo, env)
+    return run_cpcbas_dsk(dsk_path, stem, timeout)
 
 
 def read_loco_lines(name: str) -> list[str]:
@@ -268,82 +261,82 @@ def read_loco_lines(name: str) -> list[str]:
 class Benchmark:
     key: str
     title: str
-    boriel_bas: str
-    boriel_stem: str
-    boriel_timeout: float
+    cpcbas_bas: str
+    cpcbas_stem: str
+    cpcbas_timeout: float
     loco_bas: str
     loco_timeout: float
-    # Whether the *main* Boriel build needs -D __CPC_PRINTER_ECHO__ for its
+    # Whether the *main* cpcbas build needs -D __CPC_PRINTER_ECHO__ for its
     # result PRINT statement(s) to reach the printer. The S/E markers
     # themselves are always sent via the inline-ASM MC_PRINT_CHAR route
     # (bypasses echo either way -- see README.md), so this only matters
     # for the checksum printed after E. False only for benchmark 6's
     # "clean" build, which prints no checksum (echo would distort its
-    # timed section -- see boriel_echoed_bas below).
-    boriel_echo: bool = True
-    # Optional: a second Boriel build used only for a distortion estimate
+    # timed section -- see cpcbas_echoed_bas below).
+    cpcbas_echo: bool = True
+    # Optional: a second cpcbas build used only for a distortion estimate
     # (benchmark 6 -- see README.md).
-    boriel_echoed_bas: str | None = None
-    boriel_echoed_stem: str | None = None
+    cpcbas_echoed_bas: str | None = None
+    cpcbas_echoed_stem: str | None = None
 
 
 BENCHMARKS = [
     Benchmark(
         key="bm7",
         title="1. BM7 (Rugg/Feldman)",
-        boriel_bas="bench1_bm7.bas",
-        boriel_stem="BENCH1",
-        boriel_timeout=20,
+        cpcbas_bas="bench1_bm7.bas",
+        cpcbas_stem="BENCH1",
+        cpcbas_timeout=20,
         loco_bas="bench1_bm7.bas",
         loco_timeout=60,
     ),
     Benchmark(
         key="intloop",
         title="2. Integer loop (1500 iter)",
-        boriel_bas="bench2_intloop.bas",
-        boriel_stem="BENCH2",
-        boriel_timeout=20,
+        cpcbas_bas="bench2_intloop.bas",
+        cpcbas_stem="BENCH2",
+        cpcbas_timeout=20,
         loco_bas="bench2_intloop.bas",
         loco_timeout=60,
     ),
     Benchmark(
         key="sieve",
         title="3. Sieve of Eratosthenes (<2000)",
-        boriel_bas="bench3_sieve.bas",
-        boriel_stem="BENCH3",
-        boriel_timeout=20,
+        cpcbas_bas="bench3_sieve.bas",
+        cpcbas_stem="BENCH3",
+        cpcbas_timeout=20,
         loco_bas="bench3_sieve.bas",
         loco_timeout=90,
     ),
     Benchmark(
         key="float",
         title="4. Float maths (200 iter)",
-        boriel_bas="bench4_float.bas",
-        boriel_stem="BENCH4",
-        boriel_timeout=90,
+        cpcbas_bas="bench4_float.bas",
+        cpcbas_stem="BENCH4",
+        cpcbas_timeout=90,
         loco_bas="bench4_float.bas",
         loco_timeout=120,
     ),
     Benchmark(
         key="strings",
         title="5. Strings (2000 iter)",
-        boriel_bas="bench5_strings.bas",
-        boriel_stem="BENCH5",
-        boriel_timeout=20,
+        cpcbas_bas="bench5_strings.bas",
+        cpcbas_stem="BENCH5",
+        cpcbas_timeout=20,
         loco_bas="bench5_strings.bas",
         loco_timeout=60,
     ),
     Benchmark(
         key="print",
         title="6. Screen PRINT (1..600)",
-        boriel_bas="bench6_print_clean.bas",
-        boriel_stem="BENCH6C",
-        boriel_timeout=60,
+        cpcbas_bas="bench6_print_clean.bas",
+        cpcbas_stem="BENCH6C",
+        cpcbas_timeout=60,
         loco_bas="bench6_print.bas",
         loco_timeout=90,
-        boriel_echo=False,
-        boriel_echoed_bas="bench6_print_echoed.bas",
-        boriel_echoed_stem="BENCH6E",
+        cpcbas_echo=False,
+        cpcbas_echoed_bas="bench6_print_echoed.bas",
+        cpcbas_echoed_stem="BENCH6E",
     ),
 ]
 
@@ -357,7 +350,7 @@ def main() -> int:
     env = env_with_path()
     WORK_DIR.mkdir(exist_ok=True)
 
-    print(f"# CPC speed comparison -- Boriel BASIC (--arch cpc) vs Locomotive BASIC 1.1", file=sys.stderr)
+    print(f"# CPC speed comparison -- cpcbas vs Locomotive BASIC 1.1", file=sys.stderr)
     print(f"# {REPEATS} repeats per measurement, poll interval {POLL_INTERVAL*1000:.0f} ms\n", file=sys.stderr)
 
     rows = []
@@ -367,33 +360,33 @@ def main() -> int:
             continue
         print(f"=== {bm.title} ===", file=sys.stderr)
 
-        print(f"  compiling boriel...", file=sys.stderr, flush=True)
-        dsk_path = build_boriel(bm.boriel_bas, bm.boriel_stem, echo=bm.boriel_echo, env=env)
+        print(f"  compiling cpcbas...", file=sys.stderr, flush=True)
+        dsk_path = build_cpcbas(bm.cpcbas_bas, bm.cpcbas_stem, echo=bm.cpcbas_echo, env=env)
 
-        boriel_times = []
-        boriel_result_lines: list[str] = []
+        cpcbas_times = []
+        cpcbas_result_lines: list[str] = []
         for i in range(REPEATS):
-            print(f"  boriel run {i+1}/{REPEATS}...", file=sys.stderr, flush=True)
-            r = run_boriel_dsk(dsk_path, bm.boriel_stem, timeout=bm.boriel_timeout)
+            print(f"  cpcbas run {i+1}/{REPEATS}...", file=sys.stderr, flush=True)
+            r = run_cpcbas_dsk(dsk_path, bm.cpcbas_stem, timeout=bm.cpcbas_timeout)
             if r.elapsed is None:
                 print(f"    WARNING: no S/E pair captured (timed_out={r.timed_out}); text={r.text!r}", file=sys.stderr)
             else:
-                boriel_times.append(r.elapsed)
-                boriel_result_lines = r.result_lines
+                cpcbas_times.append(r.elapsed)
+                cpcbas_result_lines = r.result_lines
 
-        boriel_echo_times = []
-        boriel_echo_result_lines: list[str] = []
-        if bm.boriel_echoed_bas:
-            print(f"  compiling boriel (echoed)...", file=sys.stderr, flush=True)
-            echo_dsk_path = build_boriel(bm.boriel_echoed_bas, bm.boriel_echoed_stem, echo=True, env=env)
+        cpcbas_echo_times = []
+        cpcbas_echo_result_lines: list[str] = []
+        if bm.cpcbas_echoed_bas:
+            print(f"  compiling cpcbas (echoed)...", file=sys.stderr, flush=True)
+            echo_dsk_path = build_cpcbas(bm.cpcbas_echoed_bas, bm.cpcbas_echoed_stem, echo=True, env=env)
             for i in range(REPEATS):
-                print(f"  boriel (echoed) run {i+1}/{REPEATS}...", file=sys.stderr, flush=True)
-                r = run_boriel_dsk(echo_dsk_path, bm.boriel_echoed_stem, timeout=bm.boriel_timeout * 2)
+                print(f"  cpcbas (echoed) run {i+1}/{REPEATS}...", file=sys.stderr, flush=True)
+                r = run_cpcbas_dsk(echo_dsk_path, bm.cpcbas_echoed_stem, timeout=bm.cpcbas_timeout * 2)
                 if r.elapsed is None:
                     print(f"    WARNING: no S/E pair captured; text={r.text!r}", file=sys.stderr)
                 else:
-                    boriel_echo_times.append(r.elapsed)
-                    boriel_echo_result_lines = r.result_lines
+                    cpcbas_echo_times.append(r.elapsed)
+                    cpcbas_echo_result_lines = r.result_lines
 
         loco_lines = read_loco_lines(bm.loco_bas)
         loco_times = []
@@ -420,10 +413,10 @@ def main() -> int:
         rows.append(
             dict(
                 bm=bm,
-                boriel_times=boriel_times,
-                boriel_result=boriel_result_lines,
-                boriel_echo_times=boriel_echo_times,
-                boriel_echo_result=boriel_echo_result_lines,
+                cpcbas_times=cpcbas_times,
+                cpcbas_result=cpcbas_result_lines,
+                cpcbas_echo_times=cpcbas_echo_times,
+                cpcbas_echo_result=cpcbas_echo_result_lines,
                 loco_times=loco_times,
                 loco_internal_times=loco_internal_times,
                 loco_result=loco_result_lines,
@@ -432,31 +425,31 @@ def main() -> int:
 
     # ---- report ----
     print()
-    print("| Benchmark | Locomotive s (median, min-max) | Boriel s (median, min-max) | Speed-up x | Result check |")
+    print("| Benchmark | Locomotive s (median, min-max) | cpcbas s (median, min-max) | Speed-up x | Result check |")
     print("|---|---|---|---|---|")
     for row in rows:
         bm = row["bm"]
         loco_med = loco_lo = loco_hi = None
         if row["loco_times"]:
             loco_med, loco_lo, loco_hi = median_spread(row["loco_times"])
-        boriel_med = boriel_lo = boriel_hi = None
-        if row["boriel_times"]:
-            boriel_med, boriel_lo, boriel_hi = median_spread(row["boriel_times"])
+        cpcbas_med = cpcbas_lo = cpcbas_hi = None
+        if row["cpcbas_times"]:
+            cpcbas_med, cpcbas_lo, cpcbas_hi = median_spread(row["cpcbas_times"])
 
         loco_str = f"{loco_med:.3f} ({loco_lo:.3f}-{loco_hi:.3f})" if loco_med is not None else "N/A"
-        boriel_str = f"{boriel_med:.3f} ({boriel_lo:.3f}-{boriel_hi:.3f})" if boriel_med is not None else "N/A"
-        speedup = f"{loco_med/boriel_med:.1f}x" if (loco_med and boriel_med) else "N/A"
+        cpcbas_str = f"{cpcbas_med:.3f} ({cpcbas_lo:.3f}-{cpcbas_hi:.3f})" if cpcbas_med is not None else "N/A"
+        speedup = f"{loco_med/cpcbas_med:.1f}x" if (loco_med and cpcbas_med) else "N/A"
 
-        check = f"loco={row['loco_result']} boriel={row['boriel_result']}"
-        print(f"| {bm.title} | {loco_str} | {boriel_str} | {speedup} | {check} |")
+        check = f"loco={row['loco_result']} cpcbas={row['cpcbas_result']}"
+        print(f"| {bm.title} | {loco_str} | {cpcbas_str} | {speedup} | {check} |")
 
-        if row["boriel_echo_times"]:
-            e_med, e_lo, e_hi = median_spread(row["boriel_echo_times"])
+        if row["cpcbas_echo_times"]:
+            e_med, e_lo, e_hi = median_spread(row["cpcbas_echo_times"])
             print(
-                f"|   (distortion check: same Boriel program, built WITH printer echo) "
+                f"|   (distortion check: same cpcbas program, built WITH printer echo) "
                 f"| | {e_med:.3f} ({e_lo:.3f}-{e_hi:.3f}) | "
-                f"{(e_med/boriel_med) if boriel_med else float('nan'):.2f}x slower than clean | "
-                f"boriel(echoed)={row['boriel_echo_result']} |"
+                f"{(e_med/cpcbas_med) if cpcbas_med else float('nan'):.2f}x slower than clean | "
+                f"cpcbas(echoed)={row['cpcbas_echo_result']} |"
             )
 
         if row["loco_internal_times"]:
@@ -464,7 +457,6 @@ def main() -> int:
             ext = loco_med if loco_med is not None else float("nan")
             print(f"|   (Locomotive TIME cross-check: internal median {im:.3f}s vs external {ext:.3f}s) | | | | |")
 
-    kill_stray_cap32()
     return 0
 
 

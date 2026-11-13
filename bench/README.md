@@ -1,7 +1,7 @@
-# CPC speed comparison: Boriel BASIC (--arch cpc) vs Locomotive BASIC 1.1
+# CPC speed comparison: cpcbas vs Locomotive BASIC 1.1
 
-A fair-as-practical speed comparison between programs compiled with our
-Boriel BASIC CPC backend (`zxbc --arch cpc`) and the same algorithms typed
+A fair-as-practical speed comparison between programs compiled with cpcbas
+(CPC BASIC, compiled to Z80) and the same algorithms typed
 into the Amstrad CPC 6128's built-in Locomotive BASIC 1.1 interpreter, both
 run on headless Caprice32. Generated files (`_work/`, `micro/`) are not
 committed; re-run `bench.py` / `micro.py` to regenerate results.
@@ -10,22 +10,26 @@ committed; re-run `bench.py` / `micro.py` to regenerate results.
 
 ```
 export PATH=/opt/homebrew/opt/coreutils/libexec/gnubin:$HOME/.local/bin:$PATH
+export CPCBAS=../cpcbas     # a built cpcbas checkout (the default is the sibling ../cpcbas)
 cd cpcbuild/bench
 python3 bench.py
 ```
 
 Prints progress to stderr and a Markdown results table to stdout. Takes
 several minutes (the Locomotive side is a real 4MHz interpreter running six
-programs three times each). Requires the sibling `zxbasic` (branch
-`cpc-arch`, via `poetry`) and `caprice32/cap32` checkouts. `bench/_work/` holds compiled
+programs three times each). Requires a built cpcbas
+(`node $CPCBAS/packages/cpcbas/dist/bin/cpcbas.js`; programs are packed into discs
+with `cpcbas dsk`) and Caprice32 (`make cap32`, or the sibling `caprice32/cap32`).
+`bench/_work/` holds compiled
 binaries, `.dsk` images and raw printer captures from the last run.
 
 ## Layout
 
-- `bench.py` -- the harness (compiles/packs/runs Boriel builds, autotypes
+- `bench.py` -- the harness (compiles/packs/runs cpcbas builds, autotypes
   and runs the Locomotive programs, times both, prints the report).
-- `boriel/*.bas` -- the six Boriel BASIC programs (`--arch cpc`), plus two
-  builds of benchmark 6 (see below).
+- `cpcbas/*.bas` -- the six CPC BASIC programs, plus two builds of
+  benchmark 6 (see below) and `banks_bench.bas` (bank-switching costs, run by hand).
+  They are the 0.1.x Boriel programs translated with `cpcbas migrate`.
 - `locomotive/*.bas` -- the Locomotive BASIC source, as plain text, in
   exactly the form typed into the emulator via autocmd.
 
@@ -38,7 +42,7 @@ after every single byte the CPC's printer port receives (`cap32.cpp`,
 zero-latency, host-side-readable channel out of the emulator that updates
 in lock-step with emulated time.
 
-So every benchmark program -- Boriel and Locomotive alike -- sends a bare
+So every benchmark program -- cpcbas and Locomotive alike -- sends a bare
 `S` line to the printer immediately before the timed section and a bare
 `E` line immediately after, then whatever result/checksum it wants to
 report, then a `DONE` sentinel line. `bench.py` launches `cap32` with
@@ -62,11 +66,11 @@ min-max spread.
 
 ### How the markers reach the printer
 
-- **Boriel**: a small inline `ASM ... END ASM` block in each `boriel/*.bas`
+- **cpcbas**: a small inline `ASM ... END ASM` block in each `cpcbas/*.bas`
   file sends its `S`/`E`/`DONE` message directly to the printer via
   `MC_PRINT_CHAR` (`&BD2B`), through the firmware gate
-  (`.core.__FW_CALL` / `defw $BD2B`, see zxbasic's
-  `src/lib/arch/cpc/runtime/fwcall.asm`). This bypasses Boriel's own
+  (`.core.__FW_CALL` / `defw $BD2B`, see cpcbas's
+  `lib/runtime/fwcall.asm`). This bypasses cpcbas's own
   `PRINT`/`__PRINTCHAR` path (and therefore the `-D __CPC_PRINTER_ECHO__`
   echo mechanism, see `print.asm`) entirely, so the marker mechanism never
   distorts whatever the benchmark itself does on screen. It also means the
@@ -76,7 +80,7 @@ min-max spread.
 - **Locomotive**: `PRINT#8,"S"` / `PRINT#8,"E"` (stream 8 = printer, a
   built-in CPC BASIC 1.1 convention -- no `printer,online` or width setup
   needed for Caprice32's virtual printer). Locomotive terminates a
-  `PRINT#8` line with CR+LF; Boriel's asm markers send a bare LF. `bench.py`
+  `PRINT#8` line with CR+LF; the cpcbas asm markers send a bare LF. `bench.py`
   strips `\r` before comparing, so both are treated as plain `\n`-terminated
   text.
 
@@ -115,7 +119,7 @@ not exercised here, since no benchmark needs it).
 
 ## Benchmarks
 
-Programs are as algorithmically identical as each language allows. Boriel
+Programs are as algorithmically identical as each language allows. cpcbas
 uses explicit `UInteger`/`UByte`/`FLOAT` types; Locomotive uses `DEFINT`
 for integer-only benchmarks and its default `REAL` type for the float one,
 per the task brief. Iteration counts were tuned (see "Tuning" below) so
@@ -159,6 +163,31 @@ but the polling method being read off the CPC's own real-time clock (via
 Caprice32's real-speed emulation) keeps run-to-run variance small, as the
 narrow min-max spreads below show.
 
+### cpcbas 0.2.0-dev (2026-11-13)
+
+The programs in `cpcbas/` (the 0.1.x Boriel programs, translated), built by cpcbas.
+
+| Benchmark | Locomotive s (median, min-max) | cpcbas s (median, min-max) | Speed-up x | Result check |
+|---|---|---|---|---|
+| 1. BM7 (Rugg/Feldman) | 17.820 (17.819-17.841) | 1.181 (1.180-1.181) | 15.1x | loco=[7, 800] cpcbas=[5, 800] |
+| 2. Integer loop (1500 iter) | 7.301 (7.300-7.356) | 0.142 (0.141-0.142) | 51.5x | loco=[2731] cpcbas=[2731] |
+| 3. Sieve of Eratosthenes (<2000) | 14.241 (14.238-14.259) | 1.302 (1.298-1.302) | 10.9x | loco=[303] cpcbas=[303] |
+| 4. Float maths (200 iter) | 9.563 (9.559-9.563) | 8.901 (8.901-8.963) | 1.1x | loco=[6688.08573] cpcbas=[6688.08573] |
+| 5. Strings (2000 iter) | 12.650 (12.620-12.657) | 3.260 (3.259-3.262) | 3.9x | loco=[8000] cpcbas=[8000] |
+| 6. Screen PRINT (1..600) | 17.451 (17.446-17.477) | 14.017 (13.980-14.050) | 1.2x | loco=[300] cpcbas(echoed)=[300] |
+
+Benchmark 6 is slower than in 0.1.x because `PRINT i;" ";` now prints what
+Locomotive's `PRINT` prints: a sign position before the number and a space
+after it, so each item is two characters longer. The "distortion check" row
+(the same program built with printer echo) measured 15.321 s, 1.09x the clean
+build. Benchmark 4 is 3.6x faster than 0.1.x: cpcbas calls the CPC firmware's
+floating-point routines, as Locomotive does. The integer benchmarks (1, 3, 5)
+are 12-15 % slower than 0.1.x.
+
+### 0.1.x (Boriel fork)
+
+The same benchmarks on the Boriel fork this project started from, kept as history.
+
 | Benchmark | Locomotive s (median, min-max) | Boriel s (median, min-max) | Speed-up x | Result check |
 |---|---|---|---|---|
 | 1. BM7 (Rugg/Feldman) | 17.863 (17.861-17.880) | 1.024 (1.018-1.028) | 17.4x | loco=[7, 800] boriel=[5, 800] |
@@ -173,11 +202,10 @@ S/E polling method to within 3-35ms on every benchmark (see "Cross-check"
 above) -- e.g. BM7: 17.860s internal vs 17.863s external; float: 9.587s vs
 9.587s.
 
-Result checks: benchmarks 2, 3, 5 and 6 match exactly between the two
-languages. Benchmark 1 (BM7) and benchmark 4 (float) differ for
-documented, expected reasons -- integer division/rounding semantics and
-float-format precision respectively -- see "Boriel runtime/language
-findings" and "Caveats" below, not a bug in either implementation.
+Result checks: benchmarks 2 to 6 match exactly between the two
+languages. Benchmark 1 (BM7) differs for a documented, expected reason --
+integer division/rounding semantics -- see "Caveats" below, not a bug in
+either implementation.
 
 `pgrep cap32` was empty after every run in this session (no leaked
 emulator processes).
@@ -232,11 +260,11 @@ result to text and walk it; not attempted, since the checksum print always
 happens after `E`, outside every timed section, so it cannot distort any
 measurement regardless of which path it takes.
 
-## Boriel runtime/language findings
+## Boriel runtime/language findings (0.1.x history)
 
-Found while writing and tuning these benchmarks. None of these were
-fixed (only files under `cpcbuild/bench/` were touched, per instructions);
-reported here precisely instead.
+Found while writing and tuning these benchmarks on the Boriel fork. None of
+these were fixed there; they describe 0.1.x, not cpcbas (cpcbas takes a
+variable `STEP`, and `AND` is bitwise).
 
 1. **`FOR ... STEP <variable>` crashes the compiler.** The sieve's inner
    marking loop was originally written as
@@ -340,6 +368,8 @@ reported here precisely instead.
 `python3 micro.py [op ...]` times each operation in its own loop (y = <expr>)
 in both languages. It subtracts the same loop with a bare `y = a`, which
 leaves the per-call cost.
+
+### 0.1.x (Boriel fork)
 
 | Operation | Boriel ms/call | Locomotive ms/call | Speed-up (Locomotive time / Boriel time) |
 |---|---|---|---|

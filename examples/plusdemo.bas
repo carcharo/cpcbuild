@@ -410,6 +410,7 @@ PRINT AT 4, 2; "12-BIT COLOUR: 4096 SHADES"
 PRINT AT 5, 2; "RASTER BARS: AN INTERRUPT EACH"
 PRINT AT 6, 2; "DMA SOUND: THE TUNE COSTS NO CPU"
 PRINT AT 9, 2; "SPLIT SCREEN + SOFT SCROLL BELOW"
+PEN 1
 
 ' The landscape: its first window of 80 bytes a row (the rest is written as it scrolls in)
 FOR n = 0 TO 4
