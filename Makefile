@@ -1,24 +1,28 @@
 .PHONY: help run shot unit test test-all test-chips test-bare test-bare-disc test-bare-cold test-zx test-games test-lamp reach-lamp lamp-plus test-lamp-plus test-plus test-cpcec cpcec cap32 chips assets bench ci clean test-vscode wasm test-wasm vsix ci-vscode
 
 PYTHON := python3
-# ?= so an environment ZXBASIC (CI, or a git worktree whose sibling is elsewhere) is exported to the recipes
-ZXBASIC ?= ../zxbasic
+# the cpcbas checkout (pinned in cpcbas.json); ?= so an environment CPCBAS (CI, or a git worktree whose sibling is elsewhere) wins
+CPCBAS ?= ../cpcbas
+export CPCBAS
 # the emsdk for `make wasm` (ignored when it has no emsdk_env.sh: emcc on PATH is then used)
 EMSDK ?= tools/cpcec/wasm/emsdk
 MODEL := 6128
+# EMU= chips|cap32|cpcec for `make run` (chips has no 664 or Plus; `shot` always uses chips)
+EMU := chips
 # ORG= (e.g. ORG=0x40) sets the program origin for run/shot; empty = compiler default
 ORG :=
 
 help: ## Show this help message
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-11s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-run: ## Run a program. PROG=path/to/file.bas required, optional MODEL=464|664|6128 (default 6128), ORG=0x.... and DEFS="-D ..." passed to zxbc
+run: ## Run a program. PROG=path/to/file.bas required, optional MODEL=464|664|6128 (default 6128), ORG=0x.... and DEFS="-D ..." passed to cpcbas
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
-	CPC_MODEL=$(MODEL) $(if $(ORG),ORG=$(ORG)) $(ZXBASIC)/tools/cpc/run.sh $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
+	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu $(EMU) --model $(MODEL) $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
 
 shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required, optional MODEL, ORG and DEFS
 	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
-	CPC_MODEL=$(MODEL) $(if $(ORG),ORG=$(ORG)) $(ZXBASIC)/tools/cpc/run.sh --shot $(abspath $(PROG)) -I $(abspath lib) $(DEFS)
+	mkdir -p build/shots
+	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu chips --model $(MODEL) --shot build/shots/$(basename $(notdir $(PROG))).png $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
 
 unit: ## Run the tool unit tests (img2cpc, tmx2bas)
 	$(PYTHON) -m unittest discover -s tests/tools
