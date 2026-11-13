@@ -100,6 +100,25 @@ test('compiler diagnostics: the include graph and the defines are the target\'s;
   assert.deepStrictEqual(compilerDiagnostics(vscode.Uri.file(extra)), []);
 });
 
+test('compiler diagnostics: the -D and -I of cpcbuild.compiler.args count, as they do in the build', async () => {
+  const dir = path.join(ws, 'lang-args');
+  put(dir, 'cpcbuild.json', JSON.stringify({ version: 1, name: 'args', targets: [{ id: 'a', arch: 'cpc', main: 'main.bas', package: 'dsk', disc: 'ARGS' }] }));
+  const main = put(dir, 'main.bas', '#ifdef FROM_ARGS\n#include <twice.bas>\n#endif\nPRINT Twice(2)\n');
+  put(dir, 'shared/twice.bas', 'FUNCTION Twice(n AS UBYTE) AS UBYTE\n  RETURN n * 2\nEND FUNCTION\n');
+  const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(main));
+  await vscode.window.showTextDocument(doc);
+  // without the flags, Twice is not declared
+  await waitFor('the undeclared name', () => compilerDiagnostics(doc.uri).some((d) => /Twice/.test(d.message)));
+  const cfg = vscode.workspace.getConfiguration('cpcbuild');
+  await cfg.update('compiler.args', ['-D', 'FROM_ARGS', '-I', 'shared'], vscode.ConfigurationTarget.Workspace);
+  try {
+    const left = (): string => compilerDiagnostics(doc.uri).map((d) => `${d.range.start.line + 1} ${d.code} ${d.message}`).join('; ');
+    await waitFor(`no diagnostic with the build's flags (now: ${left()})`, () => left() === '');
+  } finally {
+    await cfg.update('compiler.args', undefined, vscode.ConfigurationTarget.Workspace);
+  }
+});
+
 test('Convert Project: a 0.1.2 template project becomes one that builds; nothing is written before the yes', async () => {
   const a = await api();
   const dir = path.join(ws, 'convert-fw');

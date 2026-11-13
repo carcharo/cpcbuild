@@ -1,8 +1,8 @@
 /**
  * editorDiagnostics.ts -- the compiler's own diagnostics in the editor. After a pause in typing (and on open, save
- * and a change of the project or of the settings), the project's programs are checked with the compiler's
- * `parseOnly`: one check per distinct (main file, defines) of the project's targets, so the include graph and the
- * defines are the build's. Diagnostics go to the files they belong to (an included file gets its own), source
+ * and a change of the project or of the settings), the project's programs are checked by the compiler as far as the
+ * IR (core/editorCheck.ts): one check per distinct (main file, defines) of the project's targets, with the `-D`, `-I`,
+ * `-W` and `-Wimplicit` of `cpcbuild.compiler.args`, so the include graph, the defines and the warnings are the build's. Diagnostics go to the files they belong to (an included file gets its own), source
  * "cpcbas", with the compiler's code, range and hint. A file that no target's program includes is checked alone.
  */
 import * as path from 'node:path';
@@ -11,6 +11,8 @@ import { loadRuntime } from '@cpcbuild/cpcbas/node';
 import type { DiagnosticJson, FileTree } from '@cpcbuild/cpcbas';
 import { checkProgram, CheckGroup, CheckResult, groupsOf } from '../core/editorCheck';
 import { libraryFor } from './library';
+import { readSettings } from './config';
+import { parseCompilerArgs } from '../core/project';
 import { buildProblems } from './buildProblems';
 
 export const DIAGNOSTIC_SOURCE = 'cpcbas';
@@ -73,11 +75,23 @@ export function registerEditorDiagnostics(context: vscode.ExtensionContext): Edi
     const st = projects.get(root) ?? projects.set(root, { root, results: new Map(), published: new Set() }).get(root)!;
     const runtime = runtimeFor(info.libDir);
     const text = overlay();
+    // the build's own flags (core/project.ts compileInput): the same defines, include folders and warnings
+    const args = parseCompilerArgs(readSettings(root).compilerArgs);
     const groups: CheckGroup[] = groupsOf(info.project.project?.targets ?? []);
     const mainOf = (g: CheckGroup): string => path.resolve(root, g.main);
     const covered = (f: string): boolean => groups.some((g) => st.results.get(g.key)?.files.has(f) || mainOf(g) === f);
     const run = (g: CheckGroup, syntaxOnly = false): void => {
-      const r = checkProgram({ root, main: g.main, defines: g.defines, runtime, overlay: text, syntaxOnly });
+      const r = checkProgram({
+        root,
+        main: g.main,
+        defines: { ...g.defines, ...args.defines },
+        includePaths: args.includes,
+        disabledWarnings: args.disabled,
+        warnImplicit: args.implicit,
+        runtime,
+        overlay: text,
+        syntaxOnly,
+      });
       st.results.set(g.key, r);
       for (const f of r.files) {
         const k = vscode.Uri.file(f).toString();
