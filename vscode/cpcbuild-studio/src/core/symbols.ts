@@ -1,16 +1,20 @@
 /**
- * symbols.ts -- the zxbc map as a symbol table for the symbols view and the debug controls (spec 5.3).
- * Pure TypeScript. Naming rules, derived from real maps (src/core/fixtures/*.map):
+ * symbols.ts -- the cpcbas `-M` map as a symbol table for the symbols view and the debug controls (spec 5.3).
+ * Pure TypeScript. Naming rules (the map contract; src/core/fixtures/*.map are real maps of the repo's programs):
  *
- *   ._Name                      a BASIC name: a routine in the code area, a variable/array in the data area
+ *   ._Name                      a BASIC name: a routine in the code area, a variable in the data area
+ *   ._s__s ._n__i ._r__r         a variable written with a suffix ($ % !): shown as s$ n% r!
+ *   ._arr__a, ._names__s__a      an array (names$ is a string array): shown as arr, names$
+ *   ._arr__a.__DATA__[.__PTR__]  the pointer and the body of an array (data)
+ *   ._arr__a.__DIMS__ .__UBOUND__ .__BACK__   the array's bookkeeping (internal)
+ *   ._FN__name                   DEF FN name: shown as FN name
  *   .__NAME (`.__MUSIC_RUN`)     assembly names from the library: counted as library routines
- *   ._Name__leave               the end-of-routine label of a SUB/FUNCTION (internal)
- *   ._arr.__DATA__[.__PTR__]    the pointer and the body of an array (data)
- *   .core.NAME                  runtime (library assembly, __START_PROGRAM, ZXBASIC_USER_DATA ...)
- *   .LABEL.__LABELn             compiler-made labels (internal)
- *   .pd_bar                     labels written in the user's own inline assembly (internal)
+ *   ._Name__leave ._Name__exit   the end and the EXIT target of a SUB/FUNCTION (internal)
+ *   .core.NAME                   runtime (library assembly, __START_PROGRAM, the start and end of the data area ...)
+ *   .T.n .S.n .V.n .L.<line>     compiler-made labels (internal: not `.core.` and not `._`)
+ *   .myAsm                       labels written in the user's own inline assembly (internal)
  *
- * The data area is [.core.ZXBASIC_USER_DATA, .core.ZXBASIC_USER_DATA_END). A `._Name` routine is a
+ * The data area is [.core.*_USER_DATA, .core.*_USER_DATA_END). A `._Name` routine is a
  * "library" routine when the caller's predicate says the cpcbuild/stdlib headers declare it.
  */
 import { hex4, MapEntry } from './map';
@@ -21,7 +25,7 @@ export type SymbolKind = 'basic' | 'library' | 'data' | 'runtime';
 export interface SymbolInfo {
   /** As in the map: `._MoveSprites`. */
   label: string;
-  /** For display: `MoveSprites`; runtime labels lose `.core.`. */
+  /** For display: `MoveSprites`, `score%`, `names$`, `FN speed`; runtime labels lose `.core.`. */
   name: string;
   addr: number;
   kind: SymbolKind;
@@ -46,23 +50,45 @@ export interface BuildSymbolsOptions {
   isLibrary?: (name: string) => boolean;
 }
 
-const DATA_START = '.core.ZXBASIC_USER_DATA';
-const DATA_END = '.core.ZXBASIC_USER_DATA_END';
+/** The compiler's labels for the start and the end of the variables (`.core.<prefix>_USER_DATA[_END]`). */
+const DATA_START_RE = /^\.core\.\w+_USER_DATA$/;
+const DATA_END_RE = /^\.core\.\w+_USER_DATA_END$/;
+const SUFFIX: Record<string, string> = { s: '$', i: '%', r: '!' };
+/** The bookkeeping labels of an array: addresses nobody wants as variables. */
+const ARRAY_PLUMBING = /\.__(?:DIMS|UBOUND|BACK)__/;
+
+/**
+ * The BASIC spelling of a label's name (after `._`): `n__i` is `n%`, `names__s__a` is `names$`, `FN__f` is `FN f`;
+ * a `.__DATA__` tail stays. Library assembly names (`_MUSIC_RUN`, which start with `_`) are left alone.
+ */
+export function basicName(raw: string): string {
+  if (raw.startsWith('_')) return raw;
+  const dot = raw.indexOf('.');
+  let head = dot < 0 ? raw : raw.slice(0, dot);
+  const tail = dot < 0 ? '' : raw.slice(dot);
+  head = head.replace(/__a$/, '');
+  const fn = /^FN__(.+)$/.exec(head);
+  if (fn) head = `FN ${fn[1]}`;
+  const sfx = /^(.+)__([sir])$/.exec(head);
+  if (sfx) head = (sfx[1] as string) + SUFFIX[sfx[2] as string];
+  return head + tail;
+}
 
 export function buildSymbols(entries: readonly MapEntry[], opts: BuildSymbolsOptions = {}): SymbolTable {
-  const dataStart = entries.find((e) => e.label === DATA_START)?.addr;
-  const dataEnd = entries.find((e) => e.label === DATA_END)?.addr;
+  const dataStart = entries.find((e) => DATA_START_RE.test(e.label))?.addr;
+  const dataEnd = entries.find((e) => DATA_END_RE.test(e.label))?.addr;
   const inData = (a: number): boolean => dataStart !== undefined && dataEnd !== undefined && a >= dataStart && a < dataEnd;
   const symbols: SymbolInfo[] = entries.map((e) => {
     const base = { label: e.label, addr: e.addr };
     if (e.label.startsWith('.core.')) return { ...base, name: e.label.slice(6), kind: 'runtime' as const, internal: false };
     if (e.label.startsWith('.LABEL.')) return { ...base, name: e.label.slice(7), kind: 'runtime' as const, internal: true };
     if (e.label.startsWith('._')) {
-      const name = e.label.slice(2);
-      if (name.endsWith('__leave')) return { ...base, name, kind: 'runtime' as const, internal: true };
+      const raw = e.label.slice(2);
+      const name = basicName(raw);
+      if (raw.endsWith('__leave') || raw.endsWith('__exit') || ARRAY_PLUMBING.test(raw)) return { ...base, name, kind: 'runtime' as const, internal: true };
       if (inData(e.addr)) return { ...base, name, kind: 'data' as const, internal: false };
       // `.__MUSIC_RUN`, `.__aks_x_end`: names the library's assembly (or the music converter) defines, not BASIC SUB/FUNCTION names
-      if (name.startsWith('_')) return { ...base, name, kind: 'library' as const, internal: false };
+      if (raw.startsWith('_')) return { ...base, name, kind: 'library' as const, internal: false };
       return { ...base, name, kind: opts.isLibrary?.(name) ? ('library' as const) : ('basic' as const), internal: false };
     }
     return { ...base, name: e.label.replace(/^\./, ''), kind: 'runtime' as const, internal: true };
@@ -73,7 +99,8 @@ export function buildSymbols(entries: readonly MapEntry[], opts: BuildSymbolsOpt
     while (j < symbols.length && symbols[j].addr === symbols[i].addr) j++;
     if (j < symbols.length) symbols[i].size = symbols[j].addr - symbols[i].addr;
     const s = symbols[i];
-    if (s.kind === 'data' && !s.internal && !s.name.includes('__DATA__') && (s.size === 1 || s.size === 2)) s.scalar = s.size;
+    // a 1- or 2-byte variable shows its value; an array's pointer cell (`arr__a`) and its body do not
+    if (s.kind === 'data' && !s.internal && !s.name.includes('__DATA__') && !s.label.endsWith('__a') && (s.size === 1 || s.size === 2)) s.scalar = s.size;
   }
   const last = symbols.length ? symbols[symbols.length - 1].addr : 0;
   return { symbols, end: Math.min(0x10000, last + 0x100), dataStart, dataEnd };
@@ -120,7 +147,8 @@ export function groupSymbols(t: SymbolTable, o: GroupOptions = {}): SymbolGroup[
 export function findByName(t: SymbolTable, text: string): SymbolInfo | undefined {
   const n = text.trim().toLowerCase().replace(/^\./, '');
   if (!n) return undefined;
-  const cand = [n, n.replace(/^_/, ''), n.replace(/^core\./, '')];
+  // `a$` and `arr` (the BASIC spelling), `_a__s` and `.core.NAME` (the label): the name column holds the BASIC spelling
+  const cand = [n, n.replace(/^_/, ''), n.replace(/^core\./, ''), basicName(n.replace(/^_/, '')).toLowerCase()];
   const hit = (pred: (s: SymbolInfo) => boolean): SymbolInfo | undefined => t.symbols.find((s) => !s.internal && pred(s)) ?? t.symbols.find(pred);
   return hit((s) => s.label.toLowerCase() === '.' + n) ?? hit((s) => cand.includes(s.name.toLowerCase()));
 }

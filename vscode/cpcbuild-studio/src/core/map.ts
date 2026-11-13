@@ -1,9 +1,9 @@
 /**
- * map.ts -- the zxbc `-M` memory map and the build report (spec 4.6).
+ * map.ts -- the cpcbas `-M` memory map and the build report (spec 4.6).
  *
  * A map line is `HHHH: label` (field 1 = hex address with a trailing colon,
- * field 2 = label: the awk in games/shooter/build_cpc.sh). Labels are as zxbc
- * writes them: `.core.__START_PROGRAM`, `._name`, ... Pure TypeScript.
+ * field 2 = label: the awk in games/shooter/build_cpc.sh). Labels are as cpcbas
+ * writes them: `.core.__START_PROGRAM`, `._name`, `._name__a` (an array), ... Pure TypeScript.
  */
 
 export interface MapEntry {
@@ -28,7 +28,7 @@ export function findLabel(entries: readonly MapEntry[], label: string): number |
 export const START_LABEL = '.core.__START_PROGRAM';
 export const HIDATA_LABEL = '.__HIDATA_BACK_0';
 
-/** The origin zxbc compiled for (first byte of the .bin and its entry point). */
+/** The origin cpcbas compiled for (first byte of the .bin and its entry point). */
 export function programStart(entries: readonly MapEntry[]): number | undefined {
   return findLabel(entries, START_LABEL);
 }
