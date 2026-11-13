@@ -168,15 +168,15 @@ def pens_bas(ent):
     lines = ["' pl_pens.bas -- Starfall Plus's 16 playfield pens in 12-bit colours, written by",
              "' make_plus_art.py. Do not edit. Two bytes a pen as the ASIC's palette RAM wants",
              "' them (SetPalette12Block(@pl_pens(0), 0, 16)).", "",
-             "CONST PL_BORDER AS UINTEGER = $%X%X%X" % BORDER,
+             "CONST PL_BORDER AS UINTEGER = &%X%X%X" % BORDER,
              "' sprite colour entries (1-15) the stage-2 raster handlers rewrite per row",
              "CONST PL_BODY AS UBYTE = %d" % ent[BODY],
              "CONST PL_LIGHT AS UBYTE = %d" % ent[BODY_LIGHT],
-             "CONST PL_BODY_N AS UINTEGER = $%X%X%X" % BODY, "",
+             "CONST PL_BODY_N AS UINTEGER = &%X%X%X" % BODY, "",
              "DIM pl_pens(31) AS UBYTE => { _"]
     rows = []
     for i in range(0, 32, 16):
-        rows.append("    " + ", ".join("$%02X" % b for b in data[i:i + 16]))
+        rows.append("    " + ", ".join("&%02X" % b for b in data[i:i + 16]))
     lines.append(", _\n".join(rows) + " _")
     lines.append("}")
     return "\n".join(lines) + "\n"

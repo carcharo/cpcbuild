@@ -275,7 +275,7 @@ def font_bas(shift=0, name="font.bas"):
     for c in range(45, 91):
         g = FONT.get(chr(c))
         rows = [int(r.replace("#", "1").replace(".", "0"), 2) << shift for r in g] if g else [0] * 7
-        lines.append("    " + ", ".join("$%02X" % b for b in rows))
+        lines.append("    " + ", ".join("&%02X" % b for b in rows))
     out.append(", _\n".join(lines) + " _")
     out.append("}")
     return "\n".join(out) + "\n"

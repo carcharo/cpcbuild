@@ -73,11 +73,11 @@ def pens_bas():
              "' lamps' flame, rotated over FLAME_PEN0.. by palette cycling.", "",
              "CONST FLAME_PEN0 AS UBYTE = %d" % FLAME_PEN0,
              "DIM pl_flame(3) AS UINTEGER => { _",
-             "    " + ", ".join("$%X%X%X" % c for c in FLAME) + " _", "}", "",
+             "    " + ", ".join("&%X%X%X" % c for c in FLAME) + " _", "}", "",
              "DIM pl_pens(31) AS UBYTE => { _"]
     rows = []
     for i in range(0, 32, 16):
-        rows.append("    " + ", ".join("$%02X" % b for b in data[i:i + 16]))
+        rows.append("    " + ", ".join("&%02X" % b for b in data[i:i + 16]))
     lines.append(", _\n".join(rows) + " _")
     lines.append("}")
     return "\n".join(lines) + "\n"
