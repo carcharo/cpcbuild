@@ -90,7 +90,7 @@ export function sfxToVt2(doc: SfxDoc, bank = 'sfx'): string {
 
 // ------------------------------------------------------------------------- songs (.cpcsong)
 //
-// The rules are those measured with SongToAkg 3.7 (cpcbuild-dev/docs/sound-s2-measurements.md, "Rules for songToVt2").
+// The rules below are those measured with SongToAkg 3.7.
 
 /** Cell digit of a sample: 1-9, then J..V for 10-22 (the converter reads a letter as letter - 'A' + 1). */
 export function sampleDigit(n: number): string {

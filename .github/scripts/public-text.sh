@@ -9,20 +9,33 @@
 #   boriel   `Boriel` only in the credit paragraphs (README.md, the Studio README, LICENSES/, SOURCES.txt), the
 #            changelog, and packaging/make-sdk.py (it writes the credit text of the SDK's SOURCES.txt and LICENSES/)
 #   zxb      `zxbc`, `zxbasic` and `ZXBASIC` only in the changelog and the 0.1.x migration note
+#   Both also allow the Studio's code for 0.1.x projects, which names the old compiler on purpose: "Convert Project
+#   to CPC BASIC" (it asks "Is this a 0.1.x (Boriel BASIC) project?"), the one-time message about the old
+#   `cpcbuild.zxbc.args` setting, their tests and the 0.1.x sample projects they convert (fixtures/convert/); and the
+#   two tests that check the templates and snippets do NOT contain those words. `zxb` also allows the memory-map
+#   fixtures: the compiler's own data labels are named `.core.ZXBASIC_USER_DATA...`.
 #   private  `cpcbuild-dev` nowhere
 #   nextbuild  `NextBuild` nowhere
 #
 # public-text.expected lists the hits that exist today ("<rule> <path>" per line) and shrinks to nothing as the
 # text is cleaned: a hit that is not on it fails; an entry that no longer hits only warns (delete it).
 set -euo pipefail
+set -f # no pathname expansion: the allow-lists are `case`-style patterns, matched against paths, not files on disk
 cd "$(git rev-parse --show-toplevel)"
 
 here=.github/scripts
 expected=$here/public-text.expected
 
 # allow-lists: bash `case` patterns, one rule each
-allow_boriel='README.md|vscode/cpcbuild-studio/README.md|LICENSES/*|SOURCES.txt|CHANGELOG.md|packaging/make-sdk.py'
-allow_zxb='CHANGELOG.md|docs/migrating-from-0.1.md'
+studio=vscode/cpcbuild-studio
+# the Studio's code for 0.1.x projects (Convert, the old-setting message), its tests and the 0.1.x samples
+old_projects="$studio/src/core/convert.ts|$studio/src/core/convert.test.ts|$studio/src/ext/convertProject.ts|$studio/test/suite/language.test.ts"
+old_projects+="|$studio/src/core/zxbcArgs.ts|$studio/src/core/zxbcArgs.test.ts|$studio/src/ext/settingsMigration.ts|$studio/test/suite/setup.test.ts"
+old_projects+="|$studio/src/core/cpcbasTestUtil.ts|$studio/src/core/fixtures/convert/*"
+# tests that assert the words are absent from what a new user receives
+absent_tests="$studio/src/core/templates.test.ts|$studio/src/core/snippets.test.ts"
+allow_boriel="README.md|$studio/README.md|LICENSES/*|SOURCES.txt|CHANGELOG.md|packaging/make-sdk.py|$old_projects|$absent_tests"
+allow_zxb="CHANGELOG.md|docs/migrating-from-0.1.md|$old_projects|$absent_tests|$studio/src/core/fixtures/*.map"
 allow_private=''
 allow_nextbuild=''
 
@@ -41,7 +54,8 @@ allowed() { # path allow-patterns("|"-separated globs)
 
 scan() { # rule regex allow-pattern
   local rule=$1 regex=$2 allow=$3 f
-  git grep -IilE "$regex" -- . ":(exclude)$here/public-text.sh" ":(exclude)$expected" | while IFS= read -r f; do
+  # git grep exits 1 when nothing matches: a clean rule is not an error (set -e, pipefail)
+  { git grep -IilE "$regex" -- . ":(exclude)$here/public-text.sh" ":(exclude)$expected" || true; } | while IFS= read -r f; do
     if allowed "$f" "$allow"; then continue; fi
     printf '%s %s\n' "$rule" "$f"
   done
