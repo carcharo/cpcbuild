@@ -1,4 +1,4 @@
-REM Screen test (CPC Plus): palette cycling (lib/cpcplus/palcycle.bas). Mode 0 with 15 bars
+REM Screen test (CPC Plus): palette cycling (cpcplus/palcycle.bas). Mode 0 with 15 bars
 REM (pens 1-15) and four hardware sprites of the plus_ball disc, magnified 4x4. Cycle 0 rotates
 REM pens 1-8 (a forward ramp, period 1), cycle 1 sweeps pens 9-15 back and forth (ping-pong,
 REM period 2), cycle 2 rotates the sprite colours 1-4 backward (period 3) and sprite colours 5-15

@@ -1,4 +1,4 @@
-REM Screen test (CPC Plus): the sprite slot manager (lib/cpcplus/sprman.bas). Mode 1 with four
+REM Screen test (CPC Plus): the sprite slot manager (cpcplus/sprman.bas). Mode 1 with four
 REM 12-bit pens, the sprite sheet plus_ball of the conformance assets (unpacked and packed).
 REM The manager owns slots 2-7; slot 0 is the program's own (SpriteSetImage). Steps: four
 REM allocations (disc, disc, diamond, packed disc) and one flush of 2 uploads (two sprites
