@@ -6,6 +6,9 @@ CPCBAS ?= ../cpcbas
 # made absolute: the Studio's targets run inside vscode/cpcbuild-studio, where a relative path points elsewhere
 override CPCBAS := $(abspath $(CPCBAS))
 export CPCBAS
+# the CPC ROMs for the emulators: a caprice32 checkout beside this one, else the ones `make cap32` builds here
+CPC_ROM_DIR ?= $(firstword $(wildcard $(abspath ../caprice32/rom)) $(abspath tools/caprice32/work/src/rom))
+export CPC_ROM_DIR
 # the emsdk for `make wasm` (ignored when it has no emsdk_env.sh: emcc on PATH is then used)
 EMSDK ?= tools/cpcec/wasm/emsdk
 MODEL := 6128

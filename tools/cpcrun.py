@@ -156,6 +156,15 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent  # cpcbuild/
+
+
+def rom_dir() -> str:
+    """The CPC ROMs: $CPC_ROM_DIR, else a caprice32 checkout beside this one, else the ones `make cap32` builds here."""
+    env = os.environ.get("CPC_ROM_DIR")
+    if env:
+        return env
+    sibling = REPO_ROOT.parent / "caprice32" / "rom"
+    return str(sibling if sibling.is_dir() else REPO_ROOT / "tools" / "caprice32" / "work" / "src" / "rom")
 DEFAULT_CPCBAS = REPO_ROOT.parent / "cpcbas"
 CPCBAS_CLI = Path("packages") / "cpcbas" / "dist" / "bin" / "cpcbas.js"
 # patched build (tools/caprice32, `make cap32`), else the unpatched sibling checkout
@@ -554,7 +563,7 @@ def run_chips(
     """Run chipsrun; returns (exit code, transcript with END marker stripped)."""
     if model not in ("464", "6128"):
         raise BuildError(f"chips has no {model}")
-    cmd = [str(chipsrun_bin()), "--model", model, "--rom-dir", os.environ.get("CPC_ROM_DIR") or str(REPO_ROOT.parent / "caprice32" / "rom"),
+    cmd = [str(chipsrun_bin()), "--model", model, "--rom-dir", rom_dir(),
            "--timeout", str(timeout)]
     if cold:
         cmd.append("--cold")

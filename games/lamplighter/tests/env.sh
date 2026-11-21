@@ -2,6 +2,7 @@
 # worktree, ../cpcbas and ../caprice32 are siblings of the main working tree.
 common=$(cd "$(git rev-parse --git-common-dir)" && pwd)/..
 : "${CPCBAS:=$common/../cpcbas}"
+[ -d "$common/../caprice32/rom" ] || : "${CPC_ROM_DIR:=$common/tools/caprice32/work/src/rom}"
 : "${CPC_ROM_DIR:=$common/../caprice32/rom}"
 export CPCBAS CPC_ROM_DIR
 # the Plus tests run on the patched Caprice32 and CPCEC built in the main

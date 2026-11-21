@@ -60,7 +60,8 @@ def sibling(name: str) -> Path:
 # the tools find the compiler and the ROMs from these when they are not
 # next to the repository (a worktree)
 os.environ.setdefault("CPCBAS", str(sibling("cpcbas")))
-os.environ.setdefault("CPC_ROM_DIR", str(sibling("caprice32") / "rom"))
+os.environ.setdefault("CPC_ROM_DIR", str(sibling("caprice32") / "rom") if (sibling("caprice32") / "rom").is_dir()
+                      else str(REPO / "tools" / "caprice32" / "work" / "src" / "rom"))  # else the ROMs `make cap32` builds
 
 
 def cpcrun(prog: Path, model: str, defines: list[str], timeout: float, shot_dir: Path | None = None):

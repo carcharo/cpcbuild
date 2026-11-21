@@ -72,7 +72,8 @@ def main_checkout() -> Path:
 
 
 os.environ.setdefault("CPCBAS", str(sibling("cpcbas")))
-os.environ.setdefault("CPC_ROM_DIR", str(sibling("caprice32") / "rom"))
+os.environ.setdefault("CPC_ROM_DIR", str(sibling("caprice32") / "rom") if (sibling("caprice32") / "rom").is_dir()
+                      else str(REPO / "tools" / "caprice32" / "work" / "src" / "rom"))  # else the ROMs `make cap32` builds
 os.environ.setdefault("CAP32", str(main_checkout() / "tools" / "caprice32" / "work" / "src" / "cap32"))
 os.environ.setdefault("CPCEC", str(main_checkout() / "tools" / "cpcec" / "work" / "cpcec"))
 import cpcrun as cpcrun_mod  # noqa: E402
