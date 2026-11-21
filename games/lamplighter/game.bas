@@ -88,11 +88,11 @@ DIM eR(3) AS UBYTE
 ' ---- the room ------------------------------------------------------------
 
 ' The attributes of cell (cx, cy) of the room: TA_TAB(cur(cy * 20 + cx) AND 15).
-' Assembly, because the BASIC line is 2,500 T-states a call and a step makes
+' Assembly, because the BASIC line is about 2,270 T-states a call and a step makes
 ' ~25 of them (docs/library.md, Performance tips).
 #ifdef LAMP_BASIC
 ' The plain BASIC version of the assembly below (-D LAMP_BASIC; chapter 5):
-' about 2,560 T-states a call against 320 (measured on chips, 464, net of the empty call).
+' about 2,270 T-states a call against 200 (measured on chips, 464, net of the empty call).
 DIM taTab(15) AS UBYTE => {0, 1, 2, 4, 8, 16, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0}
 
 FUNCTION TileAttr(cx AS UBYTE, cy AS UBYTE) AS UBYTE
@@ -161,8 +161,8 @@ END FUNCTION
 ' only). Touch's common case is "nothing", and this answers it in a single
 ' call instead of ~6 TileAttr calls and their loops.
 #ifdef LAMP_BASIC
-' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 56,600
-' T-states a call against 3,800. TouchRow ORs the attributes of cells
+' The plain BASIC version of the assembly below (-D LAMP_BASIC).
+' TouchRow ORs the attributes of cells
 ' l..r of one row (l <= r).
 FUNCTION TouchRow(l AS UBYTE, r AS UBYTE, row AS UBYTE) AS UBYTE
   DIM c, a AS UBYTE
@@ -256,8 +256,8 @@ END FUNCTION
 ' iterations). The address comes from BASIC: an array used only from inline
 ' asm is dropped.
 #ifdef LAMP_BASIC
-' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 511,000
-' T-states against 13,200.
+' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 434,000
+' T-states against 11,500.
 SUB CopyRoom(src AS UINTEGER)
   DIM i AS UINTEGER
   FOR i = 0 TO ROOM_SIZE - 1
@@ -279,8 +279,8 @@ END SUB
 ' Lists the lamp cells (tile 5) and the door cells (tile 7) of cur, in cell
 ' order, into lampCell/doorCell with their counts (CPIR over the room).
 #ifdef LAMP_BASIC
-' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 471,000
-' T-states against 27,000.
+' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 432,000
+' T-states against 23,900.
 SUB ScanRoom()
   DIM i AS UINTEGER
   DIM t AS UBYTE
@@ -498,8 +498,8 @@ END SUB
 
 ' Solid cell in column c over the body's rows (y, y+8, y+15)?
 #ifdef LAMP_BASIC
-' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 8,800
-' T-states a call against 1,100.
+' The plain BASIC version of the assembly below (-D LAMP_BASIC): about 7,940
+' T-states a call against 900.
 FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
   IF (TileAttr(c, y >> 3) AND 1) <> 0 THEN RETURN 1
   IF (TileAttr(c, (y + 8) >> 3) AND 1) <> 0 THEN RETURN 1
@@ -732,7 +732,7 @@ END SUB
 ' edge, no spikes there.
 #ifdef LAMP_BASIC
 ' The plain BASIC version of the assembly below (-D LAMP_BASIC; chapter 6):
-' about 15,200 T-states a call against 1,900.
+' about 13,700 T-states a call against 1,540.
 FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
   DIM c AS UBYTE
   IF dir = 1 THEN c = (x + 7) >> 3 ELSE c = x >> 3
