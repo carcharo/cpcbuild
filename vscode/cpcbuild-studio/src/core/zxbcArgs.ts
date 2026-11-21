@@ -81,5 +81,6 @@ export function zxbcMigrationMessage(t: ZxbcTranslation): string {
   parts.push(t.args.length ? `The same options there: ${JSON.stringify(t.args)}.` : 'None of the options carries over.');
   if (t.advice.length) parts.push(`${t.advice.join('; ')}.`);
   if (t.notTranslated.length) parts.push(`Not translated (no equivalent): ${t.notTranslated.join(' ')}.`);
+  parts.push(t.args.length ? 'Copy them, then delete the old setting.' : 'You can delete "cpcbuild.zxbc.args" from your settings.');
   return parts.join(' ');
 }

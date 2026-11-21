@@ -2,7 +2,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { MODELS } from '../core/project';
+import { isOldProject, MODELS, OLD_PROJECT_BUILD, OLD_PROJECT_CONVERT, OLD_PROJECT_TOOLTIP } from '../core/project';
 import type { EmuEvent } from '../emuApi';
 import { buildTarget, BuildResult, RunInfo } from './build';
 import { channelSink, getChannel, tee } from './channel';
@@ -31,6 +31,7 @@ import { emuMissingTestApi } from './emuMissing';
 import { emuInstallTestApi, installEmulator, setEmuInstallContext } from './emuInstall';
 import { setStudioExtensionId, setupTestApi, updateSetupContext } from './setupPrompts';
 import { offerArgsMigration, settingsMigrationTestApi } from './settingsMigration';
+import { offerOldProjectNotice, oldProjectTestApi } from './oldProject';
 import { buildProblems } from './buildProblems';
 import { musicConvertCommand, musicPlayCommand, musicStopCommand } from './music';
 import { generateTmxAsset, openInTiledCommand, TmxViewerProvider, tmxGenerateCommand } from './tmxViewer';
@@ -64,6 +65,8 @@ export interface StudioApi {
   setup: typeof setupTestApi;
   /** The one-time message about the old compiler-arguments setting of 0.1.x: test hooks. */
   settingsMigration: typeof settingsMigrationTestApi;
+  /** The one-time message about a 0.1.x project: test hooks. */
+  oldProject: typeof oldProjectTestApi;
   /** Every program the Studio started through runTool (the compiler is none of them): extension-host tests read this. */
   runToolLog: readonly (readonly string[])[];
   /** The emulator install from the release: test hooks. */
@@ -94,6 +97,12 @@ async function projectAndTarget(): Promise<{ lp: LoadedProject; targetId?: strin
   if (!lp) {
     const a = await vscode.window.showInformationMessage('CPC Game Studio: no cpcbuild.json in this workspace.', 'New Project');
     if (a) void vscode.commands.executeCommand('cpcbuild.newProject');
+    return undefined;
+  }
+  if (!lp.project && isOldProject(lp.errors)) {
+    void vscode.window.showInformationMessage(OLD_PROJECT_BUILD, OLD_PROJECT_CONVERT).then((a) => {
+      if (a) void vscode.commands.executeCommand('cpcbuild.convertProject', vscode.Uri.file(lp.file));
+    });
     return undefined;
   }
   if (!lp.project) {
@@ -211,10 +220,17 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     const lp = pickProject(projects);
     const s = readSettings(lp?.root);
     const t = lp && selectedTarget(lp, s.targetDefault);
+    status.command = 'cpcbuild.selectTarget';
     if (lp && t) {
       status.text = `$(chip) ${t.id}`;
       status.tooltip = `CPC Game Studio target (${t.package}); emulator: ${s.emulator}. Click to change the target.`;
       status.show();
+    } else if (lp && isOldProject(lp.errors)) {
+      status.text = '$(warning) 0.1.x project';
+      status.tooltip = OLD_PROJECT_TOOLTIP;
+      status.command = { title: 'Convert Project to CPC BASIC', command: 'cpcbuild.convertProject', arguments: [vscode.Uri.file(lp.file)] };
+      status.show();
+      if (context.extensionMode !== vscode.ExtensionMode.Test) void offerOldProjectNotice(context.workspaceState, lp.file);
     } else if (lp) {
       status.text = '$(warning) cpcbuild.json';
       status.tooltip = 'cpcbuild.json has problems';
@@ -368,6 +384,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     emuMissing: emuMissingTestApi,
     setup: setupTestApi,
     settingsMigration: settingsMigrationTestApi,
+    oldProject: oldProjectTestApi,
     runToolLog,
     emuInstall: emuInstallTestApi,
     runIn: runInEmulator,

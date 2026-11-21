@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { readTree } from '@cpcbuild/cpcbas/node';
 import { compileFiles, copyFixture, errorsOf, runtime } from './cpcbasTestUtil';
 import type { MigrateReport } from '@cpcbuild/cpcbas';
-import { type CheckConfig, convertSources, formatReport, hasSpectrumTargets, mustFix, removeSpectrumTargets, targetChecks } from './convert';
+import { type CheckConfig, convertSources, formatReport, hasSpectrumTargets, mustFix, noProjectMessage, removeSpectrumTargets, targetChecks } from './convert';
 
 /** Converts the project in `dir` the way the command does (without the questions) and writes the changed files. */
 function convertDir(dir: string, from: 'auto' | 'boriel') {
@@ -51,6 +51,13 @@ describe('Convert Project: the 0.1.2 template projects', () => {
     expect(t).toMatch(/\d+ file\(s\) read, \d+ changed\. Read as Boriel BASIC\./);
     expect(t).toMatch(/W700 x\d+/);
     expect(formatReport(r.report, { notes: true })).toMatch(/note W700/);
+  });
+});
+
+describe('Convert Project: a folder without cpcbuild.json', () => {
+  it('says how to convert sources from a terminal when there are .bas files, and only that there is no project when there are none', () => {
+    expect(noProjectMessage(true)).toContain('migrate --main main.bas -D CPC6128 -o converted .');
+    expect(noProjectMessage(false)).toBe('CPC Game Studio: no cpcbuild.json in this workspace.');
   });
 });
 

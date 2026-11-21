@@ -265,3 +265,9 @@ export function hasSpectrumTargets(projectJson: string): boolean {
   const ts = rawTargets(projectJson);
   return !!ts && ts.some(isSpectrumTarget);
 }
+
+/** What Convert says when the workspace has no cpcbuild.json: a folder of 0.1.x sources is converted from a terminal. */
+export const noProjectMessage = (hasBas: boolean): string =>
+  hasBas
+    ? 'CPC Game Studio: Convert works on a project (a folder with cpcbuild.json), and this workspace has none. For a folder of 0.1.x sources, run in a terminal: cpcbas migrate --main main.bas -D CPC6128 -o converted .   (with the SDK: node <SDK>/bin/cpcbas.mjs migrate ...). Without --main and -D, the compile check can report errors that are not there.'
+    : 'CPC Game Studio: no cpcbuild.json in this workspace.';

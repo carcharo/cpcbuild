@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { loadRuntime, readTree } from '@cpcbuild/cpcbas/node';
 import { findRecipes } from './assetsGen';
-import { convertSources, formatReport, hasSpectrumTargets, mustFix, removeSpectrumTargets, targetChecks, type ConvertResult } from '../core/convert';
+import { convertSources, formatReport, hasSpectrumTargets, mustFix, noProjectMessage, removeSpectrumTargets, targetChecks, type ConvertResult } from '../core/convert';
 import { bundledLibrary } from './config';
 import { findProjects, PROJECT_FILE } from './projects';
 import { findProjectRoot } from './library';
@@ -85,7 +85,8 @@ async function pickRoot(arg: unknown, args?: ConvertArgs): Promise<string | unde
   const ps = await findProjects();
   if (ps.length === 1) return ps[0].root;
   if (!ps.length) {
-    void vscode.window.showInformationMessage(`CPC Game Studio: no ${PROJECT_FILE} in this workspace.`);
+    const hasBas = (await vscode.workspace.findFiles('**/*.bas', '**/node_modules/**', 1)).length > 0;
+    void vscode.window.showInformationMessage(noProjectMessage(hasBas));
     return undefined;
   }
   const pick = await vscode.window.showQuickPick(
