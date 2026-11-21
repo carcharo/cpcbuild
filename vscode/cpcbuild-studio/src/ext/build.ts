@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { compile, VERSION, type CompileResult, type FileTree } from '@cpcbuild/cpcbas';
 import { diskTree, loadRuntime } from '@cpcbuild/cpcbas/node';
 import { buildDiagnostics, formatBuildDiagnostic, type BuildDiagnostic } from '../core/buildDiag';
-import { formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
+import { compiledLine, formatReport, hex4, MemoryReport, memoryReport, parseMap, programStart } from '../core/map';
 import { compileInput, MIN_ORG, Project, Target } from '../core/project';
 import { assetFailure, regenerateAll } from './assetsGen';
 import { absFrom, bundledLibrary, readSettings, resolveArkos, resolveLibrary, Settings } from './config';
@@ -163,7 +163,7 @@ export async function buildTarget(
       : `the compiler reported ${errors} error${errors === 1 ? '' : 's'} (they are in the Problems panel). ${sound ? `${sound} ` : ''}Fix them and build again.`;
     return done(), fail(res, why, sink);
   }
-  sink.line(`Compiled ${cr.stats.codeBytes} bytes of code and ${cr.stats.dataBytes} of data in ${Math.round(cr.stats.timeMs)} ms (cpcbas ${VERSION}).`);
+  sink.line(compiledLine(cr.binary.length, cr.stats.dataBytes, cr.stats.timeMs, VERSION));
 
   // 2. the files: the program, the map, the disc or cartridge the compiler packed
   const bin = `${base}.bin`;
@@ -190,7 +190,7 @@ export async function buildTarget(
 
   // 3. report
   try {
-    res.report = memoryReport(entries, cr.binary.length, { bare: target.bare, pkg: target.package, extraLimits: s.memoryLimits });
+    res.report = memoryReport(entries, cr.binary.length, { bare: target.bare, pkg: target.package, model, extraLimits: s.memoryLimits });
     res.reportLines = formatReport(res.report);
     sink.line(`Build report for ${target.id}:`);
     for (const l of res.reportLines) sink.line(`  ${l}`);

@@ -145,8 +145,24 @@ function headerEntries(raw: string[], known: Set<string>): HeaderEntry[] {
     if (!(rest.startsWith('(') || /^\s{2,}\S/.test(rest) || /^\s+\S(?:.*?\S)?\s{2,}\S/.test(rest) || rest.trim() === '')) continue;
     // signature part: up to the first gap of 2+ spaces
     const gap = /\s{2,}/.exec(c.text);
-    const sig = gap ? c.text.slice(0, gap.index) : c.text;
-    const desc = gap ? c.text.slice(gap.index).trim() : '';
+    let sig = gap ? c.text.slice(0, gap.index) : c.text;
+    let desc = gap ? c.text.slice(gap.index).trim() : '';
+    let descCol = gap ? gap.index + gap[0].length : -1;
+    if (!gap && rest.startsWith('(')) {
+      // one space after the closing parenthesis: the text after it is the description (`) AS UBYTE` stays part of the signature)
+      let depth = 0;
+      let close = -1;
+      for (let k = m[1].length; k < c.text.length && close < 0; k++) {
+        if (c.text[k] === '(') depth++;
+        else if (c.text[k] === ')' && --depth === 0) close = k;
+      }
+      const after = close >= 0 ? c.text.slice(close + 1) : '';
+      if (after.trim() && !/^\s*AS\s+\w+\s*$/i.test(after)) {
+        sig = c.text.slice(0, close + 1);
+        desc = after.trim();
+        descCol = close + 1 + (after.length - after.trimStart().length);
+      }
+    }
     // `MusicInit(a, b)   MusicFrame()   MusicStop()`: a list of names, no description
     const segs = c.text.split(/\s{2,}/);
     if (segs.length > 1 && segs.every((s) => known.has((/^([A-Za-z_]\w*)\(/.exec(s)?.[1] ?? '').toLowerCase()))) {
@@ -158,7 +174,7 @@ function headerEntries(raw: string[], known: Set<string>): HeaderEntry[] {
       .map((s) => /^([A-Za-z_]\w*)/.exec(s.trim())?.[1])
       .filter((n): n is string => !!n && known.has(n.toLowerCase()));
     const cont: { indent: number; text: string }[] = [];
-    if (desc) cont.push({ indent: c.indent + gap!.index + gap![0].length, text: desc });
+    if (desc) cont.push({ indent: c.indent + descCol, text: desc });
     for (let j = i + 1; j < end; j++) {
       const n = commentOf(raw[j]);
       if (!n || n.text === '' || n.indent <= c.indent) break;

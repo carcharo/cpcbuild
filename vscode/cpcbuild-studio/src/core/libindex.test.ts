@@ -118,6 +118,20 @@ d('library index: entries', () => {
     expect(lib.byName.get('pluspagein')![0].doc).toMatch(/ASIC's registers at &4000-&7FFF/);
     expect(lib.byName.get('pluspageout')![0].doc).toMatch(/ASIC's registers at &4000-&7FFF/);
   });
+  it('a header line with one space after the signature still has its first line in the doc', () => {
+    const doc = (header: string[], sub: string): string => {
+      const text = [...header.map((h) => `'${h}`), sub, 'END SUB', ''].join('\n');
+      return buildIndex([{ path: 'x/x.bas', text, platform: 'both' } as never]).byName.get('fillrect')![0].doc;
+    };
+    const sub = 'SUB FillRect(x AS UBYTE, y AS UBYTE, w AS UBYTE, h AS UBYTE, pen AS UBYTE)';
+    expect(doc(['   FillRect(x, y, w, h, pen) fill a rectangle; x in', '                             bytes'], sub)).toBe('fill a rectangle; x in bytes');
+    // `) AS type` is part of the signature, not a description
+    expect(doc(['   FillRect(x, y, w, h, pen) AS UBYTE', '                             the continuation only'], sub)).toBe('the continuation only');
+  });
+  it('FillRect and SpriteSetImagePacked, whose headers have one space after the signature, keep their first line', () => {
+    expect(lib.byName.get('fillrect')![0].doc).toMatch(/^fill a rectangle with the pen; x and w in bytes/);
+    expect(lib.byName.get('spritesetimagepacked')![0].doc).toMatch(/^the same from 128 bytes, two pixels per byte/);
+  });
   it('settings named in the headers', () => {
     expect(lib.settings.map((s) => s.name).sort()).toEqual(['SPRLIST_MAX', 'TEXT_QUEUE']);
     expect(lib.settings.find((s) => s.name === 'TEXT_QUEUE')!.doc).toMatch(/default 160/);
