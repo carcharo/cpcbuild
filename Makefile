@@ -31,7 +31,7 @@ shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required,
 	mkdir -p build/shots
 	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu chips --model $(MODEL) --shot build/shots/$(basename $(notdir $(PROG))).png --shot-dir build/shots $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
 
-unit: ## Run the tool unit tests (img2cpc, tmx2bas)
+unit: ## Run the tool unit tests (img2cpc, tmx2bas, the code blocks of the tutorial and the library reference)
 	$(PYTHON) -m unittest discover -s tests/tools
 
 test: unit ## Unit tests, then conformance on Caprice32 (6128)

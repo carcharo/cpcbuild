@@ -1,4 +1,4 @@
-# Chapter 11 (optional): The 6128 and the Plus
+# Chapter 10 (optional): The 6128 and the Plus
 
 **Goal.** Two more targets for the CPC family. First the CPC 6128, which turns out to be the same
 program as the 464. Then the CPC Plus (6128 Plus and GX4000), where the player and enemies become
@@ -23,9 +23,9 @@ Select the `cpc6128` target (**CPC Game Studio: Select Target**) and run **CPC G
 `defines` are `["CPC6128"]` and its `model` is `"6128"`, so the emulator tab starts a 6128.
 
 You should see exactly what you saw on the 464. That is the finding: **`lamp464` and `lamp6128` are the
-same 26,749 bytes** (the build script prints both). `platform_cpc.bas` has a
-`CPC464` and a `CPC6128` switch and does not use either: it defaults to `CPC464` when neither is set (line 30
-of the finished file), and the two builds make the same pictures. The finished game's tests run both and keep
+same 27,155 bytes**, and the two programs are identical byte for byte (the build script prints both sizes). `platform_cpc.bas` has a
+`CPC464` and a `CPC6128` switch and does not use either: it defaults to `CPC464` when neither is set (near the top of
+the finished file), and the two builds make the same pictures. The finished game's tests run both and keep
 a screenshot golden per model: all 17 pictures of the 464 are byte-for-byte the 6128's.
 
 The setting `cpcbuild.model` ("Emulated model; when set explicitly it overrides each target's own
@@ -40,8 +40,8 @@ keep more levels than fit in memory and load a level from disc when you need it 
 
 Lamplighter does not do this, and the reason is worth knowing. The library's rule: **any program that uses
 the bank calls reserves `&4000-&7FFF`, and the compiler refuses to run code that reaches it**
-(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&68BD`, which
-crosses `&4000`. To use banks it would have to be rebuilt to fit below `&4000` (about 16 KB, against 26.7 KB now)
+(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&6A53`, which
+crosses `&4000`. To use banks it would have to be rebuilt to fit below `&4000` (about 16 KB, against 26.5 KB now)
 or to live above `&8000`. The finished game keeps its songs and levels in main RAM, which is why the 464 and
 6128 builds are one program.
 
@@ -66,11 +66,8 @@ build** (they gain only a line in `main.bas`). It adds two things:
 
 ## Step 3: What you need
 
-- **A library that has the sprite manager and palette cycling.** They are `lib/cpcplus/sprman.bas` and
-  `lib/cpcplus/palcycle.bas`, and the library copy bundled in the Studio extension has both
-  (`cpcplus/sprman` and `cpcplus/palcycle` are in its `bundled/lib/`), so there is nothing to set. (If you
-  pointed `cpcbuild.library.path` at your own copy of the library, it must be one that has them: `main` or the
-  `platformer` branch.)
+- **A library that has the sprite manager and palette cycling.** They are `cpcplus/sprman.bas` and
+  `cpcplus/palcycle.bas` in the library that comes with the compiler, so there is nothing to set.
 - **Art.** Copy from `games/lamplighter/assets/plus/` into your `assets/plus/`: `plus_tiles.png`,
   `plus_sprites.png`; and `pl_pens.bas`.
 - **The Plus layer.** Copy `games/lamplighter/platform_plus.bas` into your project folder, beside
@@ -104,7 +101,7 @@ lamp at once. The recipe is the CPC tiles' recipe with the Plus PNG:
 
 The sprites are **16 x 16 hardware sprites**: each art pixel is 2 sprite pixels wide, and the sprite is
 magnified 2 x 1 (`SprMag(slot, 2, 1)`) so it covers the same 8 x 16 mode-0 pixels as the CPC build's. The
-importer's target button is **Plus sprites**:
+importer's **Target** pill is **Plus sprites**:
 
 `assets/plus/lpsprites.cpcimp`:
 
@@ -147,6 +144,7 @@ that the CPC layer needs three small changes, each a `LAMP_PLUS` condition. Make
 
 **1.** The tile include (the Plus tiles have different art), and no software sprites:
 
+<!-- same as games/lamplighter/platform_cpc.bas -->
 ```basic
 #ifdef LAMP_PLUS
 #include "assets/plus/tiles.bas"
@@ -160,6 +158,7 @@ that the CPC layer needs three small changes, each a `LAMP_PLUS` condition. Make
 
 **3.** In `PlatFrameEnd`, call the Plus flush instead of the CPC one:
 
+<!-- same as games/lamplighter/platform_cpc.bas -->
 ```basic
 #ifdef LAMP_PLUS
   PlatFlushPlus()
@@ -168,29 +167,24 @@ that the CPC layer needs three small changes, each a `LAMP_PLUS` condition. Make
 #endif
 ```
 
-(`platform_cpc.bas:42-56, 159-226, 309-315`, each a few lines in the finished file.)
+(In the finished `platform_cpc.bas` each is a few lines.)
 
-And `main.bas` picks the Plus layer when `PLUS` is defined:
+And `main.bas` picks the Plus layer when `PLUS` is defined (the finished file wraps these lines in `#ifdef __CPC__`, which the compiler defines for every CPC build):
 
 ```basic
-#ifdef __CPC__
 #ifdef PLUS
 #include "platform_plus.bas"
 #else
 #include "platform_cpc.bas"
 #endif
-#else
-#include "platform_zx.bas"
-#endif
 ```
 
 ## Step 6: Read the Plus layer
 
-Open `platform_plus.bas` (198 lines). The trick at the top is how it reuses the CPC layer:
+Open `platform_plus.bas` (about 200 lines). The trick at the top is how it reuses the CPC layer:
 
+<!-- same as games/lamplighter/platform_plus.bas -->
 ```basic
-#define LAMP_PLUS
-...
 #define PlatInit PlatInitCpc
 #define PlatRoom PlatRoomCpc
 #define PlatTile PlatTileCpc
@@ -204,12 +198,13 @@ Open `platform_plus.bas` (198 lines). The trick at the top is how it reuses the 
 #undef PlatEnd
 ```
 
-(`platform_plus.bas:39-56`.) `#define` renames the five calls the Plus layer wants to replace *while the CPC file is
+(From `platform_plus.bas`, which also defines `LAMP_PLUS` above them.) `#define` renames the five calls the Plus layer wants to replace *while the CPC file is
 being read*, so they exist as `PlatInitCpc` and so on; `#undef` gives the names back, and the Plus layer defines its
 own `PlatInit`, `PlatRoom`... which call the CPC versions. Everything else (text, HUD, keys, music) is inherited.
 
 Then it includes the manager, the cycler and the data:
 
+<!-- same as games/lamplighter/platform_plus.bas -->
 ```basic
 #include <cpcplus/sprman.bas>
 #include <cpcplus/palcycle.bas>
@@ -232,21 +227,20 @@ picture still in a slot is not uploaded twice (library: **Sprite manager**). The
 
 The heart of it is `PlatFlushPlus`, which `PlatFrameEnd` calls right after the frame wait:
 
+<!-- same as games/lamplighter/platform_plus.bas -->
+<!-- fragment -->
 ```basic
-img = @lpsprites(0) + (CAST(UINTEGER, f) << 8)
-IF h = 255 THEN
-  h = SprAlloc(img)
-  IF h <> 255 THEN SprMag(h, 2, 1)
-  pHs(s) = h
-ELSEIF f <> pAf(s) THEN
-  SprSetImage(h, img)
-END IF
-IF h <> 255 THEN
-  SprMove(h, CAST(INTEGER, pWx(s)) << 2, pWy(s))
-  ...
+          img = @lpsprites(0) + (CAST(UINTEGER, f) << 8)
+          IF h = 255 THEN
+            h = SprAlloc(img)
+            IF h <> 255 THEN SprMag(h, 2, 1)
+            pHs(s) = h
+          ELSEIF f <> pAf(s) THEN
+            SprSetImage(h, img)
+          END IF
 ```
 
-(`platform_plus.bas:156-166`.) Note `<< 2` on x: the hardware measures sprite positions in the finest
+(From `PlatFlushPlus` in `platform_plus.bas`.) Note `<< 2` on x: the hardware measures sprite positions in the finest
 (mode-2) pixels, so a mode-0 pixel is **four** of them, and logical x times 4 is the hardware x. y is the line number.
 
 `PlatSprite` only notes what each slot should show; the changes go to the manager after the frame wait, so
@@ -260,13 +254,14 @@ sprite redrawn.
 
 **The flame.**
 
+<!-- same as games/lamplighter/platform_plus.bas -->
 ```basic
 SUB FlameStart()
   PalCycleSet(0, 0, FLAME_PEN0, 4, @pl_flame(0), 2)
 END SUB
 ```
 
-(`platform_plus.bas:77-79`.) Cycle 0, kind 0 (**screen pens**), starting at pen `FLAME_PEN0` (11), 4 colours from
+(From `platform_plus.bas`.) Cycle 0, kind 0 (**screen pens**), starting at pen `FLAME_PEN0` (11), 4 colours from
 the `pl_flame` table, rotating by one every 2 calls of `PalCycleStep`. `PalCycleStep()`, called from `PlatFlushPlus`, once per game step, does the rotating:
 a single block write, however many lamps are lit. The period counts those calls, so with a period of 2 the flame
 advances every second step (library: **Palette cycling**). Setting the palette
@@ -274,7 +269,7 @@ restarts a cycle at offset 0, so the layer calls `FlameStart` again after every 
 
 ## Step 7: Targets and build
 
-In `cpcbuild.json` add the Plus targets (these are the Studio **Plus cartridge** template's):
+In `cpcbuild.json` add the Plus targets (this is the Studio **Plus cartridge** template's cartridge target, which also has a `plus-dsk` target):
 
 ```json
 { "id": "plus-cart", "arch": "cpc", "main": "main.bas", "model": "plus",
@@ -282,24 +277,23 @@ In `cpcbuild.json` add the Plus targets (these are the Studio **Plus cartridge**
 ```
 
 `bare` adds `-D CPC_BAREMETAL` (the cartridge has no firmware) and `ownFont` adds `-D CPC_OWNFONT` (so it has no
-firmware font either: the game's text comes from its own `fontcpc.bas` anyway). `package: cpr` runs
-Studio's built-in cartridge packer (the same job as `tools/mkcpr.py`; no Python is needed), which wraps the program in a cartridge image with a small boot stub that copies it to RAM at
+firmware font either: the game's text comes from its own `fontcpc.bas` anyway). `package: cpr` makes the cartridge: the compiler packs the program into a cartridge image with a small boot stub that copies it to RAM at
 `&0040`. These are the finished game's `lamppluc` flags (`build_plus.sh`, a shell script in the repository that you do not need).
 
-Select `plus-cart` and run **CPC Game Studio: Build and Run**. The compiler flags are `--arch cpc --org 0x40 -D
-PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,056-byte
-program, `lamppluc.bin`), and then the packer wraps it as `build/plus-cart.cpr`
-(the finished game's cartridge is 49,188 bytes, 3 pages). The report is the one for a bare target, with its
+Select `plus-cart` and run **CPC Game Studio: Build and Run**. The compiler flags are `--org 0x40 -D
+PLUS -D CPC_BAREMETAL -D CPC_OWNFONT` (checked: compiling the finished sources with them gives a 30,721-byte
+program, `lamppluc.bin`), and then the compiler packs it as `build/plus-cart.cpr`
+(the finished game's cartridge is 49,188 bytes). The report is the one for a bare target, with its
 own reference lines:
 
 ```
 Build report for plus-cart:
-  30056 bytes, &0040-&75A8
-    passes &4000 by 13736 bytes (only matters if you use a back screen or banks)
-    headroom below &B800: 16984 bytes  [bare limit]
+  30721 bytes, &0040-&7841
+    passes &4000 by 14401 bytes (only matters if you use a back screen or banks)
+    headroom below &B800: 16319 bytes  [bare limit]
 ```
 
-(Worked out from the 30,056 bytes in the same way as in chapter 9: &0040 + 30,056 = &75A8.) The emulator tab
+(Worked out from the 30,721 bytes in the same way as in chapter 9: &0040 + 30,721 = &7841.) The emulator tab
 starts a Plus and boots the `.cpr` (Studio sends a `.cpr` to the Emulator extension, which always starts a
 Plus for a cartridge); a cartridge boots by itself.
 <!-- CHECK (for the user's test session): run plus-cart through Studio and the emulator tab, not only through the compiler and mkcpr.py as the tutorial's author did (that was run headless on CPCEC up to the title screen). Also confirm the report lines above. -->
@@ -317,27 +311,25 @@ What the numbers say (on Caprice32 and CPCEC; the finished game):
 
 | | 464 build | Plus build |
 |---|---|---|
-| program size | 26,749 bytes | 30,505 bytes (disc), 30,056 (cartridge) |
-| paced speed | 25.0 steps a second | 25.1 (498-499 frames) |
-| unpaced, frames for 250 steps (500 is the budget) | 431 | 335 to 339 |
-| headroom | about 14 % | about 32 to 33 % |
+| program size | 27,155 bytes | 30,435 bytes (disc), 30,721 (cartridge) |
+| paced speed | 25.1 steps a second (499 frames) | 25.1 (499 frames) |
+| unpaced, frames for 250 steps (500 is the budget) | 427 | 330 to 333 |
+| headroom | about 15 % | about 33 to 34 % |
 
-The Plus program is **3.8 KB bigger**: it adds the Plus library, the sprite manager, palette cycling and 3 KB of
-sprites, and drops the software sprite code and frames. But a step needs about a fifth fewer frames (339 against
-431) because nothing is erased and redrawn.
+The Plus program is **3.3 KB bigger** (the disc build): it adds the Plus library, the sprite manager, palette cycling and 3 KB of
+sprites, and drops the software sprite code and frames. But a step needs about a fifth fewer frames (333 against
+427) because nothing is erased and redrawn.
 
-If the build says it cannot find `cpcplus/sprman.bas`, `cpcbuild.library.path` points at a library without it: clear
-the setting (the bundled library has it) or use a checkout of `platformer` or `main`. If the game says "LAMPLIGHTER PLUS needs a CPC Plus" you ran a
+If the game says "LAMPLIGHTER PLUS needs a CPC Plus" you ran a
 firmware build on a model other than `plus`; the cartridge target has no such check because it can only run on a Plus.
 
 ### What is not covered here
 
 The finished game also builds a **disc** for the Plus: `lampplus.dsk`, started with `RUN"PLUS`, where `PLUS.BIN`
 is a small loader that starts the program (`build_plus.sh` makes it; it is a shell script for a cpcbuild checkout, so it needs macOS or Linux, and we have not tried it on Windows). That disc stays **outside Studio**:
-Studio's `dsk` packaging makes a plain disc that runs one binary with `run"NAME`, and the finished project's
-`lampplus` target is the cartridge only. Whether a plain Studio disc build of the Plus
-program (a target with `PLUS` defined, not `bare`) starts correctly on a Plus has not been checked: use the
-cartridge target.
+Studio's `dsk` packaging makes a plain disc that runs one binary with `run"NAME` (the Plus template's `plus-dsk` target is that), and the finished project's
+`lampplus` target is the cartridge only. Whether a plain Studio disc build of the Lamplighter Plus
+program starts correctly on a Plus has not been checked: use the cartridge target.
 <!-- CHECK (optional, for the user's test session): add a disc target for the Plus program and see whether it boots on a Plus model; the tutorial's author did not try it. -->
 
 ## How it works
@@ -348,13 +340,13 @@ does its own work and then, where needed, calls the CPC original (`PlatInitCpc`,
 ordinary software layering done with the preprocessor, and it is also why the CPC layer needed the
 `LAMP_PLUS` conditions.
 
-**Hardware sprites versus erasing.** Chapter 4's software sprite costs about 26,000 T-states a move. A hardware
-sprite costs one `SprMove`: **259 to 303 microseconds a call** in the library's measurements, about 1,000 to 1,200
-T-states (**Sprite manager**, cost table). An upload (a new frame) is about 2.2 to 2.4 ms, which the manager spreads
+**Hardware sprites versus erasing.** Chapter 4's software sprite costs about 16,000 T-states a move. A hardware
+sprite costs one `SprMove`: **259 to 303 microseconds a call** in the library's own measurements, about 1,000 to 1,200
+T-states (the **Sprite manager** cost table in the library reference; these two are the library's figures, not measured for this chapter). An upload (a new frame) is about 2.2 to 2.4 ms, which the manager spreads
 over frames with a budget (`SprFlush(maxUploads)`); the layer's cache means a room change reuses pictures
 already in the slots.
 
-**Palette cycling.** A four-colour cycle, one due, costs about 779 to 876 microseconds in the library's table,
+**Palette cycling.** A four-colour cycle, one due, costs about 779 to 876 microseconds in the library's own table,
 once every second step, for any number of lamps. Doing the same flicker in software would mean redrawing every
 lit lamp tile, every time.
 
@@ -369,7 +361,7 @@ lit lamp tile, every time.
 
 ## The end
 
-You have built a complete game three ways, for four machines, from one set of rules. The pieces to reuse in your own
+You have built a complete game three ways, for three machines, from one set of rules. The pieces to reuse in your own
 game: the **platform layer contract** (chapter 1), **rooms from Tiled** (3), **masked sprites with TileRestore**
 (4), **table-driven movement** (5), **half-rate enemies** (6), the **measure first** habit (9), and the
-**asset recipes** that keep art and code in step (2, 4, 10, 11).
+**asset recipes** that keep art and code in step (2, 4, 10).

@@ -4,14 +4,6 @@ boriel bench/cpcbas/banks_bench.bas
 boriel bench/cpcbas/bench2_intloop.bas
 boriel bench/micro_results.md
 boriel docs/library.md
-boriel docs/tutorial/01-new-project.md
-boriel docs/tutorial/02-palette-and-tiles.md
-boriel docs/tutorial/03-the-tower.md
-boriel docs/tutorial/05-movement.md
-boriel docs/tutorial/07-lamps-doors-lives-hud.md
-boriel docs/tutorial/08-sound-and-music.md
-boriel docs/tutorial/09-measuring.md
-boriel docs/tutorial/README.md
 boriel games/lamplighter/tests/platform_null.bas
 boriel games/shooter/README.md
 boriel games/shooter/assets/make_art.py
@@ -29,8 +21,6 @@ zxb README.md
 zxb bench/README.md
 zxb bench/cpcbas/bench1_bm7.bas
 zxb docs/library.md
-zxb docs/tutorial/01-new-project.md
-zxb docs/tutorial/10-the-spectrum-build.md
 zxb games/lamplighter/main.bas
 zxb tests/tools/test_cpcrun.py
 zxb tools/arkos/README.md

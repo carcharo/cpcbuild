@@ -57,34 +57,37 @@ That is "pen 0 = colour 0, pen 1 = colour 1, pen 2 = colour 3, ..." In words:
 | 6 | 12 yellow | | 14 | 5 mauve |
 | 7 | 26 bright white | | 15 | 2 bright blue |
 
-(From `assets/make_art.py:48`; the names are those of the library's palette table.)
+(From `assets/make_art.py`; the names are those of the library's palette table.)
 
 Pen 0 is black: the background of every room.
+
+**INK and PEN.** These two words mean on the CPC what they mean in Locomotive BASIC. `INK pen, colour` gives a *pen* a firmware
+colour (`INK 5, 24` makes pen 5 bright yellow), and `PEN n` chooses the pen that text is written in. (On some other computers `INK` is
+the colour of the text; here it is not.) The library's `SetPalette` does the job of `INK` for a whole list of pens at once, and
+`TextPen(ink, paper)` does the job of `PEN` and `PAPER` for the library's own text routine.
 
 ## Step 2: Open the palette in the palette editor
 
 In the Explorer, double-click `assets/lamp.cpcpal`. It opens in the **CPC Palette Editor** instead of
-as text (the editor is the default for `.cpcpal` and `.cpcpal12` files; the tab's title bar has **Reopen as
-Text** if you want the raw file).
+as text (the editor is the default for `.cpcpal` and `.cpcpal12` files; **More > Open as text**, or the command **CPC Game Studio: Reopen as
+Text**, shows the raw file).
 
 You should see:
 
-- A toolbar with **Mode 0**, **Mode 1** and **Mode 2** (three choices, set to Mode 0 here: 16 pens),
-  undo and redo, **Reset**, **Load from PNG** and a **Copy as** menu.
-- **Pens**: a strip of 16 swatches, `P0` to `P15`. Each shows the pen's firmware colour number and name
-  (`P5`, `24`, `bright yellow`).
+- A **Mode** control with **Mode 0**, **Mode 1** and **Mode 2** (set to Mode 0 here: 16 pens), and a toolbar with **Reset**,
+  **Load from PNG**, **Copy as** and **Help**. The **More** menu has **Open as text**.
+- **Pens**: a strip of swatches for pens 0 to 15 and the border. Each shows the pen's firmware colour.
 - **Firmware colours (pick one for pen 0)**: the 27 colours as a grid, each with its number and name.
-- A side panel with **Colour details** (colour, RGB, how many pens use it), an optional **Border colour**,
-  and **Copy as**.
+- **Colour details** (the colour's number, name and RGB, and how many pens use it) and a **Copy as** card.
 
 Click a pen in the strip, then a colour in the grid, and that pen takes the colour. Try it on pen 5
 (bright yellow, the lamp's glow). Make it something else, and look at the colour swatch. **Undo**
-(`Ctrl+Z`, `Cmd+Z` on macOS) puts it back, and so does **Reset** ("Reset to the last loaded palette"). Do not save a change you
+(`Ctrl+Z`, `Cmd+Z` on macOS: undo and redo are VS Code's own) puts it back, and so does **Reset** ("Reset to the last loaded palette"). Do not save a change you
 do not want: the game's art assumes these exact pens.
 
-Open the **Copy as** menu (or the **Copy as** panel on the right). It offers the palette as:
+Open the **Copy as** menu (or use the **Copy as** card on the right). It offers the palette as:
 
-- a **Boriel DIM + SetPalette** snippet,
+- a snippet with a `DIM` array and a `SetPalette` call,
 - a **Bare list (--palette)** like `0,1,3,6,...` (that is what `lamp.cpcpal` holds),
 - or **SetInk lines**.
 
@@ -98,8 +101,8 @@ SetPalette(@pal(0), 16)
 
 **Drawing your own palette instead.** Run **CPC Game Studio: New Palette**. It asks one question, **Firmware
 palette** (`.cpcpal`: pens as firmware colours 0 to 26, modes 0, 1 and 2) or **Plus palette** (`.cpcpal12`:
-12-bit colours, chapter 11), then a Save dialog for the file name. The mode is not asked: you choose it
-with the toolbar in the editor. A `.cpcpal` file is just a list of 0 to 26 numbers, one per pen.
+12-bit colours, chapter 10), then a Save dialog for the file name. The mode is not asked: you choose it
+with the **Mode** control in the editor. A `.cpcpal` file is just a list of 0 to 26 numbers, one per pen.
 
 ## Step 3: Bring the tiles in with Import Image
 
@@ -119,7 +122,7 @@ side by side. (One PNG pixel is one CPC pixel: no scaling. For drawing your own,
 | 6 | lamp, lit | | | |
 | 7 | door, closed | | | |
 
-(From `assets/make_art.py:67`.) We will give each tile a meaning in chapter 5.
+(From `assets/make_art.py`.) We will give each tile a meaning in chapter 5.
 
 Now convert the PNG into data your program can include.
 
@@ -129,24 +132,23 @@ Now convert the PNG into data your program can include.
    command line, as JSON), and opens it in the **CPC Image Importer**. A new recipe starts with
    Mode 1 and Sprite, so you will change those. It already points its output at `assets/tiles.bas`
    (beside the recipe).
-3. The options are in the left column, in sections (in a narrow window the editor has tabs instead:
+3. The options are in the left column, in cards (in a narrow window the editor has tabs instead:
    **Options**, **Preview**, **Mapping**, **Command**). Set:
 
-| Section | Option | Value |
+| Card | Option | Value |
 |---|---|---|
-| Target | (the four buttons) | **CPC** |
-| Target | mode buttons | **Mode 0** |
-| Target | Name | `tiles` (the default: the image's file name) |
-| Target | Output file | `assets/tiles.bas` |
-| Sprites and tiles | (two buttons) | **Tiles** (not Sprite) |
-| Colours | Palette: Automatic / Pens / File | **File** |
-| Colours | Palette file (.cpcpal) | `assets/lamp.cpcpal` (type it, or **Browse...**) |
-| Colours | Emit the palette (NAME_pal, NAME_PENS) | ticked |
+| Target | the **Target** pills | **CPC** |
+| Target | **Recipe mode** | **Mode 0 · 16** (16 pens) |
+| Sprites and tiles | **Kind** | **Tiles** (not Sprite) |
+| Colours | **Palette** | **File** |
+| Colours | **Palette file (.cpcpal)** | `assets/lamp.cpcpal` (type it, or **Browse...**) |
+| Colours | **Emit the palette (NAME_pal, NAME_PENS)** | ticked |
+| Output | **Name** | `tiles` (the default: the image's file name) |
+| Output | **Output file** | `assets/tiles.bas` |
 
    Under each option the editor prints the `img2cpc.py` flag it sets (`--mode 0`, `--tiles`,
    `--palette-file F`...).
-4. Look at the **Command** line across the top of the editor (under the **Command** tab in a narrow
-   window, where it is headed **Equivalent command**). It should read like this:
+4. Look at the **Command** card (the **Command** tab in a narrow window). It should read like this:
 
 ```
 python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/tiles.png -o assets/tiles.bas
@@ -156,7 +158,8 @@ python3 tools/img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lam
    never hides the command line, so you always know what the tool is doing. **Copy** puts it on the
    clipboard. The line is printed the same way on Windows, macOS and Linux, and you do not run it: Studio does
    the conversion itself, with no Python installed. (The line is the equivalent for the `tools/img2cpc.py`
-   script in a cpcbuild checkout, which needs a Unix shell and Python 3.)
+   script in a cpcbuild checkout, which needs a Unix shell and Python 3. A note under the options says which engine is
+   in use: **built in**.)
 5. **Save** (`Ctrl+S`, `Cmd+S` on macOS). Studio writes `assets/tiles.bas`, because the setting
    `cpcbuild.assets.generateOnSave` is on by default. (The **Generate** button at the top right does
    the same without saving; a line under the header says when the output is missing or out of date.)
@@ -189,6 +192,7 @@ This is exactly the finished game's `games/lamplighter/assets/tiles.cpcimp`.
 
 Open `assets/tiles.bas`. It starts with a comment saying where it came from and not to edit it:
 
+<!-- fragment: skip: the start of a generated file; the data rows are cut -->
 ```basic
 ' Generated by img2cpc.py --mode 0 --name tiles --tiles --palette-file assets/lamp.cpcpal assets/tiles.png -o assets/tiles.bas
 ' Source: assets/tiles.png, 128x8 pixels, mode 0
@@ -196,12 +200,13 @@ Open `assets/tiles.bas`. It starts with a comment saying where it came from and 
 ' Do not edit; regenerate it from the source image (command above).
 
 DIM tiles(511) AS UBYTE => { _
-    $00, $00, $00, $00, $00, $00, $40, $00, $00, $00, $00, $00, $40, $00, $00, $00, _
+    &00, &00, &00, &00, &00, &00, &40, &00, &00, &00, &00, &00, &40, &00, &00, &00, _
     ...
 ```
 
-(Header from `games/lamplighter/assets/tiles.bas:1-4`; the tool writes the same text whichever way you
-generated the file, including the "regenerate it from the source image" line.) At the end are `tiles_COUNT` (16) and
+(The header is the one in `games/lamplighter/assets/tiles.bas`; the tool writes the same text whichever way you
+generated the file, including the "regenerate it from the source image" line. The numbers are written in `&` hex, as in your own
+programs.) At the end are `tiles_COUNT` (16) and
 `DIM tiles_pal(15)` with `tiles_PENS` (16): the palette, written with the tiles because we asked for
 **Emit the palette**. Never edit a generated file; change the PNG or the recipe and generate again.
 
@@ -269,7 +274,7 @@ SUB PlatRoom(addr AS UINTEGER)
 END SUB
 
 SUB PlatWait()
-  WaitRetrace(1)
+  FRAME
 END SUB
 
 FUNCTION PlatQuit() AS UBYTE
@@ -278,7 +283,7 @@ FUNCTION PlatQuit() AS UBYTE
 END FUNCTION
 ```
 
-(Simplified from `platform_cpc.bas:110-145`; the real `PlatInit` also sets up text and sprites.)
+(Simplified from `platform_cpc.bas`; the real `PlatInit` also sets up text and sprites.)
 
 Then `game.bas`. For this chapter the room is built in code, so you can see exactly which cells
 get which tile. Chapter 3 replaces this with the real map.
@@ -365,13 +370,13 @@ within about a fifth of a second.
 
 **`SetTileSet(addr)`** says where the tile pictures are. **`TileMap(map, x, y, w, h)`** draws a `w` x `h`
 block of tiles whose numbers are the bytes at `map`, with its top left at cell (x, y). It does not
-call the firmware (**Tiles**). In mode 0 it costs about 1,200 T-states per tile for a full screen
-(library figure), so a room of 460 tiles takes about 550,000 T-states, a bit under seven frames.
+call the firmware (**Tiles**). In mode 0 it costs about 1,150 T-states per tile for a full room
+(measured in chapter 9's table), so a room of 460 tiles takes about 528,000 T-states, between six and seven frames.
 That is fine once per room, and far too slow to do every frame. It is why the game draws sprites
 without redrawing the room (chapter 4).
 
-**`WaitRetrace(1)`** waits for the next frame flyback, so a loop around it runs at most 50 times a
-second (**Display**).
+**`FRAME`** waits for the next frame flyback, so a loop around it runs at most 50 times a
+second.
 
 **`ScanKeys()`** reads the whole keyboard into a buffer; **`KeyDown(KEY_ESC)`** tests one key from it
 (**Keyboard**).
@@ -388,7 +393,8 @@ second (**Display**).
    (Put the pen back afterwards, and build again.)
 3. Draw a tile 13 of your own in the tile editor (a gravestone? a crate?), import or generate, and
    put it in the room.
-4. In `PlatInit` change `SetBorder 0` to `SetBorder 26`. Which colour is the border?
+4. In `PlatInit` change `SetBorder 0` to `SetBorder 26`. Which colour is the border? (`BORDER 26` as in Locomotive BASIC
+   would do the same.)
 5. Replace `TileMap` with a loop of `DoTile8(cx, cy, tile)` calls for the first row of the room.
    Time the difference: that is a call per tile from BASIC instead of one call for 460.
 

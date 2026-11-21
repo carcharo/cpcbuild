@@ -1,24 +1,24 @@
 # Chapter 1: A new project
 
 **Goal.** Create a CPCBuild project from the Studio template, build it, run it in an emulator tab
-inside VS Code, break it on purpose to see how errors show up, and build a Spectrum tape from the
-same code. By the end you know the edit, build, run loop that every later chapter uses.
+inside VS Code, break it on purpose to see how errors show up, and split the program into the
+three files Lamplighter uses. By the end you know the edit, build, run loop that every later chapter uses.
 
 **What you'll learn**
 
-- How to get the compiler and check that Studio finds it, with the library and the disc tool.
+- How to install CPC Game Studio and check that it is ready (the compiler is inside it).
 - What a CPCBuild project is: `cpcbuild.json`, targets, and the `build/` folder.
 - Why Lamplighter is split into `main.bas`, `game.bas` and `platform_cpc.bas`.
-- A few things that are different between Locomotive BASIC and Boriel BASIC.
+- A few things that are different between Locomotive BASIC and CPC BASIC.
 
-**Time:** about 20 minutes, most of it downloading.
+**Time:** about 20 minutes.
 
 ---
 
 ## Step 1: Install the two extensions
 
 Go to the [Releases page](https://github.com/carcharo/cpcbuild/releases) of `carcharo/cpcbuild` and download
-`cpcbuild-studio-0.1.2.vsix` and `cpcbuild-emu-0.1.2.vsix`. Then, in VS Code,
+`cpcbuild-studio-0.2.0.vsix` and `cpcbuild-emu-0.2.0.vsix`. Then, in VS Code,
 open the Command Palette and run **Extensions: Install from VSIX...**, once for each file. (Or open the
 Extensions view, choose its **...** menu and then **Install from VSIX...**.) Reload the window if VS Code asks.
 
@@ -26,9 +26,8 @@ You run **CPC Game Studio** commands from the Command Palette: `Ctrl+Shift+P` on
 `Cmd+Shift+P` on macOS. Studio does not bind keys to its commands, so this is the only shortcut you need.
 Where the tutorial gives another VS Code shortcut, such as `Ctrl+S`, macOS uses `Cmd` in place of `Ctrl`.
 
-(If you downloaded the SDK folder instead, the two `.vsix` files are inside it. Install them the same way.
-Studio then finds the compiler in that folder by itself, as long as your project is inside the folder, so you
-can skip step 2 except for the check.)
+(If you downloaded the SDK instead, `cpcbuild-sdk-0.2.0.zip`, the two `.vsix` files are inside it, with the
+library, the docs and `games/lamplighter/`. Install them the same way. The SDK is one archive for all three systems.)
 
 Notes for your system (skip the ones that are not yours):
 
@@ -36,12 +35,8 @@ Notes for your system (skip the ones that are not yours):
   such as `C:\cpcbuild-sdk`. In a Windows virtual machine (Parallels and the like), a folder shared from the host
   shows up as a `\\Mac\...` network path, and VS Code refuses it ("UNC host 'mac' access is not allowed"). Keep
   the `.vsix` files and your projects on a local drive such as `C:\`.
-- **macOS.** Until the SDK is notarised, the first build may stop with `"zxbc" Not Opened. Apple could not
-  verify "zxbc" is free of malware...` and two buttons, **Done** and **Move to Bin**. Choose **Done**, not
-  **Move to Bin**. Then open Terminal, type `xattr -dr com.apple.quarantine ` (with a space at the end), drag
-  the SDK folder into the Terminal window, press Return, and build again. Studio prints this advice too when
-  the system stops one of its tools. This applies to the SDK zip; the compiler that **Download Tools** fetches
-  (step 2) gives no such dialog.
+- **macOS.** Nothing to approve: there are no programs to install, only the two extensions. (Keyboard: `Cmd` where the
+  tutorial says `Ctrl`, except for giving the keyboard back from the emulator tab, step 4.)
 - **Linux.** VS Code's website offers the x64 `.deb` by default. On an ARM machine (a Raspberry Pi, an ARM
   virtual machine) download the **Arm64** `.deb` and install it in a terminal with
   `sudo apt install ./code_*_arm64.deb`; Ubuntu's App Center can hang on `.deb` files.
@@ -53,7 +48,7 @@ program instead (the `cpcbuild.run.emulator` setting, step 4).
 
 Two things to know about where Studio shows up:
 
-- Studio wakes up in a folder that contains a `cpcbuild.json` (step 5). Only then do its Explorer
+- Studio wakes up in a folder that contains a `cpcbuild.json` (step 3). Only then do its Explorer
   right-click entries (**Import Image**, **Convert Tiled Map to BASIC**, **Run in Emulator**...) and its
   **CPC Game Studio** icon (a chip) in the Activity Bar appear. In any other folder Studio leaves your
   `.bas` files alone.
@@ -64,74 +59,44 @@ Two things to know about where Studio shows up:
   trust it: when VS Code asks whether to trust the new folder, choose **Trust**, because Studio needs it to
   build. (The Emulator extension runs in Restricted Mode: it starts no program.)
 
-## Step 2: Get the compiler
+## Step 2: Check that Studio is ready
 
-Studio runs the Boriel BASIC compiler for you. The CPC backend is in the `zxbasic` fork, and Studio can
-download a ready-made build of it. You do not need Python or Poetry for this.
+There is nothing else to install. The compiler, `cpcbas`, runs inside the Studio extension, and so do the library
+(`lib/`), the image and map converters and the disc and cartridge packers. You need no Python and no compiler download. (Chapter 8 offers one
+optional download, the Arkos tools for converting your own music.)
 
-Run **CPC Game Studio: Download Tools** from the Command Palette. (The **Get started with CPC Game Studio** walkthrough has the
-same button: run **Welcome: Open Walkthrough...** and choose it.) A list asks what to download:
-
-- **Boriel BASIC compiler 1.19.0-cpc.2 (zxbc, zxbasm, mkdsk)**
-- **Arkos Tracker 3.7 command-line tools (music conversion)**
-
-Both are ticked unless they are already installed. You need the compiler now. The Arkos tools are only for
-converting your own songs in chapter 8, so you may leave them out and add them later. Studio checks each
-download against a known checksum before it uses it. The download shows no security dialog
-on any system.
-
-You do not need a cpcbuild checkout for the library: Studio carries a copy of `lib/` inside the extension and
-uses it when nothing else is found (chapter 11's Plus library is in it too). The setting
-`cpcbuild.library.path` points Studio at a different copy; leave it empty for this tutorial.
-
-Where Studio looks for the compiler, in this order: the `cpcbuild.zxbc.command` setting, a checkout named by
-`cpcbuild.zxbc.cwd`, an SDK folder (`cpcbuild.sdk.path`, or one at or above your project), the tools you
-downloaded, `zxbc` on your `PATH`, and last `poetry run zxbc`.
-
-> **Using a zxbasic checkout?** If you build the compiler yourself, set `cpcbuild.zxbc.cwd` to your `zxbasic`
-> checkout (branch `cpc-arch`). Studio then runs `poetry run zxbc` from there and takes `mkdsk.py` from the
-> checkout's `tools/cpc/`. That route needs Python 3 and Poetry, and **Check Environment** will list Python 3. Python's launcher is
-> `py -3` on Windows and `python3` on macOS and Linux (Studio's `cpcbuild.python.path` setting defaults to that).
-> Everything else in the tutorial is the same.
->
-> **Everyone else can ignore Python.** On a Mac, do not install Apple's developer tools just for it:
-> **Check Environment** shows Python as `[optional]` and does not start Apple's installer.
-
-Now run **CPC Game Studio: Check Environment**. It writes a list to the **CPC Game Studio** channel of the Output view and
-shows a message when something required is missing. Each line is `[ok]`, `[optional]` or `[MISSING]`, then
-the item and where it was found, with a `fix:` line under every one that is not ok. After **Download Tools**, the
-result looks like this (paths and version text will differ):
+Run **CPC Game Studio: Check Environment** from the Command Palette. It writes a list to the **CPC Game Studio** channel of the
+Output view and shows a message when something required is missing. Each line is `[ok]`, `[optional]` or `[MISSING]`, then
+the item and where it was found, with a `fix:` line under every one that is not ok. The result looks like this (paths and version text will differ):
 
 ```
-CPCBuild environment check
-  [ok] zxbc (Boriel BASIC compiler, cpc arch): managed: /.../zxbasic-1.19.0-cpc.2; /.../zxbc: <the version line zxbc prints>
+CPC Game Studio environment check
+  [ok] cpcbas (CPC BASIC compiler): <version>, built in (it runs inside the extension)
+  [ok] BASIC library (lib/): /.../lib
   [optional] Python 3: ...
-        fix: Only needed with the python engine or a zxbasic checkout.
-  [ok] cpcbuild library (lib/): /.../lib
-  [ok] Cartridge packaging (mkcpr): built in
-  [ok] mkdsk (disc images): /.../mkdsk
+        fix: Only needed with the python image engine.
+  [ok] Image and cartridge tools: built in
   [ok] Emulator: cpcbuild-emu extension: cpcbuild.emu.version answers
-  [ok] Arkos command-line tools: /...
+  [optional] Arkos command-line tools: not found
+        fix: Run "CPC Game Studio: Download Tools". Or set "cpcbuild.arkos.toolsPath" (in a cpcbuild checkout: `sh tools/arkos/fetch.sh`).
   [optional] Tiled map editor: not found
         fix: Install Tiled (mapeditor.org) for "Open in Tiled".
 ```
 
-(The labels are the ones in Studio's `doctor.ts`. The Python line is `[ok]` if Python 3 is installed, and it is
-optional because nothing in this tutorial needs it in Studio. The Arkos line says `[optional]` and `not found` if
-you skipped those tools. Tiled is optional: chapter 3 says when you would want it.)
+(The labels are the ones in Studio's `doctor.ts`. The Python line is `[ok]` if Python 3 is installed; it is optional because nothing
+in Studio needs it. The Arkos line says `[optional]` and `not found` until you download those tools in chapter 8. Tiled is optional: chapter 3 says when you
+would want it.)
 
-If a required line says `MISSING`, read its `fix:` line. If `zxbc` is missing, run **CPC Game Studio: Download Tools**
-again, then run the check again. In Restricted Mode the compiler and Python lines say `not run` instead of being
-checked.
+If a required line says `MISSING`, read its `fix:` line: for the library it says to install CPC Game Studio again. In Restricted Mode the
+Python line says `not run` instead of being checked.
 
 ## Step 3: Create the project
 
 Run **CPC Game Studio: New Project**. Studio asks three things, one after another:
 
-1. **Choose a template.** A quick-pick list at the top of the window. Pick **Shared CPC + Spectrum**
-   ("One game, platform layers per machine; .dsk and .tap"). That is the layout Lamplighter uses.
-   The other three templates (**Firmware (CPC 464/6128)**, **Bare metal (no firmware)**, **Plus
-   cartridge**) are one-machine programs.
+1. **Choose a template.** A quick-pick list at the top of the window. Pick **Firmware (CPC 464/6128)** ("Mode 1
+   program using the firmware; disc image"). The other two templates (**Bare metal (no firmware)** and **Plus
+   cartridge**) are for chapter 10 and for your own projects.
 2. **Project name.** An input box that starts with `mygame`. Type `lamplighter`. This is also the folder name.
 3. **Parent folder.** A folder dialog titled "Parent folder for the new project". Pick a folder to put
    `lamplighter/` in. The button says **Create project here**. If `lamplighter/` already exists and is not
@@ -147,7 +112,7 @@ The disc name is the name the program has on the disc image: upper-case letters 
 eight, made from your project name. Click **Open Folder** in that message (or use
 **File > Open Folder...**).
 
-You should see this in the Explorer (`assets/zx/` holds only a hidden `.gitkeep`):
+You should see this in the Explorer:
 
 ```
 lamplighter/
@@ -155,19 +120,17 @@ lamplighter/
   README.md
   cpcbuild.json
   assets/
-    README.md
-    cpc/pens.cpcpal
-    zx/
+    pens.cpcpal
+    ball.cpcspr
+    ball.bas
   src/
     main.bas
-    game.bas
-    platform_cpc.bas
-    platform_zx.bas
 ```
 
-The template keeps its code in `src/`. The finished game does not, and step 5 moves your files to match it.
+The template is a small program in `src/main.bas`: a ball that bounces round the screen, drawn from the sprite
+document `ball.cpcspr` with the four pens of `pens.cpcpal`. Step 6 replaces it with Lamplighter's own layout.
 
-The status bar now shows `$(chip) cpc6128`: the **target** that Build and Run will use. Click it,
+The status bar now shows `$(chip) cpc6128`, as the chip icon and the **target** that Build and Run will use. Click it,
 or run **CPC Game Studio: Select Target**, and choose `cpc464`. Lamplighter's main target is the CPC 464
 (it has to fit in the 464's memory and run at 25 steps a second there), so we will use it all the
 way through.
@@ -176,16 +139,16 @@ way through.
 
 Run **CPC Game Studio: Build and Run**.
 
-The **CPC Game Studio** output channel shows the steps: the compiler runs, `mkdsk` packs the program
-into a disc image, a report says how big the program is, and the emulator opens.
+The **CPC Game Studio** output channel shows the steps: the compiler runs, a report says how big the program is, the disc image is
+written, and the emulator opens.
 
 A new editor tab opens with a CPC screen in it. **Click on the screen** once: that gives the CPC your
 keyboard (press `Ctrl+Shift+Esc` to give it back to VS Code, `Ctrl+Shift+F6` on Windows, where Windows keeps
 `Ctrl+Shift+Esc` for Task Manager; on a Mac it is the `Control` key, not `Cmd`), and the **Click for sound** button
 starts the audio, because browsers only allow sound after a click.
 
-You should see a CPC text screen with `HELLO FROM CPCBUILD` at the top and an `O` bouncing around.
-Press `ESC` and the program ends.
+You should see `HELLO FROM CPCBUILD - ESC QUITS` in white at the top of the screen and a small red ball with a green
+rim bouncing round it. Press `ESC` and the program ends.
 
 > **If the tab does not open.** Check the setting `cpcbuild.run.emulator`: it should be `emu`. If
 > it is `emu` but the Emulator extension is missing, Studio says so once with the choices
@@ -198,19 +161,19 @@ Look at what the build wrote. A `build/` folder appeared (it is in `.gitignore`;
 which holds the program as `LAMPLIGH.BIN`). You will use the `.map` in chapter 9.
 
 The last lines of the channel are the build report and `Started cpc464.dsk in emu`. For the template's
-little program (2,374 bytes when this was checked) the report is:
+little program (2,394 bytes when this was checked) the report is:
 
 ```
 Build report for cpc464:
-  2374 bytes, &0040-&0986
-    headroom below &4000: 13946 bytes  [back screen / banks (double buffering)]
-    headroom below &8B60: 33242 bytes  [firmware heap start]
+  2394 bytes, &0040-&099A
+    headroom below &4000: 13926 bytes  [back screen / banks (double buffering)]
+    headroom below &8B60: 33222 bytes  [firmware heap start]
 Built /your/folder/lamplighter/build/cpc464.dsk
 ```
 
 Chapter 9 reads the report line by line. Run **CPC Game Studio: Show Build Report** to print the last one again.
 
-## Step 5: Read the project file, and flatten the layout
+## Step 5: Read the project file
 
 Open `cpcbuild.json`. Studio treats any folder with this file as a project (Studio does nothing to
 `.bas` files in folders without one, so it will not disturb your other BASIC projects). The template wrote:
@@ -223,68 +186,50 @@ Open `cpcbuild.json`. Studio treats any folder with this file as a project (Stud
     { "id": "cpc6128", "arch": "cpc", "main": "src/main.bas", "model": "6128",
       "defines": ["CPC6128"], "package": "dsk", "disc": "LAMPLIGH" },
     { "id": "cpc464", "arch": "cpc", "main": "src/main.bas", "model": "464",
-      "defines": ["CPC464"], "package": "dsk", "disc": "LAMPLIGH" },
-    { "id": "zx128", "arch": "zx48k", "main": "src/main.bas",
-      "defines": ["ZX128"], "org": 31744, "heap": 256, "package": "tap" },
-    { "id": "zx48", "arch": "zx48k", "main": "src/main.bas",
-      "defines": ["ZX48"], "org": 32768, "heap": 256, "package": "tap" }
+      "defines": ["CPC464"], "package": "dsk", "disc": "LAMPLIGH" }
   ],
-  "assets": ["assets/**/*.cpcimp", "assets/**/*.cpcpal"]
+  "assets": ["assets/**/*.cpcimp", "assets/**/*.cpcspr", "assets/**/*.cpcpal",
+             "assets/**/*.cpcsfx", "assets/**/*.cpcsong"]
 }
 ```
 
-(Studio may format it slightly differently.) A **target** is one build: which machine
-(`arch`), which entry file (`main`), which `-D` switches go to the compiler (`defines`), and how to
-package it (`package`: a disc image `dsk`, a Spectrum tape `tap`; a Plus cartridge is `cpr`, chapter 11).
-The `CPC464` and `CPC6128` defines are how the game's code tells the two models apart.
+(Studio writes it with one item to a line.) A **target** is one build: which machine
+(`arch`, always `cpc`), which entry file (`main`), which `-D` switches go to the compiler (`defines`), and how to
+package it (`package`: a disc image `dsk`, or a Plus cartridge `cpr`, chapter 10). The `CPC464` and `CPC6128` defines are how the
+game's code tells the two models apart.
 
-The finished game's `games/lamplighter/cpcbuild.json` has the same shape with five targets, named
-`lamp464`, `lamp6128`, `lampplus` (the cartridge), `zx48` and `zx128`. Your project grows the same
+The finished game's `games/lamplighter/cpcbuild.json` has the same shape with three targets, named
+`lamp464`, `lamp6128` and `lampplus` (the cartridge). Your project grows the same
 targets as the chapters go on, under the template's ids.
 
-Now make two changes so your project matches the finished game.
+The `assets` line lists the files Studio treats as asset sources. **CPC Game Studio: Regenerate
+Assets**, and the automatic "regenerate stale assets before a build", look at the globs that end in
+`.cpcimp`: they find your import recipes (chapter 2) and rebuild the ones whose output is older than the
+image, the palette file or the recipe. The template's line is already right, and the finished game's is the shorter
+`["assets/**/*.cpcimp", "assets/**/*.cpcpal"]`.
 
-**1. Flatten the layout.** The template keeps the code in `src/`; the finished game keeps its `.bas`
-files at the project root and its generated data in `assets/`. We follow the finished game, so that
-`#include "assets/tiles.bas"` means the same thing in your code and in `games/lamplighter/`. In the Explorer:
+## Step 6: Split the program into three files
 
-- Drag `main.bas`, `game.bas`, `platform_cpc.bas` and `platform_zx.bas` out of `src/` onto the
-  `lamplighter` folder, then delete the empty `src/`.
-- Delete `assets/README.md` and `assets/cpc/` (the template's placeholder palette; chapter 2 brings the
-  real one). Keep `assets/zx/`.
+The template keeps its code in `src/`. The finished game keeps its `.bas` files at the project root and its
+generated data in `assets/`, so that `#include "assets/tiles.bas"` means the same thing in your code and in
+`games/lamplighter/`. Make your project match it. In the Explorer:
+
+- Delete the `src/` folder, and `assets/ball.cpcspr`, `assets/ball.bas` and `assets/pens.cpcpal` (the template's
+  placeholder program and palette; chapter 2 brings the real palette).
 - In `cpcbuild.json` change every `"main": "src/main.bas"` to `"main": "main.bas"`.
+- Create three files in the project folder, with the contents below: `main.bas`, `game.bas` and `platform_cpc.bas`.
 
 From here on, every path in this tutorial is relative to the `lamplighter/` folder.
 
-**2. Check the `assets` line.** It lists the files Studio treats as asset sources. **CPC Game Studio: Regenerate
-Assets**, and the automatic "regenerate stale assets before a build", look only at the globs that end in
-`.cpcimp`: they find your import recipes (chapter 2) and rebuild the ones whose output is older than the
-image, the palette file or the recipe. The template already has the finished game's line, so there is
-nothing to change:
-
-```json
-  "assets": ["assets/**/*.cpcimp", "assets/**/*.cpcpal"]
-```
-
-Run **CPC Game Studio: Build** once more to check that the moved project still builds.
-
-## Step 6: See how the code is organised
-
-Open the four `.bas` files. They are small. Together they are a miniature of the whole game.
-
-`main.bas` only chooses which platform layer to use, then pulls in the game:
+`main.bas` only pulls in the platform layer, then the game:
 
 ```basic
-#ifdef __CPC__
 #include "platform_cpc.bas"
-#else
-#include "platform_zx.bas"
-#endif
 #include "game.bas"
 ```
 
-The compiler defines `__CPC__` itself when you build with `--arch cpc`. (Boriel's preprocessor takes
-`#ifdef` and `#ifndef`, but not `#if defined(...)`; Lamplighter only ever uses `#ifdef`.)
+(In chapter 10 the first line becomes a choice between two layers, with `#ifdef` and `#else`: the preprocessor takes `#ifdef` and
+`#ifndef`, which is all Lamplighter ever uses.)
 
 `platform_cpc.bas` is the only file that knows this is a CPC:
 
@@ -293,13 +238,13 @@ The compiler defines `__CPC__` itself when you build with `--arch cpc`. (Boriel'
 #include <cpcbuild.bas>
 
 SUB PlatInit()
-  Mode 1
+  MODE 1
   ScreenInit()
   CLS
 END SUB
 
 SUB PlatWait()
-  WaitRetrace(1)
+  FRAME
 END SUB
 
 FUNCTION PlatQuit() AS UBYTE
@@ -333,11 +278,14 @@ LOOP UNTIL PlatQuit()
 END
 ```
 
+Select the `cpc464` target and run **CPC Game Studio: Build and Run** again. You should see `HELLO FROM CPCBUILD` at the top
+and an `O` bouncing around, until you press `ESC`. (`dx = 255` is "minus one" in a `UBYTE`: adding it wraps round.)
+
 This split is the most important idea in the tutorial, so say it once more: **`game.bas` never draws,
 reads a key or makes a sound by itself. It asks the platform layer.** That is how one game becomes a
-CPC 464 game, a Spectrum game, and a Plus game (chapters 10 and 11) without rewriting the rules.
+CPC 464 game, a 6128 game and a Plus game (chapter 10) without rewriting the rules.
 In the finished Lamplighter, `game.bas` makes just these five calls into the platform layer (its header
-comment lists them, `game.bas:1-18`); `main.bas` adds the calls of the main loop (`PlatInput`,
+comment lists them); `main.bas` adds the calls of the main loop (`PlatInput`,
 `PlatFrameEnd`, `PlatText`, `PlatMusic` and a few more, chapters 3 to 8):
 
 | Call | What it does |
@@ -363,84 +311,76 @@ second tab.
 ## Step 8: Break it on purpose
 
 Errors are how you learn the compiler's voice. Change `PlatQuit()` in `game.bas` to `PlatQuitt()`
-(an extra `t`), save, and run **CPC Game Studio: Build**.
+(an extra `t`). While you type, and after a short pause, Studio runs the compiler's checker on your program and
+underlines the error in the editor. Save, and run **CPC Game Studio: Build**.
 
-The build stops and the **Problems** panel (`Ctrl+Shift+M`, `Cmd+Shift+M` on macOS) shows an entry like this, with `zxbc` as its
+The build stops and the **Problems** panel (`Ctrl+Shift+M`, `Cmd+Shift+M` on macOS) shows an entry like this, with `cpcbas` as its
 source:
 
 ```
-'PlatQuitt' is neither an array nor a function.   zxbc  [Ln 22, Col 1]
+'PlatQuitt' is not an array or a FUNCTION
+Hint: DIM the array first: DIM PlatQuitt(10).   cpcbas(E204)  [Ln 19, Col 12]
 ```
 
-The **CPC Game Studio** channel has the compiler's own line:
+The **CPC Game Studio** channel has the compiler's own lines, `file:line:column: severity code: message`, with the hint under it:
 
 ```
-/your/folder/lamplighter/game.bas:22: error: 'PlatQuitt' is neither an array nor a function.
+game.bas:19:12: error E204: 'PlatQuitt' is not an array or a FUNCTION
+  hint: DIM the array first: DIM PlatQuitt(10).
 ```
 
-Click the Problems entry and VS Code jumps to the line. Studio does this with a *problem matcher* named
-`$zxbc`, which reads the compiler's `file:line: error: message` lines. Warnings show up the same way, with
-the code after the source, like `zxbc(W100)`. Some you will meet in this tutorial:
+(The hint is written for the most common cause of this error, a misspelt array; here it is a misspelt SUB or FUNCTION.)
+Click the Problems entry and VS Code jumps to the line. Warnings show up the same way, with a code starting with `W`. You will see one
+now: `W306`, "'PlatQuit' is never called; it is not compiled", because with the typo nothing calls `PlatQuit`. Some you will meet in this tutorial:
 
 | Warning | Meaning |
 |---|---|
-| `W170` | a function that is never called has been dropped (harmless) |
-| `W150` | a parameter or variable that is never used |
-| `W100` | a variable with no `DIM`: it got a default type (`ubyte`) |
+| `W306` | a SUB or FUNCTION that nothing calls is left out of the program (harmless) |
+| `W301` | a variable that is read but never assigned |
+| `W300` | a variable used without a `DIM` (it is an `INTEGER`); the compiler only says so with the option `-Wimplicit`, which you can put in the setting `cpcbuild.compiler.args` |
 
 Fix the typo, and build again.
 
-## Step 9: Build the Spectrum tape
-
-Run **CPC Game Studio: Select Target**, pick `zx48`, and run **CPC Game Studio: Build**. You get `build/zx48.tap`, and
-the channel prints a one-line report with the tape's size and origin (`zx48.tap: ... bytes, origin 32768`).
-Spectrum targets are *build-only*: Studio does not ship a Spectrum emulator, so you load the tape in your
-own (or on a real Spectrum with `LOAD ""`). If you run **Build and Run** on a `tap` target, the build
-succeeds and then Studio says "Target zx48 has no disc or cartridge to run (Spectrum and raw .bin targets
-are build-only)": that is the message, not a failure of your code.
-
-Both machines run the same `game.bas`: the Spectrum draws with `PRINT AT` through
-`platform_zx.bas` and quits on `SPACE`. In chapter 10 we come back and give the Spectrum its own
-tiles and sprites. Until then, **we build only the CPC 464 target**, because from chapter 2 on
-`platform_cpc.bas` grows calls that `platform_zx.bas` does not have yet. Select `cpc464` again.
-
 ---
 
-## Boriel BASIC for Locomotive BASIC programmers
+## CPC BASIC for Locomotive BASIC programmers
 
-Boriel BASIC reads like Sinclair BASIC extended with structure, and compiles to machine code. The
-things you will trip over first:
+CPC BASIC is Locomotive BASIC 1.1 as you know it (`MODE`, `PRINT AT`, `INK`, `PEN`, `FOR`, `DATA`...) with a few
+additions that make compiled games fast: typed `SUB` and `FUNCTION`, typed variables and arrays, inline Z80, `#include` and
+`#ifdef`. The things you will trip over first:
 
-| In Locomotive BASIC | In Boriel BASIC |
+| In Locomotive BASIC | In CPC BASIC |
 |---|---|
-| Line numbers | None. Labels and `SUB`/`FUNCTION` instead. |
-| Variables are real numbers unless you suffix them | Declare with `DIM x AS UBYTE`; undeclared ones default to float (a compiler warning, and very slow). Lamplighter uses `UBYTE`, `UINTEGER`, `BYTE` and `INTEGER` only. |
-| `AND`, `OR` work on bits | `AND`, `OR` are logical; use **`BAND`**, **`BOR`**, **`BXOR`** for bits. |
-| `FOR i = 0 TO 255` | A `UBYTE` counter that reaches 255 never ends. |
-| `GOSUB` | `SUB name(args)` ... `END SUB` and `FUNCTION name(args) AS type` ... `RETURN value`. |
-| `INKEY$`, `JOY()` | `ScanKeys()` then `KeyDown(key)`. |
+| Line numbers | Optional, and Lamplighter has none. Structure comes from `SUB`, `FUNCTION`, `DO ... LOOP` and `#include`. |
+| Every number is a real unless you suffix it | An untyped variable is an `INTEGER`: `x = 3.5` stores 3, and `7 / 2` is 3. Declare what you need: `DIM x AS UBYTE`. Lamplighter uses `UBYTE`, `UINTEGER`, `BYTE` and `INTEGER` only. |
+| `AND`, `OR`, `NOT` work on bits; true is -1 | The same: `6 AND 3` is 2, `NOT 5` is -6, and `PRINT 5 > 3` prints -1. |
+| Numbers print with a space in front (`PRINT 5` gives ` 5 `) | The same, so the benchmark lines in chapter 9 have spaces round the numbers. |
+| `INK` and `PEN` | The same: `INK n, c` gives pen `n` the colour `c`, and `PEN n` chooses the text pen. |
+| `FOR i = 0 TO n - 1` | Watch the type of `n`: with a `UBYTE n = 0` that loop runs 256 times, because `n - 1` wraps to 255. |
+| `GOSUB` | Still there, but Lamplighter uses `SUB name(args)` ... `END SUB` and `FUNCTION name(args) AS type` ... `RETURN value`. `EXIT SUB` leaves a SUB early. |
+| `INKEY$`, `JOY()` | The library's `ScanKeys()` then `KeyDown(key)`, which can test several keys at once. |
 
-The last three rows come from the library's own notes (`docs/library.md`, **Performance tips**, section
-"Other things that cost time or memory"). Another trap the finished game's author found:
-`FOR i = 0 TO n - 1` with a `UBYTE n = 0` loops 256 times, because `n - 1` wraps to 255.
+The last rows come from the library's own notes (`docs/library.md`, **Performance tips**, section
+"Other things that cost time or memory").
 
 Two library ideas to keep in mind from the start:
 
 - The CPC library has its **own coordinates**. `x` is in *bytes* (not pixels), `y` in pixel lines, from
   the top left. Tiles use cells. See **Coordinates** in `docs/library.md`.
-- After every `Mode` call, call **`ScreenInit()`**. `Mode` does not tell the library about the new
+- After every `MODE` or `Mode` call, call **`ScreenInit()`**. The mode change does not tell the library about the new
   screen; `ScreenInit()` does. See **Using the library**.
 
 ## Try this
 
-1. In `platform_cpc.bas` change `Mode 1` to `Mode 0` and rebuild. What changes? (Mode 0 has 20
+1. In `platform_cpc.bas` change `MODE 1` to `MODE 0` and rebuild. What changes? (Mode 0 has 20
    text columns, so the `O` runs off the edge: the game's `x >= 28` test is for 40 columns.)
 2. Select the `cpc6128` target and run it. Is anything different on screen?
-3. Add a `PlatBeep` call: a `SUB PlatBeep()` in `platform_cpc.bas` that does `BEEP 1, 0`, and call it from `game.bas` when the `O` bounces. Does the Spectrum build still compile? (It will not: `PlatBeep` is missing in `platform_zx.bas`. This is exactly the discipline chapter 10 needs.)
+3. Add a `PlatBeep` call: a `SUB PlatBeep()` in `platform_cpc.bas` that does `BEEP 1, 0`, and call it from `game.bas` when the `O` bounces.
+   `game.bas` still never touches the sound chip itself: it only asks.
 
 ## What you have now
 
-A project that builds for four targets, runs in an emulator tab, and has the shape of the finished
+A project that builds for two targets, runs in an emulator tab, and has the shape of the finished
 game.
 
 One thing to know before you go on: Studio does not do *everything* the finished game's scripts do. The

@@ -23,7 +23,7 @@ into your project's `assets/` folder:
 | `quiet.bas` | an empty song, array `bounce_quiet` (used when you build with music off but effects on) |
 
 They are demo music written for CPCBuild (our own, not copied from any other game), so you can use them
-freely; they were made in a tracker and converted for Boriel BASIC. Each file's header says it was
+freely; they were made in a tracker and converted to CPC BASIC data files. Each file's header says it was
 "converted by tools/aks2bas.py" and not to edit it.
 
 ---
@@ -31,7 +31,7 @@ freely; they were made in a tracker and converted for Boriel BASIC. Each file's 
 ## Step 1: How the music works
 
 The CPC makes sound with an AY-3-8912 chip, which you program by writing to its registers. The library
-includes a ready-made **player** (Arkos Tracker 3's `PlayerAkg`, converted for Boriel) that does
+includes a ready-made **player** (Arkos Tracker 3's `PlayerAkg`, in Z80 assembly) that does
 that for you from a song stored as data.
 
 The important property: with the default **auto mode** the player runs on the *frame hook*, a routine
@@ -59,6 +59,7 @@ manager first. You should not mix the owners (library: **Sound ownership**).
 In `platform_cpc.bas`, after the font include, add the build switches and the includes. Read the comment: it is
 the finished game's own.
 
+<!-- same as games/lamplighter/platform_cpc.bas -->
 ```basic
 #ifdef NOSOUND
 #ifndef NOMUSIC
@@ -87,7 +88,7 @@ the finished game's own.
 #endif
 ```
 
-(`platform_cpc.bas:59-83`.) The switches are all optional:
+(From `platform_cpc.bas`.) The switches are all optional:
 
 | Switch | Effect |
 |---|---|
@@ -102,6 +103,7 @@ Add them to a target's `defines` in `cpcbuild.json` (for example `["CPC464", "NO
 
 In `platform_cpc.bas` add these variables after the `hLit` line:
 
+<!-- same as games/lamplighter/platform_cpc.bas -->
 ```basic
 DIM curTune AS UBYTE                     ' the music playing: 0 none, 1 title, 2 game
 ' PlatSfx(n) -> the bank's effect: 1 jump = "shot", 2 lamp = "wave", 3 death
@@ -115,9 +117,23 @@ DIM sfxMap(4) AS UBYTE => {0, 1, 4, 3, 2}
 bank's order, so a new bank means changing one table.
 
 In `PlatInit` add the effects bank, at the end, and **remove the `GameMode(1)` line** (we turn game mode on
-only while playing, in a moment):
+only while playing, in a moment). The whole sub now reads:
 
 ```basic
+SUB PlatInit()
+  DIM i AS UBYTE
+  Mode 0
+  SetPalette(@tiles_pal(0), tiles_PENS)
+  SetBorder 0
+  ScreenInit()
+  ClearScreen(0)
+  SetTileSet(@tiles(0))
+  TextFont(@font(0), font_FIRST, 7, font_FIRST + font_COUNT - 1)
+  TextPen(7, 0)
+  FOR i = 0 TO 4
+    sNF(i) = 255
+    sOF(i) = 255
+  NEXT i
   sForce = 0
   hLit = 255
 #ifndef NOSFX
@@ -128,6 +144,7 @@ END SUB
 
 Now replace the empty `PlatSfx` and add the other two calls (`PlatPlaying` is here because it belongs with the other "while playing" settings):
 
+<!-- same as games/lamplighter/platform_cpc.bas -->
 ```basic
 ' Game mode while playing (more CPU), unless -D NOGAMEMODE.
 SUB PlatPlaying(flag AS UBYTE)
@@ -139,7 +156,7 @@ END SUB
 ' 0 off, 1 the title's tune, 2 the game's.
 SUB PlatMusic(tune AS UBYTE)
 #ifndef NOSOUND
-  IF tune = curTune THEN RETURN
+  IF tune = curTune THEN EXIT SUB
   curTune = tune
   IF tune = 0 THEN
     MusicStop()
@@ -168,7 +185,7 @@ SUB PlatSfx(n AS UBYTE)
 END SUB
 ```
 
-(`platform_cpc.bas:319-354`.) `PlatMusic(tune)` is 0 for off, 1 for the title's tune, 2 for the game's. It
+(`PlatPlaying`, `PlatMusic` and `PlatSfx`, from `platform_cpc.bas`.) `PlatMusic(tune)` is 0 for off, 1 for the title's tune, 2 for the game's. It
 remembers which tune is playing (`curTune`) so it does not restart it every call. `PlatSfx(n)` does
 nothing when no tune plays (an effect needs the player's tick).
 
@@ -184,6 +201,7 @@ rather than the firmware's interrupt (library: **Frame hook and game mode**).
 
 `main.bas` starts and stops the tunes. Add these calls to `TitleScreen` and `RunGame`:
 
+<!-- fragment: skip: shows only the new lines of two SUBs, the rest is elided with ... -->
 ```basic
 SUB TitleScreen()
   ...
@@ -205,7 +223,7 @@ SUB RunGame()
 END SUB
 ```
 
-(`main.bas:158-255`; the finished file wraps the same calls with its test switches.)
+(From `main.bas`; the finished file wraps the same calls with its test switches.)
 
 ## Build and run
 
@@ -223,13 +241,13 @@ tests check pixel for pixel that the sound switches change no pixel of room 9).
 
 ## How it works
 
-**What sound costs.** In memory: the finished game is **26,749 bytes** on the 464 with sound
-and **22,335** built with `-D NOSOUND`. Those are the finished game as shipped, which has the assembly routines of
-chapter 9. Your game, all in plain BASIC, is 200 bytes bigger: the same finished game built with `-D LAMP_BASIC` is
-**26,949** and with `-D LAMP_BASIC -D NOSOUND` **22,535** (compiled with `-D CPC464`, plus the switches named). Either way sound is
-about 4.4 KB: the player, two tunes and the effects. In time: the player costs about 3,700 T-states a frame, **about 6 % of the CPU**;
-the library's own figure is about 5 % (16 scan lines a frame).
-The 464 build had only about 8 % headroom before sound, so chapter 9 looks at how fast your game really runs and what to do about it.
+**What sound costs.** In memory: the finished game is **27,155 bytes** on the 464 with sound
+and **22,691** built with `-D NOSOUND`. Those are the finished game as shipped, which has the assembly routines of
+chapter 9. Your game, all in plain BASIC, is bigger: the same finished game built with `-D LAMP_BASIC` is
+**27,436** and with `-D LAMP_BASIC -D NOSOUND` **22,972** (compiled with `-D CPC464`, plus the switches named).
+Either way sound is about 4.4 KB: the player, two tunes and the effects. In time: chapter 9's benchmark takes 402 frames
+for 250 steps with sound switched off and 427 with it, so the player costs about 6 % of a step.
+Sound is a real share of the budget, so chapter 9 looks at how fast your game really runs and what to do about it.
 
 **Why no bank on the 6128?** The library can keep songs in the 6128's extra RAM
 (**Extra RAM banks (6128)**, `MusicInitBank`), but Lamplighter's songs are small (the finished game's notes say "a few hundred bytes of song"), so they live in main RAM on both models, and the 464 and 6128 builds are the same program.
