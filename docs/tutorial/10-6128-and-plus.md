@@ -307,7 +307,7 @@ amber, yellow, orange and pale yellow, and the effect costs one palette write ev
 For comparison, the finished game's Plus screenshots (with the flame at two moments, `lit09` and `lit09b`) are in
 `games/lamplighter/tests/golden/plus-cpcec/` and `plus-cap32/`.
 
-What the numbers say (on Caprice32 and CPCEC; the finished game):
+What the numbers say (the finished game; the 464 build on the headless chips emulator, the Plus build on Caprice32 and CPCEC):
 
 | | 464 build | Plus build |
 |---|---|---|
