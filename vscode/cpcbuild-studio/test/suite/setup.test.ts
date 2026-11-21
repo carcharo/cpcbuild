@@ -69,6 +69,28 @@ test('the old zxbc.args setting: one message per workspace with the translation,
   }
 });
 
+test('a 0.1.x project: one message per workspace that offers Convert, and the click runs Convert on that project', async () => {
+  const a = await api();
+  const dir = path.join(process.env.CPCBUILD_TEST_WORKSPACE as string, 'oldproj');
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, 'cpcbuild.json');
+  fs.writeFileSync(file, JSON.stringify({ version: 1, name: 'oldgame', targets: [{ id: 'zx48', arch: 'zx48k', main: 'main.bas', package: 'tap' }] }));
+  const memento = new Map<string, unknown>();
+  const store = { get: <T>(k: string) => memento.get(k) as T | undefined, update: async (k: string, v: unknown) => void memento.set(k, v) };
+  const calls: string[][] = [];
+  a.oldProject.setUi(async (_m: string, ...b: string[]) => (calls.push(b), undefined));
+  try {
+    assert.strictEqual(await a.oldProject.offer(store, file), true);
+    assert.strictEqual(await a.oldProject.offer(store, file), false, 'only once per workspace');
+    assert.deepStrictEqual(calls, [['Convert Project...', 'Not Now']]);
+    assert.match(a.oldProject.shown()[0], /"oldgame" is a CPCBuild 0\.1\.x project/);
+  } finally {
+    a.oldProject.setUi(undefined);
+    a.oldProject.reset();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('Arkos missing: the message carries the Download Arkos Tools button', async () => {
   const a = await api();
   const calls: { message: string; buttons: string[] }[] = [];

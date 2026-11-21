@@ -46,6 +46,8 @@ export function generateGrammar(keywords) {
   const other = take(pick((k) => k.kind === 'statement' || k.kind === 'clause'));
   const directives = keywords.filter((k) => k.kind === 'preprocessor').map((k) => k.name.slice(1));
   const rule = (name, names) => ({ name, match: words(names) });
+  // a label can never be a reserved word: `CLS: PRINT 1` and `END:` at the start of a line are statements
+  const notReserved = reserved.map((k) => k.name).filter((n) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(n)).sort((a, b) => b.length - a.length || (a < b ? -1 : 1));
 
   return {
     $schema: 'https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json',
@@ -92,7 +94,7 @@ export function generateGrammar(keywords) {
         match: '(?i)(?<![A-Za-z0-9_$%!.])(sub|function)\\s+(?:(fastcall|stdcall)\\s+)?([A-Za-z_][A-Za-z0-9_]*[$%!]?)',
         captures: { 1: { name: 'storage.type.function.cpcbasic' }, 2: { name: 'storage.modifier.cpcbasic' }, 3: { name: 'entity.name.function.cpcbasic' } },
       },
-      label: { match: '^\\s*([A-Za-z_][A-Za-z0-9_]*)\\s*:(?!=)', captures: { 1: { name: 'entity.name.label.cpcbasic' } } },
+      label: { match: `^\\s*(?!(?i:${notReserved.join('|')})\\s*:)([A-Za-z_][A-Za-z0-9_]*)\\s*:(?!=)`, captures: { 1: { name: 'entity.name.label.cpcbasic' } } },
       lineNumber: { match: '^\\s*(\\d+)\\b', captures: { 1: { name: 'entity.name.label.cpcbasic' } } },
       number: {
         patterns: [

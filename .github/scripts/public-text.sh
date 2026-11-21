@@ -35,7 +35,7 @@ studio=vscode/cpcbuild-studio
 # the Studio's code for 0.1.x projects (Convert, the old-setting message), its tests and the 0.1.x samples
 old_projects="$studio/src/core/convert.ts|$studio/src/core/convert.test.ts|$studio/src/ext/convertProject.ts|$studio/test/suite/language.test.ts"
 old_projects+="|$studio/src/core/zxbcArgs.ts|$studio/src/core/zxbcArgs.test.ts|$studio/src/ext/settingsMigration.ts|$studio/test/suite/setup.test.ts"
-old_projects+="|$studio/src/core/cpcbasTestUtil.ts|$studio/src/core/fixtures/convert/*"
+old_projects+="|$studio/src/core/cpcbasTestUtil.ts|$studio/src/core/fixtures/convert/*|$studio/src/ext/convertBuild.test.ts"
 # tests that assert the words are absent from what a new user receives
 absent_tests="$studio/src/core/templates.test.ts|$studio/src/core/snippets.test.ts"
 allow_boriel="README.md|$studio/README.md|LICENSES/*|SOURCES.txt|CHANGELOG.md|docs/migrating-from-0.1.md|packaging/make-sdk.py|$old_projects|$absent_tests"

@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findLabel, formatReport, hex4, memoryReport, parseMap, programStart } from './map';
+import { compiledLine, findLabel, formatReport, hex4, memoryReport, parseMap, programStart } from './map';
 
 // real cpcbas -M output (the repo's own programs, built with the pinned cpcbas)
 const fx = (n: string): string => fs.readFileSync(path.join(__dirname, 'fixtures', n), 'utf8');
@@ -78,7 +78,22 @@ describe('memoryReport', () => {
   it('words an info line as information, not an error', () => {
     const r = memoryReport(parseMap(fx('mode1text.map')), 20000, { bare: false, pkg: 'dsk' });
     const t = formatReport(r).join('\n');
-    expect(t).toContain('passes &4000 by 3680 bytes (only matters if you use a back screen or banks)');
+    expect(t).toContain('passes &4000 by 3680 bytes (only matters if you use the back screen or RAM banks)');
     expect(t).not.toMatch(/over back screen/i);
+  });
+  it('a 464 or 664 has no banks to name; a 6128, a Plus or an unknown machine has', () => {
+    const lines = (model?: string, bytes = 5169): string => formatReport(memoryReport(parseMap(fx('mode1text.map')), bytes, { bare: false, pkg: 'dsk', model })).join('\n');
+    for (const m of ['464', '664']) {
+      expect(lines(m)).toContain('[back screen (double buffering)]');
+      expect(lines(m, 20000)).toContain('(only matters if you use the back screen)');
+      expect(lines(m, 20000)).not.toMatch(/bank/i);
+    }
+    for (const m of ['6128', 'plus', undefined]) expect(lines(m)).toContain('[back screen or RAM banks (double buffering, extra RAM)]');
+  });
+  it('the Compiled line gives the whole image, which is the report\'s range', () => {
+    const r = memoryReport(parseMap(fx('mode1text.map')), 5169, { bare: false, pkg: 'dsk' });
+    const line = compiledLine(5169, 50, 93.4, '0.2.0');
+    expect(line).toBe('Compiled 5169 bytes in 93 ms (cpcbas 0.2.0), 50 of them variables and arrays.');
+    expect(Number(/Compiled (\d+) bytes/.exec(line)![1])).toBe(r.end - r.start);
   });
 });

@@ -1,6 +1,7 @@
 /** tasks.ts -- the `cpcbuild` task type: build (and optionally run) a target of cpcbuild.json. */
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { closeDelay } from '../core/buildDiag';
 import { buildTarget } from './build';
 import { getChannel, channelSink, tee } from './channel';
 import { readSettings } from './config';
@@ -88,11 +89,13 @@ class BuildTerminal implements vscode.Pseudoterminal {
   open(): void {
     const term: Sink = { line: (t) => this.write.fire(t.replace(/\r?\n/g, '\r\n') + '\r\n') };
     getChannel().appendLine(`--- ${new Date().toLocaleTimeString()} build ${this.def.target ?? '(selected target)'} ---`);
+    const t0 = Date.now();
+    const close = (code: number): void => void setTimeout(() => this.close_.fire(code), closeDelay(code, Date.now() - t0));
     executeBuild(this.def, tee(term, channelSink), this.cancel.token, this.wsFolder)
-      .then((code) => this.close_.fire(code))
+      .then(close)
       .catch((e: Error) => {
         term.line(`Internal error: ${e.message}`);
-        this.close_.fire(1);
+        close(1);
       });
   }
 

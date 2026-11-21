@@ -1,0 +1,6 @@
+#include "assets/zx/zx_sprites.bas"
+
+SUB PlatInit()
+    PRINT INK 2; "x"
+    PRINT PAPER 1; "y"
+END SUB

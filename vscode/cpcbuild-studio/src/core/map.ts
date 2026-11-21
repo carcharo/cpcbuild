@@ -61,6 +61,8 @@ export interface ReportOptions {
   bare: boolean;
   /** `dsk`, `cpr` or `bin`: which reference lines apply. */
   pkg: string;
+  /** The machine the program is built for (`464`, `664`, `6128`, `plus`): a 464 or 664 has no RAM banks. */
+  model?: string;
   /** User lines (cpcbuild.build.memoryLimits): name -> address. */
   extraLimits?: Record<string, number>;
 }
@@ -68,7 +70,7 @@ export interface ReportOptions {
 /** The reference lines of the notes, per kind of build (spec 4.6). */
 export function referenceLines(opts: ReportOptions): { name: string; limit: number; kind: 'limit' | 'info'; low?: boolean }[] {
   const lines: { name: string; limit: number; kind: 'limit' | 'info'; low?: boolean }[] = [
-    { name: 'back screen / banks (double buffering)', limit: 0x4000, kind: 'info', low: true },
+    { name: opts.model === '464' || opts.model === '664' ? 'back screen (double buffering)' : 'back screen or RAM banks (double buffering, extra RAM)', limit: 0x4000, kind: 'info', low: true },
   ];
   if (!opts.bare) {
     lines.push({ name: 'firmware heap start', limit: 0x8b60, kind: 'limit' });
@@ -98,6 +100,11 @@ export function memoryReport(entries: readonly MapEntry[], bytes: number, opts: 
   return report;
 }
 
+/** The build's "Compiled" line: `bytes` is the whole program image (what the report's range holds), `dataBytes` the variables and arrays inside it. */
+export function compiledLine(bytes: number, dataBytes: number, ms: number, version: string): string {
+  return `Compiled ${bytes} bytes in ${Math.round(ms)} ms (cpcbas ${version}), ${dataBytes} of them variables and arrays.`;
+}
+
 export function hex4(n: number): string {
   return '&' + n.toString(16).toUpperCase().padStart(4, '0');
 }
@@ -114,7 +121,7 @@ export function formatReport(r: MemoryReport): string[] {
     const label = `${l.name} (${hex4(l.limit)})`;
     if (l.headroom >= 0) out.push(`  headroom below ${hex4(l.limit)}: ${l.headroom} bytes  [${l.name}]`);
     else if (l.kind === 'limit') out.push(`  OVER ${label} by ${-l.headroom} bytes`);
-    else out.push(`  passes ${hex4(l.limit)} by ${-l.headroom} bytes (only matters if you use a back screen or banks)`);
+    else out.push(`  passes ${hex4(l.limit)} by ${-l.headroom} bytes (only matters if you use the ${l.name.replace(/ \(.*$/, '')})`);
   }
   return out;
 }

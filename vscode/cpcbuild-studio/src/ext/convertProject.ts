@@ -7,7 +7,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { loadRuntime, readTree } from '@cpcbuild/cpcbas/node';
-import { convertSources, formatReport, hasSpectrumTargets, mustFix, removeSpectrumTargets, targetChecks, type ConvertResult } from '../core/convert';
+import { findRecipes } from './assetsGen';
+import { convertSources, formatReport, hasSpectrumTargets, mustFix, noProjectMessage, removeSpectrumTargets, targetChecks, type ConvertResult } from '../core/convert';
 import { bundledLibrary } from './config';
 import { findProjects, PROJECT_FILE } from './projects';
 import { findProjectRoot } from './library';
@@ -21,6 +22,8 @@ export interface ConvertArgs {
   write?: boolean;
   /** Remove the Spectrum targets without asking. */
   removeSpectrum?: boolean;
+  /** Delete the files only the removed Spectrum targets used, without asking (only with the targets removed). */
+  deleteUnused?: boolean;
 }
 
 export interface ConvertOutcome {
@@ -29,6 +32,8 @@ export interface ConvertOutcome {
   /** Project-relative paths written. */
   written: string[];
   removedTargets: string[];
+  /** Project-relative paths deleted (files only the removed Spectrum targets used). */
+  deleted: string[];
   /** Must-fix findings (W720-W725) left in the converted project. */
   mustFix: number;
   report: string;
@@ -60,6 +65,11 @@ export const convertUi = {
     );
     return ans === 'Remove';
   },
+  async confirmDelete(files: string[]): Promise<boolean> {
+    const names = files.length > 4 ? `${files.slice(0, 4).join(', ')} and ${files.length - 4} more` : files.join(', ');
+    const ans = await vscode.window.showInformationMessage(`Delete the ${files.length} file(s) only the Spectrum targets used? ${names}. They are listed in the report.`, { modal: true }, 'Delete', 'Keep');
+    return ans === 'Delete';
+  },
   async showReport(text: string): Promise<void> {
     const doc = await vscode.workspace.openTextDocument({ content: text, language: 'plaintext' });
     await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, preserveFocus: true });
@@ -75,7 +85,8 @@ async function pickRoot(arg: unknown, args?: ConvertArgs): Promise<string | unde
   const ps = await findProjects();
   if (ps.length === 1) return ps[0].root;
   if (!ps.length) {
-    void vscode.window.showInformationMessage(`CPC Game Studio: no ${PROJECT_FILE} in this workspace.`);
+    const hasBas = (await vscode.workspace.findFiles('**/*.bas', '**/node_modules/**', 1)).length > 0;
+    void vscode.window.showInformationMessage(noProjectMessage(hasBas));
     return undefined;
   }
   const pick = await vscode.window.showQuickPick(
@@ -83,6 +94,37 @@ async function pickRoot(arg: unknown, args?: ConvertArgs): Promise<string | unde
     { title: 'Convert Project to CPC BASIC: which project?' },
   );
   return pick?.root;
+}
+
+/** ` (5 findings: W720 x2, W722 x3)` for a file the report has findings for, else nothing. */
+function unbuiltFindings(result: ConvertResult, rel: string): string {
+  const counts: Record<string, number> = {};
+  let n = 0;
+  for (const d of result.report.files.find((f) => f.path === rel)?.diagnostics ?? []) {
+    if (d.severity === 'note') continue;
+    counts[d.code] = (counts[d.code] ?? 0) + 1;
+    n++;
+  }
+  const by = Object.entries(counts).sort(([a], [b]) => (a < b ? -1 : 1)).map(([c, k]) => `${c} x${k}`).join(', ');
+  return n ? ` (${n} finding${n === 1 ? '' : 's'}: ${by})` : '';
+}
+
+/** The recipes the project's "assets" globs match that convert for the Spectrum. */
+function spectrumRecipes(root: string, projectText: string): string[] {
+  let globs: unknown;
+  try {
+    globs = (JSON.parse(projectText) as { assets?: unknown }).assets;
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(globs)) return [];
+  return findRecipes(root, globs.filter((g): g is string => typeof g === 'string')).filter((rel) => {
+    try {
+      return (JSON.parse(fs.readFileSync(path.resolve(root, rel), 'utf8')) as { target?: unknown }).target === 'spectrum';
+    } catch {
+      return false;
+    }
+  });
 }
 
 /** Runs the conversion; undefined when the user cancelled or there was nothing to do. */
@@ -118,8 +160,12 @@ export async function convertProjectCommand(arg?: unknown, args?: ConvertArgs): 
   const result: ConvertResult = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Converting to CPC BASIC...' }, async () =>
     convertSources(files, { from: from!, runtime: loadRuntime(path.join(bundled, 'lib')), checks: targetChecks(projectText) }),
   );
-  const fix = mustFix(result.report);
+  const fix = mustFix(result.report, result.built);
   const spectrum = projectText && hasSpectrumTargets(projectText) ? removeSpectrumTargets(projectText) : undefined;
+  // what only the Spectrum targets used: the sources no CPC target compiles, and the recipes that convert for the Spectrum
+  const unbuilt = result.unused ?? [];
+  const zxRecipes = spectrum ? spectrumRecipes(root, projectText!) : [];
+  const deletable = [...unbuilt, ...zxRecipes];
   const reportText = [
     'CPC Game Studio: Convert Project to CPC BASIC',
     `Project: ${root}`,
@@ -129,10 +175,12 @@ export async function convertProjectCommand(arg?: unknown, args?: ConvertArgs): 
     ...(spectrum ? ['', `cpcbuild.json: the Spectrum target(s) ${spectrum.removed.join(', ')} can be removed.`] : []),
     '',
     fix.length ? `${fix.length} finding(s) must be fixed by hand before this builds (W720-W725):` : 'No finding stops the build.',
+    ...(spectrum && unbuilt.length ? ['', 'Not built by any CPC target (only the Spectrum targets used them):', ...unbuilt.map((f) => `  ${f}${unbuiltFindings(result, f)}`)] : []),
+    ...(spectrum && zxRecipes.length ? ['', 'Spectrum asset recipes (CPCBuild 0.2.0 does not build them; a build skips them with a warning):', ...zxRecipes.map((f) => `  ${f}`)] : []),
     '',
     formatReport(result.report),
   ].join('\n');
-  const outcome = (written: string[], removedTargets: string[]): ConvertOutcome => ({ root, dialect: result.dialect, written, removedTargets, mustFix: fix.length, report: reportText });
+  const outcome = (written: string[], removedTargets: string[], deleted: string[] = []): ConvertOutcome => ({ root, dialect: result.dialect, written, removedTargets, deleted, mustFix: fix.length, report: reportText });
 
   // 3. The preview, then the question: nothing is written before the yes.
   await convertUi.showReport(reportText);
@@ -150,13 +198,22 @@ export async function convertProjectCommand(arg?: unknown, args?: ConvertArgs): 
     written.push(rel);
   }
   const removedTargets: string[] = [];
+  const deleted: string[] = [];
   if (spectrum && removeSpectrum) {
     fs.writeFileSync(projectFile, spectrum.text);
     removedTargets.push(...spectrum.removed);
     written.push(PROJECT_FILE);
+    if (deletable.length && (args?.deleteUnused ?? (await convertUi.confirmDelete(deletable)))) {
+      for (const rel of deletable) {
+        const abs = path.resolve(root, ...rel.split('/'));
+        if (!abs.startsWith(root + path.sep)) continue;
+        fs.rmSync(abs, { force: true });
+        deleted.push(rel);
+      }
+    }
   }
   void vscode.window.showInformationMessage(
-    `CPC Game Studio: converted ${result.changed.size} file(s)${removedTargets.length ? ` and removed ${removedTargets.join(', ')}` : ''}.` + (fix.length ? ` ${fix.length} finding(s) need you: see the report.` : ' Build to check it.'),
+    `CPC Game Studio: converted ${result.changed.size} file(s)${removedTargets.length ? ` and removed ${removedTargets.join(', ')}` : ''}${deleted.length ? ` and deleted ${deleted.length} file(s)` : ''}.` + (fix.length ? ` ${fix.length} finding(s) need you: see the report.` : ' Build to check it.'),
   );
-  return outcome(written, removedTargets);
+  return outcome(written, removedTargets, deleted);
 }

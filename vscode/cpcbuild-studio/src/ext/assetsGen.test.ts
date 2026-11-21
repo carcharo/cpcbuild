@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { argvToRecipe, newRecipe, serialiseRecipe, type Recipe } from '../core/cpcimp';
+import { argvToRecipe, newRecipe, serialiseRecipe, SPECTRUM_SKIPPED, type Recipe } from '../core/cpcimp';
 import { committed } from '../core/testcorpus';
 import { PYTHON_SETTING, REPO, scratchDir, repoText } from '../core/testutil';
 import { newSprite, serialiseSprite } from '../core/spriteDoc';
@@ -256,7 +256,16 @@ describe('assetFailure (what a failed regenerate means for the build)', () => {
   it('a recipe failure is fatal and points at the importer', () => {
     const f = assetFailure({ ...base, recipe: 'a/x.cpcimp' });
     expect(f.fatal).toBe(true);
-    expect(f.message).toContain('open it in the importer');
+    expect(f.message).toContain('image importer');
+  });
+  it('a recipe failure says the path once, ends one sentence, and never advises turning regeneration off', () => {
+    const f = assetFailure({ ...base, recipe: 'a/x.cpcimp', error: 'a/x.cpcimp: "source" must be a path string.' });
+    expect(f.message).toBe('asset a/x.cpcimp: "source" must be a path string. Open the recipe in the image importer to fix it, or delete it if the project no longer uses it.');
+    expect(f.message.split('a/x.cpcimp').length).toBe(2);
+    expect(f.message).not.toContain('..');
+    const d = assetFailure({ ...base, recipe: 's/x.cpctil', doc: true, outputExists: false, error: 'boom.' });
+    expect(d.message).not.toContain('regenerateBeforeBuild');
+    expect(d.message).not.toContain('..');
   });
   it('a document failure with an existing output only warns, with its own wording', () => {
     const f = assetFailure({ ...base, recipe: 's/x.cpcspr', doc: true, outputExists: true });
@@ -282,6 +291,25 @@ describe('assetFailure (what a failed regenerate means for the build)', () => {
     fs.writeFileSync(path.join(r, 'sprites/ball.bas'), 'old');
     res = (await regenerateAll(r, ['sprites/*.cpcspr'], settings))[0];
     expect(res).toMatchObject({ ok: false, doc: true, outputExists: true });
+  });
+});
+
+describe('a Spectrum recipe in a converted 0.1.x project', () => {
+  it('is skipped with a warning and does not stop the build', async () => {
+    const r = scratchDir('assetsgen-zx-');
+    fs.mkdirSync(path.join(r, 'assets/zx'), { recursive: true });
+    fs.writeFileSync(path.join(r, 'assets/zx/a.cpcimp'), JSON.stringify({ format: 'cpcimp', version: 1, target: 'spectrum', source: 'a.png' }));
+    const settings = { engine: 'ts', header: 'img2cpc', pythonPath: PYTHON_SETTING, library: undefined } as unknown as GenSettings;
+    const res = await regenerateAll(r, ['assets/**/*.cpcimp'], settings, { onlyStale: true });
+    expect(res).toHaveLength(1);
+    expect(res[0].warnOnly).toBe(true);
+    const f = assetFailure(res[0]);
+    expect(f.fatal).toBe(false);
+    expect(f.message).toBe('asset assets/zx/a.cpcimp: ' + SPECTRUM_SKIPPED.replace(/\.$/, ''));
+    expect(f.message.split('assets/zx/a.cpcimp').length).toBe(2);
+    expect(f.message).not.toContain('..');
+    // opened in the importer, the recipe keeps the advice to change it
+    expect((await generateFile(r, 'assets/zx/a.cpcimp', settings)).error).toContain('change "target" to "cpc"');
   });
 });
 

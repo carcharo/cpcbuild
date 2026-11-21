@@ -7,7 +7,7 @@
  * It reads the project's `cpcbuild.json` as plain JSON (not through `parseProject`): a 0.1.x project with a
  * Spectrum target is exactly what this has to open.
  */
-import { migrate, type FileTree, type MigrateDiagnostic, type MigrateReport } from '@cpcbuild/cpcbas';
+import { compile, migrate, type FileTree, type MigrateDiagnostic, type MigrateReport } from '@cpcbuild/cpcbas';
 
 /** One compile check of the translated program: the main files and the defines of a build target. */
 export interface CheckConfig {
@@ -100,6 +100,50 @@ export interface ConvertResult {
   report: MigrateReport;
   /** How the run read the sources. */
   dialect: 'boriel' | 'cpcbas';
+  /** The project files the CPC targets compile (the converted sources, each target's main and defines): only when the checks ran. */
+  built?: Set<string>;
+  /** Files some other project file includes that no CPC target compiles: only the removed Spectrum targets used them. Only when the checks ran. */
+  unused?: string[];
+}
+
+const INCLUDE = /^[ \t]*#[ \t]*include[ \t]+"([^"\n]+)"/gim;
+
+/** The project files the compiler reads for these checks (`#ifdef` decides: a Spectrum-only include is not read). Parse only; library files are left out. */
+export function builtFiles(files: FileTree, checks: readonly CheckConfig[], runtime: FileTree): Set<string> {
+  const out = new Set<string>();
+  for (const c of checks) {
+    for (const main of c.mains) {
+      const r = compile({ files, main, includePaths: [], defines: c.defines, runtime, options: { parseOnly: true } });
+      for (const f of r.sources.all()) if (!f.path.startsWith('<')) out.add(f.path);
+    }
+  }
+  return out;
+}
+
+/** The files of `files` that another one includes (`#include "x.bas"`, relative to the including file, else to the project folder). */
+export function includedFiles(files: ReadonlyMap<string, string | Uint8Array>): Set<string> {
+  const out = new Set<string>();
+  const text = (b: string | Uint8Array): string => (typeof b === 'string' ? b : new TextDecoder('latin1').decode(b));
+  for (const [path, bytes] of files) {
+    if (!/\.bas$/i.test(path)) continue;
+    const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+    for (const m of text(bytes).matchAll(INCLUDE)) {
+      const inc = posix(m[1]);
+      const hit = [normalise(dir + inc), normalise(inc)].find((p) => files.has(p));
+      if (hit) out.add(hit);
+    }
+  }
+  return out;
+}
+
+/** `a/b/../c.bas` as `a/c.bas`. */
+function normalise(p: string): string {
+  const out: string[] = [];
+  for (const seg of p.split('/')) {
+    if (seg === '..') out.pop();
+    else if (seg && seg !== '.') out.push(seg);
+  }
+  return out.join('/');
 }
 
 const key = (path: string, d: MigrateDiagnostic): string => `${path}:${d.line}:${d.col}:${d.code}:${d.message}`;
@@ -133,7 +177,14 @@ export function convertSources(files: ReadonlyMap<string, Uint8Array>, opts: Con
   });
   const changed = new Map<string, string>();
   for (const f of first.report.files) if (f.changed) changed.set(f.path, first.files.get(f.path)!);
-  return { changed, report, dialect: report.summary.dialect };
+  const result: ConvertResult = { changed, report, dialect: report.summary.dialect };
+  if (opts.checks?.length && opts.runtime) {
+    const after = new Map<string, string | Uint8Array>(files);
+    for (const [p, t] of changed) after.set(p, t);
+    result.built = builtFiles(after, opts.checks, opts.runtime);
+    result.unused = [...includedFiles(after)].filter((p) => !result.built!.has(p)).sort();
+  }
+  return result;
 }
 
 /** The report as text, one line per finding as the compiler prints diagnostics, then a summary. Notes (rewrites) are counted, not listed, unless `notes`. */
@@ -146,19 +197,34 @@ export function formatReport(report: MigrateReport, opts: { notes?: boolean } = 
       if (d.hint) lines.push(`  hint: ${d.hint}`);
     }
   }
-  const counts = Object.entries(report.summary.counts)
-    .sort(([a], [b]) => (a < b ? -1 : 1))
-    .map(([c, n]) => `${c} x${n}`)
-    .join(', ');
+  // the findings the listing shows, and the notes it does not: counted apart, so that no count names a line that is not there
+  const listed: Record<string, number> = {};
+  const unlisted: Record<string, number> = {};
+  for (const f of report.files) {
+    for (const d of f.diagnostics) {
+      const into = d.severity === 'note' && !opts.notes ? unlisted : listed;
+      into[d.code] = (into[d.code] ?? 0) + 1;
+    }
+  }
+  const fmt = (c: Record<string, number>): string =>
+    Object.entries(c)
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([k, n]) => `${k} x${n}`)
+      .join(', ');
   lines.push('', `${report.summary.files} file(s) read, ${report.summary.changed} changed. Read as ${report.summary.dialect === 'boriel' ? 'Boriel BASIC' : 'CPC BASIC'}.`);
-  if (counts) lines.push(`Findings: ${counts}.`);
+  if (Object.keys(listed).length) lines.push(`Findings: ${fmt(listed)}.`);
+  const nUnlisted = Object.values(unlisted).reduce((a, b) => a + b, 0);
+  if (nUnlisted) lines.push(`Rewritten without a finding: ${nUnlisted} place(s) (${fmt(unlisted)}). These are not listed.`);
   return lines.join('\n') + '\n';
 }
 
-/** Must-fix findings left in the report (W720-W725): the project does not build until a person changes these. */
-export function mustFix(report: MigrateReport): { path: string; d: MigrateDiagnostic }[] {
+/** Must-fix findings left in the report (W720-W725): the project does not build until a person changes these. With `built`, only those in files a CPC target compiles. */
+export function mustFix(report: MigrateReport, built?: ReadonlySet<string>): { path: string; d: MigrateDiagnostic }[] {
   const out: { path: string; d: MigrateDiagnostic }[] = [];
-  for (const f of report.files) for (const d of f.diagnostics) if (/^W72[0-5]$/.test(d.code)) out.push({ path: f.path, d });
+  for (const f of report.files) {
+    if (built && !built.has(f.path)) continue;
+    for (const d of f.diagnostics) if (/^W72[0-5]$/.test(d.code)) out.push({ path: f.path, d });
+  }
   return out;
 }
 
@@ -199,3 +265,9 @@ export function hasSpectrumTargets(projectJson: string): boolean {
   const ts = rawTargets(projectJson);
   return !!ts && ts.some(isSpectrumTarget);
 }
+
+/** What Convert says when the workspace has no cpcbuild.json: a folder of 0.1.x sources is converted from a terminal. */
+export const noProjectMessage = (hasBas: boolean): string =>
+  hasBas
+    ? 'CPC Game Studio: Convert works on a project (a folder with cpcbuild.json), and this workspace has none. For a folder of 0.1.x sources, run in a terminal: cpcbas migrate --main main.bas -D CPC6128 -o converted .   (with the SDK: node <SDK>/bin/cpcbas.mjs migrate ...). Without --main and -D, the compile check can report errors that are not there.'
+    : 'CPC Game Studio: no cpcbuild.json in this workspace.';

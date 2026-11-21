@@ -17,7 +17,7 @@ import { Img2cpcError, type CliIo } from '../core/img2cpc';
 import { posixSlashes } from '../core/pathtext';
 import {
   argvFor, composeSheet, effectiveOutput, inputsOf, outputsOf, parseRecipe, restyleHeader, RecipeError, runRecipe,
-  toolMessage, type HeaderMode, type Recipe,
+  SPECTRUM_RECIPE, SPECTRUM_SKIPPED, toolMessage, type HeaderMode, type Recipe,
 } from '../core/cpcimp';
 import { globBase, matchesAny } from '../core/glob';
 import { insideRoot, insideRootFrom, PathEscapeError } from '../core/paths';
@@ -62,13 +62,16 @@ export interface GenResult {
 
 /** What a failed regenerate means for the build: documents with an existing output only warn. */
 export function assetFailure(g: GenResult): { fatal: boolean; message: string } {
-  const why = g.error ?? 'failed';
+  // the tools' errors usually start with the recipe's path and end with a full stop: say the path once, and end the sentence once
+  const lead = `${g.recipe}: `;
+  const text = g.error ?? 'failed';
+  const why = (text.startsWith(lead) ? text.slice(lead.length) : text).replace(/\.\s*$/, '');
   if (g.warnOnly) return { fatal: false, message: `asset ${g.recipe}: ${why}` };
-  if (!g.doc) return { fatal: true, message: `asset ${g.recipe}: ${why}. Fix the recipe (open it in the importer) or turn off "cpcbuild.assets.regenerateBeforeBuild".` };
+  if (!g.doc) return { fatal: true, message: `asset ${g.recipe}: ${why}. Open the recipe in the image importer to fix it, or delete it if the project no longer uses it.` };
   const fix = 'Fix the sprite/tile document or its palette file (open it in the sprite editor)';
   return g.outputExists
     ? { fatal: false, message: `asset ${g.recipe}: ${why}. ${fix}; the build uses the existing output.` }
-    : { fatal: true, message: `asset ${g.recipe}: ${why}, and its output does not exist yet. ${fix} or turn off "cpcbuild.assets.regenerateBeforeBuild".` };
+    : { fatal: true, message: `asset ${g.recipe}: ${why}, and its output does not exist yet. ${fix}.` };
 }
 
 const SKIP_DIRS = new Set(['node_modules', '.git', 'out', 'dist', '.vscode-test']);
@@ -456,8 +459,10 @@ export async function regenerateAll(root: string, globs: readonly string[], s: G
     try {
       r = parseRecipe(fs.readFileSync(path.resolve(root, recipeRel), 'utf8'));
     } catch (e) {
-      const res = { recipe: recipeRel, ok: false, written: [], error: `${recipeRel}: ${describeError(e)}` };
-      o.sink?.line(res.error, true);
+      // a Spectrum recipe (a 0.1.x project) is not built any more: skip it with a warning instead of stopping the build
+      const spectrum = e instanceof RecipeError && e.message === SPECTRUM_RECIPE;
+      const res: GenResult = { recipe: recipeRel, ok: false, written: [], ...(spectrum ? { warnOnly: true } : {}), error: spectrum ? SPECTRUM_SKIPPED : `${recipeRel}: ${describeError(e)}` };
+      o.sink?.line(res.error!, true);
       results.push(res);
       continue;
     }

@@ -28,8 +28,11 @@ describe('translateZxbcArgs', () => {
     const m = zxbcMigrationMessage(t);
     expect(m).toContain('"cpcbuild.compiler.args"');
     expect(m).toContain('Not translated (no equivalent): --explicit --strict -W 100');
+    expect(m.endsWith('Copy them, then delete the old setting.')).toBe(true);
   });
   it('an empty list translates to nothing, and the message says so', () => {
-    expect(zxbcMigrationMessage(translateZxbcArgs([]))).toContain('None of the options carries over');
+    const m = zxbcMigrationMessage(translateZxbcArgs([]));
+    expect(m).toContain('None of the options carries over');
+    expect(m.endsWith('You can delete "cpcbuild.zxbc.args" from your settings.')).toBe(true);
   });
 });

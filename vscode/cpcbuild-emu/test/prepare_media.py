@@ -72,15 +72,15 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--update-golden", action="store_true",
                     help="regenerate test/golden/plusdemo_cpr.png with the native patched CPCEC")
-    ap.add_argument("--force", action="store_true", help="rebuild even if the media exist")
+    ap.add_argument("--force", action="store_true", help="kept for old scripts; the media are always rebuilt")
     args = ap.parse_args()
     OUT.mkdir(exist_ok=True)
     cases = []
 
     def want(name: str, f) -> Path:
+        # always rebuilt: media left by an older compiler would make the goldens fail for the wrong reason
         p = OUT / name
-        if args.force or not p.exists():
-            f(p)
+        f(p)
         return p
 
     # plusdemo: disc, as `make test-cpcec` builds it (REM SOURCE / REM CPCBAS in the test file)

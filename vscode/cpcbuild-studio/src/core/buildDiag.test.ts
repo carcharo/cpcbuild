@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import { compile } from '@cpcbuild/cpcbas';
 import { describe, expect, it } from 'vitest';
-import { buildDiagnostics, formatBuildDiagnostic } from './buildDiag';
+import { buildDiagnostics, closeDelay, formatBuildDiagnostic } from './buildDiag';
 
 describe('buildDiagnostics', () => {
   const root = path.resolve('/proj');
@@ -21,5 +21,15 @@ describe('buildDiagnostics', () => {
   it('a file outside the project is shown with its full path', () => {
     const d = { file: path.resolve('/elsewhere/a.bas'), line: 1, col: 2, endLine: 1, endCol: 3, severity: 'warning' as const, code: 'W300', message: 'm', hint: 'h', origin: 'user' };
     expect(formatBuildDiagnostic(d, root)).toBe(`${path.resolve('/elsewhere/a.bas')}:1:2: warning W300: m\n  hint: h`);
+  });
+});
+
+describe('closeDelay', () => {
+  it('a successful build closes at once; a failed one waits out VS Code\'s 500 ms launch window', () => {
+    expect(closeDelay(0, 10)).toBe(0);
+    expect(closeDelay(1, 93)).toBe(507);
+    expect(closeDelay(1, 600)).toBe(0);
+    expect(closeDelay(1, 5000)).toBe(0);
+    for (const ms of [0, 45, 93, 499]) expect(ms + closeDelay(1, ms)).toBeGreaterThan(500);
   });
 });

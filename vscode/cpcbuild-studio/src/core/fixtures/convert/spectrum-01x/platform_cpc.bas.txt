@@ -1,0 +1,5 @@
+#include "assets/sprites.bas"
+
+SUB PlatInit()
+    CLS
+END SUB

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compileInput, deriveDiscStem, parseAddress, parseCompilerArgs, parseProject } from './project';
+import { compileInput, deriveDiscStem, isOldProject, OLD_PROJECT_BUILD, oldProjectNotice, parseAddress, parseCompilerArgs, parseProject } from './project';
 
 const base = (t: object, extra: object = {}): string =>
   JSON.stringify({ version: 1, name: 'mygame', targets: [{ id: 'cpc6128', main: 'src/main.bas', ...t }], ...extra });
@@ -49,6 +49,14 @@ describe('parseProject', () => {
     expect(parseProject(base({ org: 16 })).errors[0].path).toBe('targets[0].org');
     expect(parseProject(base({ org: '0x8000' })).errors).toEqual([]);
     expect(parseProject(base({ org: 'banana' })).errors[0].message).toMatch(/address/);
+  });
+  it('a project with Spectrum targets is a 0.1.x project: the notices offer Convert, other errors are not that', () => {
+    expect(isOldProject(parseProject(base({ arch: 'zx48k' })).errors)).toBe(true);
+    expect(isOldProject(parseProject(base({ package: 'tap' })).errors)).toBe(true);
+    expect(isOldProject(parseProject(base({ arch: 'mips' })).errors)).toBe(false);
+    expect(isOldProject(parseProject('{').errors)).toBe(false);
+    expect(oldProjectNotice('lamplighter')).toContain('"lamplighter" is a CPCBuild 0.1.x project');
+    expect(OLD_PROJECT_BUILD).toContain('Convert it to build it with 0.2.0');
   });
   it('spectrum targets and tapes are refused with the way out', () => {
     const r = parseProject(base({ arch: 'zx48k' }));

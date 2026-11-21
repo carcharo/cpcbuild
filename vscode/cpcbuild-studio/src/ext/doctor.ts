@@ -7,11 +7,12 @@ import { bundledLibrary, manifest, readSettings, resolveArkos, resolveLibrary, S
 import { findCap32, findCpcec, findRvm } from './run';
 import { isMacPythonStub, pythonCmd, runTool, Sink } from './runTool';
 import { arkosUnavailableText } from './arkos';
+import { ARKOS_FIX, EMULATOR_MISSING, emulatorDetail, emulatorFix, emulatorLabel, PYTHON_NOTE } from '../core/doctorText';
+import { EMU_EXTENSION_ID } from './emuMissing';
 import { assetForKey, toolsPlatform } from '../core/tools';
 import { findTiled } from './tmxViewer';
 import { isTrusted, restrictedText } from './trust';
 
-const DOWNLOAD_HINT = 'Run "CPC Game Studio: Download Tools".';
 
 export interface DoctorItem {
   id: string;
@@ -23,6 +24,8 @@ export interface DoctorItem {
   fix?: string;
   /** A missing optional item is not a problem. */
   optional?: boolean;
+  /** Said instead of a fix when nothing needs doing. */
+  note?: string;
 }
 
 /** True when cpcbuild-emu answers (its commands load it on demand, so asking is the test; "not found" = not installed). */
@@ -61,7 +64,7 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
     add({
       id: 'python', label: 'Python 3', ok: py.code === 0 && /Python 3/.test(pyOut), optional: !pyNeeded,
       detail: py.code === 0 ? `${s.pythonPath}: ${pyOut}` : py.error ?? `exited ${py.code}`,
-      fix: pyNeeded ? 'Install Python 3 or set "cpcbuild.python.path".' : 'Only needed with the python image engine.',
+      ...(pyNeeded ? { fix: 'Install Python 3 or set "cpcbuild.python.path".' } : { note: PYTHON_NOTE }),
     });
   } else {
     add({ id: 'python', label: 'Python 3', ok: false, optional: true, detail: `not run: ${restrictedText('Checking it')}`, fix: 'Trust the workspace ("Manage Workspace Trust"), then run the check again.' });
@@ -79,17 +82,15 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   if (emu === 'emu') {
     const has = await emuInstalled();
     add({
-      id: 'emulator', label: 'Emulator: cpcbuild-emu extension', ok: has, optional: true,
-      detail: has ? 'cpcbuild.emu.version answers' : 'not installed (Run falls back to an external emulator)',
+      id: 'emulator', label: emulatorLabel, ok: has, optional: true,
+      detail: has ? emulatorDetail(vscode.extensions.getExtension(EMU_EXTENSION_ID)?.packageJSON?.version) : EMULATOR_MISSING,
       fix: 'Install the CPC Game Studio Emulator extension, or set "cpcbuild.run.emulator" to caprice32, cpcec or rvm.',
     });
   } else if (emu === 'caprice32' || emu === 'cpcec' || emu === 'rvm') {
     const found = emu === 'caprice32' ? findCap32(s, lib) : emu === 'cpcec' ? findCpcec(s, lib) : findRvm(s);
     add({
       id: 'emulator', label: `Emulator: ${emu}`, ok: !!found, detail: found ?? 'not found',
-      fix: emu === 'caprice32' ? 'Run `make cap32` in the cpcbuild checkout, or set "cpcbuild.run.caprice32Path".'
-        : emu === 'cpcec' ? 'Run `make cpcec` in the cpcbuild checkout, or set "cpcbuild.run.cpcecPath".'
-        : 'Install Retro Virtual Machine or set "cpcbuild.run.rvmPath".',
+      fix: emulatorFix(emu),
     });
   } else {
     add({ id: 'emulator', label: 'Emulator: custom command', ok: !!s.customCommand.trim(), detail: s.customCommand || 'empty', fix: 'Set "cpcbuild.run.customCommand".' });
@@ -101,7 +102,7 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   const noAsset = !plat || !assetForKey(manifest.arkos, plat);
   add({
     id: 'arkos', label: 'Arkos command-line tools', ok: !!arkos, optional: true, detail: arkos || 'not found',
-    fix: !noAsset ? `${DOWNLOAD_HINT} Or set "cpcbuild.arkos.toolsPath" (in a cpcbuild checkout: \`sh tools/arkos/fetch.sh\`).` : arkosUnavailableText(`${process.platform}-${process.arch}`),
+    fix: !noAsset ? ARKOS_FIX : arkosUnavailableText(`${process.platform}-${process.arch}`),
   });
   const tiled = findTiled(s.tiledPath);
   add({ id: 'tiled', label: 'Tiled map editor', ok: !!tiled, optional: true, detail: tiled ?? 'not found', fix: 'Install Tiled (mapeditor.org) for "Open in Tiled".' });
@@ -110,6 +111,7 @@ export async function checkEnvironment(projectDir: string | undefined, sink: Sin
   for (const i of items) {
     sink.line(`  [${i.ok ? 'ok' : i.optional ? 'optional' : 'MISSING'}] ${i.label}: ${i.detail}`);
     if (!i.ok && i.fix) sink.line(`        fix: ${i.fix}`);
+    else if (!i.ok && i.note) sink.line(`        note: ${i.note}`);
   }
   return items;
 }

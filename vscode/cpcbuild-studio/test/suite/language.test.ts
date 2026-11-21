@@ -193,6 +193,34 @@ test('Convert Project: the Spectrum targets go on a yes and cpcbuild.json is oth
   assert.strictEqual(fs.readFileSync(path.join(nope, 'assets', 'ball.bas'), 'utf8'), ball);
 });
 
+test('Convert Project: a 0.1.x project with Spectrum targets and recipes, converted with the deletion accepted, builds with the asset step', async () => {
+  const a = await api();
+  const dir = path.join(ws, 'convert-zx-delete');
+  copyFixture('spectrum-01x', dir);
+  for (const png of ['assets/sprites.png', 'assets/zx/zx_sprites.png']) fs.copyFileSync(path.join(FIXTURES, 'spectrum-01x', png + '.txt'), path.join(dir, png)); // the copy above is text
+  const asked: string[][] = [];
+  const saved = { ...a.convertUi };
+  a.convertUi.confirmDelete = async (files) => (asked.push(files), true);
+  a.convertUi.showReport = async (text) => {
+    assert.match(text, /Not built by any CPC target \(only the Spectrum targets used them\):\n {2}assets\/zx\/zx_sprites\.bas\n {2}platform_zx\.bas \(2 findings: W720 x2\)/);
+    assert.match(text, /Spectrum asset recipes[^\n]*:\n {2}assets\/zx\/zx_sprites\.cpcimp/);
+    assert.match(text, /No finding stops the build\./);
+  };
+  try {
+    const r = await a.convertProject(undefined, { root: dir, from: 'boriel', write: true, removeSpectrum: true });
+    assert.deepStrictEqual(r?.deleted, ['assets/zx/zx_sprites.bas', 'platform_zx.bas', 'assets/zx/zx_sprites.cpcimp']);
+    assert.deepStrictEqual(asked, [r?.deleted]);
+    assert.strictEqual(r?.mustFix, 0);
+    for (const f of r?.deleted ?? []) assert.ok(!fs.existsSync(path.join(dir, f)), f);
+    fs.rmSync(path.join(dir, 'assets', 'sprites.bas')); // the asset step has to regenerate it
+    const b = await a.build(fs.realpathSync(dir), 'cpc6128');
+    assert.ok(b.ok, b.message);
+    assert.ok(fs.existsSync(path.join(dir, 'assets', 'sprites.bas')));
+  } finally {
+    Object.assign(a.convertUi, saved);
+  }
+});
+
 test('Convert Project: the command is registered', async () => {
   assert.ok((await vscode.commands.getCommands(true)).includes('cpcbuild.convertProject'));
 });

@@ -57,6 +57,13 @@ describe('the CPC BASIC grammar', () => {
     expect(scopeOf('over')).toBeUndefined();
   });
 
+  it('a reserved word before a colon is a statement, not a label', () => {
+    const label = js(g.repository.label.match);
+    for (const t of ['CLS: PRINT 1', 'cls:', '  End:', 'WEND: ', 'PRINT: PRINT']) expect(label.test(t), t).toBe(false);
+    for (const t of ['start:', 'Loop1:', '  done :', 'Endgame:', 'clsx:']) expect(label.test(t), t).toBe(true);
+    expect(label.test('x := 1')).toBe(false);
+  });
+
   it('takes & hex, &X binary, REM, apostrophe and block comments, and ASM blocks', () => {
     const rules = g.repository;
     expect(js(rules.number.patterns[0].match).test('&HFF')).toBe(true);

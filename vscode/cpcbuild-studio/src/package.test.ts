@@ -83,7 +83,12 @@ describe('package.json contributions', () => {
     expect(namesProgramOrPath.length).toBeGreaterThan(8);
     for (const k of namesProgramOrPath) expect(restricted, k).toContain(k);
   });
-  it('explorer and editor-title menus only show inside a CPCBuild project', () => {
-    for (const m of [...c.menus['explorer/context'], ...c.menus['editor/title']]) expect(m.when, m.command).toMatch(/^cpcbuild\.inProject && /);
+  it('explorer and editor-title menus only show inside a CPCBuild project, except Run in Emulator on a disc or cartridge', () => {
+    for (const m of [...c.menus['explorer/context'], ...c.menus['editor/title']].filter((x: { command: string }) => x.command !== 'cpcbuild.runFile')) expect(m.when, m.command).toMatch(/^cpcbuild\.inProject && /);
+    // a .dsk or .cpr runs without a project (the catalogue says what to RUN), whatever the case of its extension
+    const run = c.menus['explorer/context'].find((x: { command: string }) => x.command === 'cpcbuild.runFile');
+    expect(run.when).not.toContain('inProject');
+    expect(run.when).toMatch(/\/i$/);
+    expect(pkg.engines.vscode).toMatch(/\^1\.(7[4-9]|[89]\d|\d{3})/);
   });
 });

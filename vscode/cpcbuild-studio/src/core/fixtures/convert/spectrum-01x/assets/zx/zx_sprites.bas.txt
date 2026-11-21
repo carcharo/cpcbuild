@@ -1,0 +1,2 @@
+' generated for the Spectrum
+DIM zxSprites(7) AS UBYTE

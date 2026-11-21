@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "name": "zx-and-cpc",
+  "targets": [
+    { "id": "cpc6128", "arch": "cpc", "main": "main.bas", "model": "6128", "defines": ["CPC6128"], "package": "dsk", "disc": "GAME" },
+    { "id": "zx48", "arch": "zx48k", "main": "main.bas", "defines": ["ZX48"], "org": 32768, "package": "tap" }
+  ],
+  "assets": ["assets/**/*.cpcimp"]
+}

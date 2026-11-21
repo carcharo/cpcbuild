@@ -100,6 +100,10 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 export const SPECTRUM_RECIPE =
   'this recipe converts for the ZX Spectrum, which CPCBuild 0.2.0 no longer supports. Open it as text and change "target" to "cpc" (with a "mode" of 0, 1 or 2), or delete it. CPCBuild 0.1.x still converts for the Spectrum.';
 
+/** What a build says when it skips such a recipe (a converted 0.1.x project may still have them). */
+export const SPECTRUM_SKIPPED =
+  'skipped: it converts for the ZX Spectrum, which CPCBuild 0.2.0 does not build. Delete it, or take its folder out of "assets" in cpcbuild.json.';
+
 function checkField(r: Record<string, unknown>, key: string, ok: (v: unknown) => boolean, what: string): void {
   if (r[key] !== undefined && !ok(r[key])) throw new RecipeError(`"${key}" must be ${what}`);
 }

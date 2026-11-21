@@ -2,7 +2,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { MODELS } from '../core/project';
+import { isOldProject, MODELS, OLD_PROJECT_BUILD, OLD_PROJECT_CONVERT, OLD_PROJECT_TOOLTIP } from '../core/project';
 import type { EmuEvent } from '../emuApi';
 import { buildTarget, BuildResult, RunInfo } from './build';
 import { channelSink, getChannel, tee } from './channel';
@@ -17,7 +17,8 @@ import { SongEditorProvider, newSongCommand } from './songEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
 import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand, regenerateForPalette } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
-import { runFromCatalogue, targetForDsk } from './dskRun';
+import { discPickItems, discPickTitle, machineName, runFromCatalogue, targetForDsk } from './dskRun';
+import { isPlusDisc } from '../core/dsk';
 import { runInEmulator, setStorageDir } from './run';
 import { runToolLog } from './runTool';
 import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
@@ -31,6 +32,7 @@ import { emuMissingTestApi } from './emuMissing';
 import { emuInstallTestApi, installEmulator, setEmuInstallContext } from './emuInstall';
 import { setStudioExtensionId, setupTestApi, updateSetupContext } from './setupPrompts';
 import { offerArgsMigration, settingsMigrationTestApi } from './settingsMigration';
+import { offerOldProjectNotice, oldProjectTestApi } from './oldProject';
 import { buildProblems } from './buildProblems';
 import { musicConvertCommand, musicPlayCommand, musicStopCommand } from './music';
 import { generateTmxAsset, openInTiledCommand, TmxViewerProvider, tmxGenerateCommand } from './tmxViewer';
@@ -64,6 +66,8 @@ export interface StudioApi {
   setup: typeof setupTestApi;
   /** The one-time message about the old compiler-arguments setting of 0.1.x: test hooks. */
   settingsMigration: typeof settingsMigrationTestApi;
+  /** The one-time message about a 0.1.x project: test hooks. */
+  oldProject: typeof oldProjectTestApi;
   /** Every program the Studio started through runTool (the compiler is none of them): extension-host tests read this. */
   runToolLog: readonly (readonly string[])[];
   /** The emulator install from the release: test hooks. */
@@ -96,6 +100,12 @@ async function projectAndTarget(): Promise<{ lp: LoadedProject; targetId?: strin
     if (a) void vscode.commands.executeCommand('cpcbuild.newProject');
     return undefined;
   }
+  if (!lp.project && isOldProject(lp.errors)) {
+    void vscode.window.showInformationMessage(OLD_PROJECT_BUILD, OLD_PROJECT_CONVERT).then((a) => {
+      if (a) void vscode.commands.executeCommand('cpcbuild.convertProject', vscode.Uri.file(lp.file));
+    });
+    return undefined;
+  }
   if (!lp.project) {
     void vscode.window.showErrorMessage(`CPC Game Studio: ${lp.file} has problems: ${lp.errors[0]?.message ?? 'invalid'}`);
     void vscode.window.showTextDocument(vscode.Uri.file(lp.file));
@@ -123,7 +133,7 @@ export const discTestApi: { pick?: (candidates: string[]) => Promise<string | un
   discToRun: (file, s) => discToRun(file, s),
 };
 
-async function discToRun(file: string, s: ReturnType<typeof readSettings>): Promise<{ name: string; model: RunInfo['model'] } | undefined> {
+async function discToRun(file: string, s: ReturnType<typeof readSettings>): Promise<{ name: string; model: RunInfo['model']; note?: string } | undefined> {
   for (const lp of await findProjects()) {
     if (!lp.project) continue;
     const t = targetForDsk(lp.root, readSettings(lp.root).outputDir, lp.project.targets, file);
@@ -137,10 +147,15 @@ async function discToRun(file: string, s: ReturnType<typeof readSettings>): Prom
     return undefined;
   }
   const c = runFromCatalogue(img);
-  if (c.kind === 'one') return { name: c.name, model: s.model };
+  // a disc that unlocks the Plus hardware starts on a Plus, unless the model is set explicitly
+  const plus = !s.modelOverride && isPlusDisc(img);
+  const model: RunInfo['model'] = s.modelOverride ?? (plus ? 'plus' : s.model);
+  const note = plus ? `Starting ${path.basename(file)} on a ${machineName(model)} (it unlocks the Plus hardware).` : undefined;
+  if (c.kind === 'one') return { name: c.name, model, note };
   if (c.kind === 'many') {
-    const pick = await (discTestApi.pick ?? ((cs: string[]) => vscode.window.showQuickPick(cs, { title: 'CPC Game Studio: which program to run from this disc?' })))(c.candidates);
-    return pick ? { name: pick, model: s.model } : undefined;
+    const ask = discTestApi.pick ?? (async (cs: string[]) => (await vscode.window.showQuickPick(discPickItems(cs), { title: discPickTitle(model) }))?.label);
+    const pick = await ask(c.candidates);
+    return pick ? { name: pick, model, note } : undefined;
   }
   void vscode.window.showInformationMessage(
     c.kind === 'none' ? 'CPC Game Studio: the disc has no .BIN or .BAS program to run.' : `CPC Game Studio: ${path.basename(file)} is not a readable CPC disc image.`,
@@ -164,6 +179,7 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
     const found = await discToRun(file, s);
     if (!found) return;
     run = { file, kind: 'dsk', name: found.name, model: found.model };
+    if (found.note) sink.line(found.note);
   }
   else if (ext === '.cpr') run = { file, kind: 'cpr', model: 'plus' };
   else if (ext === '.bin') {
@@ -211,10 +227,17 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     const lp = pickProject(projects);
     const s = readSettings(lp?.root);
     const t = lp && selectedTarget(lp, s.targetDefault);
+    status.command = 'cpcbuild.selectTarget';
     if (lp && t) {
       status.text = `$(chip) ${t.id}`;
       status.tooltip = `CPC Game Studio target (${t.package}); emulator: ${s.emulator}. Click to change the target.`;
       status.show();
+    } else if (lp && isOldProject(lp.errors)) {
+      status.text = '$(warning) 0.1.x project';
+      status.tooltip = OLD_PROJECT_TOOLTIP;
+      status.command = { title: 'Convert Project to CPC BASIC', command: 'cpcbuild.convertProject', arguments: [vscode.Uri.file(lp.file)] };
+      status.show();
+      if (context.extensionMode !== vscode.ExtensionMode.Test) void offerOldProjectNotice(context.workspaceState, lp.file);
     } else if (lp) {
       status.text = '$(warning) cpcbuild.json';
       status.tooltip = 'cpcbuild.json has problems';
@@ -368,6 +391,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
     emuMissing: emuMissingTestApi,
     setup: setupTestApi,
     settingsMigration: settingsMigrationTestApi,
+    oldProject: oldProjectTestApi,
     runToolLog,
     emuInstall: emuInstallTestApi,
     runIn: runInEmulator,
