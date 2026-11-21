@@ -255,7 +255,7 @@ def tiles_image():
 
 
 def font_bas(shift=0, name="font.bas"):
-    """The font as a Boriel include: 7 row bytes per character 45..90, each
+    """The font as a CPC BASIC include: 7 row bytes per character 45..90, each
     row shifted left by `shift` (0: bit 4 the leftmost pixel, as drawn here;
     2: the cpcbuild/text.bas format, bit 7 the leftmost, keeping the glyph's
     one-pixel left margin)."""

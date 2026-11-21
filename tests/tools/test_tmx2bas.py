@@ -139,7 +139,7 @@ class TestTmx(unittest.TestCase):
         self.assertEqual(len(data_lines), 3)
         self.assertTrue(data_lines[-1].endswith(" _") and not data_lines[-1].endswith(", _"))
 
-    def test_output_has_no_boriel_hex_and_compiles_with_cpcbas(self):
+    def test_output_has_no_dollar_hex_and_compiles_with_cpcbas(self):
         p = self.write(tmx_text([csv_layer("L", 20, 2, list(range(1, 41)))], 20, 2))
         text = self.run_tool(p, "--name", "m")[3]
         self.assertNotIn("$", text.split("\n\n", 1)[1])

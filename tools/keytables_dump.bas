@@ -5,7 +5,7 @@ REM entry as KM_GET_TRANSLATE (&BB2A) / KM_GET_SHIFT (&BB30) / KM_GET_CONTROL
 REM (&BB36) return it, and the character __CPC_KEYCHAR makes of it (999 = no
 REM character; keypad expansion tokens become the first character of their
 REM string). The source of the tables in runtime io/keyboard/kbare.asm and of
-REM the EXPECTED data in tests/conformance/keytables.bas (255 = no character
+REM the EXPECTED data in tests/conformance/keytables.bas of the cpcbas repository (255 = no character
 REM and the raw 253/254 for the CAPS LOCK key).
 #require "io/keyboard/kscan.asm"
 FUNCTION FASTCALL Raw(v AS UINTEGER) AS UINTEGER

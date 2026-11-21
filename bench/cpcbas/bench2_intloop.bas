@@ -1,14 +1,12 @@
 ' Benchmark 2: integer loop -- sum/AND/compare, 1500 iterations.
-' Note: Boriel's plain AND is a LOGICAL operator (like Sinclair BASIC's),
-' not bitwise -- it returns 0/1. Bitwise AND is the separate `bAND`
-' operator (docs/bitwiselogic.md); Locomotive's AND is bitwise natively.
+' Note: AND is bitwise here and in Locomotive BASIC alike.
 ' The mask is 8191 (not 32767): Locomotive's integer is 16-bit SIGNED
 ' and raises a runtime "Overflow" error the moment a plain add exceeds
 ' 32767. An earlier version masked with 32767, which only ever clears
 ' bit 15 -- a no-op for any s below 32768 -- so the running sum kept
 ' growing unmasked and Locomotive's copy silently hung around i=256,
 ' having stopped dead on an uncaught Overflow error with nothing left
-' to send to the printer (Boriel's UInteger has no such trap and just
+' to send to the printer (the compiled UInteger has no such trap and just
 ' wraps, so only the Locomotive side was affected). Masking with 8191
 ' keeps s+i always well under 32767 on both sides. See README.md.
 DIM i, s As UInteger

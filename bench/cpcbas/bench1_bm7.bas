@@ -1,6 +1,5 @@
 ' Benchmark 1: BM7 (Rugg/Feldman), integer arithmetic + GOSUB + array
-' fill. Ported from zxbasic/benchmarks/bm7a.bas; the Spectrum-specific
-' POKE 23672 timing (frame counter) is dropped -- bench.py times this
+' fill. The classic BM7 listing without its own timing: bench.py times this
 ' externally via the S/E markers below.
 '
 ' S/E/DONE markers go straight to the printer via MC_PRINT_CHAR
