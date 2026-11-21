@@ -3,6 +3,8 @@
 PYTHON := python3
 # the cpcbas checkout (pinned in cpcbas.json); ?= so an environment CPCBAS (CI, or a git worktree whose sibling is elsewhere) wins
 CPCBAS ?= ../cpcbas
+# made absolute: the Studio's targets run inside vscode/cpcbuild-studio, where a relative path points elsewhere
+override CPCBAS := $(abspath $(CPCBAS))
 export CPCBAS
 # the emsdk for `make wasm` (ignored when it has no emsdk_env.sh: emcc on PATH is then used)
 EMSDK ?= tools/cpcec/wasm/emsdk
