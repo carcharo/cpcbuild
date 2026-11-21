@@ -170,7 +170,7 @@ describe('palette document: colours and snippets', () => {
     expect(entryBytes(0xf0a)).toEqual([0xfa, 0x00]);
     expect(entryBytes(0x1f8)).toEqual([0x18, 0x0f]);
   });
-  it('copy as: Boriel snippet, bare list, SetInk lines (spec 4.1 US4)', () => {
+  it('copy as: CPC BASIC snippet, bare list, SetInk lines (spec 4.1 US4)', () => {
     const s = must(parsePalette('0, 26, 6, 18\n', 'fw'), { op: 'setBorder', value: 0 });
     const [b, l, i] = snippets(s);
     expect(b.text).toBe('DIM pal(3) AS UBYTE => {0, 26, 6, 18}\nSetPalette(@pal(0), 4)\nSetBorder 0\n');

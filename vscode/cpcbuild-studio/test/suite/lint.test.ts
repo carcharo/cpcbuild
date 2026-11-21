@@ -133,7 +133,7 @@ test('docs.open finds the library.md section by heading', async () => {
 test('outside a cpcbuild project: no diagnostics and no hover or completion from Studio', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpcbuild-outside-'));
   try {
-    const doc = await openSource(path.join(dir, 'nextbuild.bas'));
+    const doc = await openSource(path.join(dir, 'outside.bas'));
     const a = await api();
     await waitFor('the lint pass to run (and find nothing to report)', () => a.lintRuns(doc.uri) > 0);
     assert.deepStrictEqual(ownDiagnostics(doc.uri), []);
