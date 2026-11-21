@@ -1,5 +1,5 @@
 REM Bank library timings (6128; run: python3 tools/cpcrun.py --emu chips
-REM --model 6128 --timeout 300 bench/boriel/banks_bench.bas).
+REM --model 6128 --timeout 300 bench/cpcbas/banks_bench.bas).
 REM
 REM Each operation runs N times in game mode (only the 300 Hz game-mode
 REM interrupt, about 3 % of the CPU, is in the way) and is timed in frames

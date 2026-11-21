@@ -89,11 +89,6 @@ class Arguments(unittest.TestCase):
         return subprocess.run([sys.executable, str(REPO / "tools" / "cpcrun.py"), *argv],
                               capture_output=True, text=True)
 
-    def test_zxbc_arg_is_an_error_naming_the_new_flag(self):
-        p = self.run_cpcrun("x.bas", "--zxbc-arg=-D")
-        self.assertEqual(p.returncode, 2)
-        self.assertIn("--cpcbas-arg", p.stderr)
-
     def test_cpcbas_arg_is_accepted_and_the_origin_is_read_from_the_map(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

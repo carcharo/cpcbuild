@@ -1,40 +1,22 @@
-# tools/arkos: the Arkos Tracker music pipeline
+# tools/arkos: the Arkos Tracker music tools
 
-Builds `lib/music/akg_cpc.asm` (Amstrad CPC) and `lib/music/akg_zx.asm`
-(ZX Spectrum 128K: `PLY_AKG_HARDWARE_SPECTRUM`, AY at &FFFD/&BFFD, 1773400 Hz
-period table), the Arkos Tracker 3 AKG player converted
-for Boriel's assembler, and holds the song-export helpers' downloads.
+`fetch.sh` downloads the pinned Arkos Tracker 3 command-line tools that `tools/aks2bas.py` and
+`tools/build_assets.sh` use to turn songs and sound-effect banks into CPC BASIC includes. CPC Game Studio's
+**Download Tools** command downloads the same Arkos Tracker release itself (see `vscode/cpcbuild-studio/tools-manifest.json`).
 
 | Tool | Version | Used for |
 |------|---------|----------|
-| Arkos Tracker 3 | 3.7 (release zip) | player source `players/playerAkg/sources/z80/PlayerAkg*.asm`, `SongToAkg`, `SongToSoundEffects` |
-| Rasm | 3.3 | assembles the player (and gives the reference binary) |
-| Disark | 2.0.0 | binary + symbols -> plain Z80 source |
+| Arkos Tracker 3 | 3.7 (release zip) | `SongToAkg` and `SongToSoundEffects` (the converters), and the player source `players/playerAkg/sources/z80/PlayerAkg*.asm` |
+| Rasm | 3.3 | assembles the player (and gives the reference binary), `convert.sh` only |
+| Disark | 2.0.0 | binary + symbols -> plain Z80 source, `convert.sh` only |
 
 URLs and SHA-256 sums are in `fetch.sh`.
 
-## Regenerate
+## Get the tools
 
     sh tools/arkos/fetch.sh      # downloads into tools/arkos/work/ (gitignored)
-    sh tools/arkos/convert.sh    # writes lib/music/akg_cpc.asm and akg_zx.asm
 
-`convert.sh` assembles `PlayerAkg.asm` with Rasm
-(`PLY_AKG_HARDWARE_CPC`, `PLY_AKG_MANAGE_SOUND_EFFECTS`, the default full
-player configuration, so any song works) at ORG 0x8000 with
-`-s -sl -sq` symbols, runs
-
-    disark ref.bin out.asm --symbolFile ref.sym --sourceProfile pasmo \
-        --hexPrefix 0x --undocumentedOpcodesToBytes --loadAddress 0x8000 --genOrg
-
-and `postprocess.py` (labels get `:` and their own line, `label equ $+n`
-kept as is, `org` and Rasm's wrapper labels dropped, Arkos's identifier
-spelling restored, clashing labels like `end` renamed).
-
-**The check:** the converted file, assembled by `zxbasm` at ORG 0x8000,
-0x1234 and 0x4000, must be byte-identical to Rasm's binary at the same
-ORG (3412 bytes CPC, 3300 bytes Spectrum); `convert.sh` stops if not. The player also survives
-zxbc's optimizer unchanged (-O0, -O2, -O4: checked once by assembling
-Rasm at the address zxbc placed it and comparing the bytes).
+`aks2bas.py` finds the tools in `$AT3_TOOLS`, then `tools/arkos/work/bin`.
 
 ## Songs and effects
 
@@ -46,10 +28,19 @@ Rasm at the address zxbc placed it and comparing the bytes).
 Songs (AKG) do not depend on the .aks's PSG clock (SongToAkg output is byte for
 byte the same: the player has the period table). Sound-effect banks (AKX) bake
 software periods from the .aks's clock, so `--psg cpc` (1000000 Hz) rewrites the
-clock in a temporary copy first (the Arkos tools have no option for it). The
-repo's test bank (`tests/conformance/assets/music/sfx.bas`) is only used for
-register checks.
-See the header of `tools/aks2bas.py` and `lib/music/music.bas`.
+clock in a temporary copy first (the Arkos tools have no option for it).
+See the header of `tools/aks2bas.py` and `lib/music/music.bas` in the cpcbas library.
+
+## The player
+
+The player the library uses, `lib/music/akg_cpc.asm` of the cpcbas repository, is the Arkos Tracker 3.7 AKG player
+(CPC, sound effects on, the default full configuration, so any song works). `convert.sh` and `postprocess.py`
+here are the record of how it was made: Rasm assembles `PlayerAkg.asm`, Disark turns the binary back into plain Z80
+source, `postprocess.py` puts it into the form the 0.1.x assembler accepted, and `convert.sh` then checks that this
+assembler gives the same bytes as Rasm at three origins. They write to `lib/music/`, which this repository no longer
+has, and they need the 0.1.x compiler checkout for that check, so running them today means checking out the `v0.1.2`
+tag of this repository and the 0.1.x compiler fork (see [migrating-from-0.1.md](../../docs/migrating-from-0.1.md)).
+`tests/tools/test_aks2bas.py` still tests `postprocess.py`.
 
 ## Notes
 
@@ -58,9 +49,8 @@ See the header of `tools/aks2bas.py` and `lib/music/music.bas`.
   not. Re-signing a copy ad hoc (`codesign --force --sign - <tool>`, done
   by `fetch.sh`) fixes it; Rasm doesn't need it.
 * Rasm has no Linux release binary; `fetch.sh` builds it from the v3.3
-  source tarball with `cc` on Linux (not exercised in CI: the committed
-  output is what the build uses).
-* The test songs under `tests/conformance/assets/music/` come from the
+  source tarball with `cc` on Linux.
+* The test songs in the cpcbas repository (`tests/conformance/assets/music/`) come from the
   Arkos Tracker 3 repository's MIT-licensed player test resources
   (`hardware/cpc/playerAkg/sources/resources/`, commit 14d975bd), with the
   notice next to them. The songs bundled with the tracker (`songs/`) have

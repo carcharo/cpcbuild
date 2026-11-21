@@ -66,7 +66,7 @@ def sdk_files(cpcbas: Path):
     yield from tree(REPO, "examples")
     for g in GAMES:
         yield from tree(REPO, f"games/{g}")
-    for name in ("library.md", "art-guide.md"):
+    for name in ("library.md", "art-guide.md", "migrating-from-0.1.md"):
         yield f"docs/{name}", REPO / "docs" / name
     yield from tree(REPO / "docs", "tutorial", "docs/tutorial")
     yield from tree(REPO / "docs", "images", "docs/images")
@@ -82,8 +82,8 @@ def readme_first(ver: str, studio: str, emu: str, cver: str) -> str:
 
 What this is
   A toolchain for writing Amstrad CPC programs in CPC BASIC, compiled: the compiler (bin/cpcbas.mjs), its
-  runtime library (lib/), the tutorial and guides (docs/), small examples (examples/), the games Lamplighter and
-  Starfall with their sources (games/), and two Visual Studio Code extensions:
+  runtime library (lib/), the tutorial and guides (docs/), small examples (examples/), the sources of the games
+  Lamplighter and Starfall (games/), and two Visual Studio Code extensions:
     {studio}   CPC Game Studio: project, build, asset editors
     {emu}      CPC Game Studio Emulator: a CPC emulator inside VS Code
   One archive for Windows, macOS and Linux. Nothing is installed system-wide.
@@ -95,6 +95,8 @@ Set up (about two minutes)
      The extensions need nothing else: CPC Game Studio compiles inside VS Code.
   3. File > Open Folder... and open games/lamplighter in this folder. Build the lamp464 target from the
      CPC Game Studio view and run it. Or start your own project with the command "CPC Game Studio: New Project".
+     (Starfall, in games/shooter, is built by its own scripts in a cpcbuild checkout, not from Studio: see
+     games/shooter/README.md.)
   4. Read docs/tutorial/ first, then docs/library.md and docs/art-guide.md.
 
 Command line (optional; needs Node.js 22 or newer, nodejs.org)
@@ -102,10 +104,11 @@ Command line (optional; needs Node.js 22 or newer, nodejs.org)
   node bin/cpcbas.mjs --org 0x40 -D CPC464 -o game.dsk games/lamplighter/main.bas
   node bin/cpcbas.mjs --help
   bin/cpcbas.mjs finds the runtime library in lib/ (next to bin/) by itself. The compiler is cpcbas {cver}.
-  Old (0.1.x) Boriel BASIC projects: node bin/cpcbas.mjs migrate --help, or the Studio command
-  "Convert Project to CPC BASIC".
+  Old (0.1.x) Boriel BASIC projects: docs/migrating-from-0.1.md, node bin/cpcbas.mjs migrate --help, or the
+  Studio command "Convert Project to CPC BASIC".
 
-The programs are not code-signed. Unzip the whole folder first, and keep its path short.
+Unzip the whole folder first, and keep its path short. Nothing in the SDK is a program to install or sign:
+bin/cpcbas.mjs is a script that Node runs, and VS Code installs the .vsix files.
 
 Licences and sources
   See LICENSES/ (what applies to which part) and SOURCES.txt (exactly which sources this was built from,

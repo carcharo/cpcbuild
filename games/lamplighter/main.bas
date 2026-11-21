@@ -4,7 +4,7 @@
 ' The game rules are in game.bas, everything platform-specific in
 ' platform_cpc.bas (the portable layer).
 '
-'   zxbc --arch cpc --org 0x40 -D CPC464 main.bas      (see build_cpc.sh)
+'   cpcbas --org 0x40 -D CPC464 main.bas               (see build_cpc.sh)
 '
 ' Test switches: -D START_ROOM=n (start in room n at its start cell instead
 ' of the cellar, 9), -D SHOT=n (a screenshot after n logic steps, then END),

@@ -958,7 +958,7 @@ function SpriteApp({ client, settings, view }: Host) {
         {plus && (
           <Field id="sp-fmt" label="Format">
             <select id="sp-fmt" class="cb-select" value={v.plusFormat} onChange={(e) => void send({ op: 'setPlusFormat', value: (e.target as HTMLSelectElement).value as 'bas' | 'asm' | 'bin' })}>
-              <option value="bas">bas (Boriel BASIC)</option><option value="asm">asm (defb lines)</option><option value="bin">bin (raw, with a .pal)</option>
+              <option value="bas">bas (CPC BASIC)</option><option value="asm">asm (defb lines)</option><option value="bin">bin (raw, with a .pal)</option>
             </select>
           </Field>
         )}

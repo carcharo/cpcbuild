@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""postprocess.py -- turn Disark's output into source Boriel's zxbasm accepts.
+"""postprocess.py -- turn Disark's output into source the 0.1.x assembler (zxbasm) accepts.
 
     postprocess.py IN.asm OUT.asm [--case-from SRC.asm ...] [--drop-org]
                    [--header FILE]

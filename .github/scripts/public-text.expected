@@ -1,9 +1,4 @@
-# Hits the public-text guard tolerates today ("<rule> <path>" per line). Wave 3 empties this file; delete a line when its file is clean.
-boriel bench/README.md
-boriel bench/cpcbas/banks_bench.bas
-boriel bench/cpcbas/bench2_intloop.bas
-boriel bench/micro_results.md
-boriel docs/library.md
+# Hits the public-text guard tolerates today ("<rule> <path>" per line). Only the tutorial chapters are left; delete a line when its file is clean.
 boriel docs/tutorial/01-new-project.md
 boriel docs/tutorial/02-palette-and-tiles.md
 boriel docs/tutorial/03-the-tower.md
@@ -12,28 +7,5 @@ boriel docs/tutorial/07-lamps-doors-lives-hud.md
 boriel docs/tutorial/08-sound-and-music.md
 boriel docs/tutorial/09-measuring.md
 boriel docs/tutorial/README.md
-boriel games/lamplighter/tests/platform_null.bas
-boriel games/shooter/README.md
-boriel games/shooter/assets/make_art.py
-boriel tests/tools/test_tmx2bas.py
-boriel tools/arkos/README.md
-boriel tools/arkos/postprocess.py
-boriel vscode/cpcbuild-emu/package.json
-boriel vscode/cpcbuild-studio/src/core/libindex.test.ts
-boriel vscode/cpcbuild-studio/src/core/paletteDoc.test.ts
-boriel vscode/cpcbuild-studio/src/core/paletteDoc.ts
-boriel vscode/cpcbuild-studio/src/ext/arkos.ts
-boriel vscode/cpcbuild-studio/src/webview/sprite/main.tsx
-nextbuild vscode/cpcbuild-studio/test/suite/lint.test.ts
-zxb README.md
-zxb bench/README.md
-zxb bench/cpcbas/bench1_bm7.bas
-zxb docs/library.md
 zxb docs/tutorial/01-new-project.md
 zxb docs/tutorial/10-the-spectrum-build.md
-zxb games/lamplighter/main.bas
-zxb tests/tools/test_cpcrun.py
-zxb tools/arkos/README.md
-zxb tools/arkos/convert.sh
-zxb tools/cpcrun.py
-zxb vscode/cpcbuild-studio/README.md

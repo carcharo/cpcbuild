@@ -302,7 +302,7 @@ export function snippets(s: PaletteState): Snippet[] {
     const border = s.border !== null ? `\nSetBorder ${s.border}` : '';
     const dim = e.length ? `DIM pal(${e.length - 1}) AS UBYTE => {${e.join(', ')}}\nSetPalette(@pal(0), ${e.length})${border}\n` : '\' empty palette\n';
     return [
-      { id: 'boriel', label: 'Boriel DIM + SetPalette', text: dim },
+      { id: 'basic', label: 'CPC BASIC DIM + SetPalette', text: dim },
       { id: 'list', label: 'Bare list (--palette)', text: e.join(',') },
       { id: 'setink', label: 'SetInk lines', text: good.map(([v, i]) => `SetInk ${i}, ${v}`).join('\n') + (good.length ? '' : '\' empty palette') + (s.border !== null ? `\nSetBorder ${s.border}` : '') + '\n' },
     ];

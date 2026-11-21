@@ -4,7 +4,7 @@
 // same pinned cpcbas checkout (scripts/link-cpcbas.mjs copies it into vendor/cpcbas first).
 //   bundled/lib/                 cpcbas's lib/ (BASIC and asm sources, music/LICENSE.arkos)
 //   bundled/tools/*.py           the converters Studio runs: img2cpc, tmx2bas, aks2bas, mkcpr
-//   bundled/docs/library.md      the library reference (hover and docs)
+//   bundled/docs/library.md      the library reference (hover and docs), and the note it links to
 //   bundled/NOTICE               cpcbas's notices
 import { cpSync, copyFileSync, existsSync, mkdirSync, rmSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -26,6 +26,7 @@ mkdirSync(join(out, 'docs'), { recursive: true });
 cpSync(join(vendor, 'lib'), join(out, 'lib'), { recursive: true });
 for (const t of TOOLS) copyFileSync(join(repo, 'tools', t), join(out, 'tools', t));
 copyFileSync(join(repo, 'docs', 'library.md'), join(out, 'docs', 'library.md'));
+copyFileSync(join(repo, 'docs', 'migrating-from-0.1.md'), join(out, 'docs', 'migrating-from-0.1.md')); // library.md links to it
 if (existsSync(join(vendor, 'NOTICE'))) copyFileSync(join(vendor, 'NOTICE'), join(out, 'NOTICE'));
 
 const count = (d) => readdirSync(d, { withFileTypes: true }).reduce((n, e) => n + (e.isDirectory() ? count(join(d, e.name)) : 1), 0);

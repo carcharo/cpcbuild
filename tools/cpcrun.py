@@ -85,8 +85,6 @@ raw image loaded and started at --org, default 0x40). --cpcbas-arg, --org and
 --bare apply to a .bas; --model chooses the machine (plus needs the system
 cartridge's F1 key pressed, which the run does). --emu must be cap32.
 
---cpcbas-arg replaces the old --zxbc-arg, which is now an error.
-
 --emu chips runs the same program in the floooh/chips-based tools/chipsrun
 (built on demand; AMSDOS-headered .bin quickloaded, no DSK).
 
@@ -592,7 +590,6 @@ def main(argv: list[str] | None = None) -> int:
         metavar="ARG",
         help="extra argument to pass to cpcbas (repeatable, e.g. --cpcbas-arg=-O1)",
     )
-    parser.add_argument("--zxbc-arg", dest="zxbc_old", action="append", default=[], help=argparse.SUPPRESS)
     parser.add_argument("--org", default=None, metavar="ADDR",
                         help="program origin passed to cpcbas (e.g. 0x40)")
     parser.add_argument("--expect", type=Path, default=None, help="diff captured printer text against this file")
@@ -630,8 +627,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--shot-dir", type=Path, default=None, metavar="DIR",
                         help="--emu chips: directory for shots the program triggers itself (see tests/screens/lib/shot.bas)")
     args = parser.parse_args(argv)
-    if args.zxbc_old:
-        parser.error("--zxbc-arg is gone (the compiler is cpcbas now): use --cpcbas-arg")
     if args.model is None:
         args.model = "plus" if args.cpr else "6128"
     if args.window and (args.emu != "cap32" or args.cpr or args.typed or args.shot or args.shot_dir or args.shot_at is not None

@@ -1,5 +1,5 @@
 /**
- * arkos.ts -- converting Arkos Tracker songs and effect banks to Boriel includes, with the engine
+ * arkos.ts -- converting Arkos Tracker songs and effect banks to CPC BASIC includes, with the engine
  * the settings choose:
  *
  *   builtin  the TypeScript port (src/core/aks2bas.ts): runs the Arkos tools through runTool and

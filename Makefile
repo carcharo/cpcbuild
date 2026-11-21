@@ -23,7 +23,7 @@ run: ## Open a program in a Caprice32 window. PROG=file.bas, .dsk or .bin requir
 	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) $(if $(filter window,$(EMU)),--window,--emu $(EMU)) --model $(MODEL) $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
 
 run-headless: ## Run a program headless on chips and print what it sent to the printer. PROG=path/to/file.bas required, optional MODEL=464|6128, ORG=0x.... and DEFS="-D ..."
-	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=tests/conformance/arithint.bas)"; exit 1; fi
+	@if [ -z "$(PROG)" ]; then echo "Error: PROG is required (e.g., PROG=examples/bounce.bas)"; exit 1; fi
 	$(PYTHON) tools/cpcrun.py $(abspath $(PROG)) --emu chips --model $(MODEL) $(if $(ORG),--org $(ORG)) $(foreach d,$(DEFS),--cpcbas-arg=$(d))
 
 shot: ## Run a program headless with screenshot. PROG=path/to/file.bas required, optional MODEL, ORG and DEFS
@@ -85,9 +85,7 @@ test-plus: ## 6128 Plus on Caprice32 (headless): tests/plus smoke tests, conform
 	$(PYTHON) tests/screens/run.py --model plus --bare
 	$(PYTHON) games/shooter/tests/run.py --plus
 
-# plus_core and plus_dma expect Caprice32's DMA status behaviour (active bits only
-# from DmaStart/DmaStop); CPCEC, like the ASIC, clears a channel's bit when its list reaches STOP
-# and shows DCSR bit 7, so they are left out of the CPCEC runs
+# conformance programs left out of the CPCEC runs (names without .bas); none at present
 CPCEC_SKIP :=
 CPCEC_TESTS := $(filter-out $(addprefix $(CPCBAS)/tests/conformance/,$(addsuffix .bas,$(CPCEC_SKIP))),$(wildcard $(CPCBAS)/tests/conformance/*.bas))
 

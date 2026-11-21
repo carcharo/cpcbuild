@@ -7,13 +7,17 @@
 #
 # Rules (case-insensitive, `git grep` over tracked text files; a file is named once per rule, not per line):
 #   boriel   `Boriel` only in the credit paragraphs (README.md, the Studio README, LICENSES/, SOURCES.txt), the
-#            changelog, and packaging/make-sdk.py (it writes the credit text of the SDK's SOURCES.txt and LICENSES/)
-#   zxb      `zxbc`, `zxbasic` and `ZXBASIC` only in the changelog and the 0.1.x migration note
+#            changelog, the 0.1.x migration note, and packaging/make-sdk.py (it writes the credit text of the SDK's
+#            SOURCES.txt and LICENSES/)
+#   zxb      `zxbc`, `zxbasic` and `ZXBASIC` only in the changelog and the 0.1.x migration note, and in
+#            tools/arkos/convert.sh (below)
 #   Both also allow the Studio's code for 0.1.x projects, which names the old compiler on purpose: "Convert Project
 #   to CPC BASIC" (it asks "Is this a 0.1.x (Boriel BASIC) project?"), the one-time message about the old
 #   `cpcbuild.zxbc.args` setting, their tests and the 0.1.x sample projects they convert (fixtures/convert/); and the
 #   two tests that check the templates and snippets do NOT contain those words. `zxb` also allows the memory-map
 #   fixtures: the compiler's own data labels are named `.core.ZXBASIC_USER_DATA...`.
+#   tools/arkos/convert.sh is the record of how the music player was converted; it runs the 0.1.x assembler from
+#   that compiler's checkout and so has to spell the checkout's name (the script itself is not run any more).
 #   private  `cpcbuild-dev` nowhere
 #   nextbuild  `NextBuild` nowhere
 #
@@ -34,8 +38,8 @@ old_projects+="|$studio/src/core/zxbcArgs.ts|$studio/src/core/zxbcArgs.test.ts|$
 old_projects+="|$studio/src/core/cpcbasTestUtil.ts|$studio/src/core/fixtures/convert/*"
 # tests that assert the words are absent from what a new user receives
 absent_tests="$studio/src/core/templates.test.ts|$studio/src/core/snippets.test.ts"
-allow_boriel="README.md|$studio/README.md|LICENSES/*|SOURCES.txt|CHANGELOG.md|packaging/make-sdk.py|$old_projects|$absent_tests"
-allow_zxb="CHANGELOG.md|docs/migrating-from-0.1.md|$old_projects|$absent_tests|$studio/src/core/fixtures/*.map"
+allow_boriel="README.md|$studio/README.md|LICENSES/*|SOURCES.txt|CHANGELOG.md|docs/migrating-from-0.1.md|packaging/make-sdk.py|$old_projects|$absent_tests"
+allow_zxb="CHANGELOG.md|docs/migrating-from-0.1.md|tools/arkos/convert.sh|$old_projects|$absent_tests|$studio/src/core/fixtures/*.map"
 allow_private=''
 allow_nextbuild=''
 
