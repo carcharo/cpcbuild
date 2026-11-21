@@ -1,0 +1,2 @@
+' generated
+DIM spritesData(7) AS UBYTE

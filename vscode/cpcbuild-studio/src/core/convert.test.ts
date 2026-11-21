@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readTree } from '@cpcbuild/cpcbas/node';
 import { compileFiles, copyFixture, errorsOf, runtime } from './cpcbasTestUtil';
+import type { MigrateReport } from '@cpcbuild/cpcbas';
 import { type CheckConfig, convertSources, formatReport, hasSpectrumTargets, mustFix, removeSpectrumTargets, targetChecks } from './convert';
 
 /** Converts the project in `dir` the way the command does (without the questions) and writes the changed files. */
@@ -50,6 +51,39 @@ describe('Convert Project: the 0.1.2 template projects', () => {
     expect(t).toMatch(/\d+ file\(s\) read, \d+ changed\. Read as Boriel BASIC\./);
     expect(t).toMatch(/W700 x\d+/);
     expect(formatReport(r.report, { notes: true })).toMatch(/note W700/);
+  });
+});
+
+describe('Convert Project: the report', () => {
+  it('counts the findings it lists apart from the rewrites it does not list', () => {
+    const d = (code: string, severity: 'note' | 'warning', line: number) => ({ code, severity, line, col: 1, message: `m${code}` });
+    const report = {
+      files: [{ path: 'a.bas', changed: true, diagnostics: [d('W711', 'note', 1), d('W730', 'warning', 2), d('W730', 'warning', 3), d('W700', 'note', 4), d('W700', 'note', 5)] }],
+      summary: { files: 1, changed: 1, dialect: 'boriel', counts: { W700: 2, W711: 1, W730: 2 } },
+    } as unknown as MigrateReport;
+    const t = formatReport(report);
+    expect(t).toContain('Findings: W730 x2.');
+    expect(t).toContain('Rewritten without a finding: 3 place(s) (W700 x2, W711 x1). These are not listed.');
+    expect(t).not.toContain('W711:');
+    const all = formatReport(report, { notes: true });
+    expect(all).toContain('Findings: W700 x2, W711 x1, W730 x2.');
+    expect(all).not.toContain('Rewritten without');
+  });
+
+  it('only the files a CPC target compiles count as must-fix; the files only a Spectrum target included are listed as unused', () => {
+    const files = new Map<string, string>([
+      ['main.bas', '#ifdef __CPC__\n#include "a.bas"\n#else\n#include "zx.bas"\n#endif\n'],
+      ['a.bas', 'PRINT "cpc"\n'],
+      ['zx.bas', 'PRINT INK 2; "x"\n'],
+    ]);
+    const checks: CheckConfig[] = [{ mains: ['main.bas'], defines: { CPC6128: '' }, targets: ['cpc6128'] }];
+    const r = convertSources(files, { from: 'boriel', runtime: runtime(), checks });
+    expect(mustFix(r.report).map((m) => m.path)).toContain('zx.bas');
+    expect(mustFix(r.report, r.built)).toEqual([]);
+    expect(r.unused).toEqual(['zx.bas']);
+    expect([...r.built!].sort()).toEqual(['a.bas', 'main.bas']);
+    // without the checks nothing is known about what is built
+    expect(convertSources(files, { from: 'boriel' }).unused).toBeUndefined();
   });
 });
 

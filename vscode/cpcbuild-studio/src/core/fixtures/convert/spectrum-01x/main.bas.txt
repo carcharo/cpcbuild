@@ -1,0 +1,8 @@
+#ifdef __CPC__
+#include "platform_cpc.bas"
+#else
+#include "platform_zx.bas"
+#endif
+
+PlatInit()
+PRINT "ready"

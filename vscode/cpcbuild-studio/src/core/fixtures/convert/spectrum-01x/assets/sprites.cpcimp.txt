@@ -1,0 +1,11 @@
+{
+  "format": "cpcimp",
+  "version": 1,
+  "source": "assets/sprites.png",
+  "output": "assets/sprites.bas",
+  "target": "cpc",
+  "mode": 1,
+  "name": "sprites",
+  "kind": "sprite",
+  "frame": "8x8"
+}
