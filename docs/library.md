@@ -1,10 +1,11 @@
 # CPC library reference
 
-The calls available to a Boriel BASIC program compiled with `--arch cpc`
-beyond the standard language: screen basics and sound in `cpc.bas`, the
-cpcbuild graphics and keyboard library, `font.bas`, and Play. For how the
-architecture itself behaves (memory map, firmware gate, PRINT, floats) see
-`docs/architectures/amstrad_cpc.md` in the compiler fork.
+The calls available to a CPC BASIC program beyond the language itself: screen basics and sound in `cpc.bas`, the frame
+hook and game mode, the cpcbuild graphics and keyboard library, the Arkos music player, the extra RAM banks of the 6128,
+and the CPC Plus calls. The library is the `lib/` folder of the cpcbas compiler (MIT); the SDK carries a copy next to
+`bin/cpcbas.mjs`. The language itself (statements, functions, `MODE`, `FRAME`, `PRINT AT` and the rest) is described in
+the compiler's [keyword table](https://github.com/carcharo/cpcbas/blob/main/docs/keywords.md); the SDK has it as
+`docs/keywords.md`. Coming from CPCBuild 0.1.x? See [migrating-from-0.1.md](migrating-from-0.1.md).
 
 Contents
 
@@ -19,12 +20,11 @@ Contents
 9. [API reference](#9-api-reference)
 10. [CPC Plus (cpcplus)](#10-cpc-plus-cpcplus)
 11. [Performance tips](#11-performance-tips)
-12. [Spectrum sprites (zxbuild)](#12-spectrum-sprites-zxbuild)
 
 ## 1. Using the library
 
 ```basic
-#include <cpc.bas>          ' Mode, SetInk, SetBorder, WaitVsync, sound, AY
+#include <cpc.bas>          ' SetInk, SetBorder, GetMode, firmware sound, AY access
 #include <cpcbuild.bas>     ' everything below (display, sprites, fill, tiles, keyboard, palette, spritelist, text)
 ```
 
@@ -32,22 +32,22 @@ Contents
 `<cpcbuild/display.bas>`, `<cpcbuild/sprites.bas>`, `<cpcbuild/fill.bas>`,
 `<cpcbuild/tiles.bas>`, `<cpcbuild/keyboard.bas>`, `<cpcbuild/palette.bas>`,
 `<cpcbuild/spritelist.bas>`, `<cpcbuild/text.bas>`.
-Only the routines a program calls are compiled in (each routine pulls in
-only the assembly it needs); including the umbrella without calling
-anything adds nothing. Settings such as `SPRLIST_MAX` and `TEXT_QUEUE` must
+Only the routines a program calls are compiled in: a SUB or FUNCTION of a library
+file that nothing reaches is dropped without a message, so including the umbrella
+without calling anything adds nothing. Settings such as `SPRLIST_MAX` and `TEXT_QUEUE` must
 be `#define`d before the first include that reaches the module, which with
-`cpcbuild.bas` means before `#include <cpcbuild.bas>`. Other files: `<font.bas>`,
-`<play.bas>`, `<point.bas>`, `<screen.bas>`, `<input.bas>`.
+`cpcbuild.bas` means before `#include <cpcbuild.bas>`. Other files, each its own
+include: `<framehook.bas>` (the frame hook and game mode), `<cpcbuild/banks.bas>` (the extra RAM
+banks; not part of `cpcbuild.bas`), `<music/music.bas>` (the Arkos player), `<cpcplus/cpcplus.bas>`,
+`<cpcplus/sprman.bas>` and `<cpcplus/palcycle.bas>` (the CPC Plus).
 
-All of it is for `--arch cpc` only (the files stop with `#error` otherwise).
-The routines are written from scratch and licensed MIT.
+The routines are licensed MIT (`lib/LICENSE`).
 
 **Bare-metal mode.** The library also works in programs built with
-`-D CPC_BAREMETAL` (no firmware; see the compiler's
-[Bare-metal mode](https://github.com/carcharo/zxbasic/blob/cpc-arch/docs/architectures/amstrad_cpc.md#bare-metal-mode)
-section). Drawing, sprites, tiles and the keyboard calls are unchanged. The
+`-D CPC_BAREMETAL` (no firmware; see the "Bare-metal builds" section of the
+[compiler's README](https://github.com/carcharo/cpcbas/blob/main/README.md)). Drawing, sprites, tiles and the keyboard calls are unchanged. The
 calls that asked the firmware do the work themselves: `ScreenInit`,
-`WaitRetrace`, `WaitVsync`, the double-buffer flips and the palette calls
+`WaitRetrace`, the double-buffer flips and the palette calls
 (notes at each call below). `BankLoad` is refused, since there is no disc.
 
 Typical start of a program:
@@ -56,41 +56,46 @@ Typical start of a program:
 #include <cpc.bas>
 #include <cpcbuild.bas>
 
-Mode 1                      ' switches mode, clears the screen
+DIM pal(3) AS UBYTE => {0, 26, 6, 18}
+
+MODE 1                      ' switches mode, clears the screen
 SetPalette(@pal(0), 4)      ' optional
-ScreenInit()                ' always call after Mode
+ScreenInit()                ' always call after MODE
 ```
 
-`Mode` does not tell the cpcbuild routines about the new screen; `ScreenInit()`
+`MODE` does not tell the cpcbuild routines about the new screen; `ScreenInit()`
 does (it reads the firmware's screen base and scroll offset). Call it after
-every `Mode`.
+every `MODE`.
 
-The library compiles without warnings (since zxbasic `a7c325e6`): the
-compiler doesn't report unused parameters (W150) or missing return values
-(W190) for routines written in `asm`, which read their arguments from the
-stack frame and return in registers, and it drops the library routines you
-never call without a W170 for each.
-
-Compile and run (from the compiler fork):
+Compile and run from a cpcbuild checkout:
 
 ```sh
-tools/cpc/run.sh ../cpcbuild/examples/bounce.bas
+make run PROG=examples/bounce.bas
 ```
+
+or with the compiler on its own (the SDK's `bin/cpcbas.mjs`, or `cpcbas` in a checkout of the compiler), which makes a disc:
+
+```sh
+node bin/cpcbas.mjs -D CPC6128 -o game.dsk main.bas
+```
+
+`-D CPC464`, `-D CPC6128` and `-D PLUS` tell the library which machine to build for.
 
 ## 2. Program origin
 
-By default a CPC program loads at &0040 (64), the lowest safe address, which leaves the most room for code and data (about 34.8 KB with the default heap). Any origin from &0040 up works with `--org`. Use the origin with the compiler and tools:
+By default a CPC program loads at &0040 (64), the lowest safe address, which leaves the most room for code and data (about 34.8 KB with the default heap). Any origin from &0040 up works with `--org` (`#pragma org` sets it from the source). Use the origin with the compiler and tools:
 
 | Tool / build script | Option | Example |
 |---|---|---|
-| `zxbc` | `--org ADDR` | `zxbc --arch cpc --org 0x4000 ...` |
-| `cpcrun.py` / `run.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x4000` |
+| `cpcbas` | `--org ADDR` | `cpcbas --org 0x4000 -o prog.dsk prog.bas` |
+| `cpcrun.py` | `--org ADDR` | `cpcrun.py prog.bas --org 0x4000` |
 | Makefile | `ORG=` | `make run PROG=prog.bas ORG=0x4000` |
-| `build_assets.sh` and other scripts | `ORG=` environment variable | `ORG=0x4000 tools/cpc/run.sh prog.bas` |
+| `cpcbuild.json` target | `org` | `"org": "0x4000"` |
+| CPC Game Studio | `cpcbuild.build.org` setting | the default for every target; a target's own `org` wins |
 
-The tools read the actual origin from the compiled binary's memory map, so `--org` and the default can never disagree with the packer.
+The tools read the actual origin from the compiled binary's memory map (`-M`), so `--org` and the default can never disagree with the packer.
 
-**Caveat:** BASIC's firmware CALL writes &0040-&0047 just before a program starts, so a program loaded by `LOAD` + `CALL &0040` needs special handling (a stub at &A300 to restore the first 8 bytes; `cpcrun.py` does this for quickloads at &0040). **RUN" is safe:** AMSDOS loads last, after BASIC's write, so real RUN" at &0040 works fine on every model (464, 664, 6128).
+**Caveat:** BASIC's firmware CALL writes &0040-&0047 just before a program starts, so a program loaded by `LOAD` + `CALL &0040` needs special handling. **RUN" is safe:** AMSDOS loads last, after BASIC's write, so real RUN" at &0040 works fine on every model (464, 664, 6128).
 
 ## 3. Coordinates
 
@@ -129,7 +134,7 @@ The screen is 16 KB at &C000 in eight 2 KB blocks: pixel line y is in block
 scrolls text it moves the CRTC start address instead of copying memory, so
 after a scroll the top-left byte moves. The library reads the offset (in
 `ScreenInit`, `WaitRetrace` and `FlipBuffer`) and adds it, wrapping inside the
-2 KB block, so drawing stays right after text scrolls. `Mode` resets the
+2 KB block, so drawing stays right after text scrolls. `MODE` resets the
 scroll. Several routines have fast paths that need no wrapping (see
 [Performance tips](#11-performance-tips)).
 
@@ -147,7 +152,7 @@ that mode. All arrays are `UBYTE`.
 | 1 | 4 pixels. Pixel n (0 = left): pen bit 0 in bit 7-n, pen bit 1 in bit 3-n. |
 | 2 | 8 pixels. Pixel n: bit 7-n. |
 
-`PenByte(pen)` gives the byte with every pixel in one pen. `img2cpc.py` does the
+`PenByte(penNo)` gives the byte with every pixel in one pen. `img2cpc.py` does the
 encoding for real art; hand-written data is rarely needed.
 
 ### Sprite
@@ -172,8 +177,8 @@ take tile numbers 0-255 (one byte). `DoTile16(x, y, t)` draws the four tiles
 bottom-right).
 
 By default W follows the mode, so a tile is 8 x 8 pixels: 4, 2 or 1 bytes in
-mode 0, 1, 2 (32, 16 or 8 bytes per tile). `SetTileWidth(w)` fixes W at 1, 2 or
-4 bytes in any mode instead, until `SetTileWidth(0)`; it stays through `Mode`.
+mode 0, 1, 2 (32, 16 or 8 bytes per tile). `SetTileWidth(bytes)` fixes W at 1, 2 or
+4 bytes in any mode instead, until `SetTileWidth(0)`; it stays through `MODE`.
 The usual reason is a finer grid in mode 0: W = 2 gives 4 x 8-pixel tiles and
 40 x 25 cells.
 
@@ -210,7 +215,7 @@ Array's hardware codes.
 How to draw art that converts first time (sizes, layout, palette, Aseprite and
 Tiled settings): [art-guide.md](art-guide.md).
 
-Two Python tools in `tools/` turn art into Boriel include files. They are MIT
+Two Python tools in `tools/` turn art into CPC BASIC include files. They are MIT
 licensed, written from scratch, and generate plain `DIM ... => {...}` arrays and
 `CONST` values. `img2cpc.py` needs Pillow (`pip install pillow`); `tmx2bas.py`
 uses only the standard library. Run them from the cpcbuild repository root.
@@ -240,7 +245,7 @@ byte (2, 4, 8). Tile images must also be a multiple of 8 high.
 | `--write-palette F` | Save the palette used, so other images can share it with `--palette-file`. |
 | `--check` | Do everything a conversion does but write nothing; print a report (see below). With `-o` it is an error. CPC modes only. |
 | `--no-sidecar` | Ignore `NAME.cpcbuild.json` beside the image (see below). |
-| `--spectrum` | Emit a ZX Spectrum bitmap plus attributes instead (see below). |
+| `--plus-sprite`, `--plus-palette`, `--packed`, `--plus-format bas\|asm\|bin` | CPC Plus hardware sprites and 12-bit palettes (see [CPC Plus](#10-cpc-plus-cpcplus)). |
 
 Without `--palette`, the palette is built from the image: each colour goes to its
 nearest of the 27 firmware colours and the distinct ones take pens in order of
@@ -262,11 +267,17 @@ python3 tools/img2cpc.py --mode 1 --name hero --masked --frame 16x16 \
     --palette 0,26,6,18 hero.png -o hero.bas
 ```
 
+<!-- fragment: skip: includes a file that the converter generates (hero.bas, level.bas, tune.bas...) -->
 ```basic
+#include <cpcbuild.bas>
 #include "hero.bas"        ' relative to this source file
-...
+
+DIM x AS INTEGER = 10, y AS INTEGER = 20, f AS UBYTE = 0
+
+MODE 1
+ScreenInit()
 SetPalette(@hero_pal(0), hero_PENS)
-PutSpriteMasked(x, y, hero_W, hero_H, @hero(frame * hero_SIZE))
+PutSpriteMasked(x, y, hero_W, hero_H, @hero(f * hero_SIZE))
 ```
 
 Share one palette between several images: write it with the first
@@ -291,7 +302,7 @@ character but A-Z and 0-9 turned into `_`: a tag `walk` from frame 0 to 3 of
 or a constant that is already defined, is an error, as is a sidecar with a
 wrong `format`, a `version` other than 1 or a wrongly typed field (the message
 is `img2cpc: hero.cpcbuild.json: ...`). The generated file's first line then ends
-`(settings from hero.cpcbuild.json)`. `--spectrum` and `--plus-*` never read a
+`(settings from hero.cpcbuild.json)`. `--plus-*` never reads a
 sidecar. Studio's Import Image fills the recipe from the sidecar of the image
 you pick.
 
@@ -317,11 +328,6 @@ the firmware colour of the pen they got; `transparent pixels` appears for
 unmasked output, where they become pen 0; `total` counts data bytes, not the
 palette. A problem prints the error the conversion gives and exits 1.
 
-`--spectrum` writes ZX Spectrum data from the same PNG, for a program that is
-also built for `--arch zx48k`: `NAME` (8 bytes per 8 x 8 cell, UDG order),
-`NAME_attr` (one attribute byte per cell), `NAME_COLS`, `NAME_ROWS`. Width and
-height must be multiples of 8.
-
 ### tmx2bas.py: Tiled maps to tile maps
 
 ```sh
@@ -336,7 +342,14 @@ tileset's firstgid (`--firstgid` overrides it), with Tiled's flip and rotation
 bits stripped. An empty cell becomes `--empty N` (default 0). A tile number above
 255 is an error; infinite (chunked) maps and zstd data are not supported.
 
+<!-- fragment: skip: includes a file that the converter generates (hero.bas, level.bas, tune.bas...) -->
 ```basic
+#include <cpcbuild.bas>
+#include "bgtiles.bas"
+#include "level.bas"
+
+MODE 0
+ScreenInit()
 SetTileSet(@bgtiles(0))
 TileMap(@level(0), 0, 0, level_W, level_H)
 ```
@@ -344,8 +357,8 @@ TileMap(@level(0), 0, 0, level_W, level_H)
 ### build_assets.sh
 
 `tools/build_assets.sh` regenerates every committed generated include (the
-`.bas` files next to their `.png` and `.tmx` sources in `examples/assets/` and
-`tests/conformance/assets/`) and is the best list of example command lines.
+`.bas` files next to their `.png` and `.tmx` sources in `examples/assets/`) and is the
+best list of example command lines.
 `tools/build_assets.sh --draw` redraws the source art first. The output is
 reproducible byte for byte.
 
@@ -359,8 +372,9 @@ python3 tools/aks2bas.py tune.aks tune.bas --name tune
 python3 tools/aks2bas.py --sfx sfx.aks sfx.bas --name sfx
 ```
 
-The output is a Boriel include with the song or effects data. Use them with the music library:
+The output is a CPC BASIC include with the song or effects data. Use them with the music library:
 
+<!-- fragment: skip: includes a file that the converter generates (hero.bas, level.bas, tune.bas...) -->
 ```basic
 #include <music/music.bas>
 #include "tune.bas"
@@ -372,9 +386,9 @@ SfxPlay(1, 0, 0)                    ' play effect 1 on channel A at full volume
 ```
 
 CPC Game Studio can also make the effects for you: **New Sound Effects Bank** creates `assets/sfx.cpcsfx`, which
-its sound-effects editor draws and plays. Each build converts the bank into `sfx.bas` (and `sfx_zx.bas` for a
-Spectrum target) with a constant per effect, numbered from 1 in the bank's order:
+its sound-effects editor draws and plays. Each build converts the bank into `sfx.bas` with a constant per effect, numbered from 1 in the bank's order:
 
+<!-- fragment: skip: includes a file that the converter generates (hero.bas, level.bas, tune.bas...) -->
 ```basic
 #include <music/music.bas>
 #include <music/quiet.bas>              ' an empty song: effects only advance while a song plays
@@ -396,10 +410,12 @@ songs, sprites, tiles, or code, freeing main RAM for other data.
 
 ```basic
 #include <cpcbuild/banks.bas>
+#include <music/music.bas>
 
 IF BankAvailable() THEN
-    BankLoad("TUNE.DAT", 0, &H4000)     ' load a song into bank 0
-    MusicInitBank(&H4000, 0, 0)         ' play it from there
+    IF BankLoad("TUNE.DAT", 0, &H4000) THEN     ' load a song into bank 0
+        MusicInitBank(&H4000, 0, 0)             ' play it from there
+    END IF
 END IF
 ```
 
@@ -413,9 +429,9 @@ END IF
 | `BankSelected()` | 0-3 or 255 | Which bank is in, or 255 for main RAM |
 | `BankPeek(bank, addr)` | Byte value | Read from a bank without selecting it; addr = &4000-&7FFF |
 | `BankPoke(bank, addr, v)` | — | Write to a bank without selecting it |
-| `BankCopyIn(bank, bankaddr, src, len)` | 1 or 0 | Copy from main RAM into a bank (1 if done, 0 if no RAM or bad range) |
-| `BankCopyOut(bank, bankaddr, dst, len)` | 1 or 0 | Copy from a bank into main RAM |
-| `BankLoad(file$, bank, addr)` | 1 or 0 | Load an AMSDOS disc file into a bank; 1 if done, 0 on error |
+| `BankCopyIn(bank, bankaddr, src, length)` | 1 or 0 | Copy from main RAM into a bank (1 if done, 0 if no RAM or bad range) |
+| `BankCopyOut(bank, bankaddr, dst, length)` | 1 or 0 | Copy from a bank into main RAM |
+| `BankLoad(filename, bank, addr)` | 1 or 0 | Load an AMSDOS disc file into a bank; 1 if done, 0 on error |
 
 ### Rules
 
@@ -432,23 +448,25 @@ END IF
 Generate the song at its bank address and include the raw bytes:
 
 ```bash
-python3 tools/aks2bas.py tune.aks tune.bas --name tune --at 0x4000 --bin
+python3 tools/aks2bas.py tune.aks tune.bas --name tune --at 0x4000 --bin tune.bin
 ```
 
 This generates `tune.bas` (the image for `BankCopyIn`) and a raw binary for `BankLoad`:
 
+<!-- fragment: skip: includes a file that the converter generates (hero.bas, level.bas, tune.bas...) -->
 ```basic
 #include <cpcbuild/banks.bas>
 #include <music/music.bas>
 #include "tune.bas"       ' defines tune and tune_length
 
-BankCopyIn(1, &H4000, @tune, tune_length)  ' or BankLoad("TUNE.BIN", 1, &H4000)
-MusicInitBank(&H4000, 0, 1)                ' play from bank 1
+IF BankCopyIn(1, &H4000, @tune, tune_length) THEN    ' or BankLoad("TUNE.BIN", 1, &H4000)
+    MusicInitBank(&H4000, 0, 1)                      ' play from bank 1
+END IF
 ```
 
 The song's addresses are absolute (&4000-&7FFF inside the bank); the player pages the bank in and out around each tick. `MusicInitBank` does nothing on a 464/664 without extra RAM; check `BankAvailable()` first if the program must run on every model.
 
-Cost (bench/boriel/banks_bench.bas, chips): BankPeek/Poke about 550 T-states from BASIC per call; a copy about 1,200 per call plus 25 per byte.
+Cost (bench/cpcbas/banks_bench.bas, chips): BankPeek/Poke about 550 T-states from BASIC per call; a copy about 1,200 per call plus 25 per byte.
 
 ## 7. Double buffering
 
@@ -456,12 +474,15 @@ Opt-in. The CRTC can only display a screen at &0000, &4000, &8000 or &C000, so t
 second screen is &4000-&7FFF.
 
 ```basic
-Mode 0
+#include <cpcbuild.bas>
+
+MODE 0
 ScreenInit()
-...draw the first frame...        ' on the shown screen (&C000)
+ClearScreen(0)                    ' draw the first frame on the shown screen (&C000)
 EnableDoubleBuffer()              ' copies it to &4000, draws there from now on
 DO
-    ...erase and draw...          ' goes to the hidden screen
+    ScanKeys()
+    ' ...erase and draw...        ' goes to the hidden screen
     FlipBuffer()                  ' at the next flyback show it, draw on the other
 LOOP UNTIL KeyDown(KEY_ESC)
 DisableDoubleBuffer()
@@ -478,19 +499,18 @@ Rules:
   &8000 upward, one after the other, until `#pragma hidata = 0`:
 
   ```basic
-  #pragma hidata = $8000
-  #include "assets/sprites.bas"
-  #include "assets/tiles.bas"
+  #pragma hidata = &8000
+  DIM sprites(63) AS UBYTE => {0, 1, 2, 3}
+  DIM tiles(31) AS UBYTE => {0, 1, 2, 3}
   #pragma hidata = 0
   ```
 
   Only the bytes move; the arrays are used as before. The room is &8000 up to the
-  heap (about 2.9 KB with the default heap at &8B60; `--heap-size` or
+  heap (about 2.9 KB with the default heap at &8B60; `--heap` or
   `--heap-address` make more), and the compiler stops with an error if the data
   runs into the heap. The program is still one file, with zeros at &4000-&7FFF
   in it (about 16 KB more to load; `EnableDoubleBuffer` overwrites them).
   Local arrays, arrays without initial values and strings stay where they are.
-  `--arch cpc` only.
 * **What draws where.** After `EnableDoubleBuffer`, every cpcbuild call
   (`PutSprite`, `FillRect`, `TileMap`, `ClearScreen`, `PokeScreen`,
   `GetBlock` ...) uses the hidden screen. The screen on view changes only in
@@ -515,7 +535,7 @@ Rules:
 
 The AY sound chip has one owner at a time.
 
-* The **firmware sound manager** (BEEP, `SoundQueue`, `SoundEnvelope`) plays
+* The **firmware sound manager** (`SOUND`, `ENV`, `ENT`, `BEEP`, `SoundQueue`, `SoundEnvelope`) plays
   from the interrupt handler and writes the chip by itself whenever a note is
   queued. For programs without a music player, running outside game mode.
   (Bare-metal mode: there is no sound manager; `SoundQueue` and the other
@@ -523,67 +543,64 @@ The AY sound chip has one owner at a time.
 * The **music player** (Arkos Tracker 3: `MusicInit`, `SfxPlay`) plays from the
   frame hook. It owns the AY while a song plays; sound effects work in game mode
   and normal mode. (Bare-metal mode: same.)
-* **Direct access** (`AyWrite`, the Play library) programs the chip itself.
+* **Direct access** (`AyWrite`) programs the chip itself.
   (Bare-metal mode: same; `SoundStop` silences the chip with direct AY writes.)
 
 A program uses one of them at a time. Before direct access, call `SoundStop`
-once (Play does this for you), and queue no firmware sounds while it lasts. `MusicInit`
+once, and queue no firmware sounds while it lasts. `MusicInit`
 calls `SoundStop` so the manager is idle. After using direct access, call `SoundStop`
-before BEEP or `SoundQueue` again. Play and the music player run with interrupts
-off, so the keyboard and the firmware clock stop meanwhile (the music player only
+before BEEP or `SoundQueue` again. The music player runs with interrupts
+off while it plays a tick, so the keyboard and the firmware clock stop meanwhile (only
 outside firmware calls; in game mode the firmware stops anyway). In bare mode the
 same one-owner rule applies: BEEP writes the AY itself, so no BEEP while a song
 plays.
 
 ## 9. API reference
 
-Types are Boriel types. Calls that are **subs** return nothing. "Gate" means the
+Types are CPC BASIC types. Calls that are **subs** return nothing. "Gate" means the
 call goes through the firmware gate (about 220 T-states plus the firmware
 routine). Costs are CPC effective T-states (every instruction rounded up to a
 multiple of 4 T, 4 per microsecond; a frame is 20 ms or 80,000 T), measured in
-Caprice32. They are the routine's own cost; with interrupts always on, the
-firmware takes about 12 % of the CPU on top, so wall-clock time is longer.
+Caprice32 on the 0.1.x build. They are the routine's own cost: the assembly behind
+every routine is the same in 0.2.0, but the call from BASIC is compiled by cpcbas and
+costs what it costs. With interrupts always on, the firmware takes about 12 % of the CPU
+on top, so wall-clock time is longer.
 
 ### 9.1 Screen basics (`cpc.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
-| `Mode n` | `n AS UBYTE`: 0, 1 or 2 | sub |
 | `GetMode()` | | `UBYTE`: the current mode |
-| `SetInk pen, colour` | `pen AS UBYTE` 0-15; `colour AS UBYTE` firmware colour 0-26 | sub |
+| `SetInk penNo, colour` | `penNo AS UBYTE` 0-15; `colour AS UBYTE` firmware colour 0-26 | sub |
 | `SetBorder colour` | `colour AS UBYTE` 0-26 | sub |
-| `WaitVsync` | | sub |
 
-**Mode** switches the screen mode (SCR_SET_MODE), sets the runtime's per-mode
-variables (pen map, text width, graphics scaling) and clears the screen to the
-current PAPER. `n` is masked to 0-3; mode 3 is the undocumented 4-pen 160 x 200
-hardware mode and is not a library mode. Call `ScreenInit()` afterwards.
+The screen mode and the frame wait are statements of the language, not library calls: `MODE n` switches to
+mode 0, 1 or 2 and clears the screen to the current PAPER; call `ScreenInit()` afterwards. `FRAME` waits for the
+frame flyback (MC_WAIT_FLYBACK; in bare-metal mode the PPI's flyback bit). It returns at once if the flyback has
+already started, so call it once per frame; `WaitRetrace(1)` ([Display](#92-display-cpcbuilddisplaybas))
+waits for a new frame and also re-reads the scroll offset.
 
 **GetMode** returns the mode the firmware reports (SCR_GET_MODE).
 
 **SetInk** sets a pen's colour. It is set in the firmware (not flashing) and also
 written straight to the Gate Array, so it shows at once and recolours everything
 drawn in that pen. Pens above 15 and colours above 26 are ignored (use
-`SetBorder` for the border). PRINT's INK, PAPER and BORDER still take Spectrum
-colours 0-7 and map them to pens; `SetInk` changes what a pen looks like.
+`SetBorder` for the border). The statements `PEN` and `PAPER` choose which pens text is
+drawn in; `SetInk` changes what a pen looks like.
 
 **SetBorder** sets the border colour the same way (firmware plus Gate Array).
-
-**WaitVsync** waits for the start of the next flyback (MC_WAIT_FLYBACK). It
-returns at once if the flyback has already started, so call it once per frame.
-Unlike `WaitRetrace` it does not re-read the scroll offset.
-
-**Bare-metal mode:** waits for the next frame on the runtime's frame counter
-(no firmware call).
 
 Cost: each of these is one or two gate calls.
 
 ```basic
-Mode 1
+#include <cpc.bas>
+
+MODE 1
 SetInk 0, 0                 ' pen 0 black
 SetInk 1, 26                ' pen 1 bright white
 SetBorder 0
-PRINT INK 1; "Hello"
+PEN 1
+PRINT "Hello"
 ```
 
 ### 9.2 Display (`cpcbuild/display.bas`)
@@ -599,7 +616,7 @@ PRINT INK 1; "Hello"
 | `PeekScreen(x, y)` | `x, y AS UBYTE` | `UBYTE` |
 
 **ScreenInit** reads the firmware's screen base and hardware-scroll offset. Call
-it at start-up, after `Mode`, and after anything else that changes the screen.
+it at start-up, after `MODE`, and after anything else that changes the screen.
 
 **Bare-metal mode:** the screen base is always &C000 and the scroll offset
 is always 0 (text scrolls in software).
@@ -626,6 +643,10 @@ screen (x of 80 or more, y of 200 or more) is ignored. **PeekScreen** reads one
 back (0 off the screen).
 
 ```basic
+#include <cpcbuild.bas>
+
+MODE 1
+ScreenInit()
 WaitRetrace(2)              ' wait two frames
 PokeScreen(10, 100, PenByte(1))
 ```
@@ -665,6 +686,15 @@ or 8 bytes that is not clipped at the sides takes an unrolled fast path; other
 widths use the generic loops.
 
 ```basic
+#include <cpcbuild.bas>
+
+DIM ship(63) AS UBYTE                 ' your sprite data: 4 bytes wide, 16 lines
+DIM ball(127) AS UBYTE                ' a masked sprite: (mask, pixels) pairs
+DIM under(63) AS UBYTE
+DIM x AS INTEGER = 20, y AS INTEGER = 50
+
+MODE 0
+ScreenInit()
 PutSprite(0, 0, 4, 16, @ship(0))
 GetBlock(x, y, 4, 16, @under(0))      ' save the background
 PutSpriteMasked(x, y, 4, 16, @ball(0))
@@ -675,9 +705,9 @@ PutSprite(x, y, 4, 16, @under(0))     ' put it back
 
 | Call | Parameters | Returns |
 |---|---|---|
-| `PenByte(pen)` | `pen AS UBYTE` | `UBYTE` |
-| `FillRect(x, y, w, h, pen)` | `x, y AS INTEGER`; `w, h, pen AS UBYTE` | sub |
-| `ClearScreen(pen)` | `pen AS UBYTE` | sub |
+| `PenByte(penNo)` | `penNo AS UBYTE` | `UBYTE` |
+| `FillRect(x, y, w, h, penNo)` | `x, y AS INTEGER`; `w, h, penNo AS UBYTE` | sub |
+| `ClearScreen(penNo)` | `penNo AS UBYTE` | sub |
 
 **PenByte** returns the screen byte with every pixel in that pen for the current
 mode (mode 0: pens 0-15, mode 1: 0-3, mode 2: 0-1). The pen is masked to the
@@ -691,6 +721,10 @@ stack pointer as a fill pointer, in 64-byte chunks with interrupts off between
 (each chunk short, the real SP restored in between), and takes about 25 ms.
 
 ```basic
+#include <cpcbuild.bas>
+
+MODE 0
+ScreenInit()
 ClearScreen(0)
 FillRect(10, 20, 8, 40, 2)    ' 8 bytes wide, 40 lines high, pen 2
 ```
@@ -700,7 +734,7 @@ FillRect(10, 20, 8, 40, 2)    ' 8 bytes wide, 40 lines high, pen 2
 | Call | Parameters | Returns |
 |---|---|---|
 | `SetTileSet(addr)` | `addr AS UINTEGER` | sub |
-| `SetTileWidth(w)` | `w AS UBYTE`: 1, 2 or 4 bytes; 0 = the mode's | sub |
+| `SetTileWidth(bytes)` | `bytes AS UBYTE`: 1, 2 or 4; 0 = the mode's | sub |
 | `TileWidth()` | | `UBYTE`, bytes |
 | `DoTile8(x, y, tile)` | `x, y, tile AS UBYTE`; x, y in tile cells | sub |
 | `DoTile16(x, y, tile)` | as above; x, y in 2 x 2-tile cells | sub |
@@ -715,7 +749,7 @@ All draw on the drawing screen and work with a scroll offset. Tile formats:
 * **SetTileSet** sets the address of the tile data used by all later calls.
 * **SetTileWidth** sets the tile width W in bytes for all later calls: 1, 2 or
   4 in any mode; any other value (0) goes back to the mode's width (the
-  default). It is kept through `Mode`. **TileWidth** returns the W in use, so
+  default). It is kept through `MODE`. **TileWidth** returns the W in use, so
   a screen is `80 / TileWidth()` cells across.
 * **DoTile8** draws tile number `tile` at cell (x, y): byte column `x * tile
   width`, pixel line `y * 8`. A cell off the screen draws nothing.
@@ -746,7 +780,16 @@ took 1,853 / 2,639 and 1,466 / 2,204. From BASIC in mode 0, a
 roughly 0.7k on top. A tile's cost depends on its width, not the mode: with
 `SetTileWidth(2)` a mode-0 tile costs what a mode-1 tile does.
 
+<!-- fragment: skip: includes a file that the converter generates (hero.bas, level.bas, tune.bas...) -->
 ```basic
+#include <cpcbuild.bas>
+#include "bgtiles.bas"
+#include "level.bas"
+
+DIM x AS UBYTE = 8, y AS UBYTE = 40
+
+MODE 0
+ScreenInit()
 SetTileSet(@bgtiles(0))
 TileMap(@level(0), 0, 0, level_W, level_H)      ' the whole background
 DoTile8(5, 3, 2)                                ' one cell
@@ -758,7 +801,7 @@ TileRestore(@level(0), level_W, x, y, 4, 16)    ' erase a 4 x 16-byte sprite
 | Call | Parameters | Returns |
 |---|---|---|
 | `ScanKeys()` | | sub |
-| `KeyDown(key)` | `key AS UBYTE`: a firmware key number 0-79 | `UBYTE`: 1 if down at the last scan, else 0 (also 0 above 79) |
+| `KeyDown(keyNo)` | `keyNo AS UBYTE`: a firmware key number 0-79 | `UBYTE`: 1 if down at the last scan, else 0 (also 0 above 79) |
 | `AnyKeyDown()` | | `UBYTE`: 1 if any key was down at the last scan |
 
 **ScanKeys** reads the whole 10 x 8 keyboard matrix straight from the hardware
@@ -783,6 +826,10 @@ pass the firmware key number directly. Row 9 holds joystick 0, which shares the
 matrix with DEL.
 
 ```basic
+#include <cpcbuild.bas>
+
+DIM x AS INTEGER = 40
+
 DO
     WaitRetrace(1)
     ScanKeys()
@@ -817,7 +864,10 @@ put the same colour in the firmware's tables, so they survive.
 changes show at once).
 
 ```basic
+#include <cpcbuild.bas>
+
 DIM pal(3) AS UBYTE => {0, 26, 6, 18}     ' black, bright white, bright red, bright green
+MODE 0
 SetPalette(@pal(0), 4)
 PalUpload(@pal(0), 2, 8)                  ' pens 8 and 9
 ```
@@ -829,7 +879,7 @@ PalUpload(@pal(0), 2, 8)                  ' pens 8 and 9
 | `FrameHook(addr)` | `addr AS UINTEGER`: address of a machine-code routine | sub |
 | `FrameHookOff()` | | sub |
 | `Frames()` | | `ULONG`: frames since the program started |
-| `GameMode(on)` | `on AS UBYTE`: 1 to enable, 0 to disable | sub |
+| `GameMode(onoff)` | `onoff AS UBYTE`: 1 to enable, 0 to disable | sub |
 
 The frame hook is a machine-code routine that runs once per frame at the frame flyback,
 with interrupts off and all registers saved (BC, DE, HL, AF, IX, IY and the alternate
@@ -861,7 +911,10 @@ frame outside the normal interrupt model.
 Cost: each call is one or two lines of inline assembly.
 
 ```basic
+#include <cpcbuild.bas>
 #include <framehook.bas>
+
+DIM f AS ULONG
 
 GameMode(1)                         ' opt-in: more CPU for the loop
 DO
@@ -873,7 +926,7 @@ LOOP UNTIL KeyDown(KEY_ESC)
 GameMode(0)                         ' back to normal
 ```
 
-### 9.9 Music and sound effects (Arkos) (`music.bas` — CPC and Spectrum 128K)
+### 9.9 Music and sound effects (Arkos) (`music/music.bas`)
 
 | Call | Parameters | Returns |
 |---|---|---|
@@ -886,11 +939,9 @@ GameMode(0)                         ' back to normal
 | `SfxStop(channel)` | `channel AS UBYTE` 0-2 | sub |
 | `MusicAuto` | `DIM MusicAuto AS UBYTE` (default 1) | — |
 
-The music player is Arkos Tracker 3.7's PlayerAkg (MIT), converted for Boriel. It plays
+The music player is Arkos Tracker 3.7's PlayerAkg (MIT). It plays
 songs and sound effects through the AY, with each effect assigned to a channel. `MusicAuto`
 controls the mode (read before `MusicInit`):
-
-**Spectrum 128K support:** The same `music.bas` works on `--arch zx48k` (48K builds use `-D ZX48` to stub the music calls). On the 128K the player runs on the IM2 frame hook (like the CPC's frame hook) and chains to the ROM's IM1 routine, so FRAMES, PAUSE, INKEY$ keep working. The API is the same; `MusicInitBank` is CPC-only and has no effect on Spectrum.
 
 * **Auto mode (MusicAuto = 1, the default):** `MusicInit` puts the player on the frame hook,
   so the song advances one tick per frame at 50 Hz, steady whatever the main loop does. It
@@ -922,7 +973,9 @@ about 5 % of the CPU. It is always interrupt-driven on the frame hook (auto mode
 with interrupts off during `MusicFrame` (manual mode), so every call runs under DI. In auto
 mode a program that runs its own code on the hook must use manual mode instead (set `MusicAuto = 0`).
 
+<!-- fragment: skip: includes a file that the converter generates (hero.bas, level.bas, tune.bas...) -->
 ```basic
+#include <cpcbuild.bas>
 #include <music/music.bas>
 #include "tune.bas"
 #include "sfx.bas"
@@ -979,6 +1032,8 @@ bits 0-3, then a 2-byte period). The data is copied: the array can be reused at
 once. Example, a decay from 15 to 0 in 15 steps of 2/100 s:
 
 ```basic
+#include <cpc.bas>
+
 DIM decay(2) AS UBYTE => {15, 255, 2}
 SoundEnvelope 1, @decay(0), 1
 ```
@@ -993,6 +1048,9 @@ play add to the interrupt load: 12.3 % idle, 13.9 % with three plain notes, 22.9
 with three channels of envelopes stepping every 1/100 s.
 
 ```basic
+#include <cpc.bas>
+
+DIM decay(2) AS UBYTE => {15, 255, 2}
 DIM r AS UBYTE
 SoundEnvelope 1, @decay(0), 1
 IF SoundFree(1) > 2 THEN r = SoundQueue(1, 239, 20, 15, 1)    ' middle C, 0.2 s, envelope 1
@@ -1013,71 +1071,32 @@ stops reading. Read [Sound ownership](#8-sound-ownership) first. Reading registe
 returns keyboard row 0.
 
 ```basic
+#include <cpc.bas>
+
 SoundStop                       ' make the firmware's manager idle
-AyWrite 7, %00111110            ' tone A on, everything else off
-AyWrite 0, 239 BAND 255: AyWrite 1, 0
+AyWrite 7, &X00111110           ' tone A on, everything else off
+AyWrite 0, 239 AND 255: AyWrite 1, 0
 AyWrite 8, 15
 ```
 
-### 9.12 Play (`play.bas`)
+### 9.12 Calls the 0.1.x library had
 
-```basic
-#include <play.bas>
-Play "O4 V12 cdefgab", "O3 V10 cegc"
-```
+These are not in the 0.2.0 library. The language has a statement for most of them.
 
-`Play(channel0 AS STRING, channel1 AS STRING = "", channel2 AS STRING = "")` plays MML
-strings on the three AY channels, syntax-compatible with the Spectrum 128 Play
-command. The commands it supports, its limits, and the changes made for the CPC
-are listed in the header comment of `src/lib/arch/cpc/stdlib/play.bas` in the
-compiler fork. Points that matter on the CPC:
+* `Mode n` is the statement `MODE n`; `WaitVsync` is the statement `FRAME` (or `WaitRetrace(1)`, which waits for a
+  new frame).
+* `POINT(x, y)`, `SCREEN$(row, col)` and `INPUT(n)` (the files `point.bas`, `screen.bas` and `input.bas`) are the
+  statements and functions `POINT` or `TEST`, `COPYCHR$` and `INPUT` or `LINE INPUT` of the language.
+* `SetFont(addr)` (`font.bas`) is `SYMBOL AFTER` and `SYMBOL`, which redefine characters in the firmware's table.
+  A whole replacement font in screen memory is `TextFont` ([Text](#914-text-cpcbuildtextbas)).
+* `Play` (`play.bas`, the Spectrum 128 MML player) is not ported: use the music player ([9.9](#99-music-and-sound-effects-arkos-musicmusicbas))
+  or `SOUND`.
+* The Spectrum sprite engine (`Sprites*`, `SpriteAdd`, `SpriteImage`) went with the Spectrum target.
 
-* It turns interrupts off for the whole tune and back on at the end, so the
-  keyboard, firmware clock and sound queue stop meanwhile, and it does not
-  return until the tune is over.
-* It calls SOUND_RESET once at the start (the sound manager is then idle). It
-  owns the AY while it runs; see [Sound ownership](#8-sound-ownership).
-* It is for the CPC's 1 MHz AY clock with the tempo calibrated to the CPC's CPU
-  speed (within 0.6 % in tests).
-* `--enable-break` is not supported with Play.
-* It needs the default optimisation level (`-O2`); at level 1 or lower it does
-  not work.
+[migrating-from-0.1.md](migrating-from-0.1.md) lists everything that changed for a 0.1.x project, and `cpcbas migrate`
+rewrites most of it for you.
 
-### 9.13 Font (`font.bas`)
-
-| Call | Parameters | Returns |
-|---|---|---|
-| `SetFont(addr)` | `addr AS UINTEGER`: address of 768 bytes | sub |
-
-`SetFont` replaces the glyphs of characters 32-127 with the 768 bytes at `addr`:
-96 characters of 8 bytes, top row first, bit 7 the leftmost pixel (the Spectrum's
-font format). Characters 128-255 keep their CPC shapes. Call it again to switch
-fonts; `addr` may be anywhere in memory.
-
-The first call takes 1792 bytes of heap for the firmware's character table (which
-must be in &4000-&BFFF), installs it, and frees the 896-byte UDG table if the
-program used `USR "a"` (UDGs defined before the call survive, and `USR "a"` keeps
-working). A program that also uses `USR "a"` needs 2,688 bytes of free heap at its
-first `SetFont`; if the heap is too small the call stops with error 3 (raise it
-with `#pragma heap_size = 8192`). A program that does not include `font.bas` pays
-nothing. `CHARS` is set to the table address minus 256, but `POKE CHARS` at
-23606 does not work on the CPC; use `SetFont`.
-
-```basic
-#include <font.bas>
-DIM myfont(767) AS UBYTE => { ... }
-SetFont(@myfont(0))
-```
-
-### 9.14 Also in the cpc standard library
-
-| Call | Notes |
-|---|---|
-| `POINT(x, y)` (`point.bas`) | The pen of the pixel at x, y in PLOT coordinates (bottom-left origin, mode pixels). 0 off the screen. Saves and restores the graphics cursor. |
-| `SCREEN$(row, col)` (`screen.bas`) | The character at a text cell, as a one-character string, or `""`. |
-| `INPUT(maxchars)` (`input.bas`) | Reads a line with the firmware cursor: `a$ = INPUT(20)`. |
-
-### 9.15 Sprite list (`cpcbuild/spritelist.bas`)
+### 9.13 Sprite list (`cpcbuild/spritelist.bas`)
 
 Sprites for a game whose background behind them is one colour: a sprite is drawn
 by OR onto the screen and erased by filling its box with the background byte, so
@@ -1113,15 +1132,20 @@ A frame is `SprListBegin()`, one `SprListDraw` per sprite, `SprListEnd()`, then
   `y + h <= 200`), or it corrupts memory. A box that crosses the wrap point of a
   hardware-scrolled screen is drawn wrongly.
 
-Cost (chips, T-states including the CPC's wait states): draw + erase of a 4 x 8
-byte sprite 3,004 inside the routines, 1 x 4 bytes 719; one frame of one 4 x 8
-sprite from BASIC (Begin, Draw, End) 4,585, of which about 1,100 is the call from
-BASIC. Size: 1,005 bytes for Begin, Draw and End, 320 of them the two lists at the
-default capacity.
+Cost (chips, T-states including the CPC's wait states, measured on the 0.1.x build): draw + erase
+of a 4 x 8 byte sprite 3,004 inside the routines, 1 x 4 bytes 719. Size: 1,052 bytes for a program that
+calls Begin, Draw and End, 320 of them the two lists at the default capacity.
 
 ```basic
 #define SPRLIST_MAX 24
 #include <cpcbuild.bas>
+
+DIM ship(31) AS UBYTE
+DIM shot(3) AS UBYTE
+DIM shipx AS UBYTE = 40, shotx AS UBYTE = 20, shoty AS UBYTE = 100
+
+MODE 0
+ScreenInit()
 EnableDoubleBuffer()
 DO
     SprListBegin()
@@ -1140,7 +1164,7 @@ Starfall's CPC layer draws ~20 a step this way): `.core.__SL_BEGIN`,
 (`__SL_RESET` only AF) and keep IX and IY; the full list is at the top of
 `lib/cpcbuild/spritelist.asm`.
 
-### 9.16 Text (`cpcbuild/text.bas`)
+### 9.14 Text (`cpcbuild/text.bas`)
 
 Text from a compact 1-bit font, drawn straight into screen memory in 8 x 8 pixel
 cells: much smaller than a tile font or `SetFont`.
@@ -1149,8 +1173,8 @@ cells: much smaller than a tile font or `SetFont`.
 |---|---|---|
 | `TextFont(addr, first, rows [, last])` | `addr AS UINTEGER`; `first, rows, last AS UBYTE` | sub |
 | `TextPen(inkpen, paperpen)` | `UBYTE` | sub |
-| `TextAt(col, row, s$)` | `col, row AS UBYTE`; `s$ AS STRING` | sub |
-| `TextAtBoth(col, row, s$)` | as `TextAt` | sub |
+| `TextAt(col, row, s)` | `col, row AS UBYTE`; `s AS STRING` | sub |
+| `TextAtBoth(col, row, s)` | as `TextAt` | sub |
 | `TextFlush()` | | sub |
 
 * **Font format:** `rows` bytes a glyph (1-8), top row first, glyphs from
@@ -1169,18 +1193,18 @@ cells: much smaller than a tile font or `SetFont`.
 * No firmware calls, so it works in bare-metal builds; it honours the hardware
   scroll offset.
 
-Cost (chips, game mode): a 7-row glyph about 2,600 T-states in mode 0, 2,130 in
-mode 1; each `TextAt` call about 2,900 more for the compiler's copy of the string
-argument; `TextPen` about 6,300 (mode 0, it builds a table); an empty `TextFlush`
-about 60. Size: `TextFont` + `TextAt` 1,216 bytes, about 390 of them the compiler's
-string support (shared with any other string use); `TextAtBoth` + `TextFlush`
-another 397, 160 of them the queue.
+Cost (chips, game mode, measured on the 0.1.x build): a 7-row glyph about 2,600 T-states in mode 0, 2,130 in
+mode 1; `TextPen` about 6,300 (mode 0, it builds a table); an empty `TextFlush`
+about 60. Size: `TextFont` + `TextAt` 1,212 bytes (the compiler's string support is part of
+that and is shared with any other string use); `TextAtBoth` + `TextFlush`
+another 384, 160 of them the queue.
 
 ```basic
 #include <cpcbuild.bas>
-#include "font.bas"                   ' DIM font(321) AS UBYTE => {...}
-Mode 0: ScreenInit()
-TextFont(@font(0), 45, 7, 90)          ' ASCII 45-90, 7 rows
+
+DIM font(321) AS UBYTE               ' your font data, 7 rows for each of ASCII 45-90
+MODE 0: ScreenInit()
+TextFont(@font(0), 45, 7, 90)        ' ASCII 45-90, 7 rows
 TextPen(3, 1): TextAt(2, 0, "SCORE 00000")
 ```
 
@@ -1213,7 +1237,7 @@ it again). The full reference, with every rule, is the header of
 | `PlusPeek(addr)`, `PlusPoke(addr, value)` | one byte of the ASIC page (&4000-&7FFF), paging done for you |
 | `PlusPokeBlock(dest, src, count)` | a block from RAM into the ASIC page in one window; cut at &7FFF |
 | `PlusPageIn()`, `PlusPageOut()` | hand the ASIC page to the program (the only calls that still reserve &4000-&7FFF) |
-| `SetPalette12(pen, rgb)` | pen 0-15 gets `rgb` = `&H0RGB` (red, green, blue 0-15 each) |
+| `SetPalette12(penNo, rgb)` | pen 0-15 gets `rgb` = `&H0RGB` (red, green, blue 0-15 each) |
 | `SetBorder12(rgb)` | the border |
 | `GetPalette12(entry)` | colour of entry 0-31 (16 = border, 17-31 = sprite colours 1-15) |
 | `SetPalette12Block(addr, first, count)` | count colours (two bytes each, as `img2cpc.py --plus-palette` writes) into entries first.. |
@@ -1227,8 +1251,8 @@ it again). The full reference, with every rule, is the header of
 | `SpriteHide(n)`, `SpritesHideAll()` | hide one / all 16 |
 | `ScrollFine(dx, dy)` | soft scroll: dx 0-15 mode-2 pixels right, dy 0-7 lines up |
 | `ScrollBorder(flag)` | 1 widens the left border by 16 mode-2 pixels (hides the scroll's left edge) |
-| `SplitScreen(line, addr)`, `SplitScreenCrtc(line, crtc)`, `SplitOff()` | from scan line `line` (1-255) show the screen at byte address `addr` (or CRTC word R12 * 256 + R13); off |
-| `RasterIntAt(line, handler)`, `RasterIntOff(line)`, `RasterIntMove(old, new)`, `RasterIntClear()` | bare mode only: see Raster interrupts |
+| `SplitScreen(scanLine, addr)`, `SplitScreenCrtc(scanLine, crtc)`, `SplitOff()` | from scan line `scanLine` (1-255) show the screen at byte address `addr` (or CRTC word R12 * 256 + R13); off |
+| `RasterIntAt(scanLine, handler)`, `RasterIntOff(scanLine)`, `RasterIntMove(oldLine, newLine)`, `RasterIntClear()` | bare mode only: see Raster interrupts |
 | `DmaStart(channel, addr)`, `DmaStop(channel)`, `DmaActive()`, `DmaPrescaler(channel, value)`, `DmaAlign(addr)` | DMA sound: see DMA sound |
 
 **Coordinates.** x is in mode-2 pixels from the left edge of the 640-pixel
@@ -1242,7 +1266,7 @@ sprites overlap, the lower-numbered one is in front (sprite 0 over sprite
 
 Measured on Caprice32 and CPCEC, bare / firmware mode (firmware-mode figures
 include the firmware's own interrupts). Net microseconds on top of BASIC's
-own call overhead (about 93 us):
+own call overhead:
 
 | Call | Cost |
 |---|---|
@@ -1261,10 +1285,10 @@ T-states on the CPC) plus about 0.3 ms.
 
 ### Rules to know
 
-- **Set the 12-bit palette again after `Mode()`.** In firmware mode the
+- **Set the 12-bit palette again after `MODE`.** In firmware mode the
   firmware rewrites all 17 inks every 10 frames, which would undo 12-bit
   pen and border colours; the library stops that refresh on the first pen
-  or border call, and `Mode()` restarts it and resets the inks. Bare mode
+  or border call, and `MODE` restarts it and resets the inks. Bare mode
   has no refresh. Sprite colours are never touched by the firmware.
 - **Call `SpritesHideAll()` before END** (and `ScrollFine(0, 0)`,
   `SplitOff()`): sprites, scroll and split are ASIC state and survive the
@@ -1287,11 +1311,11 @@ interrupts per frame, which the firmware needs, so `RasterIntAt` and friends
 work only with `-D CPC_BAREMETAL`; a firmware build that uses them fails with
 an undefined label naming bare mode.
 
-`RasterIntAt(line, handler)` runs a machine-code routine (ending in RET) once a
-frame at scan line `line` (1-255), with interrupts off and all registers
+`RasterIntAt(scanLine, handler)` runs a machine-code routine (ending in RET) once a
+frame at scan line `scanLine` (1-255), with interrupts off and all registers
 saved. Up to 15 lines; the library adds a frame entry at line 243 that keeps
 `Frames()`, PAUSE, BEEP and the frame hook at 50 Hz. A handler must not call
-the firmware or change the table. `RasterIntMove(old, new)` moves a line
+the firmware or change the table. `RasterIntMove(oldLine, newLine)` moves a line
 keeping its handler (0.19 ms in place, about 0.5 ms across other lines,
 against 1.0 ms for `RasterIntOff` + `RasterIntAt`) and returns 1 if moved;
 call it in the vertical blank after the frame tick or from a frame hook,
@@ -1306,7 +1330,7 @@ together than (920 + handler T-states) / 256 lines are delayed.
 **Steady splits: wait in HALT.** The Z80 finishes its current instruction
 before taking the interrupt, so if the main program is busy, a colour change
 jitters sideways by up to that instruction's length. Keep the main program
-waiting in HALT while the lines go by (PAUSE and WaitVsync do; a game draws,
+waiting in HALT while the lines go by (`PAUSE` and `FRAME` do; a game draws,
 then waits for the next frame).
 
 **Fast path for handlers.** The calls above are too slow inside a handler.
@@ -1355,10 +1379,10 @@ slots stay the program's.
 | `SprSetImage(slot, img)`, `SprSetImagePacked(slot, img)` | change the picture of an allocated slot: nothing if it holds `img` already, else an upload is queued; a sprite already showing keeps its old picture until the flush |
 | `SprMove(slot, x, y)` | position, clamped as `SpriteMove`; remembered, so a sprite waiting for its upload appears at its latest position |
 | `SprMag(slot, magx, magy)` | magnification 1, 2, 4 (default 1, 1; `SprAlloc` resets it; 0 hides) |
-| `SprFlush(maxUploads)` | does up to `maxUploads` queued uploads now (slot order), then shows those sprites that have a position; call once a frame, after `WaitVsync` |
+| `SprFlush(maxUploads)` | does up to `maxUploads` queued uploads now (slot order), then shows those sprites that have a position; call once a frame, after `FRAME` |
 | `SprPending()`, `SprUploads()` | uploads queued; uploads done since `SprMgrInit` (a diagnostic) |
 
-A typical frame: `WaitVsync`, `SprFlush(1)` (one unpacked upload takes
+A typical frame: `FRAME`, `SprFlush(1)` (one unpacked upload takes
 2.2-2.4 ms, see Cost), then `SprMove` for every live sprite.
 A slot number outside the manager's range, or not allocated, is ignored by
 every call. All calls go through the `cpcplus` ones, so they follow the same
@@ -1385,7 +1409,7 @@ an empty call of the same signature, except where marked:
 | `SprSetImage` + `SprFlush(1)` with an upload, per upload, ms including both calls | 2.2 / 2.4 ms (the bare `SpriteSetImage`: 1.8 / 2.0) |
 | `SprSetImagePacked` + `SprFlush(1)` with an upload, per upload, ms | 5.1 / 5.6 ms (the bare `SpriteSetImagePacked`: 4.7 / 5.2) |
 
-Measured with `Ticks()` over 1,000 calls (400 uploads for the last two rows).
+Measured over 1,000 calls (400 uploads for the last two rows).
 Multiplexing helpers (re-using slots further down the screen from raster
 interrupts) are not part of this module.
 
@@ -1401,7 +1425,7 @@ run at once.
 | `PalCycleSet(id, kind, first, count, table, period)` | cycle `id` (0-3). `kind` 0: screen pens, `first` = the first pen (0-15); `kind` 1: sprite colours, `first` = the first sprite colour (1-15, palette entry 16 + first). `table` = `count` 12-bit colours as an array of `UINTEGER` `&H0RGB` (the words of `SetPalette12`; kept by reference, it must stay in place). Every `period` frames (0 counts as 1) the colours rotate by one: after k steps entry `first + i` shows `table((i + k) mod count)`. The table is written at once. The range is cut to the palette; fewer than 2 colours does nothing |
 | `PalCycleDir(id, dir)` | 0 forward (default), 1 backward, 2 ping-pong (the offset runs 0 to count - 1 and back) |
 | `PalCycleStop(id)` | stops it; the colours stay as they are |
-| `PalCycleStep()` | call once a frame, after `WaitVsync`: every cycle that is due is rotated, one block write each |
+| `PalCycleStep()` | call once a frame, after `FRAME`: every cycle that is due is rotated, one block write each |
 
 **The sprite palette is shared by all 16 sprites**: a cycled sprite colour
 changes in every sprite that uses it, so reserve the cycled indices for the
@@ -1433,10 +1457,9 @@ empty call of the same signature:
 - `img2cpc.py --plus-sprite [--packed]` turns 16x16 cells of a PNG into
   sprite data and a 15-colour sprite palette (error if more than 15 colours,
   unless `--palette` gives them); `--plus-palette` gives 16 pen colours.
-- `mkcpr.py prog.bin -o game.cpr` builds a cartridge from a bare program
-  (`-D CPC_BAREMETAL -D CPC_OWNFONT`; a cartridge has no firmware font). The
-  origin is read from the `.map` next to the binary, or given with
-  `--load`. A boot stub copies the program into RAM; it must lie below &C000.
+- `cpcbas -f cpr -D CPC_BAREMETAL -D CPC_OWNFONT prog.bas -o game.cpr` builds a cartridge from a bare
+  program (a cartridge has no firmware font). A boot stub copies the program into RAM; it must lie below &C000.
+  In CPC Game Studio a target with `"package": "cpr"` does the same.
 - `cpcrun.py prog.bas --model plus [--bare]` runs on a 6128 Plus in
   Caprice32; `cpcrun.py --cpr game.cpr` runs a cartridge; `--emu cpcec` uses
   CPCEC instead (`tools/cpcec/fetch_build.sh`, or `make cpcec`).
@@ -1453,7 +1476,7 @@ emulator.
   hardware sprites at several sizes, 12-bit colour cycling, 14 steady raster
   bars, a split screen with a smooth-scrolling landscape, and a DMA tune.
   Build the cartridge with `sh examples/plusdemo/build.sh`.
-- **Starfall Plus** (games/shooter, `build_plus.sh`): the ship, bullets,
+- **Starfall Plus** (games/shooter, built by `build_plus.sh` in a checkout): the ship, bullets,
   bombs, diver and explosions are hardware sprites on disc (`RUN"PLUS`) and
   cartridge; the cartridge also multiplexes the 18-alien formation onto six
   sprites with raster handlers. See games/shooter/README.md.
@@ -1471,8 +1494,8 @@ for about 88 % of the machine, less with music.
 **Game mode.** In game mode the firmware's interrupt work stops outside firmware calls,
 cutting the baseline from 12.3 % to about 1-2 %. The music player (if running) takes
 about 5 % on top, so game mode with music leaves about 92 % free vs 80 % in normal mode
-with music. Measured with bounce.bas: silent 25.0 updates/s (normal), 25.0 (game mode);
-with effects only 19.6 (normal), 25.0 (game mode); with music and effects 20.0 (normal),
+with music. Measured with bounce.bas on chips (`-D BENCH`): silent 20.0 updates/s (normal), 25.0 (game mode);
+with effects only 18.2 (normal), 25.0 (game mode); with music and effects 18.2 (normal),
 25.0 (game mode).
 
 **Array indexing.** An array element with a variable index calls the compiler's
@@ -1482,33 +1505,33 @@ keep per-object state in a small record of bytes in one array and reach it throu
 a pointer:
 
 ```basic
+CONST NBALLS = 8
 DIM st(NBALLS * 16 - 1) AS UBYTE
+DIM p AS UINTEGER, x AS INTEGER
 p = @st(0)
 x = PEEK(p + 0) + PEEK(p + 2)       ' fields at fixed offsets
 POKE p + 0, x
 p = p + 16                          ' next object
 ```
 
-In bounce.bas moving the ball state from indexed arrays to 16-byte records took the
-rate from 12.5 to 20 updates a second.
+bounce.bas keeps each ball's state in 16-byte records for this reason.
 
 **Arithmetic.** Prefer shifts and 8-bit variables to divisions, MOD and 16-bit
-multiplies in inner loops. Use integers or fixed point, not FLOAT (floating point is
-about three times slower than Locomotive BASIC; integer code is 12 to 52 times
-faster). `-O2` and `-O3` made no difference to bounce.bas.
+multiplies in inner loops. Use integers or fixed point, not REAL: the REAL maths calls the firmware's
+floating-point routines, as Locomotive BASIC does, so it is no faster than the interpreter,
+while integer code is many times faster ([bench/README.md](https://github.com/carcharo/cpcbuild/blob/main/bench/README.md) has the measured comparison).
 
 **Erase with TileRestore.** To erase a sprite on a tiled background, use one
 `TileRestore(@map, mapw, x, y, w, h)` call instead of looping `DoTile8` in BASIC.
-In bounce.bas replacing the BASIC erase loops with `TileRestore` took the rate from
-10.5 to 12.5 updates a second, and its short path (rectangle on the screen, no
-scroll offset) from 20 to 25. A `DoTile8` call from BASIC costs about 2.3k including
-the call; a redrawn tile inside `TileMap` costs about 0.8-1.2k.
+bounce.bas erases its balls with `TileRestore`, and its short path (rectangle on the screen, no
+scroll offset) is the fast one. A `DoTile8` call from BASIC costs about 2.3k including
+the call on the 0.1.x build; a redrawn tile inside `TileMap` costs about 0.8-1.2k.
 
 **Fast paths need an unscrolled screen.** Sprites of width 1, 2, 4 or 8 bytes that
 are not clipped at a side, tile maps and rectangle fills use unrolled loops when no
 screen row can wrap past the end of its 2 KB block, which holds when the hardware
 scroll offset is 48 or less. Scrolled text leaves a larger offset, and the slower
-generic paths are used until `Mode` resets it. Keep text from scrolling (or print
+generic paths are used until `MODE` resets it. Keep text from scrolling (or print
 before drawing) in programs that need speed.
 
 **Sprites.** The 64 bytes of a 4 x 16 sprite cost 1,280 T-states in `LDI` alone
@@ -1520,7 +1543,7 @@ For 8 masked 16 x 16 sprites per frame the routine time is about 42k T of the
 66k including the BASIC call overhead.
 
 **Gate calls.** Every firmware call costs about 220 T-states more than the
-routine. `Mode`, `SetInk`, `SetPalette`, `WaitRetrace`, `FlipBuffer` and the sound
+routine. `MODE`, `SetInk`, `SetPalette`, `WaitRetrace`, `FlipBuffer` and the sound
 calls each make at least one; the tile, sprite, fill and keyboard routines make
 none. Do palette work outside the inner loop.
 
@@ -1529,42 +1552,36 @@ only in short chunks. Clear only the area you need with `FillRect`, or redraw th
 background with `TileMap`, when the frame budget is tight.
 
 **Double buffering costs memory and one frame of latency**: code and data must fit
-in 12 KB, and `FlipBuffer` ends the frame at the flyback. The loop of bounce.bas
-runs at 25 updates a second (every other frame) with 8 balls.
+in &0040-&3FFF (about 16 KB), and `FlipBuffer` ends the frame at the flyback. The loop of bounce.bas
+runs at 25 updates a second (every other frame) with 8 balls in game mode.
 
-**Sound costs CPU.** In bounce.bas with 8 balls, silent: 25.0 updates a second;
-with wall blips: 22.3; with blips and a two-channel tune: 20.0 (19.8 on the 464).
+**Sound costs CPU.** In bounce.bas with 8 balls, silent: 20.0 updates a second;
+with wall blips: 18.2; with blips and a two-channel tune: 18.2 (the same on the 464).
 `SoundQueue` itself is cheap (about 1.2 ms), the cost is the firmware's interrupt
 work. Top the queues up every few frames instead of every frame, and leave out
 envelopes that step every 1/100 s if the frame budget matters.
 
 **Starfall reference** (games/shooter, 25 Hz logic, CPC 6128 with music and effects in game mode):
-25.0 steps/s, all CPU available elsewhere. Single-buffered CPC 464: about 25.0 steps/s with about 30 %
-spare (no pacing). Spectrum 128K: 24.2 steps/s (about 20 of 250 steps overrun at formation moves; the Arkos
-player costs about 0.2 frame per step). See games/shooter/README.md for all four builds' performance.
+see games/shooter/README.md for the builds' performance.
 
 **bounce.bas reference** (the demo in `examples/`, 8 masked balls over a tiled
-mode-0 background, double buffered): about 10 updates a second at first, about 12
-with unrolled sprite and tile routines, 25 with `TileRestore` and pointer records.
-Before those changes, about 103k T per iteration were the demo's own BASIC, about
-66k the 8 masked sprites (42k inside the routine), and each ball's erase 4-6
-`DoTile8` calls at about 2.3k each. Build switches: `-D BALLS=n` (1-8, default 8),
+mode-0 background, double buffered): the rates are in the figures above. Build switches: `-D BALLS=n` (1-8, default 8),
 `-D NOMUSIC` (effects only), `-D NOSFX` (music only), `-D NOSOUND` (silent),
 `-D GAMEMODE` (game mode on), `-D FWSOUND` (firmware sound instead of music player),
 `-D BENCH` (runs 250 updates and prints the rate), `-D SHOT=n` (n updates then screenshot).
 
 **What each routine adds** to a program (bytes; a mode-0 program that includes
-`cpcbuild.bas` and calls `Mode`, `ScreenInit` and the one routine; each routine
-pulls in only the assembly it needs, and including the library costs nothing):
+`cpcbuild.bas` and calls `MODE`, `ScreenInit` and the one routine; each routine
+pulls in only the assembly it needs, and including the library costs nothing; the call's arguments are part of the count):
 
 | Call | Bytes | Call | Bytes |
 |---|---|---|---|
-| `PutSprite` | 636 | `DoTile8` | 508 |
-| `PutSpriteMasked` | 952 | `TileMap` | 806 |
-| `GetBlock` | 624 | `TileRestore` | 1,074 |
-| `FillRect` | 349 | `EnableDoubleBuffer` + `FlipBuffer` | 154 |
-| `ClearScreen` | 149 | `SprListBegin` + `Draw` + `End` | 1,005 |
-| `TextFont` + `TextAt` | 1,216 | + `TextAtBoth` + `TextFlush` | 397 |
+| `PutSprite` | 734 | `DoTile8` | 554 |
+| `PutSpriteMasked` | 1,050 | `TileMap` | 876 |
+| `GetBlock` | 722 | `TileRestore` | 1,144 |
+| `FillRect` | 447 | `EnableDoubleBuffer` + `FlipBuffer` | 119 |
+| `ClearScreen` | 149 | `SprListBegin` + `Draw` + `End` | 1,052 |
+| `TextFont` + `TextAt` | 1,212 | + `TextAtBoth` + `TextFlush` | 384 |
 
 Routines that share code cost less together than the sum (`PutSprite` and
 `GetBlock` share the clipper; `TextAt` shares the string support with any other
@@ -1572,74 +1589,8 @@ string use).
 
 **Other things that cost time or memory.**
 
-* Strings built in a loop can overflow the default 4.7 KB heap (error 9 or a reset);
-  raise it with `-H` or `#pragma heap_size` and keep per-frame text out of the
+* Strings built in a loop can overflow the default 4.7 KB heap (a run-time error: Memory full);
+  raise it with `--heap` or `#pragma heap_size` and keep per-frame text out of the
   hot loop.
-* A `FOR` loop with a `UBYTE` counter that runs to 255 never ends.
-* `AND` and `OR` are logical operators in Boriel; use `BAND`, `BOR` and `BXOR` for
-  bits.
-
-## 12. Spectrum sprites (zxbuild)
-
-`lib/zxbuild/sprites.bas` is for `--arch zx48k` (48K and 128K): pre-shifted OR
-sprites with background save and attribute colour, double-buffered on the 128K
-(screens 5 and 7). It is Starfall's Spectrum engine made into a library. The
-Spectrum builds find it with `-I lib`, as they find `music/`.
-
-| Call | Parameters | Returns |
-|---|---|---|
-| `SpritesInit(double)` | `UBYTE`: 1 double-buffered, 0 single | `UBYTE`: 1 if double buffering is on |
-| `SpriteImage(n, src, wide, attr)` | `n, wide, attr AS UBYTE`; `src AS UINTEGER` | sub |
-| `SpritesBegin()` | | sub |
-| `SpriteAdd(n, x, y)` | `UBYTE` | sub |
-| `SpritesSync()` | | sub |
-| `SpritesFlip()` | | sub |
-| `SpritesReset()` | | sub |
-| `SpritesScreen()` | | `UINTEGER`: &4000, or &C000 double-buffered |
-| `SpritesDone()` | | sub |
-
-A frame is `SpritesBegin()`, one `SpriteAdd` per sprite, `SpritesSync()`, then
-(after `HALT`, so the switch lands in the frame blank) `SpritesFlip()`.
-
-* **Images:** `wide` 16 x 8 pixels (16 bytes, row-major, left byte then right
-  byte), or narrow 4 x 4 pixels (4 bytes, the pixels in the high nibble). Bit 7
-  is the leftmost pixel; set bits are ink, drawn by OR. `SpriteImage` builds two
-  shifts (0 and 4 pixels), so x is rounded down to a multiple of 4. `attr` is the
-  attribute the covered cells get (0 = leave attributes alone).
-* **Erase:** `SpritesSync` puts back the saved screen bytes and attributes, in
-  reverse order, then draws. It keeps the leading run of sprites that are the same
-  as last time on that screen and doesn't touch them, so put the sprites that move
-  least first.
-* **Limits:** `ZXSPR_MAX` sprites a frame (default 28, at most 63), `ZXSPR_IMAGES`
-  images (default 16, at most 64; the compiler stops with an error past either);
-  wide sprites with y over 184 and narrow ones over 188 are dropped,
-  and wide ones past x = 240 are drawn at 240.
-* **Memory:** a fixed data area of 84 x `ZXSPR_MAX` + 44 x `ZXSPR_IMAGES` bytes
-  from `ZXSPR_BASE` (default &DB00 to &E6F0). Set any of the three with `#define`
-  before the include.
-* **128K double buffering:** bank 7 stays paged in at &C000 (screen 7 is
-  &C000-&DAFF), so the data area must be at &DB00 or above, and the program and
-  stack below &C000. `SpritesInit` falls back to one screen if there is no paging
-  or the stack is too high. Screen 7 isn't cleared for you: clear both screens and
-  call `SpritesReset()`. Call `SpritesDone()` before returning to BASIC.
-* **48K, or `SpritesInit(0)`:** one screen, changed in place; pace frames with
-  `HALT` before `SpritesSync`.
-* PRINT and PLOT keep drawing on screen 5; `SpritesScreen()` gives the address of
-  the screen being drawn on (attributes at +&1800).
-
-Cost (chips, T-states per sprite, erase + draw + attributes): wide 3,300 (x a
-multiple of 8), 3,900 (x = 4 mod 8), 2,700 without attributes; narrow 2,200, 1,650
-without attributes; an unchanged sprite about 270. `SpriteAdd` from BASIC adds
-about 1,500. Size: 2,354 bytes for the whole API, plus the data area (not in the
-program file).
-
-**From assembly**, skipping the BASIC call (about 1,500 T-states a sprite: worth it
-for a game drawing 25 sprites a step, as Starfall's Spectrum layer does): call
-`.core.__ZXS_QRESET` (start the frame), `.core.__ZXS_SPRITE` with B = image,
-D = x, E = y (queue one), `.core.__ZXS_SYNC` and `.core.__ZXS_FLIP`, the routines
-behind `SpritesBegin`, `SpriteAdd`, `SpritesSync` and `SpritesFlip`. Their
-registers are listed at the top of `lib/zxbuild/sprites.asm`.
-
-It doesn't use Boriel's `cb/maskedsprites.bas` for paging: that file's
-`CheckMemoryPaging` and `SetDrawingScreen7` are FASTCALL routines with local
-variables, which overwrite the locals of the SUB or FUNCTION that calls them.
+* `AND`, `OR` and `XOR` are bitwise, as in Locomotive BASIC, and a comparison is -1 when true:
+  see the language reference for truth values.

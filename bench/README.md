@@ -29,7 +29,7 @@ binaries, `.dsk` images and raw printer captures from the last run.
   and runs the Locomotive programs, times both, prints the report).
 - `cpcbas/*.bas` -- the six CPC BASIC programs, plus two builds of
   benchmark 6 (see below) and `banks_bench.bas` (bank-switching costs, run by hand).
-  They are the 0.1.x Boriel programs translated with `cpcbas migrate`.
+  They are the 0.1.x programs, translated with `cpcbas migrate`.
 - `locomotive/*.bas` -- the Locomotive BASIC source, as plain text, in
   exactly the form typed into the emulator via autocmd.
 
@@ -128,28 +128,27 @@ benchmarks (BM7, screen PRINT) land slightly outside it for reasons noted
 per-benchmark below.
 
 1. **BM7** (`bench1_bm7.bas`) -- the classic Rugg/Feldman integer
-   benchmark, ported from `zxbasic/benchmarks/bm7a.bas` (loop+arithmetic+
-   GOSUB+array fill), with the Spectrum-only `POKE 23672` frame-counter
-   timing dropped (we time externally instead). Outer loop reduced from
-   the canonical 1000 to 800 to land Locomotive under ~20s.
+   benchmark (loop+arithmetic+GOSUB+array fill), timed externally.
+   Outer loop reduced from the canonical 1000 to 800 to land
+   Locomotive under ~20s.
 2. **Integer loop** (`bench2_intloop.bas`) -- 1500 iterations of
-   sum/bitwise-AND/compare. See "Boriel runtime/language findings" below
-   for why the mask is 8191, not 32767.
+   sum/bitwise-AND/compare. See "Caveats" below for why the mask is
+   8191, not 32767.
 3. **Sieve of Eratosthenes** (`bench3_sieve.bas`) -- primes below 2000
    (reduced from the suggested 5000 so Locomotive lands under 20s), byte
    array, prints the count at the end (669 primes below 5000 in the
    original range; 303 below 2000 -- both sides agreed).
 4. **Float maths** (`bench4_float.bas`) -- 200 iterations (reduced from
-   300) of `x = SQR(i)*SIN(i) + i/3`, `FLOAT` vs default `REAL`. See
-   "Boriel runtime/language findings" -- this is the one benchmark where
-   Boriel is *slower* than Locomotive.
+   300) of `x = SQR(i)*SIN(i) + i/3`, `FLOAT` vs default `REAL`. cpcbas
+   calls the firmware's floating-point routines, as Locomotive does, so the
+   two are close.
 5. **Strings** (`bench5_strings.bas`) -- 2000 iterations of clear/append/
    append/LEN.
 6. **Screen PRINT** (`bench6_print_clean.bas` / `bench6_print_echoed.bas`
    / `locomotive/bench6_print.bas`) -- `PRINT i;" ";` for i=1..600 (reduced
    from 1000). Firmware-bound in both languages, so expected to be
    similar; see "The echo-distortion problem" below for why this one
-   benchmark needs two Boriel builds.
+   benchmark needs two cpcbas builds.
 
 All benchmarks print a result/checksum after `E` so both sides can be
 compared; see the results table for actual values and any mismatches
@@ -165,7 +164,7 @@ narrow min-max spreads below show.
 
 ### cpcbas 0.2.0-dev (2026-11-13)
 
-The programs in `cpcbas/` (the 0.1.x Boriel programs, translated), built by cpcbas.
+The programs in `cpcbas/` (the 0.1.x programs, translated), built by cpcbas.
 
 | Benchmark | Locomotive s (median, min-max) | cpcbas s (median, min-max) | Speed-up x | Result check |
 |---|---|---|---|---|
@@ -176,45 +175,30 @@ The programs in `cpcbas/` (the 0.1.x Boriel programs, translated), built by cpcb
 | 5. Strings (2000 iter) | 12.650 (12.620-12.657) | 3.260 (3.259-3.262) | 3.9x | loco=[8000] cpcbas=[8000] |
 | 6. Screen PRINT (1..600) | 17.451 (17.446-17.477) | 14.017 (13.980-14.050) | 1.2x | loco=[300] cpcbas(echoed)=[300] |
 
-Benchmark 6 is slower than in 0.1.x because `PRINT i;" ";` now prints what
-Locomotive's `PRINT` prints: a sign position before the number and a space
-after it, so each item is two characters longer. The "distortion check" row
-(the same program built with printer echo) measured 15.321 s, 1.09x the clean
-build. Benchmark 4 is 3.6x faster than 0.1.x: cpcbas calls the CPC firmware's
-floating-point routines, as Locomotive does. The integer benchmarks (1, 3, 5)
-are 12-15 % slower than 0.1.x.
+Benchmark 6 prints what Locomotive's `PRINT` prints: a sign position before
+the number and a space after it, so each item is two characters longer. The
+"distortion check" row (the same program built with printer echo) measured
+15.321 s, 1.09x the clean build. Benchmark 4 calls the CPC firmware's
+floating-point routines, as Locomotive does, which is why the two are close.
 
-### 0.1.x (Boriel fork)
-
-The same benchmarks on the Boriel fork this project started from, kept as history.
-
-| Benchmark | Locomotive s (median, min-max) | Boriel s (median, min-max) | Speed-up x | Result check |
-|---|---|---|---|---|
-| 1. BM7 (Rugg/Feldman) | 17.863 (17.861-17.880) | 1.024 (1.018-1.028) | 17.4x | loco=[7, 800] boriel=[5, 800] |
-| 2. Integer loop (1500 iter) | 7.327 (7.322-7.342) | 0.142 (0.138-0.145) | 51.6x | loco=[2731] boriel=[2731] |
-| 3. Sieve of Eratosthenes (<2000) | 14.273 (14.263-14.284) | 1.162 (1.160-1.164) | 12.3x | loco=[303] boriel=[303] |
-| 4. Float maths (200 iter) | 9.594 (9.591-9.603) | 32.309 (32.242-32.371) | **0.3x (Boriel slower)** | loco=[6688.08573] boriel=[6688.08573] ✓ |
-| 5. Strings (2000 iter) | 12.667 (12.644-12.683) | 2.909 (2.904-2.929) | 4.4x | loco=[8000] boriel=[8000] |
-| 6. Screen PRINT (1..600) | 17.480 (17.457-17.484) | 9.877 (9.876-9.880) | 1.8x | loco=[300] boriel(echoed)=[300] |
+These rows are not set beside the figures of the 0.1.x compiler: that was
+another compiler, measured on another day, and the ratio of two such runs
+says little about either.
 
 Locomotive's internal `TIME`-based self-measurement matched the external
 S/E polling method to within 3-35ms on every benchmark (see "Cross-check"
-above) -- e.g. BM7: 17.860s internal vs 17.863s external; float: 9.587s vs
-9.587s.
+above) -- e.g. BM7: 17.860s internal vs 17.863s external.
 
 Result checks: benchmarks 2 to 6 match exactly between the two
 languages. Benchmark 1 (BM7) differs for a documented, expected reason --
 integer division/rounding semantics -- see "Caveats" below, not a bug in
 either implementation.
 
-`pgrep cap32` was empty after every run in this session (no leaked
-emulator processes).
-
 ## The echo-distortion problem (benchmark 6)
 
 `-D __CPC_PRINTER_ECHO__` (the flag `cpcrun.py` always compiles with, and
 this harness uses for every *other* benchmark so their checksums can
-reach the printer) makes Boriel's `print.asm` mirror every character
+reach the printer) makes cpcbas's `print.asm` mirror every character
 actually sent to `TXT_OUTPUT` to the printer too, via a second
 `MC_PRINT_CHAR` firmware call per character (`__PRN_ECHO` in
 `print.asm`). For benchmarks 1-5 nothing is printed to the screen during
@@ -228,7 +212,7 @@ above). Benchmark 6 is different: its *entire timed section* is 600
 printer traffic the loop itself generates, distorting the very thing being
 measured.
 
-So benchmark 6 has two Boriel builds:
+So benchmark 6 has two cpcbas builds:
 
 - `bench6_print_clean.bas`, compiled **without** the echo flag: the timed
   loop's `PRINT` statements behave exactly as they would in any ordinary
@@ -236,124 +220,46 @@ So benchmark 6 has two Boriel builds:
   the same inline-ASM `MC_PRINT_CHAR` route used everywhere else -- no
   checksum is printed here (it wouldn't reach the printer without echo),
   since correctness is already confirmed by the echoed build below. **This
-  is the build whose time is reported as "Boriel" in the results table.**
+  is the build whose time is reported as "cpcbas" in the results table.**
 - `bench6_print_echoed.bas`, compiled **with** the echo flag: identical
   source otherwise, used only (a) to confirm the checksum matches
   Locomotive's, and (b) to measure the actual size of the distortion.
   Measured distortion was much smaller than the naively-expected "roughly
-  2x": 9.877s clean vs 10.965s echoed (median of 3), i.e. only about
-  **1.11x** slower with echo on, not 2x -- the per-character firmware
+  2x": 14.017s clean vs 15.321s echoed (median of 3), i.e. only about
+  **1.09x** slower with echo on, not 2x -- the per-character firmware
   print/scroll cost in `TXT_OUTPUT` evidently dominates over the extra
   `MC_PRINT_CHAR` echo call, rather than the two being comparable. See the
   results table's "distortion check" row.
 
 The task's preference for using the inline-ASM marker trick *everywhere*
 ("so no benchmark is affected by echo mode") is followed for all six
-benchmarks -- every S/E/DONE marker in every `boriel/*.bas` file goes
+benchmarks -- every S/E/DONE marker in every `cpcbas/*.bas` file goes
 through the same `MC_PRINT_CHAR`-via-gate snippet, never through
 `PRINT`/echo. Only the *checksum* after `E` still relies on ordinary
 `PRINT` (and hence, for benchmarks 1-5, on the echo flag being on) --
 switching that to the same inline-ASM approach would need a second,
-string-walking asm routine (Boriel strings are a 2-byte length prefix plus
-raw bytes, confirmed from `zx48k`'s `printstr.asm`) to convert the numeric
+string-walking asm routine to convert the numeric
 result to text and walk it; not attempted, since the checksum print always
 happens after `E`, outside every timed section, so it cannot distort any
 measurement regardless of which path it takes.
 
-## Boriel runtime/language findings (0.1.x history)
-
-Found while writing and tuning these benchmarks on the Boriel fork. None of
-these were fixed there; they describe 0.1.x, not cpcbas (cpcbas takes a
-variable `STEP`, and `AND` is bitwise).
-
-1. **`FOR ... STEP <variable>` crashes the compiler.** The sieve's inner
-   marking loop was originally written as
-   `FOR j = i + i TO 4999 STEP i` (a variable step, since the step is the
-   prime `i`). This crashes `zxbc --arch cpc` (and, by inspection of the
-   traceback, would crash on any z80 arch -- the failing code is in the
-   architecture-generic `src/arch/z80/visitor/translator.py`, not
-   anything CPC-specific) with:
-   ```
-   File ".../src/arch/z80/visitor/translator.py", line 629, in visit_FOR
-       if not direct or node.children[3].value < 0:  # Here for negative steps
-   File ".../src/symbols/id_/_id.py", line 186, in __getattr__
-       return getattr(self.ref, item)
-   AttributeError: 'VarRef' object has no attribute 'value'
-   ```
-   `visit_FOR`'s negative-step check assumes the STEP expression is always
-   a literal constant (`.value`) and never guards for a `VarRef`. Worked
-   around in `boriel/bench3_sieve.bas` by using `WHILE j <= 1999 / WEND`
-   instead of `FOR j = ... STEP i`; the Locomotive side keeps the more
-   natural `FOR j=i+i TO 1999 STEP i`, since Locomotive has no such
-   restriction, so the two sides use slightly different loop constructs
-   for the same algorithm.
-
-2. **Plain `AND` is boolean/logical, not bitwise** -- this is documented
-   behaviour (`docs/bitwiselogic.md`: bitwise ops are the separate `bAND`/
-   `bOR`/`bNOT`/`bXOR` keywords), not a bug, but it cost real debugging
-   time and is worth flagging for anyone porting a benchmark that assumes
-   C-like semantics: `s = s AND 32767` on a `UInteger` silently computes
-   the *logical* AND (returns 0 or 1) instead of masking, with no warning
-   or type error. `bench2_intloop.bas` uses `bAND`.
-
-3. **Combined with (2): Locomotive's 16-bit *signed* integer overflow trap
-   turned a benchmark-design mistake into a silent hang.** The first
-   version of benchmark 2 masked with `bAND 32767` (`&7FFF`) intending to
-   bound the running sum, but AND-ing with `0x7FFF` only ever clears bit
-   15 -- for any value already below 32768 it's a no-op, so the sum
-   actually grew unboundedly every iteration. On the Boriel/UInteger side
-   this is harmless (unsigned 16-bit wraps silently on overflow). On the
-   Locomotive/`DEFINT` side, a plain `s=s+i` that pushes `s` above 32767
-   raises a runtime **Overflow** error (Locomotive integers are 16-bit
-   *signed*, range -32768..32767, and arithmetic that leaves that range
-   traps rather than wrapping) -- around i=256 for this benchmark's
-   growth rate. Since that happens mid-`RUN`, with no screen capture in
-   this headless setup, the symptom from the harness's point of view was
-   simply "no `E` marker ever arrives" (an indistinguishable-from-a-hang
-   90s timeout, not a crash we could see). Final version masks with `8191`
-   instead, which is small enough that `s+i` (i up to 1500) never
-   approaches the signed 16-bit limit on either side.
-
-4. **`SQR(FLOAT)` is surprisingly the dominant cost in the float
-   benchmark, more so than `SIN`.** Isolating the two calls (200
-   iterations each, same harness): `SQR(i)` alone took **22.4s** (~112ms/
-   call) against `SIN(i)` alone at **8.6s** (~43ms/call) -- SQR is about
-   2.6x more expensive than SIN here, which is the opposite of what one
-   might expect (SIN as a transcendental/series function vs SQR as a
-   single Newton-style iteration). Combined, `SQR(i)*SIN(i)+i/3` for 200
-   iterations takes Boriel **31.4s** against Locomotive's interpreted
-   **9.6s** for the identical algorithm -- **compiled Boriel is about
-   3.3x slower than the interpreter** for this specific FLOAT-heavy
-   workload, the only benchmark in this set where that happens. Not
-   investigated further (would mean reading `src/lib/arch/cpc/runtime/
-   math/sqrt.asm`, which is out of scope here), but worth flagging as a
-   real optimisation target for the CPC FLOAT library.
-
 ## Caveats
 
-- **Interrupts** (superseded: interrupts always on since Phase 4d; about 12 % of the CPU goes to the firmware's interrupt handler). Compiled Boriel programs now run with interrupts enabled, like Locomotive BASIC.
-  The timing advantage Boriel had from running with interrupts disabled (saving the 300Hz handler's overhead when not calling
-  firmware) is gone. What remains: compiled code executes straight-line code faster than the interpreter, and plays music
-  or real-time graphics without the firmware's I/O pacing. Both languages now pay the same interrupt tax.
-- **Float formats differ.** Boriel's CPC `FLOAT` uses the same 5-byte
-  Sinclair-style format as the Spectrum backend; Locomotive uses the
-  Amstrad firmware's own 5-byte real format. In practice benchmark 4's
-  checksum matches exactly (6688.08573) once both loop counters are
-  floats. An earlier run declared the Boriel counter `UInteger`, which made
-  `i/3` integer division and the checksum exactly 67 lower. Float *division*
-  between integer-typed operands still differs by language semantics
-  (see BM7 below).
+- **Interrupts.** Compiled programs run with interrupts enabled, like Locomotive BASIC: about 12 % of the CPU goes to the
+  firmware's 300 Hz interrupt handler in both. What compiled code gains is straight-line speed, and music or real-time
+  graphics without the firmware's I/O pacing.
+- **Float semantics.** cpcbas and Locomotive use the firmware's own 5-byte real format, so benchmark 4's checksum matches
+  exactly (6688.08573) once both loop counters are reals. Division between integer-typed operands differs by language
+  semantics (see BM7 below).
 - **Locomotive's integer arithmetic is 16-bit *signed*** (-32768..32767),
-  and overflowing it raises a runtime error rather than wrapping (see
-  finding 3 above). Boriel's `UInteger` is 16-bit *unsigned* and wraps
+  and overflowing it raises a runtime error rather than wrapping. A compiled `UInteger` is 16-bit *unsigned* and wraps
   silently. Any checksum comparison between an integer benchmark's two
   sides should be read with this in mind, not just as "did the numbers
-  match" -- with 20000 iterations, for instance (the size the task
-  originally suggested for benchmark 2), the plain sum would have
-  overflowed Locomotive's signed range and wrapped/aborted well before
-  Boriel's unsigned side did anything unusual.
+  match". That is why benchmark 2 masks its sum with 8191: a first version masked with 32767, which only ever clears
+  bit 15, so the sum grew until Locomotive stopped on an Overflow error with nothing left to send to the printer
+  (the symptom from the harness was a timeout, not a crash).
 - **BM7's `v` checksum differs between the two sides on purpose**, and
-  the reason is itself informative: `v = k/2*3+4-5` with `k=5`. Boriel
+  the reason is itself informative: `v = k/2*3+4-5` with `k=5`. cpcbas
   performs `/` between two integer-typed operands as *integer* division
   (truncating early: `5/2 -> 2`), giving `v=5`. Locomotive computes the
   whole expression in real arithmetic and rounds only at the final
@@ -385,23 +291,3 @@ leaves the per-call cost.
 | `ATN(a)` | 23.4 | 24.0 | 1.02x |
 
 cpcbas calls the same firmware routines as Locomotive, so the functions cost the same and every result agrees to the digit.
-
-### 0.1.x (Boriel fork)
-
-| Operation | Boriel ms/call | Locomotive ms/call | Speed-up (Locomotive time / Boriel time) |
-|---|---|---|---|
-| `a+b` | 0.88 | 0.93 | 1.05x |
-| `a-b` | 1.25 | 0.98 | 0.79x |
-| `a*b` | 1.95 | 1.89 | 0.97x |
-| `a/b` | 2.56 | 2.30 | 0.90x |
-| `SIN(a)` | 40.2 | 13.8 | 0.34x |
-| `COS(a)` | 42.5 | 14.7 | 0.35x |
-| `EXP(a)` | 40.8 | 13.2 | 0.32x |
-| `ATN(a)` | 62.8 | 24.0 | 0.38x |
-| `SQR(a)` | 112.1 | 26.9 | 0.24x |
-| `LN(a)` / Locomotive `LOG(a)` | 66.9 | 13.0 | 0.20x |
-
-These 0.1.x figures are history. Basic arithmetic is roughly even; the functions are 3-5x slower in Boriel.
-The Spectrum-style algorithms (long series evaluated through the
-calculator's byte-code; SQR computed as x^0.5 via LN and EXP) are heavier
-than the CPC firmware's routines, which Locomotive uses.

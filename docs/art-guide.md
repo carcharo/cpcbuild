@@ -148,14 +148,7 @@ tile 0 is a blank tile 0.
   `0x000000`, `0x111111` ... `0xFFFFFF` are exact.
 - `--plus-sprite` (and `--plus-palette` for the colours).
 
-## 7. The same art on the Spectrum
-
-`--spectrum` makes ZX Spectrum data from the same PNG. Width and height must
-be multiples of 8, and each 8 x 8 cell gets only two colours (its two most
-frequent: paper and ink). Keep two colours per 8 x 8 cell where the art must
-look right on both machines.
-
-## 8. Using it in a project
+## 7. Using it in a project
 
 With the Aseprite extension:
 
@@ -178,7 +171,7 @@ Without Aseprite: put the PNG in `assets/`, right-click it, **CPC Game Studio: I
 Image**, choose the settings and save; the recipe it writes is built the same
 way.
 
-## 9. Checklist
+## 8. Checklist
 
 - [ ] Mode chosen; editor pixel ratio set (2:1, 1:1, 1:2).
 - [ ] Widths are multiples of 2 / 4 / 8 pixels (mode 0 / 1 / 2).
@@ -189,7 +182,7 @@ way.
 - [ ] Transparent = alpha (or one `--transparent` colour), masked sprites only.
 - [ ] `img2cpc.py --check` says `ok`.
 
-## 10. Common errors
+## 9. Common errors
 
 | Message | Fix |
 |---|---|
