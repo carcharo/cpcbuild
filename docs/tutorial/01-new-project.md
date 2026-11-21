@@ -49,7 +49,7 @@ program instead (the `cpcbuild.run.emulator` setting, step 4).
 Two things to know about where Studio shows up:
 
 - Studio wakes up in a folder that contains a `cpcbuild.json` (step 3). Only then do its Explorer
-  right-click entries (**Import Image**, **Convert Tiled Map to BASIC**, **Run in Emulator**...) and its
+  right-click entries (**Import Image**, **Convert Tiled Map to BASIC**...) and its
   **CPC Game Studio** icon (a chip) in the Activity Bar appear. In any other folder Studio leaves your
   `.bas` files alone.
 - **Restricted Mode.** If you clone a project (or open a folder you have not opened before), VS Code asks
@@ -74,11 +74,11 @@ CPC Game Studio environment check
   [ok] cpcbas (CPC BASIC compiler): <version>, built in (it runs inside the extension)
   [ok] BASIC library (lib/): /.../lib
   [optional] Python 3: ...
-        fix: Only needed with the python image engine.
+        note: Only needed with the python image engine; the built-in engine needs nothing.
   [ok] Image and cartridge tools: built in
-  [ok] Emulator: cpcbuild-emu extension: cpcbuild.emu.version answers
+  [ok] Emulator: CPC Game Studio Emulator: installed, <version>
   [optional] Arkos command-line tools: not found
-        fix: Run "CPC Game Studio: Download Tools". Or set "cpcbuild.arkos.toolsPath" (in a cpcbuild checkout: `sh tools/arkos/fetch.sh`).
+        fix: Run "CPC Game Studio: Download Tools". Or set "cpcbuild.arkos.toolsPath" to a folder with the Arkos Tracker command-line tools. Only needed to convert music and sound effects.
   [optional] Tiled map editor: not found
         fix: Install Tiled (mapeditor.org) for "Open in Tiled".
 ```
@@ -166,7 +166,7 @@ little program (2,394 bytes when this was checked) the report is:
 ```
 Build report for cpc464:
   2394 bytes, &0040-&099A
-    headroom below &4000: 13926 bytes  [back screen / banks (double buffering)]
+    headroom below &4000: 13926 bytes  [back screen (double buffering)]
     headroom below &8B60: 33222 bytes  [firmware heap start]
 Built /your/folder/lamplighter/build/cpc464.dsk
 ```

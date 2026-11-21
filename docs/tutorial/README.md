@@ -167,7 +167,7 @@ still uses a few things that Studio does not do; the tutorial says so in the cha
   Makefile targets in the cpcbuild repository (`make test-lamp`, `make test-lamp-plus`, chapter 9).
 
 Two Studio rules to know. First, Studio only acts in a folder that contains a `cpcbuild.json`: its
-right-click menu entries (Import Image, Convert Tiled Map to BASIC, Run in Emulator, Convert and Play Music...)
+right-click menu entries (Import Image, Convert Tiled Map to BASIC, Convert and Play Music...)
 appear only there. Second, a folder you cloned or opened for the first time is in VS Code's Restricted Mode,
 where Build, Run and asset generation refuse until you trust the workspace (chapter 1).
 

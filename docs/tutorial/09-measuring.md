@@ -39,7 +39,7 @@ whose size is 27,436 bytes, it reads:
 ```
 Build report for cpc464:
   27436 bytes, &0040-&6B6C
-    passes &4000 by 11116 bytes (only matters if you use a back screen or banks)
+    passes &4000 by 11116 bytes (only matters if you use the back screen)
     headroom below &8B60: 8180 bytes  [firmware heap start]
 ```
 
@@ -56,7 +56,7 @@ different. The lines mean:
   and has **8,180 bytes spare**: room to add rooms. (With the assembly of this chapter it will be 8,461.)
 - **`passes &4000 by 11116 bytes`**: a reference line, not an error. A program that
   uses double buffering or the 6128's banks must stay below `&4000` because it reserves `&4000-&7FFF`.
-  Lamplighter is single-buffered and keeps no banks, so it passes that line by design, and the line says it only matters if you use a back screen or banks.
+  Lamplighter is single-buffered and keeps no banks, so it passes that line by design, and the line says it only matters if you use the back screen.
   A real limit that is exceeded says `OVER` in capitals. The build still finishes: Studio *reports* the
   limit, it does not stop the build. (The finished game's `build_cpc.sh` does stop, with a message, if the
   program ends above `&8B60`. That is a shell script in the repository, not part of Studio; the tutorial never needs it, and we have not tried it on Windows.)

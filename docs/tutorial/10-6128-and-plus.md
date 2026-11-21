@@ -289,7 +289,7 @@ own reference lines:
 ```
 Build report for plus-cart:
   30721 bytes, &0040-&7841
-    passes &4000 by 14401 bytes (only matters if you use a back screen or banks)
+    passes &4000 by 14401 bytes (only matters if you use the back screen or RAM banks)
     headroom below &B800: 16319 bytes  [bare limit]
 ```
 
