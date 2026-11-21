@@ -52,3 +52,10 @@ export function formatBuildDiagnostic(d: BuildDiagnostic, root: string): string 
   const head = `${shown}:${d.line}:${d.col}: ${d.severity} ${d.code}: ${d.message}`;
   return d.hint ? `${head}\n  hint: ${d.hint}` : head;
 }
+
+/**
+ * How long a build task waits before it reports a failure. VS Code treats a terminal that exits non-zero within 500 ms of
+ * opening as "failed to launch"; a compile error ends in well under that. The exit code is kept (task chains and
+ * `dependsOn` need it), so a failed build waits out the window and VS Code then says "terminated with exit code".
+ */
+export const closeDelay = (code: number, elapsedMs: number): number => (code === 0 ? 0 : Math.max(0, 600 - elapsedMs));

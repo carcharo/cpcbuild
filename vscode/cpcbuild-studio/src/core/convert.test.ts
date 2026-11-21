@@ -71,11 +71,12 @@ describe('Convert Project: the report', () => {
   });
 
   it('only the files a CPC target compiles count as must-fix; the files only a Spectrum target included are listed as unused', () => {
-    const files = new Map<string, string>([
+    const enc = new TextEncoder();
+    const files = new Map<string, Uint8Array>(([
       ['main.bas', '#ifdef __CPC__\n#include "a.bas"\n#else\n#include "zx.bas"\n#endif\n'],
       ['a.bas', 'PRINT "cpc"\n'],
       ['zx.bas', 'PRINT INK 2; "x"\n'],
-    ]);
+    ] as [string, string][]).map(([k, v]) => [k, enc.encode(v)] as [string, Uint8Array]));
     const checks: CheckConfig[] = [{ mains: ['main.bas'], defines: { CPC6128: '' }, targets: ['cpc6128'] }];
     const r = convertSources(files, { from: 'boriel', runtime: runtime(), checks });
     expect(mustFix(r.report).map((m) => m.path)).toContain('zx.bas');
