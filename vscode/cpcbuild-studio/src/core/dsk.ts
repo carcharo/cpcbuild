@@ -99,3 +99,15 @@ export function chooseRunnable(files: readonly DskFile[]): RunChoice {
   if (progs.length === 1) return { kind: 'one', name: progs[0].name };
   return { kind: 'many', candidates: progs.map((f) => `${f.name}.${f.ext}`) };
 }
+
+/** The bytes a program writes to unlock the Plus ASIC (the lock-sequence): a disc holding them starts the Plus hardware. */
+const ASIC_UNLOCK = [0xff, 0x00, 0xff, 0x77, 0xb3, 0x51, 0xa8, 0xd4, 0x62, 0x39, 0x9c, 0x46, 0x2b, 0x15, 0x8a, 0xcd, 0xee];
+
+/** True when the disc image contains the Plus unlock sequence: it is a Plus program, which a plain 6128 would not run. */
+export function isPlusDisc(img: Uint8Array): boolean {
+  const first = ASIC_UNLOCK[0];
+  for (let i = img.indexOf(first); i >= 0 && i + ASIC_UNLOCK.length <= img.length; i = img.indexOf(first, i + 1)) {
+    if (ASIC_UNLOCK.every((b, k) => img[i + k] === b)) return true;
+  }
+  return false;
+}

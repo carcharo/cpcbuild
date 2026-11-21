@@ -27,7 +27,7 @@ with Locomotive BASIC 1.1; its modern features and parts of its code generator a
 The **Get started with CPC Game Studio** walkthrough (**Welcome: Open Walkthrough...**) goes through the emulator, a new
 project and the first build.
 
-Right-click on a `.dsk` in a project: **Run in Emulator** types `RUN"` with the disc name from `cpcbuild.json` when
+Right-click on a `.dsk` or `.cpr` (in a project or not): **Run in Emulator** types `RUN"` with the disc name from `cpcbuild.json` when
 the disc is a target's output, else with the only `.BIN` or `.BAS` in the disc's catalogue (it asks when there are several).
 
 Run **CPC Game Studio: Check Environment** to see what is found and what to set.

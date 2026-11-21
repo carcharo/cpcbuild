@@ -93,8 +93,9 @@ Set up (about two minutes)
   2. In VS Code open the Extensions view, click the "..." menu at its top right, choose
      "Install from VSIX...", and pick {studio}. Do the same for {emu}.
      The extensions need nothing else: CPC Game Studio compiles inside VS Code.
-  3. File > Open Folder... and open games/lamplighter in this folder. Build the lamp464 target from the
-     CPC Game Studio view and run it. Or start your own project with the command "CPC Game Studio: New Project".
+  3. File > Open Folder... and open games/lamplighter in this folder. Click the target name in the status bar
+     (bottom left) and choose lamp464, then run "CPC Game Studio: Build and Run" from the Command Palette
+     (Ctrl+Shift+P; Cmd+Shift+P on macOS). Or start your own project with "CPC Game Studio: New Project".
      (Starfall, in games/shooter, is built by its own scripts in a cpcbuild checkout, not from Studio: see
      games/shooter/README.md.)
   4. Read docs/tutorial/ first, then docs/library.md and docs/art-guide.md.
@@ -102,6 +103,7 @@ Set up (about two minutes)
 Command line (optional; needs Node.js 22 or newer, nodejs.org)
   node bin/cpcbas.mjs --version
   node bin/cpcbas.mjs --org 0x40 -D CPC464 -o game.dsk games/lamplighter/main.bas
+    (the program on that disc is MAIN.BIN: RUN"MAIN in an emulator)
   node bin/cpcbas.mjs --help
   bin/cpcbas.mjs finds the runtime library in lib/ (next to bin/) by itself. The compiler is cpcbas {cver}.
   Old (0.1.x) Boriel BASIC projects: docs/migrating-from-0.1.md, node bin/cpcbas.mjs migrate --help, or the

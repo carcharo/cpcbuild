@@ -100,7 +100,7 @@ export const OLD_PROJECT_CONVERT = 'Convert Project...';
 export const OLD_PROJECT_TOOLTIP = 'This project was made with CPCBuild 0.1.x. Click to convert it to CPC BASIC.';
 /** The one-time message when a 0.1.x project is opened. */
 export const oldProjectNotice = (name: string): string =>
-  `CPC Game Studio: "${name}" is a CPCBuild 0.1.x project (Boriel BASIC, with Spectrum targets). CPCBuild 0.2.0 builds CPC BASIC for the CPC only. Convert it? Nothing is written until you have read the report.`;
+  `CPC Game Studio: "${name}" is a CPCBuild 0.1.x project, with Spectrum targets. CPCBuild 0.2.0 builds CPC BASIC for the CPC only. Convert it? Nothing is written until you have read the report.`;
 /** What a build says for such a project, instead of opening cpcbuild.json. */
 export const OLD_PROJECT_BUILD = 'CPC Game Studio: this project was made with CPCBuild 0.1.x and has Spectrum targets. Convert it to build it with 0.2.0.';
 

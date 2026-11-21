@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { chooseRunnable, DskFile, readDskCatalogue } from './dsk';
+import { chooseRunnable, DskFile, isPlusDisc, readDskCatalogue } from './dsk';
 import { mkDsk } from './dskFixture';
 
 const names = (f: DskFile[] | undefined): string[] => (f ?? []).map((x) => `${x.name}.${x.ext}`);
@@ -36,5 +36,26 @@ describe('chooseRunnable', () => {
   });
   it('has nothing to run without a program', () => {
     expect(chooseRunnable(f('DATA.DAT'))).toEqual({ kind: 'none' });
+  });
+});
+
+describe('isPlusDisc', () => {
+  const seq = [0xff, 0x00, 0xff, 0x77, 0xb3, 0x51, 0xa8, 0xd4, 0x62, 0x39, 0x9c, 0x46, 0x2b, 0x15, 0x8a, 0xcd, 0xee];
+  it('is true for an image holding the Plus unlock sequence, wherever it is', () => {
+    const img = new Uint8Array(3000).fill(0xff);
+    img.set(seq, 1234);
+    expect(isPlusDisc(img)).toBe(true);
+    const end = new Uint8Array(100);
+    end.set(seq, 100 - seq.length);
+    expect(isPlusDisc(end)).toBe(true);
+  });
+  it('is false without it, also with a part of it or the same bytes with one changed', () => {
+    expect(isPlusDisc(new Uint8Array(3000))).toBe(false);
+    expect(isPlusDisc(new Uint8Array(3000).fill(0xff))).toBe(false);
+    const img = new Uint8Array(3000);
+    img.set(seq.slice(0, 16), 500);
+    img.set([...seq.slice(0, 16), 0xef], 900);
+    expect(isPlusDisc(img)).toBe(false);
+    expect(isPlusDisc(mkDsk({ base: 0xc1, dirTrack: 0, files: ['GAME.BIN'] }))).toBe(false);
   });
 });

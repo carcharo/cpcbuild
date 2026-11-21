@@ -17,7 +17,8 @@ import { SongEditorProvider, newSongCommand } from './songEditor';
 import { generateAssetFileCommand, registerAssetGenerator } from './assetHooks';
 import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetCommand, regenerateForPalette } from './spriteEditor';
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
-import { runFromCatalogue, targetForDsk } from './dskRun';
+import { discPickItems, discPickTitle, machineName, runFromCatalogue, targetForDsk } from './dskRun';
+import { isPlusDisc } from '../core/dsk';
 import { runInEmulator, setStorageDir } from './run';
 import { runToolLog } from './runTool';
 import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
@@ -132,7 +133,7 @@ export const discTestApi: { pick?: (candidates: string[]) => Promise<string | un
   discToRun: (file, s) => discToRun(file, s),
 };
 
-async function discToRun(file: string, s: ReturnType<typeof readSettings>): Promise<{ name: string; model: RunInfo['model'] } | undefined> {
+async function discToRun(file: string, s: ReturnType<typeof readSettings>): Promise<{ name: string; model: RunInfo['model']; note?: string } | undefined> {
   for (const lp of await findProjects()) {
     if (!lp.project) continue;
     const t = targetForDsk(lp.root, readSettings(lp.root).outputDir, lp.project.targets, file);
@@ -146,10 +147,15 @@ async function discToRun(file: string, s: ReturnType<typeof readSettings>): Prom
     return undefined;
   }
   const c = runFromCatalogue(img);
-  if (c.kind === 'one') return { name: c.name, model: s.model };
+  // a disc that unlocks the Plus hardware starts on a Plus, unless the model is set explicitly
+  const plus = !s.modelOverride && isPlusDisc(img);
+  const model: RunInfo['model'] = s.modelOverride ?? (plus ? 'plus' : s.model);
+  const note = plus ? `Starting ${path.basename(file)} on a ${machineName(model)} (it unlocks the Plus hardware).` : undefined;
+  if (c.kind === 'one') return { name: c.name, model, note };
   if (c.kind === 'many') {
-    const pick = await (discTestApi.pick ?? ((cs: string[]) => vscode.window.showQuickPick(cs, { title: 'CPC Game Studio: which program to run from this disc?' })))(c.candidates);
-    return pick ? { name: pick, model: s.model } : undefined;
+    const ask = discTestApi.pick ?? (async (cs: string[]) => (await vscode.window.showQuickPick(discPickItems(cs), { title: discPickTitle(model) }))?.label);
+    const pick = await ask(c.candidates);
+    return pick ? { name: pick, model, note } : undefined;
   }
   void vscode.window.showInformationMessage(
     c.kind === 'none' ? 'CPC Game Studio: the disc has no .BIN or .BAS program to run.' : `CPC Game Studio: ${path.basename(file)} is not a readable CPC disc image.`,
@@ -173,6 +179,7 @@ async function runFile(uri?: vscode.Uri): Promise<void> {
     const found = await discToRun(file, s);
     if (!found) return;
     run = { file, kind: 'dsk', name: found.name, model: found.model };
+    if (found.note) sink.line(found.note);
   }
   else if (ext === '.cpr') run = { file, kind: 'cpr', model: 'plus' };
   else if (ext === '.bin') {

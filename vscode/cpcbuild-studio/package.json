@@ -378,7 +378,7 @@
       "explorer/context": [
         {
           "command": "cpcbuild.runFile",
-          "when": "cpcbuild.inProject && resourceExtname =~ /^\\.(dsk|cpr)$/",
+          "when": "resourceExtname =~ /^\\.(dsk|cpr)$/i",
           "group": "navigation@90"
         },
         {

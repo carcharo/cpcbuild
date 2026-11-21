@@ -219,6 +219,27 @@ test('debug: toggling a breakpoint with a null argument does not throw', async (
   assert.strictEqual(r.applied, false);
 });
 
+test('run: a loose disc that unlocks the Plus hardware starts on a Plus, unless the model is set', async () => {
+  const a = await api();
+  const { mkDsk } = await import('../../src/core/dskFixture');
+  const { readSettings } = await import('../../src/ext/config');
+  const dsk = path.join(ws, 'plus-' + Date.now() + '.dsk');
+  const img = mkDsk({ base: 0xc1, dirTrack: 0, files: ['LOADER.BIN'] });
+  img.set([0xff, 0x00, 0xff, 0x77, 0xb3, 0x51, 0xa8, 0xd4, 0x62, 0x39, 0x9c, 0x46, 0x2b, 0x15, 0x8a, 0xcd, 0xee], img.length - 100);
+  fs.writeFileSync(dsk, img);
+  const s = readSettings(ws);
+  try {
+    const got = await a.disc.discToRun(dsk, { ...s, modelOverride: undefined });
+    assert.strictEqual(got?.model, 'plus');
+    assert.match(got?.note ?? '', /on a CPC 6128 Plus \(it unlocks the Plus hardware\)/);
+    const set = await a.disc.discToRun(dsk, { ...s, modelOverride: '464' });
+    assert.strictEqual(set?.model, '464');
+    assert.strictEqual(set?.note, undefined);
+  } finally {
+    fs.rmSync(dsk, { force: true });
+  }
+});
+
 test('run: a disc with several programs asks which one (quick pick stubbed), and cancelling runs nothing', async () => {
   const a = await api();
   const { mkDsk } = await import('../../src/core/dskFixture');

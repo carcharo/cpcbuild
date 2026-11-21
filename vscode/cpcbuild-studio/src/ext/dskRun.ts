@@ -16,3 +16,13 @@ export function runFromCatalogue(img: Uint8Array): RunChoice | { kind: 'unreadab
   const files = readDskCatalogue(img);
   return files ? chooseRunnable(files) : { kind: 'unreadable' };
 }
+
+/** The machine's name for the pick's title and the notes: `CPC 6128`, `CPC 6128 Plus`. */
+export const machineName = (model: string): string => `CPC ${model === 'plus' ? '6128 Plus' : model}`;
+
+/** The items of the "which program" pick: the name, and what the user would type at the BASIC prompt. */
+export const discPickItems = (candidates: readonly string[]): { label: string; description: string }[] =>
+  candidates.map((c) => ({ label: c, description: `RUN"${c}` }));
+
+/** The title of that pick, which says the machine the disc starts on and how to change it. */
+export const discPickTitle = (model: string): string => `CPC Game Studio: which program to run? (starts on a ${machineName(model)}; change with "cpcbuild.model")`;
