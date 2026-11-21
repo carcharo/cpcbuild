@@ -613,7 +613,7 @@ sequence is then played on the real `game.bas` and wins (`tests/reach.py`, run b
 
 **Why scan for lamps instead of listing them?** An object list would need a second place to keep
 in step with the picture. With tiles as lamps, the map you see in Tiled *is* the data: move a lamp
-and the game follows. The price is one pass over 460 cells when a room loads. In BASIC that pass takes about 5 frames
+and the game follows. The price is one pass over 460 cells when a room loads. In BASIC that pass takes about 6 frames
 (chapter 9 measures it: 122 frames for 20 passes). You will probably not notice it as a pause, but it is one
 of the things chapter 9 looks at.
 

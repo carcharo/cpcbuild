@@ -36,7 +36,7 @@ A single-screen shooter in CPC BASIC for the Amstrad CPC 6128, 464 and Plus. The
 
 Bare and firmware builds are both on the one disc because they cost nothing to carry; `RUN"DISC` is the default.
 
-The loaders run at &9E00 with their 2 KB AMSDOS buffer at &9600, above everything a game build loads (the 6128 builds' high data ends at &8406); `RUN"BARE` stages the songs at &8000 before the game is loaded over them. Details in the `loader.asm` header.
+The loaders run at &9E00 with their 2 KB AMSDOS buffer at &9600, above everything a game build loads (the 6128 builds' high data ends at &8405); `RUN"BARE` stages the songs at &8000 before the game is loaded over them. Details in the `loader.asm` header.
 
 ## Starfall Plus (CPC Plus / GX4000)
 
