@@ -60,6 +60,7 @@ describe('memoryReport', () => {
     expect(r.highData).toEqual({ end: 0x8100, bytes: 0x8100 - 0x2f00 });
     expect(r.lines[0].headroom).toBe(0x4000 - 0x2f00); // &4000 from the low end, as build_cpc.sh
     expect(r.lines[1].headroom).toBe(0x8b60 - 0x8100); // heap from the end of the high data
+    expect(formatReport(r)[0]).toBe(`${0x8100 - 0x40} bytes, low segment &0040-&2EFF, high data to &80FF`);
   });
   it('user limits are added', () => {
     const r = memoryReport(parseMap(fx('mode1text.map')), 5169, { bare: false, pkg: 'dsk', extraLimits: { 'my line': 0x2000 } });
@@ -71,7 +72,7 @@ describe('memoryReport', () => {
   it('formats', () => {
     const r = memoryReport(parseMap(fx('mode1text.map')), 5169, { bare: false, pkg: 'dsk' });
     const t = formatReport(r);
-    expect(t[0]).toBe('5169 bytes, &0040-&1471');
+    expect(t[0]).toBe('5169 bytes, &0040-&1470'); // the last byte: &0040 + 5169 - 1
     expect(t.join('\n')).toContain('headroom below &8B60');
     expect(hex4(0x40)).toBe('&0040');
   });

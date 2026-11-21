@@ -109,13 +109,13 @@ export function hex4(n: number): string {
   return '&' + n.toString(16).toUpperCase().padStart(4, '0');
 }
 
-/** The report as text lines (output channel). */
+/** The report as text lines (output channel). A range names its first and its last byte, as the compiler's own line does. */
 export function formatReport(r: MemoryReport): string[] {
   const out: string[] = [];
   if (r.highData) {
-    out.push(`${r.bytes} bytes, low segment ${hex4(r.start)}-${hex4(r.lowEnd)}, high data to ${hex4(r.end)}`);
+    out.push(`${r.bytes} bytes, low segment ${hex4(r.start)}-${hex4(r.lowEnd - 1)}, high data to ${hex4(r.end - 1)}`);
   } else {
-    out.push(`${r.bytes} bytes, ${hex4(r.start)}-${hex4(r.end)}`);
+    out.push(`${r.bytes} bytes, ${hex4(r.start)}-${hex4(r.end - 1)}`);
   }
   for (const l of r.lines) {
     const label = `${l.name} (${hex4(l.limit)})`;

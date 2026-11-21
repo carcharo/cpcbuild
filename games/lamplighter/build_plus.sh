@@ -31,17 +31,17 @@ build() {   # name, -D flags (one string), extra cpcbas arguments
   set --  "$@"
   for d in $defs; do set -- "$@" -D "$d"; done
   node "$CLI" --org 0x40 -D PLUS "$@" -M "$OUT/$name.map" -o "$OUT/$name.bin" "$HERE/main.bas" 2>&1 \
-      | grep -v "warning\|hint:" || true
+      | grep -v "warning\|hint:\|^wrote " || true
   [ -f "$OUT/$name.bin" ] || { echo "build_plus: $name failed" >&2; exit 1; }
   size=$(($(wc -c < "$OUT/$name.bin") - 128))   # the AMSDOS header
-  printf "%-10s %6d bytes, &0040-&%04X\n" "$name" "$size" $((0x40 + size))
+  printf "%-10s %6d bytes, &0040-&%04X\n" "$name" "$size" $((0x40 + size - 1))
 }
 
 EXTRA="$*"
 build lampplus "" $EXTRA
 build lamppluc "CPC_BAREMETAL CPC_OWNFONT" $EXTRA
 node "$CLI" --org 0x40 -D PLUS -D CPC_BAREMETAL -D CPC_OWNFONT $EXTRA -f cpr -o "$OUT/lampplus.cpr" "$HERE/main.bas" 2>&1 \
-    | grep -v "warning\|hint:" || true
+    | grep -v "warning\|hint:\|^wrote " || true
 [ -f "$OUT/lampplus.cpr" ] || { echo "build_plus: lampplus.cpr failed" >&2; exit 1; }
 # the RUN"PLUS loader and the disc (cpcbas dsk takes raw images and their load addresses)
 node "$CLI" asm "$HERE/loader_plus.asm" -o "$OUT/loader_plus.bin"

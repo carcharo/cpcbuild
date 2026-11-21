@@ -32,7 +32,7 @@ build() {   # name, -D flags
   $CB -f bin --org 0x40 -D PLUS $2 $EXTRA -M "$OUT/$1.map" -o "$OUT/$1.hbin" "$HERE/main.bas" || { echo "build_plus: $1 failed" >&2; exit 1; }
   tail -c +129 "$OUT/$1.hbin" > "$OUT/$1.bin"
   size=$(wc -c < "$OUT/$1.bin")
-  printf "%-10s %6d bytes, &0040-&%04X\n" "$1" "$size" $((0x40 + size))
+  printf "%-10s %6d bytes, &0040-&%04X\n" "$1" "$size" $((0x40 + size - 1))
 }
 
 rm -f "$OUT/starplus.bin" "$OUT/starpluc.bin"
