@@ -1,11 +1,1 @@
 # Hits the public-text guard tolerates today ("<rule> <path>" per line). Only the tutorial chapters are left; delete a line when its file is clean.
-boriel docs/tutorial/01-new-project.md
-boriel docs/tutorial/02-palette-and-tiles.md
-boriel docs/tutorial/03-the-tower.md
-boriel docs/tutorial/05-movement.md
-boriel docs/tutorial/07-lamps-doors-lives-hud.md
-boriel docs/tutorial/08-sound-and-music.md
-boriel docs/tutorial/09-measuring.md
-boriel docs/tutorial/README.md
-zxb docs/tutorial/01-new-project.md
-zxb docs/tutorial/10-the-spectrum-build.md

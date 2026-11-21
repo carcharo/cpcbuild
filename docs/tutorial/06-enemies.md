@@ -59,21 +59,24 @@ room can always be left without timing a pass through an enemy.
 The game keeps one array per field (the finished game does not use objects; "an enemy" is index `i`
 in all the arrays). Add to the top of `game.bas`:
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
 CONST F_ENEMY AS UBYTE = 10
 ```
 
 and, with the other tables:
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
 ' a bat's wobble: 8 + 8 sin
 DIM batTab(31) AS UBYTE => {8, 10, 11, 12, 14, 15, 15, 16, 16, 16, 15, 15, 14, 12, 11, 10, 8, 6, 5, 4, 2, 1, 1, 0, 0, 0, 1, 1, 2, 4, 5, 6}
 ```
 
-(`batTab` is 32 values of `8 + 8 sin`.) Then, after the player's variables:
+(`batTab` is 32 values of `8 + 8 sin`.) Then, after the player's variables, add `DIM entX, entY AS UBYTE` (where the player entered the room) and
+the enemies' arrays:
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
-DIM entX, entY AS UBYTE
 ' enemies: kind (1 walker, 2 floater, 3 bat), position, direction (1 = right
 ' or down), start x, start y, range in pixels (eTick counts the steps)
 DIM nEn AS UBYTE
@@ -88,8 +91,7 @@ DIM eY0(3) AS UBYTE
 DIM eR(3) AS UBYTE
 ```
 
-(`game.bas:77-86`.) Note the separate `DIM` lines: `DIM a(3), b(3) AS UBYTE` does not parse in the
-compiler this game was written against.
+(From `game.bas`.) Each array has its own `DIM` line, so the type of every one is in plain sight.
 
 `eX0`, `eY0`, `eR` are where an enemy starts, in pixels, and its range in pixels; `eX`, `eY` where it
 is; `eD` its direction (1 = right or down); `eM` is 1 when it moved since `GameDraw` last handed it to
@@ -97,8 +99,8 @@ the platform layer; `eTick` counts steps. `entX`, `entY` are where the player en
 
 ## Step 4: Load, reset and die
 
-Replace `FindStart`, `EnterRoom` and `GameInit` with these (`GameInit` is repeated unchanged). Keep
-`CopyRoom` from chapter 5:
+Replace `FindStart`, `EnterRoom` and `GameInit` with these (`ResetEnemies` and `EnterRoom` are the finished game's own;
+`GameInit` is repeated unchanged). Keep `CopyRoom` from chapter 5:
 
 ```basic
 ' Reads room id into cur, and its start cell and its enemies from the object list.
@@ -124,7 +126,10 @@ SUB LoadRoom(id AS UBYTE)
     o = o + 5
   LOOP
 END SUB
+```
 
+<!-- same as games/lamplighter/game.bas -->
+```basic
 ' Puts the enemies on their start squares, hides the unused slots.
 SUB ResetEnemies()
   DIM i AS UBYTE
@@ -156,7 +161,9 @@ SUB EnterRoom(id AS UBYTE, x AS UBYTE, y AS UBYTE)
   ResetEnemies()
   PlatRoom(@cur(0))
 END SUB
+```
 
+```basic
 SUB GameInit(room AS UBYTE)
   pAir = 0
   pJt = 0
@@ -180,7 +187,7 @@ END SUB
 
 - `LoadRoom` copies room `id` into `cur` with `CopyRoom`, then reads the object list `robj` (chapter 3) for it: a type 1 record is the start
   cell; a type 2 record is an enemy: kind, start cell and range in cells, which are multiplied by 8
-  (`<< 3`) to pixels. **(simplified:** `LoadRoom` in `game.bas:361-400` also finds the room's lamps, chapter 7.)
+  (`<< 3`) to pixels. **(simplified:** the finished `LoadRoom` also finds the room's lamps, chapter 7.)
 - `ResetEnemies` puts every enemy back on its start square and hides the unused slots (frame 255: "no
   sprite", chapter 4). Slots 1 to 4 belong to the enemies.
 - `Die` is the *whole* of the punishment in this chapter: back to where you entered, enemies reset.
@@ -188,28 +195,32 @@ END SUB
 
 ## Step 5: Moving the enemies
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
-' Can a walker stand with its left edge at x, y, having just stepped in
-' direction dir (1 right)? No wall in its way, ground under the leading
-' edge, no spikes there.
 FUNCTION WalkOK(x AS UBYTE, y AS UBYTE, dir AS UBYTE) AS UBYTE
   DIM c AS UBYTE
   IF dir = 1 THEN c = (x + 7) >> 3 ELSE c = x >> 3
   IF ColSolid(c, y) <> 0 THEN RETURN 0
-  IF (TileAttr(c, (y + 15) >> 3) BAND 8) <> 0 THEN RETURN 0
-  IF (TileAttr(c, (y + 16) >> 3) BAND 3) = 0 THEN RETURN 0
+  IF (TileAttr(c, (y + 15) >> 3) AND 8) <> 0 THEN RETURN 0
+  IF (TileAttr(c, (y + 16) >> 3) AND 3) = 0 THEN RETURN 0
   RETURN 1
 END FUNCTION
+```
 
+The finished game's comment above it says what it asks: can a walker stand with its left edge at `x, y`, having just stepped in
+direction `dir` (1 is right)? No wall in its way, ground under the leading edge, no spikes there.
+
+<!-- same as games/lamplighter/game.bas -->
+```basic
 ' Enemies move two pixels every second step, half of them on each step: enemy
 ' i on the steps where eTick and i are both even or both odd (so the drawing
 ' of a step is the player and at most two enemies, which a 464 can do at 25
 ' steps a second). Only those are visited: the others cost nothing.
 SUB MoveEnemies()
   DIM i, k, x, y, d AS UBYTE
-  IF nEn = 0 THEN RETURN
+  IF nEn = 0 THEN EXIT SUB
   eTick = eTick + 1
-  i = eTick BAND 1
+  i = eTick AND 1
   DO WHILE i < nEn
     eM(i) = 1
     k = eK(i)
@@ -252,26 +263,25 @@ SUB MoveEnemies()
         eX(i) = x
         IF x <= eX0(i) THEN eD(i) = 1
       END IF
-      eY(i) = eY0(i) + batTab((eTick >> 1) BAND 31) - 8
+      eY(i) = eY0(i) + batTab((eTick >> 1) AND 31) - 8
     END IF
     i = i + 2
   LOOP
 END SUB
 ```
 
-(This is the finished game's own `WalkOK`, `game.bas:736-743`, and `MoveEnemies` is `game.bas:808-859`
-unchanged. In BASIC, one `WalkOK` call costs about 15,200 T-states, and every walking enemy makes one
-each time it moves; chapter 9 measures what that adds up to.)
+(Both are the finished game's own, from `game.bas`. In plain BASIC one `WalkOK` call costs about 13,700 T-states, and every
+walking enemy makes one each time it moves; chapter 9 measures what that adds up to.)
 
 Read `MoveEnemies` from the top.
 
-- `eTick` goes up by one each step. `i = eTick BAND 1`, then the loop visits `i, i + 2, i + 4...`: on one step
+- `eTick` goes up by one each step. `i = eTick AND 1`, then the loop visits `i, i + 2, i + 4...`: on one step
   enemies 0 and 2 move, on the next 1 and 3. So each enemy moves every second step and, with four
   enemies, at most two are drawn on any step. The comment above the sub explains why: that is what
   a 464 can draw at 25 steps a second.
 - **Walkers** (`k = 1`) go two pixels in their direction. `WalkOK(x, y, dir)` asks of the column in
   front: is it a wall (any of the three body heights solid)? are there spikes at the feet? is there
-  ground under it (solid or a platform, `BAND 3`)? If not, turn round and do not move.
+  ground under it (solid or a platform, `AND 3`)? If not, turn round and do not move.
 - **Floaters** (`k = 2`) move 2 lines and turn when they reach `eY0` or `eY0 + eR`.
 - **Bats** (else) move 2 pixels sideways, turning at `eX0` and `eX0 + eR`, and their y follows the sine table:
   `eY0 + batTab(...) - 8`, which is `eY0` plus a value from -8 to +8.
@@ -293,8 +303,8 @@ FUNCTION Touch() AS UBYTE
   RETURN 0
 END FUNCTION
 
-SUB GameStep(inp AS UBYTE)
-  MovePlayer(inp)
+SUB GameStep(kin AS UBYTE)
+  MovePlayer(kin)
   MoveEnemies()
   IF Touch() <> 0 THEN Die()
 END SUB
@@ -302,19 +312,19 @@ END SUB
 SUB GameDraw()
   DIM f, i AS UBYTE
   IF pClimb <> 0 THEN
-    f = F_CLIMB + ((pAnim >> 1) BAND 1)
+    f = F_CLIMB + ((pAnim >> 1) AND 1)
   ELSEIF pAir <> 0 THEN
     f = 3 + (pFace << 2)
   ELSEIF pMove <> 0 THEN
-    f = 1 + ((pAnim >> 1) BAND 1) + (pFace << 2)
+    f = 1 + ((pAnim >> 1) AND 1) + (pFace << 2)
   ELSE
     f = pFace << 2
   END IF
   PlatSprite(0, f, pX, pY)
-  IF nEn = 0 THEN RETURN
+  IF nEn = 0 THEN EXIT SUB
   FOR i = 0 TO nEn - 1
     IF eM(i) <> 0 THEN
-      PlatSprite(i + 1, F_ENEMY + ((eTick >> 2) BAND 1), eX(i), eY(i))
+      PlatSprite(i + 1, F_ENEMY + ((eTick >> 2) AND 1), eX(i), eY(i))
       eM(i) = 0
     END IF
   NEXT i
@@ -332,14 +342,13 @@ mentioned.
 
 Chapter 4's layer erased and redrew every sprite every step. With five sprites that is too slow. Change
 `platform_cpc.bas` so a sprite is redrawn only when it moved or changed frame. First, more variables, after
-the `sOY` line:
+the `sOY` line (`fT` is already there from chapter 4):
 
 ```basic
 DIM bitOf(4) AS UBYTE => {1, 2, 4, 8, 16}
 DIM dMask AS UBYTE       ' bit s: slot s moved or changed since it was drawn
 DIM vMask AS UBYTE       ' bit s: slot s is to be shown
 DIM sForce AS UBYTE
-DIM fT AS UINTEGER                   ' Frames() at the start of this step
 ```
 
 In `PlatInit`, add `sForce = 0` before `GameMode(1)`. In `PlatRoom`, add the last two lines:
@@ -361,6 +370,7 @@ END SUB
 
 Then replace `PlatSprite` and `PlatFrameEnd` with these, including the new `Overlap` and `PlatFlush`:
 
+<!-- same as games/lamplighter/platform_cpc.bas -->
 ```basic
 ' Sprite slot s shows frame f at pixel x, line y at the next flush.
 SUB PlatSprite(s AS UBYTE, f AS UBYTE, x AS UBYTE, y AS UBYTE)
@@ -369,8 +379,8 @@ SUB PlatSprite(s AS UBYTE, f AS UBYTE, x AS UBYTE, y AS UBYTE)
   sNF(s) = f
   sNX(s) = x
   sNY(s) = y
-  IF f = 255 THEN vMask = vMask BAND (255 - bit) ELSE vMask = vMask BOR bit
-  IF f <> sOF(s) OR x <> sOX(s) OR y <> sOY(s) THEN dMask = dMask BOR bit
+  IF f = 255 THEN vMask = vMask AND (255 - bit) ELSE vMask = vMask OR bit
+  IF f <> sOF(s) OR x <> sOX(s) OR y <> sOY(s) THEN dMask = dMask OR bit
 END SUB
 
 ' x/y rectangles (8 x 16) of two sprites overlap?
@@ -387,35 +397,35 @@ SUB PlatFlush()
   IF sForce <> 0 THEN
     dMask = vMask
     FOR s = 0 TO NSLOT - 1
-      IF sOF(s) <> 255 THEN dMask = dMask BOR bitOf(s)
+      IF sOF(s) <> 255 THEN dMask = dMask OR bitOf(s)
     NEXT s
     sForce = 0
   END IF
-  IF dMask = 0 THEN RETURN
+  IF dMask = 0 THEN EXIT SUB
   ' The player standing still, with a moved enemy over it: redraw it. (An enemy
   ' standing still under another one that moves is only chewed for a step: it
   ' moves on the next. Checking every pair costs ~30,000 T-states a step.)
-  IF (dMask BAND 1) = 0 AND (vMask BAND 1) <> 0 THEN
+  IF (dMask AND 1) = 0 AND (vMask AND 1) <> 0 THEN
     FOR t = 1 TO NSLOT - 1
-      IF (dMask BAND bitOf(t)) <> 0 THEN
+      IF (dMask AND bitOf(t)) <> 0 THEN
         IF Overlap(sNX(0), sNY(0), sNX(t), sNY(t)) <> 0 THEN
-          dMask = dMask BOR 1
+          dMask = dMask OR 1
         ELSEIF sOF(t) <> 255 THEN
-          IF Overlap(sNX(0), sNY(0), sOX(t), sOY(t)) <> 0 THEN dMask = dMask BOR 1
+          IF Overlap(sNX(0), sNY(0), sOX(t), sOY(t)) <> 0 THEN dMask = dMask OR 1
         END IF
       END IF
     NEXT t
   END IF
   bit = 1
   FOR s = 0 TO NSLOT - 1
-    IF (dMask BAND bit) <> 0 THEN
+    IF (dMask AND bit) <> 0 THEN
       IF sOF(s) <> 255 THEN TileRestore(roomAddr, 20, sOX(s) >> 1, sOY(s), 4, 16)
     END IF
     bit = bit + bit
   NEXT s
   bit = 1
   FOR s = 0 TO NSLOT - 1
-    IF (dMask BAND bit) <> 0 THEN
+    IF (dMask AND bit) <> 0 THEN
       IF sNF(s) <> 255 THEN
         PutSpriteMasked(sNX(s) >> 1, sNY(s), 4, 16, @sprites(CAST(UINTEGER, sNF(s)) << 7))
       END IF
@@ -427,7 +437,9 @@ SUB PlatFlush()
   NEXT s
   dMask = 0
 END SUB
+```
 
+```basic
 ' End of a step: wait until two frames have passed since the last one (25
 ' steps a second), then draw what GameDraw handed over.
 SUB PlatFrameEnd()
@@ -438,7 +450,7 @@ SUB PlatFrameEnd()
 END SUB
 ```
 
-(`platform_cpc.bas:161-224` and `303-316`; the `PlatFrameEnd` here leaves out the build switches
+(`PlatSprite`, `Overlap` and `PlatFlush` are from `platform_cpc.bas`; the `PlatFrameEnd` here leaves out the build switches
 (`NOPACE`, `NOFLUSH`, `LAMP_PLUS`) of the real one.)
 
 How it works:
@@ -472,10 +484,9 @@ array access with a variable index costs a few hundred T-states, and that pointe
 faster; the game keeps simple arrays because there are few enemies and a step visits only two of
 them. The finished game keeps everything `UBYTE`.
 
-**Half the enemies each step.** Before this change the finished game visited every enemy every step,
-about 33,000 T-states; with `eTick` it visits half.
-Drawing is the other cost: one moved sprite is about 26,000 T-states (chapter 4), so
-five moved sprites would need about 130,000 of the 160,000 T-states that two frames hold. Moving
+**Half the enemies each step.** Without `eTick` every enemy would be visited, and drawn, on every step; with it a step visits half of them.
+Drawing is the other cost: one moved sprite is about 16,000 T-states (chapter 4), so
+five moved sprites would need about 80,000 of the 160,000 T-states that two frames hold. Moving
 only half the enemies, and only redrawing what moved, is what keeps the 464 at 25 steps a second.
 
 **`TileRestore` for erasing.** You met it in chapter 4 (library: **Tiles**). Here is what changes:

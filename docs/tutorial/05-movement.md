@@ -15,10 +15,10 @@ or climbing off an edge.
 **Time:** about 60 minutes. This is the longest chapter: most of the game's rules are here.
 
 **Before you start.** Chapter 4 is working. This chapter changes `game.bas` and adds one empty sub to
-`platform_cpc.bas`. Everything you write from here to chapter 8 is plain Boriel BASIC: no assembly. (The
+`platform_cpc.bas`. Everything you write from here to chapter 8 is plain CPC BASIC: no assembly. (The
 finished `game.bas` also holds assembly versions of six routines; chapter 9 brings them in one at a time,
-and only after it has measured why.) The listings are the finished game's own plain BASIC code; the ones marked
-**(simplified)** are cut down.
+and only after it has measured why.) The listings are the finished game's own plain BASIC code (a listing followed by "From `game.bas`" is
+checked against that file, line for line); the ones marked **(simplified)** are cut down.
 
 You run **CPC Game Studio** commands from the Command Palette: `Ctrl+Shift+P` on Windows and Linux,
 `Cmd+Shift+P` on macOS. Studio does not bind keys to its commands.
@@ -40,6 +40,7 @@ The picture of a tile and what it *does* are separate. A 16-entry table maps til
 
 And the table, indexed by tile number:
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
 DIM taTab(15) AS UBYTE => {0, 1, 2, 4, 8, 16, 0, 1, 0, 0, 0, 0, 6, 0, 0, 0}
 ```
@@ -50,7 +51,7 @@ ladder top, is `6` = one-way platform plus ladder**: you can stand on the ledge 
 down the ladder under it. Tile 6 (lit lamp), 8 (open door), 9 (heart), 10 (window) and 11 (wall)
 have no attributes: they are scenery.
 
-(`game.bas:49-50, 96`.)
+(From `game.bas`.)
 
 ## Step 2: Constants, tables and variables
 
@@ -96,42 +97,49 @@ DIM startC, startR AS UBYTE
 
 ## Step 3: Look up what is in a cell
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
-' The attributes of cell (cx, cy) of the room.
 FUNCTION TileAttr(cx AS UBYTE, cy AS UBYTE) AS UBYTE
-  RETURN taTab(cur(CAST(UINTEGER, cy) * ROOM_W + cx) BAND 15)
-END FUNCTION
-
-' Solid cell in column c over the body's rows (y, y+8, y+15)?
-FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
-  IF (TileAttr(c, y >> 3) BAND 1) <> 0 THEN RETURN 1
-  IF (TileAttr(c, (y + 8) >> 3) BAND 1) <> 0 THEN RETURN 1
-  RETURN TileAttr(c, (y + 15) >> 3) BAND 1
+  RETURN taTab(cur(CAST(UINTEGER, cy) * ROOM_W + cx) AND 15)
 END FUNCTION
 ```
 
-`TileAttr(cx, cy)` is the attribute byte of cell (cx, cy) of the current room. `ColSolid(c, y)` asks:
+<!-- same as games/lamplighter/game.bas -->
+```basic
+FUNCTION ColSolid(c AS UBYTE, y AS UBYTE) AS UBYTE
+  IF (TileAttr(c, y >> 3) AND 1) <> 0 THEN RETURN 1
+  IF (TileAttr(c, (y + 8) >> 3) AND 1) <> 0 THEN RETURN 1
+  RETURN TileAttr(c, (y + 15) >> 3) AND 1
+END FUNCTION
+```
+
+`TileAttr(cx, cy)` is the attribute byte of cell (cx, cy) of the current room. (`AND 15` keeps the low four bits of the
+tile number, so a stray high bit cannot index outside the table.) `ColSolid(c, y)` asks:
 is column `c` solid at any of the three heights `y`, `y + 8`, `y + 15`? Those are the **probe points**
 of the body: the player is 8 pixels wide and 16 lines tall, so his head, middle and feet are at lines
 `y`, `y + 8` and `y + 15`. Across, his **hit box** is `x + 1` to `x + 6`, one pixel narrower than the
 sprite on each side, so he fits through gaps a cell wide.
 
-(`game.bas:98-100` and `503-507`.) These two are the whole of the game's tile test: every rule in this
+(Both from `game.bas`.) These two are the whole of the game's tile test: every rule in this
 chapter, and the enemies' rules in chapter 6, ask `TileAttr`. Keep them as they are. In BASIC `TileAttr`
-costs about 2,560 T-states a call (the figure comes from chapter 9, where you measure it), and a step
+costs a couple of thousand T-states a call (chapter 9 measures it), and a step
 makes many such calls. That does not matter yet, and chapter 9 comes back to it.
 
 ## Step 4: Entering a room, and starting a game
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
-' cur = the ROOM_SIZE bytes at src (a room of `rooms`).
 SUB CopyRoom(src AS UINTEGER)
   DIM i AS UINTEGER
   FOR i = 0 TO ROOM_SIZE - 1
     cur(i) = PEEK(src + i)
   NEXT i
 END SUB
+```
 
+The rest of this step is the part of the finished game that chapter 7 and chapter 6 build on, cut down for now:
+
+```basic
 ' Finds the room's start cell in the object list (record type 1).
 SUB FindStart(id AS UBYTE)
   DIM o AS UINTEGER
@@ -171,7 +179,7 @@ END SUB
 ```
 
 `CopyRoom(src)` copies one room's 460 bytes (`ROOM_SIZE`) from the `rooms` array into `cur`, the current
-room, one byte at a time with `PEEK`. It is a sub of its own, and not a loop inside `EnterRoom`, so that
+room, one byte at a time with `PEEK`. (From `game.bas`.) It is a sub of its own, and not a loop inside `EnterRoom`, so that
 chapter 9 can swap it for something faster without touching its callers.
 
 `EnterRoom(id, x, y)` puts the player at `(x, y)` in room `id`. Passing `x = 255` means "at this
@@ -180,12 +188,13 @@ height; the next steps do that.
 
 ## Step 5: Standing, walking, falling
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
 ' The attributes of the cells under the two hit box columns at line y
 FUNCTION RowAttr(y AS UBYTE) AS UBYTE
   DIM r AS UBYTE
   r = y >> 3
-  RETURN TileAttr((pX + 1) >> 3, r) BOR TileAttr((pX + 6) >> 3, r)
+  RETURN TileAttr((pX + 1) >> 3, r) OR TileAttr((pX + 6) >> 3, r)
 END FUNCTION
 
 ' Standing on something (or on the floor of the tower's bottom edge)?
@@ -194,8 +203,8 @@ FUNCTION Ground() AS UBYTE
     IF pRoom < 9 THEN RETURN 0
     RETURN 1
   END IF
-  IF ((pY + 16) BAND 7) <> 0 THEN RETURN 0
-  IF (RowAttr(pY + 16) BAND 3) <> 0 THEN RETURN 1
+  IF ((pY + 16) AND 7) <> 0 THEN RETURN 0
+  IF (RowAttr(pY + 16) AND 3) <> 0 THEN RETURN 1
   RETURN 0
 END FUNCTION
 
@@ -206,21 +215,20 @@ SUB MoveX(dir AS UBYTE)
   IF dir = 1 THEN
     IF pX < 2 THEN
       IF (pRoom MOD 3) > 0 THEN EnterRoom(pRoom - 1, 152, pY)
-      RETURN
+      EXIT SUB
     END IF
     nx = pX - 2
-    IF ColSolid((nx + 1) >> 3, pY) <> 0 THEN RETURN
+    IF ColSolid((nx + 1) >> 3, pY) <> 0 THEN EXIT SUB
   ELSE
     IF pX >= 152 THEN
       IF (pRoom MOD 3) < 2 THEN EnterRoom(pRoom + 1, 0, pY)
-      RETURN
+      EXIT SUB
     END IF
     nx = pX + 2
-    IF ColSolid((nx + 6) >> 3, pY) <> 0 THEN RETURN
+    IF ColSolid((nx + 6) >> 3, pY) <> 0 THEN EXIT SUB
   END IF
   pX = nx
 END SUB
-
 ```
 
 `RowAttr(y)` is the attributes of the two cells under the hit box columns (`x + 1` and `x + 6`) at line
@@ -228,9 +236,9 @@ END SUB
 
 - At `pY >= 168` he is on the bottom line of the screen: in rooms 9 to 11 that is the tower's
   floor (`RETURN 1`); in the other rooms it is a gap to the room below (`RETURN 0`).
-- If his feet (`pY + 16`) are not exactly on a cell boundary (`BAND 7` is non-zero) he cannot be
+- If his feet (`pY + 16`) are not exactly on a cell boundary (`AND 7` is non-zero) he cannot be
   standing on a tile.
-- Otherwise look at the row under his feet: solid (1) or one-way platform (2) holds him up (`BAND 3`).
+- Otherwise look at the row under his feet: solid (1) or one-way platform (2) holds him up (`AND 3`).
 
 `MoveX(dir)` takes one step sideways (2 pixels). Three things happen:
 
@@ -242,6 +250,7 @@ END SUB
 
 ## Step 6: Jumping and falling
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
 ' Falling or rising: one step of the jump table
 SUB MoveY()
@@ -259,10 +268,10 @@ SUB MoveY()
         pY = 0
         pJt = 10
       END IF
-      RETURN
+      EXIT SUB
     END IF
     a = RowAttr(CAST(UBYTE, ny))
-    IF (a BAND 1) <> 0 THEN
+    IF (a AND 1) <> 0 THEN
       pY = ((CAST(UBYTE, ny) >> 3) + 1) << 3
       pJt = 10
     ELSE
@@ -278,11 +287,11 @@ SUB MoveY()
         pAir = 0
         pJt = 0
       END IF
-      RETURN
+      EXIT SUB
     END IF
     a = RowAttr(nb)
     row = nb >> 3
-    IF (a BAND 1) <> 0 OR ((a BAND 2) <> 0 AND ((pY + 15) >> 3) < row) THEN
+    IF (a AND 1) <> 0 OR ((a AND 2) <> 0 AND ((pY + 15) >> 3) < row) THEN
       pY = (row << 3) - 16
       pAir = 0
       pJt = 0
@@ -311,6 +320,7 @@ so the test fails and he passes through.
 
 ## Step 7: Ladders
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
 SUB StartClimb(cx AS UBYTE)
   pClimb = 1
@@ -320,44 +330,44 @@ SUB StartClimb(cx AS UBYTE)
 END SUB
 
 ' On a ladder: up and down two lines a step; fire jumps off.
-SUB ClimbStep(inp AS UBYTE)
+SUB ClimbStep(kin AS UBYTE)
   DIM cx, ny, a AS UBYTE
   cx = (pX + 4) >> 3
-  IF (inp BAND I_FIRE) <> 0 THEN
+  IF (kin AND I_FIRE) <> 0 THEN
     pClimb = 0
     pAir = 1
     pJt = 0
     PlatSfx(1)
-    RETURN
+    EXIT SUB
   END IF
-  IF (inp BAND I_UP) <> 0 THEN
+  IF (kin AND I_UP) <> 0 THEN
     IF pY < 2 THEN
       IF pRoom >= 3 THEN EnterRoom(pRoom - 3, pX, 168)
-      RETURN
+      EXIT SUB
     END IF
     ny = pY - 2
     pAnim = pAnim + 1
     pY = ny
-    IF ((TileAttr(cx, (ny + 8) >> 3) BOR TileAttr(cx, (ny + 15) >> 3)) BAND 4) = 0 THEN
+    IF ((TileAttr(cx, (ny + 8) >> 3) OR TileAttr(cx, (ny + 15) >> 3)) AND 4) = 0 THEN
       pClimb = 0
       pAir = 1
       pJt = 10
     END IF
-  ELSEIF (inp BAND I_DOWN) <> 0 THEN
+  ELSEIF (kin AND I_DOWN) <> 0 THEN
     ny = pY + 2
     IF ny + 16 > 184 THEN
       IF pRoom < 9 THEN EnterRoom(pRoom + 3, pX, 0)
-      RETURN
+      EXIT SUB
     END IF
     pAnim = pAnim + 1
     a = TileAttr(cx, (ny + 15) >> 3)
-    IF (a BAND 1) <> 0 OR ((a BAND 2) <> 0 AND (a BAND 4) = 0) THEN
+    IF (a AND 1) <> 0 OR ((a AND 2) <> 0 AND (a AND 4) = 0) THEN
       pY = (((ny + 15) >> 3) << 3) - 16
       pClimb = 0
-      RETURN
+      EXIT SUB
     END IF
     pY = ny
-    IF ((TileAttr(cx, (ny + 8) >> 3) BOR TileAttr(cx, (ny + 15) >> 3)) BAND 4) = 0 THEN
+    IF ((TileAttr(cx, (ny + 8) >> 3) OR TileAttr(cx, (ny + 15) >> 3)) AND 4) = 0 THEN
       pClimb = 0
       pAir = 1
       pJt = 10
@@ -374,39 +384,40 @@ lines up with it. When his body is no longer over a ladder tile (attribute 4) he
 
 ## Step 8: Put it together
 
+<!-- same as games/lamplighter/game.bas -->
 ```basic
-SUB MovePlayer(inp AS UBYTE)
+SUB MovePlayer(kin AS UBYTE)
   DIM cx AS UBYTE
   IF pClimb <> 0 THEN
-    ClimbStep(inp)
-    RETURN
+    ClimbStep(kin)
+    EXIT SUB
   END IF
   cx = (pX + 4) >> 3
-  IF (inp BAND I_UP) <> 0 THEN
-    IF ((TileAttr(cx, (pY + 8) >> 3) BOR TileAttr(cx, (pY + 15) >> 3)) BAND 4) <> 0 THEN
+  IF (kin AND I_UP) <> 0 THEN
+    IF ((TileAttr(cx, (pY + 8) >> 3) OR TileAttr(cx, (pY + 15) >> 3)) AND 4) <> 0 THEN
       StartClimb(cx)
-      RETURN
+      EXIT SUB
     END IF
   END IF
-  IF (inp BAND I_DOWN) <> 0 AND pAir = 0 AND pY < 168 THEN
-    IF (TileAttr(cx, (pY + 16) >> 3) BAND 4) <> 0 THEN
+  IF (kin AND I_DOWN) <> 0 AND pAir = 0 AND pY < 168 THEN
+    IF (TileAttr(cx, (pY + 16) >> 3) AND 4) <> 0 THEN
       StartClimb(cx)
-      RETURN
+      EXIT SUB
     END IF
   END IF
   pMove = 0
-  IF (inp BAND I_LEFT) <> 0 THEN
+  IF (kin AND I_LEFT) <> 0 THEN
     pFace = 1
     pMove = 1
     MoveX(1)
-  ELSEIF (inp BAND I_RIGHT) <> 0 THEN
+  ELSEIF (kin AND I_RIGHT) <> 0 THEN
     pFace = 0
     pMove = 1
     MoveX(0)
   END IF
   IF pMove <> 0 THEN pAnim = pAnim + 1
   IF pAir = 0 THEN
-    IF (inp BAND I_FIRE) <> 0 THEN
+    IF (kin AND I_FIRE) <> 0 THEN
       pAir = 1
       pJt = 0
       PlatSfx(1)
@@ -433,18 +444,18 @@ END SUB
 Finally the glue and the game loop:
 
 ```basic
-SUB GameStep(inp AS UBYTE)
-  MovePlayer(inp)
+SUB GameStep(kin AS UBYTE)
+  MovePlayer(kin)
 END SUB
 
 SUB GameDraw()
   DIM f AS UBYTE
   IF pClimb <> 0 THEN
-    f = F_CLIMB + ((pAnim >> 1) BAND 1)
+    f = F_CLIMB + ((pAnim >> 1) AND 1)
   ELSEIF pAir <> 0 THEN
     f = 3 + (pFace << 2)
   ELSEIF pMove <> 0 THEN
-    f = 1 + ((pAnim >> 1) BAND 1) + (pFace << 2)
+    f = 1 + ((pAnim >> 1) AND 1) + (pFace << 2)
   ELSE
     f = pFace << 2
   END IF
@@ -472,7 +483,7 @@ SUB PlatSfx(n AS UBYTE)
 END SUB
 ```
 
-(**Simplified:** `EnterRoom` and `GameInit` are cut down from `game.bas:419-453` (`FindStart` is a cut-down `LoadRoom`); the finished game also resets enemies and lamps there. `CopyRoom` is `game.bas:261-266`.)
+(**Simplified:** `EnterRoom` and `GameInit` are cut down from the ones in `game.bas` (`FindStart` is a cut-down `LoadRoom`); the finished game also resets enemies and lamps there.)
 
 ## Build and run
 
@@ -500,7 +511,7 @@ think the game is slow, wait until chapter 9: it measures the speed instead of g
 
 ## How it works
 
-There are no new library calls in this chapter: it is all plain Boriel BASIC. The things worth
+There are no new library calls in this chapter: it is all plain CPC BASIC. The things worth
 learning are in the code:
 
 - **Types.** `UBYTE` is fast but wraps at 255 and 0. Every place where a value might go off the
@@ -508,8 +519,13 @@ learning are in the code:
   `CAST(INTEGER, ...)` or `CAST(UINTEGER, ...)`. The library's **Performance tips** section
   ("Arithmetic") says: prefer shifts and 8-bit variables to divisions in inner loops. That is why
   the code writes `>> 3` for "divide by 8" and `<< 3` for "multiply by 8".
-- **`BAND` and `BOR`.** `AND`/`OR` are logical in Boriel BASIC; for bits you must use `BAND`/`BOR`.
-  Writing `(a AND 1)` for a bit test is a classic bug.
+- **`AND` and `OR` work on bits.** As in Locomotive BASIC, `AND`, `OR` and `XOR` combine the bits of two numbers, so
+  `(a AND 1) <> 0` tests bit 0 and `a OR 2` sets bit 1. The same words join conditions (`IF a > 1 AND b > 1`), because a
+  comparison gives -1 for true and 0 for false, and -1 has every bit set. Keep the `<> 0` in a bit test, as the game does:
+  `IF a AND 1 THEN` would also work, but `(a AND 1) <> 0` says what you mean.
+- **`EXIT SUB` and `RETURN`.** `EXIT SUB` leaves a SUB early (`EXIT FUNCTION` a FUNCTION); `RETURN value` ends a
+  FUNCTION with its answer. The input parameter is called `kin`, not `inp`: `INP` is a CPC BASIC function, so it cannot be a
+  variable name.
 - **Integer arrays.** `jtab(pJt)` and `taTab(...)` are arrays; every access with a variable index
   costs a few hundred T-states (**Performance tips**, "Array indexing"). Fine here.
 - **Fixed arcs.** The jump is not physics: it is a table, and so it is the same every time. That
