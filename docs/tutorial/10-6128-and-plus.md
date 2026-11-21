@@ -40,7 +40,7 @@ keep more levels than fit in memory and load a level from disc when you need it 
 
 Lamplighter does not do this, and the reason is worth knowing. The library's rule: **any program that uses
 the bank calls reserves `&4000-&7FFF`, and the compiler refuses to run code that reaches it**
-(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&6A53`, which
+(the same restriction as double buffering). Lamplighter's program runs from `&0040` to `&6A52`, which
 crosses `&4000`. To use banks it would have to be rebuilt to fit below `&4000` (about 16 KB, against 26.5 KB now)
 or to live above `&8000`. The finished game keeps its songs and levels in main RAM, which is why the 464 and
 6128 builds are one program.
@@ -288,12 +288,12 @@ own reference lines:
 
 ```
 Build report for plus-cart:
-  30721 bytes, &0040-&7841
+  30721 bytes, &0040-&7840
     passes &4000 by 14401 bytes (only matters if you use the back screen or RAM banks)
     headroom below &B800: 16319 bytes  [bare limit]
 ```
 
-(Worked out from the 30,721 bytes in the same way as in chapter 9: &0040 + 30,721 = &7841.) The emulator tab
+(Worked out from the 30,721 bytes in the same way as in chapter 9: &0040 + 30,721 - 1 = &7840.) The emulator tab
 starts a Plus and boots the `.cpr` (Studio sends a `.cpr` to the Emulator extension, which always starts a
 Plus for a cartridge); a cartridge boots by itself.
 <!-- CHECK (for the user's test session): run plus-cart through Studio and the emulator tab, not only through the compiler and mkcpr.py as the tutorial's author did (that was run headless on CPCEC up to the title screen). Also confirm the report lines above. -->
@@ -307,7 +307,7 @@ amber, yellow, orange and pale yellow, and the effect costs one palette write ev
 For comparison, the finished game's Plus screenshots (with the flame at two moments, `lit09` and `lit09b`) are in
 `games/lamplighter/tests/golden/plus-cpcec/` and `plus-cap32/`.
 
-What the numbers say (on Caprice32 and CPCEC; the finished game):
+What the numbers say (the finished game; the 464 build on the headless chips emulator, the Plus build on Caprice32 and CPCEC):
 
 | | 464 build | Plus build |
 |---|---|---|

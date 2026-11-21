@@ -165,7 +165,7 @@ little program (2,394 bytes when this was checked) the report is:
 
 ```
 Build report for cpc464:
-  2394 bytes, &0040-&099A
+  2394 bytes, &0040-&0999
     headroom below &4000: 13926 bytes  [back screen (double buffering)]
     headroom below &8B60: 33222 bytes  [firmware heap start]
 Built /your/folder/lamplighter/build/cpc464.dsk

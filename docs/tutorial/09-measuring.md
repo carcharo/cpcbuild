@@ -38,21 +38,21 @@ whose size is 27,436 bytes, it reads:
 
 ```
 Build report for cpc464:
-  27436 bytes, &0040-&6B6C
+  27436 bytes, &0040-&6B6B
     passes &4000 by 11116 bytes (only matters if you use the back screen)
     headroom below &8B60: 8180 bytes  [firmware heap start]
 ```
 
-(The numbers are worked out from the 27,436 bytes: &0040 + 27,436 = &6B6C, &6B6C - &4000 = 11,116 and
-&8B60 - &6B6C = 8,180.) Run
+(The numbers are worked out from the 27,436 bytes: the program fills &0040 to &0040 + 27,436 - 1 = &6B6B, so it
+passes &4000 by &6B6C - &4000 = 11,116 bytes and leaves &8B60 - &6B6C = 8,180 below the heap.) Run
 **CPC Game Studio: Show Build Report** to print the last one again. Your own build will be a few hundred bytes
 different. The lines mean:
 
-- **`27436 bytes, &0040-&6B6C`**: the program's size and address range. Studio reads the start from the `.map`
+- **`27436 bytes, &0040-&6B6B`**: the program's size and address range, from its first byte to its last. Studio reads the start from the `.map`
   file the compiler writes next to the program (the label `.core.__START_PROGRAM`) and adds the size.
   A CPC program loads at `&0040` by default (library: **Program origin**).
 - **`headroom below &8B60`**: the firmware's heap starts at `&8B60`; the program must end below it.
-  From `&0040` that leaves about 34.8 KB (library: **Program origin**). The all-BASIC Lamplighter ends at `&6B6C`
+  From `&0040` that leaves about 34.8 KB (library: **Program origin**). The all-BASIC Lamplighter ends at `&6B6B`
   and has **8,180 bytes spare**: room to add rooms. (With the assembly of this chapter it will be 8,461.)
 - **`passes &4000 by 11116 bytes`**: a reference line, not an error. A program that
   uses double buffering or the 6128's banks must stay below `&4000` because it reserves `&4000-&7FFF`.
@@ -713,7 +713,7 @@ The results, for 20 repetitions (frames):
 So loading a room takes about 12 frames (a quarter of a second) in plain BASIC, and less than one frame in
 assembly. A whole room change, with the drawing, goes from 21 frames to 9. You would notice 21 frames, well over a third of a second of
 nothing, every time you cross a door. The program shrinks by 64 bytes for `CopyRoom` (27,291 to 27,227) and a further 72 for `ScanRoom` (27,155).
-The full build now matches the finished game: **27,155 bytes**, `&0040-&6A53`, and the report shows 8,461 bytes of headroom.
+The full build now matches the finished game: **27,155 bytes**, `&0040-&6A52`, and the report shows 8,461 bytes of headroom.
 
 ## Step 10: Add it up
 

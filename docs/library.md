@@ -466,7 +466,7 @@ END IF
 
 The song's addresses are absolute (&4000-&7FFF inside the bank); the player pages the bank in and out around each tick. `MusicInitBank` does nothing on a 464/664 without extra RAM; check `BankAvailable()` first if the program must run on every model.
 
-Cost (bench/cpcbas/banks_bench.bas, chips): BankPeek/Poke about 550 T-states from BASIC per call; a copy about 1,200 per call plus 25 per byte.
+Cost (bench/cpcbas/banks_bench.bas, chips): BankPeek/Poke about 580 T-states from BASIC per call; a copy about 1,300 per call plus 25 per byte.
 
 ## 7. Double buffering
 

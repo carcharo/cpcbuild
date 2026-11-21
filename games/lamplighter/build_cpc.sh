@@ -25,12 +25,12 @@ build() {   # name, -D flag, extra cpcbas arguments
   name=$1; flag=$2; shift 2
   rm -f "$OUT/$name.bin"
   node "$CLI" --org 0x40 -D "$flag" "$@" -M "$OUT/$name.map" -o "$OUT/$name.bin" "$HERE/main.bas" 2>&1 \
-      | grep -v "warning\|hint:" || true
+      | grep -v "warning\|hint:\|^wrote " || true
   [ -f "$OUT/$name.bin" ] || { echo "build_cpc: $name failed" >&2; exit 1; }
   size=$(($(wc -c < "$OUT/$name.bin") - 128))   # the AMSDOS header
   end=$((0x40 + size))
   [ "$end" -le $((0x8B60)) ] || { echo "build_cpc: $name ends at &$(printf %04X $end), above the heap at &8B60" >&2; exit 1; }
-  printf "%-10s %6d bytes, &0040-&%04X, %5d bytes below the heap (&8B60)\n" "$name" "$size" "$end" $((0x8B60 - end))
+  printf "%-10s %6d bytes, &0040-&%04X, %5d bytes below the heap (&8B60)\n" "$name" "$size" $((end - 1)) $((0x8B60 - end))
 }
 
 build lamp464 CPC464 "$@"

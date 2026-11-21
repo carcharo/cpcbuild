@@ -41,9 +41,9 @@ build() {   # name, -D flag
   fend=$((0x40 + size))
   low=$(lowend $1 $fend)
   if [ "$low" -lt "$fend" ]; then
-    printf "%-10s %6d bytes, low segment &0040-&%04X, high data &8000-&%04X\n" "$1" "$size" $low $fend
+    printf "%-10s %6d bytes, low segment &0040-&%04X, high data &8000-&%04X\n" "$1" "$size" $((low - 1)) $((fend - 1))
   else
-    printf "%-10s %6d bytes, &0040-&%04X\n" "$1" "$size" $fend
+    printf "%-10s %6d bytes, &0040-&%04X\n" "$1" "$size" $((fend - 1))
   fi
 }
 
@@ -78,7 +78,7 @@ for b in starfall starbare; do
   if [ "$fend" -gt "$end" ]; then
     [ "$fend" -le $((0x9600)) ] || { echo "build_cpc: the high data of $b ends above &9600 (loaders' buffer)" >&2; exit 1; }
     case $b in starfall) heap=$((0x8B60));; *) heap=$((0xA560));; esac
-    printf "high data of %s: &8000-&%04X, %d bytes below the heap at &%04X\n" $b $fend $((heap - fend)) $heap
+    printf "high data of %s: &8000-&%04X, %d bytes below the heap at &%04X\n" $b $((fend - 1)) $((heap - fend)) $heap
   fi
 done
 # BARE.BIN stages STARFALL.DAT at &8000 (1.2 KB) before it loads the game
