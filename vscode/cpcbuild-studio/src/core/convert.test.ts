@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { readTree } from '@cpcbuild/cpcbas/node';
 import { compileFiles, copyFixture, errorsOf, runtime } from './cpcbasTestUtil';
 import type { MigrateReport } from '@cpcbuild/cpcbas';
-import { type CheckConfig, convertSources, formatReport, hasSpectrumTargets, mustFix, noProjectMessage, removeSpectrumTargets, targetChecks } from './convert';
+import { type CheckConfig, convertSources, formatReport, hasSpectrumTargets, includeSites, mustFix, noProjectMessage, removeSpectrumTargets, targetChecks } from './convert';
 
 /** Converts the project in `dir` the way the command does (without the questions) and writes the changed files. */
 function convertDir(dir: string, from: 'auto' | 'boriel') {
@@ -92,6 +92,34 @@ describe('Convert Project: the report', () => {
     expect([...r.built!].sort()).toEqual(['a.bas', 'main.bas']);
     // without the checks nothing is known about what is built
     expect(convertSources(files, { from: 'boriel' }).unused).toBeUndefined();
+  });
+
+  it('a file a test program or a CPC #ifdef switch includes is not offered as Spectrum-only', () => {
+    const enc = new TextEncoder();
+    const files = new Map<string, Uint8Array>(([
+      ['main.bas', '#ifdef __CPC__\n#include "cpc.bas"\n#else\n#include "zx.bas"\n#endif\n'],
+      ['cpc.bas', '#ifndef NOMUSIC\n#include "song.bas"\n#else\n#include "quiet.bas"\n#endif\n'],
+      ['song.bas', 'PRINT "song"\n'],
+      ['quiet.bas', 'PRINT "quiet"\n'],
+      ['zx.bas', '#include "zxart.bas"\nPRINT INK 2; "x"\n'],
+      ['zxart.bas', 'PRINT "zx art"\n'],
+      ['tests/logic.bas', '#include "null.bas"\n#include "../cpc.bas"\n'],
+      ['tests/null.bas', 'PRINT "null"\n'],
+    ] as [string, string][]).map(([k, v]) => [k, enc.encode(v)] as [string, Uint8Array]));
+    const checks: CheckConfig[] = [{ mains: ['main.bas'], defines: { CPC6128: '' }, targets: ['cpc6128'] }];
+    const r = convertSources(files, { from: 'boriel', runtime: runtime(), checks });
+    expect(r.built!.has('quiet.bas')).toBe(false);
+    expect(r.unused).toEqual(['zx.bas', 'zxart.bas']);
+  });
+
+  it('includeSites marks the includes in a Spectrum-only branch', () => {
+    const t = '#ifdef ZX48\n#include "a.bas"\n#else\n#include "b.bas"\n#endif\n#ifndef __CPC__\n#include once "c.bas"\n#endif\n#if X\n#include "d.bas"\n#endif\n';
+    expect(includeSites(t)).toEqual([
+      { inc: 'a.bas', spectrum: true },
+      { inc: 'b.bas', spectrum: false },
+      { inc: 'c.bas', spectrum: true },
+      { inc: 'd.bas', spectrum: false },
+    ]);
   });
 });
 

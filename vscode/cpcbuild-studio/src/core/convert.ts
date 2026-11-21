@@ -102,11 +102,9 @@ export interface ConvertResult {
   dialect: 'boriel' | 'cpcbas';
   /** The project files the CPC targets compile (the converted sources, each target's main and defines): only when the checks ran. */
   built?: Set<string>;
-  /** Files some other project file includes that no CPC target compiles: only the removed Spectrum targets used them. Only when the checks ran. */
+  /** Files only the Spectrum build includes (see {@link spectrumOnlyFiles}): no CPC target compiles them. Only when the checks ran. */
   unused?: string[];
 }
-
-const INCLUDE = /^[ \t]*#[ \t]*include[ \t]+"([^"\n]+)"/gim;
 
 /** The project files the compiler reads for these checks (`#ifdef` decides: a Spectrum-only include is not read). Parse only; library files are left out. */
 export function builtFiles(files: FileTree, checks: readonly CheckConfig[], runtime: FileTree): Set<string> {
@@ -120,20 +118,65 @@ export function builtFiles(files: FileTree, checks: readonly CheckConfig[], runt
   return out;
 }
 
-/** The files of `files` that another one includes (`#include "x.bas"`, relative to the including file, else to the project folder). */
-export function includedFiles(files: ReadonlyMap<string, string | Uint8Array>): Set<string> {
-  const out = new Set<string>();
+/** A define that names the Spectrum build (`ZX48`, `ZX128`, `__ZX48K__`). */
+const ZX_NAME = /^_*ZX/i;
+const COND = /^[ \t]*#[ \t]*(ifdef|ifndef|if|elif|else|endif)\b[ \t]*(\w*)/i;
+const INCLUDE_LINE = /^[ \t]*#[ \t]*include[ \t]+(?:once[ \t]+)?"([^"\n]+)"/i;
+
+/**
+ * The `#include "..."` lines of a file, each with whether it sits in a Spectrum-only branch: inside `#ifdef ZX...`,
+ * `#ifndef __CPC__`, or the `#else` of `#ifdef __CPC__` / `#ifndef ZX...`.
+ */
+export function includeSites(text: string): { inc: string; spectrum: boolean }[] {
+  const out: { inc: string; spectrum: boolean }[] = [];
+  const stack: { zx: boolean; elseZx: boolean }[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const c = COND.exec(line);
+    if (c) {
+      const kw = c[1].toLowerCase();
+      const name = c[2];
+      if (kw === 'ifdef') stack.push({ zx: ZX_NAME.test(name), elseZx: name === '__CPC__' });
+      else if (kw === 'ifndef') stack.push({ zx: name === '__CPC__', elseZx: ZX_NAME.test(name) });
+      else if (kw === 'if') stack.push({ zx: false, elseZx: false });
+      else if (kw === 'endif') stack.pop();
+      else if (stack.length) {
+        const top = stack[stack.length - 1];
+        stack[stack.length - 1] = kw === 'else' ? { zx: top.elseZx, elseZx: false } : { zx: false, elseZx: false };
+      }
+      continue;
+    }
+    const m = INCLUDE_LINE.exec(line);
+    if (m) out.push({ inc: posix(m[1]), spectrum: stack.some((s) => s.zx) });
+  }
+  return out;
+}
+
+/**
+ * The files only the Spectrum build reads: not in `built`, and every `#include` of them is in a Spectrum-only branch
+ * or in a file that is itself Spectrum-only. A file a test program or a CPC `#ifdef` switch includes is not one.
+ */
+export function spectrumOnlyFiles(files: ReadonlyMap<string, string | Uint8Array>, built: ReadonlySet<string>): string[] {
   const text = (b: string | Uint8Array): string => (typeof b === 'string' ? b : new TextDecoder('latin1').decode(b));
+  const sites = new Map<string, { from: string; spectrum: boolean }[]>();
   for (const [path, bytes] of files) {
     if (!/\.bas$/i.test(path)) continue;
     const dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
-    for (const m of text(bytes).matchAll(INCLUDE)) {
-      const inc = posix(m[1]);
-      const hit = [normalise(dir + inc), normalise(inc)].find((p) => files.has(p));
-      if (hit) out.add(hit);
+    for (const s of includeSites(text(bytes))) {
+      const hit = [normalise(dir + s.inc), normalise(s.inc)].find((p) => files.has(p));
+      if (hit) sites.set(hit, [...(sites.get(hit) ?? []), { from: path, spectrum: s.spectrum }]);
     }
   }
-  return out;
+  const only = new Set([...sites.keys()].filter((p) => !built.has(p)));
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const p of only) {
+      if (sites.get(p)!.some((s) => !s.spectrum && !only.has(s.from))) {
+        only.delete(p);
+        changed = true;
+      }
+    }
+  }
+  return [...only].sort();
 }
 
 /** `a/b/../c.bas` as `a/c.bas`. */
@@ -182,7 +225,7 @@ export function convertSources(files: ReadonlyMap<string, Uint8Array>, opts: Con
     const after = new Map<string, string | Uint8Array>(files);
     for (const [p, t] of changed) after.set(p, t);
     result.built = builtFiles(after, opts.checks, opts.runtime);
-    result.unused = [...includedFiles(after)].filter((p) => !result.built!.has(p)).sort();
+    result.unused = spectrumOnlyFiles(after, result.built);
   }
   return result;
 }

@@ -92,9 +92,11 @@ describe('a converted 0.1.x project with Spectrum targets builds', () => {
     const c = convertAndClean(dir);
     expect(c.fix).toBe(0);
     expect(c.fixAll).toBe(5); // all in platform_zx.bas, which no CPC target compiles
-    expect(c.unused).toContain('platform_zx.bas');
+    // only the Spectrum build's files: not the test programs' platform, not the CPC build's silent song
+    expect(c.unused).toEqual(['assets/zx/sfx_zx.bas', 'assets/zx/zx_sprites.bas', 'assets/zx/zx_tiles.bas', 'platform_zx.bas']);
     expect(c.zxRecipes).toEqual(['assets/zx/zx_sprites.cpcimp', 'assets/zx/zx_tiles.cpcimp']);
     expect(fs.existsSync(path.join(dir, 'platform_zx.bas'))).toBe(false);
+    for (const f of ['tests/platform_null.bas', 'tests/say.bas', 'tests/playseq.bas', 'assets/quiet.bas']) expect(fs.existsSync(path.join(dir, f)), f).toBe(true);
     // make every picture newer than its output, so the asset step really regenerates the recipes
     const now = new Date();
     for (const f of fs.readdirSync(path.join(dir, 'assets'), { recursive: true }) as string[]) if (f.endsWith('.png')) fs.utimesSync(path.join(dir, 'assets', f), now, now);
