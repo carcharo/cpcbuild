@@ -19,6 +19,7 @@ import { SpriteEditorProvider, generateAssetFile, insertAssetUse, newAssetComman
 import { findProjects, loadProjectFile, LoadedProject, pickProject, PROJECT_FILE, publishDiagnostics, selectedTarget } from './projects';
 import { discPickItems, discPickTitle, machineName, runFromCatalogue, targetForDsk } from './dskRun';
 import { isPlusDisc } from '../core/dsk';
+import { releaseVersion } from '../core/setup';
 import { runInEmulator, setStorageDir } from './run';
 import { runToolLog } from './runTool';
 import { chooseTarget, recordEmuEvent, setTargetStore, state } from './state';
@@ -211,7 +212,7 @@ export function activate(context: vscode.ExtensionContext): StudioApi {
   setToolsStorage(context.globalStorageUri.fsPath);
   setTargetStore(context.workspaceState);
   setStudioExtensionId(context.extension.id);
-  setEmuInstallContext(String(context.extension.packageJSON.version), context.globalStorageUri.fsPath);
+  setEmuInstallContext(releaseVersion(context.extension.packageJSON), context.globalStorageUri.fsPath, String(context.extension.packageJSON.version));
   setBundledLibrary(vscode.Uri.joinPath(context.extensionUri, 'bundled').fsPath);
   const diag = vscode.languages.createDiagnosticCollection('cpcbuild-project');
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);

@@ -169,7 +169,7 @@ that the CPC layer needs three small changes, each a `LAMP_PLUS` condition. Make
 
 (In the finished `platform_cpc.bas` each is a few lines.)
 
-And `main.bas` picks the Plus layer when `PLUS` is defined (the finished file wraps these lines in `#ifdef __CPC__`, which the compiler defines for every CPC build):
+And `main.bas` picks the Plus layer when `PLUS` is defined:
 
 ```basic
 #ifdef PLUS

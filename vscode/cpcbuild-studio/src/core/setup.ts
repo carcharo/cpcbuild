@@ -4,7 +4,14 @@ export const RELEASES_PAGE = 'https://github.com/carcharo/cpcbuild/releases';
 
 export const emuVsixName = (version: string): string => `cpcbuild-emu-${version}.vsix`;
 
-/** Where the emulator package of Studio's own version is published. */
+/**
+ * The release Studio was published in, as in its tag without the "v": the release workflow stamps
+ * package.json's "cpcbuildRelease" from the tag (v0.2.0-rc1 -> "0.2.0-rc1"); other builds use "version".
+ */
+export const releaseVersion = (pkg: { version?: unknown; cpcbuildRelease?: unknown }): string =>
+  typeof pkg.cpcbuildRelease === 'string' && pkg.cpcbuildRelease ? pkg.cpcbuildRelease : String(pkg.version);
+
+/** Where the emulator package of Studio's own release is published. */
 export const emuVsixUrl = (version: string, base: string = RELEASES_PAGE): string => `${base}/download/v${version}/${emuVsixName(version)}`;
 
 /** Runs something once per session, by key. */

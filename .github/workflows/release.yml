@@ -63,6 +63,15 @@ jobs:
         uses: actions/checkout@v7
         with:
           path: cpcbuild
+      # Studio downloads the emulator from its own release: stamp the tag (v0.2.0-rc1 -> "0.2.0-rc1") so a
+      # release candidate's Install Emulator names the rc's assets, not v0.2.0 (H2-3). Branch builds keep "version".
+      - name: Stamp the release into Studio's package.json
+        if: github.ref_type == 'tag'
+        working-directory: cpcbuild/vscode/cpcbuild-studio
+        run: |
+          jq --arg r "${GITHUB_REF_NAME#v}" '.cpcbuildRelease = $r' package.json > package.json.new
+          mv package.json.new package.json
+          jq -r .cpcbuildRelease package.json
       - uses: ./cpcbuild/.github/actions/vsix
       - name: Upload the .vsix files
         uses: actions/upload-artifact@v7
@@ -181,9 +190,9 @@ jobs:
 
           - CPCBuild tag: \`$GITHUB_REF_NAME\` (commit \`$GITHUB_SHA\`)
           - Compiler: cpcbas \`$CVER\` (commit \`$CCOMMIT\`, pinned in \`cpcbas.json\`), bundled in the SDK and in CPC Game Studio
-          - \`cpcbuild-sdk-$VER.zip\`: one archive for Windows, macOS and Linux: the compiler (\`bin/cpcbas.mjs\`, needs Node.js 22 for the command line), library, docs, examples, both games and both extensions; start with \`README-FIRST.txt\`
+          - \`cpcbuild-sdk-$VER.zip\`: one archive for Windows, macOS and Linux: the compiler (\`bin/cpcbas.mjs\`, needs Node.js 22 or newer for the command line), library, docs, examples, both games and both extensions; start with \`README-FIRST.txt\`
           - \`cpcbuild-studio-$VER.vsix\`, \`cpcbuild-emu-$VER.vsix\`: the two VS Code extensions on their own
-          - \`SHA256SUMS\`: checksums of every file here
+          - \`SHA256SUMS\`: checksums of every file here. To check the zip it must stay a zip: Safari unpacks it by itself unless *Open "safe" files after downloading* (Safari > Settings > General) is off
           - Licences: AGPL-3.0 (compiler; the CPC Game Studio .vsix is a combined work under it, its own sources are MIT), MIT (CPCBuild, runtime library), GPL-3.0-or-later (emulator extension); sources are listed in the SDK's \`SOURCES.txt\`
 
           The SDK was unpacked on Linux, macOS and Windows runners and built Lamplighter's lamp464 with its own \`bin/cpcbas.mjs\`, byte-identical to the build with the pinned compiler checkout.

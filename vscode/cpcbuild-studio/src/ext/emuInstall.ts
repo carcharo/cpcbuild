@@ -2,7 +2,8 @@
  * emuInstall.ts -- "CPC Game Studio: Install Emulator": the CPC Game Studio Emulator extension from the release of Studio's own
  * version. A local cpcbuild checkout's .vsix comes first (as before); else the .vsix is downloaded to global storage
  * and installed with workbench.extensions.installExtension; if the download fails the releases page opens.
- * Shared by the missing-emulator warning (emuMissing.ts) and walkthrough step 2.
+ * Shared by the missing-emulator warning (emuMissing.ts) and walkthrough step 2. An emulator of Studio's own version is left alone.
+ * The version is Studio's release (releaseVersion: "0.2.0-rc1" on a release candidate), so the URL names a real release.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -27,19 +28,28 @@ export interface InstallEmuArgs {
   open?(url: string): Thenable<unknown>;
   /** Never show messages or progress. */
   quiet?: boolean;
+  /** The installed emulator's version, or undefined (tests; default: the cpcbuild.cpcbuild-emu extension). */
+  installedVersion?(): string | undefined;
+  /** Studio's package.json version, which an installed emulator must match to be left alone (default: this extension's). */
+  packageVersion?: string;
 }
 
 export interface InstallEmuResult {
   ok: boolean;
-  how: 'local' | 'download' | 'fallback';
+  how: 'installed' | 'local' | 'download' | 'fallback';
   message: string;
   file?: string;
 }
 
+const EMU_EXTENSION_ID = 'cpcbuild.cpcbuild-emu';
+
 let studioVersion = '0.0.0';
+let studioPackageVersion = '0.0.0';
 let storage: string | undefined;
-export function setEmuInstallContext(version: string, storageDir: string | undefined): void {
+/** version: Studio's release (releaseVersion), for the download; packageVersion: its package.json version. */
+export function setEmuInstallContext(version: string, storageDir: string | undefined, packageVersion: string = version): void {
   studioVersion = version;
+  studioPackageVersion = packageVersion;
   storage = storageDir;
 }
 
@@ -68,6 +78,15 @@ async function run(a: InstallEmuArgs): Promise<InstallEmuResult> {
     if (a.quiet) return;
     void (kind === 'info' ? vscode.window.showInformationMessage(m) : vscode.window.showErrorMessage(m));
   };
+  const have = (a.installedVersion ?? (() => vscode.extensions.getExtension(EMU_EXTENSION_ID)?.packageJSON?.version as string | undefined))();
+  // the same version as Studio: nothing to do (H2-3). An older or newer one (the missing-emulator warning after an API
+  // mismatch) is replaced by Studio's own, as before.
+  if (have && have === (a.packageVersion ?? studioPackageVersion)) {
+    const message = `CPC Game Studio: CPC Game Studio Emulator ${have} is already installed. Nothing to do.`;
+    say(message);
+    show('info', message);
+    return { ok: true, how: 'installed', message };
+  }
   const vsix = findLocalVsix(a.library);
   if (vsix) {
     if (!a.quiet) await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(vsix));

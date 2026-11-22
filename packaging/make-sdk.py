@@ -77,8 +77,9 @@ def sdk_files(cpcbas: Path):
 # ---------------------------------------------------------------- texts
 
 def readme_first(ver: str, studio: str, emu: str, cver: str) -> str:
-    return f"""CPCBuild SDK {ver}
-==================
+    title = f"CPCBuild SDK {ver}"
+    return f"""{title}
+{"=" * len(title)}
 
 What this is
   A toolchain for writing Amstrad CPC programs in CPC BASIC, compiled: the compiler (bin/cpcbas.mjs), its
@@ -87,6 +88,9 @@ What this is
     {studio}   CPC Game Studio: project, build, asset editors
     {emu}      CPC Game Studio Emulator: a CPC emulator inside VS Code
   One archive for Windows, macOS and Linux. Nothing is installed system-wide.
+
+Unzip the whole folder first, and keep its path short. Nothing in the SDK is a program to install or sign:
+bin/cpcbas.mjs is a script that Node runs, and VS Code installs the .vsix files.
 
 Set up (about two minutes)
   1. Install Visual Studio Code (code.visualstudio.com).
@@ -108,9 +112,6 @@ Command line (optional; needs Node.js 22 or newer, nodejs.org)
   bin/cpcbas.mjs finds the runtime library in lib/ (next to bin/) by itself. The compiler is cpcbas {cver}.
   Old (0.1.x) Boriel BASIC projects: docs/migrating-from-0.1.md, node bin/cpcbas.mjs migrate --help, or the
   Studio command "Convert Project to CPC BASIC".
-
-Unzip the whole folder first, and keep its path short. Nothing in the SDK is a program to install or sign:
-bin/cpcbas.mjs is a script that Node runs, and VS Code installs the .vsix files.
 
 Licences and sources
   See LICENSES/ (what applies to which part) and SOURCES.txt (exactly which sources this was built from,

@@ -1,8 +1,8 @@
 ' ----------------------------------------------------------------
 ' main.bas -- Lamplighter: title, game loop, game over (portable)
 '
-' The game rules are in game.bas, everything platform-specific in
-' platform_cpc.bas (the portable layer).
+' The game rules are in game.bas, everything that touches the hardware in
+' platform_cpc.bas (or platform_plus.bas on a Plus: the platform layer).
 '
 '   cpcbas --org 0x40 -D CPC464 main.bas               (see build_cpc.sh)
 '
@@ -36,12 +36,10 @@ CONST FIRST_ROOM AS UBYTE = 9
 #endif
 
 #include once "assets/rooms.bas"
-#ifdef __CPC__
 #ifdef PLUS
 #include "platform_plus.bas"
 #else
 #include "platform_cpc.bas"
-#endif
 #endif
 #include "game.bas"
 
@@ -150,11 +148,7 @@ SUB TitleScreen()
   PlatTileRaw(8, 12, T_LIT)
   PlatTileRaw(11, 12, T_LAMP)
   PlatText(5, 17, "PRESS FIRE")
-#ifdef __CPC__
   PlatText(1, 20, "O P Q A OR CURSORS")
-#else
-  PlatText(1, 20, "O P Q A OR KEMPSTON")
-#endif
   PlatText(1, 22, "SPACE JUMPS")
   released = 0
   idle = 0

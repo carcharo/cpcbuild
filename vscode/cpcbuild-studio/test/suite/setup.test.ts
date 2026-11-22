@@ -148,6 +148,21 @@ test('emulator install: downloads the vsix of Studio\'s version, installs it by 
       assert.deepStrictEqual(opened, ['https://github.com/carcharo/cpcbuild/releases']);
       assert.ok(!fs.existsSync(path.join(dir, 'cpcbuild-emu-8.8.8.vsix')), 'the failed download leaves no file');
     });
+    // an installed emulator is left alone: no download, no releases page (H2-3)
+    const opened2: string[] = [];
+    const already = await a.emuInstall.install({ quiet: true, dir, releasesBase: 'http://127.0.0.1:9', version: '7.7.7', packageVersion: '0.2.0', installedVersion: () => '0.2.0', open: async (u: string) => void opened2.push(u), install: async () => assert.fail('must not install') });
+    assert.strictEqual(already.ok, true);
+    assert.strictEqual(already.how, 'installed');
+    assert.strictEqual(already.message, 'CPC Game Studio: CPC Game Studio Emulator 0.2.0 is already installed. Nothing to do.');
+    assert.deepStrictEqual(opened2, []);
+    assert.ok(!fs.existsSync(path.join(dir, 'cpcbuild-emu-7.7.7.vsix')));
+    // an emulator of another version is replaced (the missing-emulator warning after an API mismatch): it downloads
+    await withVsixServer({ '/download/v9.9.9/cpcbuild-emu-9.9.9.vsix': vsix }, async (base) => {
+      const got: vscode.Uri[] = [];
+      const old = await a.emuInstall.install({ quiet: true, dir, releasesBase: base, version: '9.9.9', packageVersion: '0.2.0', installedVersion: () => '0.1.2', install: async (u: vscode.Uri) => void got.push(u), open: async () => assert.fail('no releases page') });
+      assert.strictEqual(old.how, 'download', old.message);
+      assert.strictEqual(got.length, 1);
+    });
     // the default version is Studio's own (package.json)
     const ext = vscode.extensions.getExtension('cpcbuild.cpcbuild-studio');
     assert.strictEqual(ext?.packageJSON.version, '0.2.0');

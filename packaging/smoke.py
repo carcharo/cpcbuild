@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import shutil
 import subprocess
 import sys
@@ -31,6 +32,23 @@ def unpack(archive: Path, dest: Path) -> Path:
     if len(roots) != 1 or not roots[0].name.startswith("cpcbuild-sdk-"):
         sys.exit(f"smoke: {archive.name} does not unpack to one cpcbuild-sdk-* folder: {[p.name for p in roots]}")
     return roots[0]
+
+
+def check_release_stamp(sdk: Path) -> None:
+    """A tagged release's Studio must name its own release (package.json "cpcbuildRelease"), and the emulator file
+    must be the one it downloads from that release: cpcbuild-emu-<release>.vsix (H2-3). Branch builds (0.0.0-<sha>)
+    are not stamped."""
+    ver = sdk.name.removeprefix("cpcbuild-sdk-")
+    if ver.startswith("0.0.0-"):
+        return
+    studio = sdk / f"cpcbuild-studio-{ver}.vsix"
+    if not studio.is_file() or not (sdk / f"cpcbuild-emu-{ver}.vsix").is_file():
+        sys.exit(f"smoke: the .vsix files are not named for release {ver}")
+    with zipfile.ZipFile(studio) as z:
+        pkg = json.loads(z.read("extension/package.json"))
+    if pkg.get("cpcbuildRelease") != ver:
+        sys.exit(f"smoke: Studio's package.json says cpcbuildRelease={pkg.get('cpcbuildRelease')!r}, not {ver!r}")
+    print(f"smoke: Studio is stamped as release {ver}")
 
 
 def run(cmd: list[str], cwd: Path) -> str:
@@ -61,6 +79,7 @@ def main() -> None:
         for vsix in ("studio", "emu"):
             if not list(sdk.glob(f"cpcbuild-{vsix}-*.vsix")):
                 sys.exit(f"smoke: the {vsix} .vsix is missing from the SDK")
+        check_release_stamp(sdk)
         out = tmp / "out"
         out.mkdir(exist_ok=True)
         cli = ["node", str(sdk / "bin" / "cpcbas.mjs")]

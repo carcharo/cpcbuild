@@ -176,7 +176,8 @@ Chapter 9 reads the report line by line. Run **CPC Game Studio: Show Build Repor
 ## Step 5: Read the project file
 
 Open `cpcbuild.json`. Studio treats any folder with this file as a project (Studio does nothing to
-`.bas` files in folders without one, so it will not disturb your other BASIC projects). The template wrote:
+`.bas` files in folders without one, so it will not disturb your other BASIC projects). The template wrote this (laid out
+more compactly here than in the file, which puts one value on each line):
 
 ```json
 {
@@ -231,7 +232,8 @@ From here on, every path in this tutorial is relative to the `lamplighter/` fold
 (In chapter 10 the first line becomes a choice between two layers, with `#ifdef` and `#else`: the preprocessor takes `#ifdef` and
 `#ifndef`, which is all Lamplighter ever uses.)
 
-`platform_cpc.bas` is the only file that knows this is a CPC:
+`platform_cpc.bas` is the only file that touches the hardware: the screen, the keys and, later, the sound (chapter 10 adds a
+second layer beside it, for the CPC Plus):
 
 ```basic
 #include <cpc.bas>
@@ -256,7 +258,7 @@ END FUNCTION
 and `game.bas` is the game, written only in terms of `PlatInit`, `PlatWait` and `PlatQuit`:
 
 ```basic
-DIM x, y, dx, dy AS UBYTE
+DIM x, y, ox, oy, dx, dy AS UBYTE
 
 PlatInit()
 PRINT AT 0, 0; "HELLO FROM CPCBUILD"
@@ -266,7 +268,8 @@ dx = 1
 dy = 1
 DO
   PlatWait()
-  PRINT AT y, x; " "
+  ox = x
+  oy = y
   IF x >= 28 THEN dx = 255
   IF x <= 1 THEN dx = 1
   IF y >= 20 THEN dy = 255
@@ -274,12 +277,19 @@ DO
   x = x + dx
   y = y + dy
   PRINT AT y, x; "O"
+  PRINT AT oy, ox; " "
 LOOP UNTIL PlatQuit()
 END
 ```
 
 Select the `cpc464` target and run **CPC Game Studio: Build and Run** again. You should see `HELLO FROM CPCBUILD` at the top
 and an `O` bouncing around, until you press `ESC`. (`dx = 255` is "minus one" in a `UBYTE`: adding it wraps round.)
+
+The loop prints the new `O` first and only then blanks the old one (`ox`, `oy`). The other way round, the `O` would blink out
+near the top of the screen: printing goes through the firmware and takes a few milliseconds a character, and the screen is
+drawn line by line from the top, so the top rows are drawn before the new `O` arrives and show neither the old one nor the new.
+(Near the top you may see the old `O` trail the new one for a frame: better than a gap.) Chapter 4 deals with this timing
+properly, for sprites: draw right after the screen's flyback.
 
 This split is the most important idea in the tutorial, so say it once more: **`game.bas` never draws,
 reads a key or makes a sound by itself. It asks the platform layer.** That is how one game becomes a
